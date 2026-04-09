@@ -13,6 +13,19 @@ const TOKEN_ERROR_CODES = new Set([
   "invalid_acceess_token",
 ])
 
+// Transient server-side errors from Shopee that are worth retrying.
+const TRANSIENT_ERROR_CODES = new Set([
+  "error_server",
+  "error_network",
+  "error_inner",
+])
+
+const MAX_TRANSIENT_RETRIES = 3
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
 function hmacSign(partnerKey: string, base: string): string {
   return crypto.createHmac("sha256", partnerKey).update(base).digest("hex")
 }
@@ -83,6 +96,7 @@ async function saveTokens(accessToken: string, refreshToken: string) {
 export async function shopeeRequest<T = unknown>(
   path: string,
   params: Record<string, string | number> = {},
+  options: { transientAttempt?: number } = {},
 ): Promise<T> {
   const partnerId = process.env.SHOPEE_PARTNER_ID
   if (!partnerId) {
@@ -130,7 +144,22 @@ export async function shopeeRequest<T = unknown>(
     }
     const newTokens = await refreshShopeeToken(refreshToken, shopId)
     await saveTokens(newTokens.accessToken, newTokens.refreshToken)
-    return shopeeRequest<T>(path, params)
+    return shopeeRequest<T>(path, params, options)
+  }
+
+  // Transient server errors → retry with exponential backoff.
+  if (json.error && TRANSIENT_ERROR_CODES.has(json.error)) {
+    const attempt = options.transientAttempt ?? 0
+    if (attempt < MAX_TRANSIENT_RETRIES) {
+      const delayMs = 500 * Math.pow(2, attempt) // 500ms, 1s, 2s
+      console.warn(
+        `Shopee transient error (${json.error}) on ${path}. Retrying in ${delayMs}ms (attempt ${attempt + 1}/${MAX_TRANSIENT_RETRIES})`,
+      )
+      await sleep(delayMs)
+      return shopeeRequest<T>(path, params, {
+        transientAttempt: attempt + 1,
+      })
+    }
   }
 
   if (json.error) {
