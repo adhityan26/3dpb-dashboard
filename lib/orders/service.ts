@@ -1,9 +1,53 @@
 import { prisma } from "@/lib/db"
 import { getOrderList, getOrderDetail } from "@/lib/shopee/orders"
 import type { OrderSummary, OrderListResult, OrderItemSummary } from "./types"
-import type { ShopeeOrderDetail } from "@/lib/shopee/types"
+import type {
+  ShopeeOrderDetail,
+  ShopeeOrderStatus,
+} from "@/lib/shopee/types"
 
 const FIFTEEN_DAYS_SEC = 15 * 24 * 60 * 60
+
+/**
+ * Fetch all order_sn in the given time range, optionally filtered by status.
+ * Returns full order details (not just order_sn). Used by analytics service
+ * which needs orders across all statuses.
+ */
+export async function getOrdersInRange(params: {
+  timeFrom: number // unix seconds
+  timeTo: number
+  status?: ShopeeOrderStatus
+}): Promise<ShopeeOrderDetail[]> {
+  const allSns: string[] = []
+  let cursor: string | undefined
+  let hasMore = true
+  let safetyCounter = 0
+
+  while (hasMore && safetyCounter < 20) {
+    const page = await getOrderList({
+      timeFrom: params.timeFrom,
+      timeTo: params.timeTo,
+      status: params.status,
+      pageSize: 100,
+      cursor,
+    })
+    for (const entry of page.order_list) {
+      allSns.push(entry.order_sn)
+    }
+    hasMore = page.more
+    cursor = page.next_cursor
+    safetyCounter++
+  }
+
+  const allDetails: ShopeeOrderDetail[] = []
+  for (let i = 0; i < allSns.length; i += 50) {
+    const batch = allSns.slice(i, i + 50)
+    const details = await getOrderDetail(batch)
+    allDetails.push(...details)
+  }
+
+  return allDetails
+}
 
 export async function getReadyToShipOrders(): Promise<OrderListResult> {
   const now = Math.floor(Date.now() / 1000)
