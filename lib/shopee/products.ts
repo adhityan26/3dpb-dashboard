@@ -8,10 +8,11 @@ import type {
 } from "./types"
 
 /**
- * Paginate through all items, filtered by status.
+ * Paginate through all items for a SINGLE status.
+ * Shopee's get_item_list accepts only one item_status value per call.
  */
-export async function getAllItems(
-  itemStatuses: ShopeeItemStatus[] = ["NORMAL", "UNLIST"],
+async function getItemsForStatus(
+  status: ShopeeItemStatus,
 ): Promise<Array<{ item_id: number; item_status: ShopeeItemStatus }>> {
   const all: Array<{ item_id: number; item_status: ShopeeItemStatus }> = []
   let offset = 0
@@ -24,13 +25,13 @@ export async function getAllItems(
       {
         offset,
         page_size: pageSize,
-        item_status: itemStatuses.join(","),
+        item_status: status,
       },
     )
     for (const entry of json.response.item) {
       all.push({
         item_id: entry.item_id,
-        item_status: entry.item_status,
+        item_status: entry.item_status ?? status,
       })
     }
     if (!json.response.has_next_page) break
@@ -38,6 +39,22 @@ export async function getAllItems(
     safety++
   }
 
+  return all
+}
+
+/**
+ * Paginate through all items across multiple statuses.
+ * Shopee requires one call per status, so we run them sequentially to stay
+ * under rate limits.
+ */
+export async function getAllItems(
+  itemStatuses: ShopeeItemStatus[] = ["NORMAL", "UNLIST"],
+): Promise<Array<{ item_id: number; item_status: ShopeeItemStatus }>> {
+  const all: Array<{ item_id: number; item_status: ShopeeItemStatus }> = []
+  for (const status of itemStatuses) {
+    const items = await getItemsForStatus(status)
+    all.push(...items)
+  }
   return all
 }
 
