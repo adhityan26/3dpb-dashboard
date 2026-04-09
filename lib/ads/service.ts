@@ -1,6 +1,7 @@
 import { getAllAdsDailyPerformance } from "@/lib/shopee/ads"
 import type { ShopeeAdDailyRow } from "@/lib/shopee/types"
 import { classifyRoas, computeRecommendation } from "./classifier"
+import { generateMockAdsRows } from "./mock"
 import type { AdSummary, AdsListResult, AdStatus } from "./types"
 
 export type AdsRange = "7d" | "30d"
@@ -43,7 +44,14 @@ export async function getAdsPerformance(
   range: AdsRange,
 ): Promise<AdsListResult> {
   const { startDate, endDate } = getDateRange(range)
-  const rows = await getAllAdsDailyPerformance({ startDate, endDate })
+
+  // Sandbox mode: use mock data when real Shopee Ads API is unavailable
+  // (sandbox shops often don't have ads module). Set SHOPEE_MOCK_ADS=true
+  // in .env.local to enable.
+  const useMock = process.env.SHOPEE_MOCK_ADS === "true"
+  const rows = useMock
+    ? generateMockAdsRows(startDate, endDate)
+    : await getAllAdsDailyPerformance({ startDate, endDate })
 
   // Group by campaign_id
   const byCampaign = new Map<number, ShopeeAdDailyRow[]>()
