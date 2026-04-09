@@ -9,16 +9,14 @@ import type {
 const FIFTEEN_DAYS_SEC = 15 * 24 * 60 * 60
 
 /**
- * Fetch all order_sn in the given time range, optionally filtered by status.
- * Returns full order details (not just order_sn). Used by analytics service
- * which needs orders across all statuses.
+ * Fetch all order_sn in a SINGLE 15-day window. Shopee API hard limit.
  */
-export async function getOrdersInRange(params: {
-  timeFrom: number // unix seconds
+async function getOrderSnsInWindow(params: {
+  timeFrom: number
   timeTo: number
   status?: ShopeeOrderStatus
-}): Promise<ShopeeOrderDetail[]> {
-  const allSns: string[] = []
+}): Promise<string[]> {
+  const sns: string[] = []
   let cursor: string | undefined
   let hasMore = true
   let safetyCounter = 0
@@ -32,16 +30,48 @@ export async function getOrdersInRange(params: {
       cursor,
     })
     for (const entry of page.order_list) {
-      allSns.push(entry.order_sn)
+      sns.push(entry.order_sn)
     }
     hasMore = page.more
     cursor = page.next_cursor
     safetyCounter++
   }
 
+  return sns
+}
+
+/**
+ * Fetch all order_sn in the given time range, optionally filtered by status.
+ * Returns full order details. Automatically chunks the range into ≤15-day
+ * windows because Shopee Order API enforces that limit per call.
+ */
+export async function getOrdersInRange(params: {
+  timeFrom: number // unix seconds
+  timeTo: number
+  status?: ShopeeOrderStatus
+}): Promise<ShopeeOrderDetail[]> {
+  // Chunk into ≤15-day windows (use 14 days to stay safely under)
+  const windowSize = 14 * 24 * 60 * 60
+  const allSns: string[] = []
+  let windowStart = params.timeFrom
+
+  while (windowStart < params.timeTo) {
+    const windowEnd = Math.min(windowStart + windowSize, params.timeTo)
+    const sns = await getOrderSnsInWindow({
+      timeFrom: windowStart,
+      timeTo: windowEnd,
+      status: params.status,
+    })
+    allSns.push(...sns)
+    windowStart = windowEnd
+  }
+
+  // Dedupe in case chunk boundaries produce overlap (shouldn't, but safe)
+  const uniqueSns = Array.from(new Set(allSns))
+
   const allDetails: ShopeeOrderDetail[] = []
-  for (let i = 0; i < allSns.length; i += 50) {
-    const batch = allSns.slice(i, i + 50)
+  for (let i = 0; i < uniqueSns.length; i += 50) {
+    const batch = uniqueSns.slice(i, i + 50)
     const details = await getOrderDetail(batch)
     allDetails.push(...details)
   }
