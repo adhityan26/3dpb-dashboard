@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -23,24 +23,37 @@ interface VariantState {
   hppText: string
 }
 
-export function HppEditModal({ product, onClose, onSave, isPending }: Props) {
-  const [productHppText, setProductHppText] = useState("")
-  const [variants, setVariants] = useState<VariantState[]>([])
-  const [showVariants, setShowVariants] = useState(false)
+function initialVariants(product: ProductSummary): VariantState[] {
+  return product.variants.map((v) => ({
+    variantId: v.variantId,
+    name: v.variantName,
+    hppText: v.hpp !== null ? String(v.hpp) : "",
+  }))
+}
 
-  useEffect(() => {
-    if (product) {
-      setProductHppText(product.hpp !== null ? String(product.hpp) : "")
-      setVariants(
-        product.variants.map((v) => ({
-          variantId: v.variantId,
-          name: v.variantName,
-          hppText: v.hpp !== null ? String(v.hpp) : "",
-        })),
-      )
-      setShowVariants(product.variants.some((v) => v.hpp !== null))
-    }
-  }, [product])
+export function HppEditModal({ product, onClose, onSave, isPending }: Props) {
+  // Reset state when product changes (the "resetting state via key prop in
+  // state" React 19 pattern — avoids setState in useEffect).
+  const [trackedProductId, setTrackedProductId] = useState<string | null>(
+    product?.productId ?? null,
+  )
+  const [productHppText, setProductHppText] = useState<string>(
+    product?.hpp != null ? String(product.hpp) : "",
+  )
+  const [variants, setVariants] = useState<VariantState[]>(
+    product ? initialVariants(product) : [],
+  )
+  const [showVariants, setShowVariants] = useState<boolean>(
+    product ? product.variants.some((v) => v.hpp !== null) : false,
+  )
+
+  // If product changed, reset derived state immediately (no effect needed).
+  if (product && product.productId !== trackedProductId) {
+    setTrackedProductId(product.productId)
+    setProductHppText(product.hpp !== null ? String(product.hpp) : "")
+    setVariants(initialVariants(product))
+    setShowVariants(product.variants.some((v) => v.hpp !== null))
+  }
 
   if (!product) return null
 
