@@ -113,3 +113,84 @@ export interface ShopeeAdsDailyPerformanceResponse {
   error?: string
   message?: string
 }
+
+// ===== Product API types =====
+
+export type ShopeeItemStatus =
+  | "NORMAL"
+  | "BANNED"
+  | "DELETED"
+  | "UNLIST"
+  | "REVIEWING"
+
+export interface ShopeeItemListEntry {
+  item_id: number
+  item_status: ShopeeItemStatus
+  update_time: number
+}
+
+export interface ShopeeItemListResponse {
+  response: {
+    item: ShopeeItemListEntry[]
+    total_count: number
+    has_next_page: boolean
+    next_offset: number
+  }
+  error?: string
+  message?: string
+}
+
+export interface ShopeeItemBaseInfo {
+  item_id: number
+  item_name: string
+  item_status: ShopeeItemStatus
+  has_model: boolean
+  price_info?: Array<{
+    current_price: number
+    original_price: number
+  }>
+  stock_info_v2?: {
+    summary_info?: {
+      total_available_stock?: number
+    }
+  }
+  image?: {
+    image_url_list?: string[]
+  }
+}
+
+export interface ShopeeItemBaseInfoResponse {
+  response: {
+    item_list: ShopeeItemBaseInfo[]
+  }
+  error?: string
+  message?: string
+}
+
+export interface ShopeeModel {
+  model_id: number
+  model_name?: string
+  model_sku?: string
+  price_info?: Array<{
+    current_price: number
+    original_price: number
+  }>
+  stock_info_v2?: {
+    summary_info?: {
+      total_available_stock?: number
+    }
+    seller_stock?: Array<{ stock: number }>
+  }
+}
+
+export interface ShopeeModelListResponse {
+  response: {
+    model: ShopeeModel[]
+    tier_variation?: Array<{
+      name: string
+      option_list: Array<{ option: string }>
+    }>
+  }
+  error?: string
+  message?: string
+}
