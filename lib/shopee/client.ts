@@ -1,7 +1,17 @@
 import crypto from "crypto"
 import { prisma } from "@/lib/db"
 
-const BASE_URL = process.env.SHOPEE_BASE_URL ?? "https://partner.shopeemobile.com"
+const BASE_URL =
+  process.env.SHOPEE_BASE_URL ?? "https://partner.shopeemobile.com"
+
+// Shopee uses these error codes for invalid/expired tokens.
+// Note: "invalid_acceess_token" is Shopee's own typo in their API responses.
+const TOKEN_ERROR_CODES = new Set([
+  "error_auth",
+  "error_access_token",
+  "invalid_access_token",
+  "invalid_acceess_token",
+])
 
 function hmacSign(partnerKey: string, base: string): string {
   return crypto.createHmac("sha256", partnerKey).update(base).digest("hex")
@@ -15,7 +25,10 @@ function signShopApi(
 ): string {
   const partnerId = process.env.SHOPEE_PARTNER_ID!
   const partnerKey = process.env.SHOPEE_PARTNER_KEY!
-  return hmacSign(partnerKey, `${partnerId}${path}${timestamp}${accessToken}${shopId}`)
+  return hmacSign(
+    partnerKey,
+    `${partnerId}${path}${timestamp}${accessToken}${shopId}`,
+  )
 }
 
 function signPublicApi(path: string, timestamp: number): string {
@@ -33,6 +46,18 @@ async function getTokens() {
     accessToken: accessRow?.value ?? null,
     refreshToken: refreshRow?.value ?? null,
   }
+}
+
+/**
+ * Get the shop_id to use for signing.
+ * Prefer the one saved during OAuth (authoritative — it matches the token owner),
+ * fall back to env var for pre-auth contexts.
+ */
+async function getShopId(): Promise<string | null> {
+  const row = await prisma.config.findUnique({
+    where: { key: "shopee_shop_id" },
+  })
+  return row?.value ?? process.env.SHOPEE_SHOP_ID ?? null
 }
 
 async function saveTokens(accessToken: string, refreshToken: string) {
@@ -60,9 +85,15 @@ export async function shopeeRequest<T = unknown>(
   params: Record<string, string | number> = {},
 ): Promise<T> {
   const partnerId = process.env.SHOPEE_PARTNER_ID
-  const shopId = process.env.SHOPEE_SHOP_ID
-  if (!partnerId || !shopId) {
-    throw new Error("SHOPEE_PARTNER_ID or SHOPEE_SHOP_ID is not set in env")
+  if (!partnerId) {
+    throw new Error("SHOPEE_PARTNER_ID is not set in env")
+  }
+
+  const shopId = await getShopId()
+  if (!shopId) {
+    throw new Error(
+      "Shopee shop_id not found. Please connect Shopee via Settings.",
+    )
   }
 
   const { accessToken } = await getTokens()
@@ -84,32 +115,41 @@ export async function shopeeRequest<T = unknown>(
   }
 
   const res = await fetch(url.toString())
-  const json = (await res.json()) as { error?: string; message?: string } & Record<string, unknown>
+  const json = (await res.json()) as {
+    error?: string
+    message?: string
+  } & Record<string, unknown>
 
   // Token expired → refresh and retry once.
-  if (json.error === "error_auth" || json.error === "error_access_token") {
+  if (json.error && TOKEN_ERROR_CODES.has(json.error)) {
     const { refreshToken } = await getTokens()
     if (!refreshToken) {
-      throw new Error("Refresh token missing. Please reconnect Shopee via Settings.")
+      throw new Error(
+        "Refresh token missing. Please reconnect Shopee via Settings.",
+      )
     }
-    const newTokens = await refreshShopeeToken(refreshToken)
+    const newTokens = await refreshShopeeToken(refreshToken, shopId)
     await saveTokens(newTokens.accessToken, newTokens.refreshToken)
     return shopeeRequest<T>(path, params)
   }
 
   if (json.error) {
-    throw new Error(`Shopee API error: ${json.error} — ${json.message ?? "no message"}`)
+    throw new Error(
+      `Shopee API error: ${json.error} — ${json.message ?? "no message"}`,
+    )
   }
 
   return json as T
 }
 
-async function refreshShopeeToken(refreshToken: string): Promise<{
+async function refreshShopeeToken(
+  refreshToken: string,
+  shopId: string,
+): Promise<{
   accessToken: string
   refreshToken: string
 }> {
   const partnerId = process.env.SHOPEE_PARTNER_ID!
-  const shopId = process.env.SHOPEE_SHOP_ID!
   const path = "/api/v2/auth/access_token/get"
   const timestamp = Math.floor(Date.now() / 1000)
   const sign = signPublicApi(path, timestamp)
