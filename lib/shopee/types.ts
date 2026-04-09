@@ -69,3 +69,47 @@ export interface ShopeeOrderDetailResponse {
   error?: string
   message?: string
 }
+
+// ===== Ads API types =====
+
+export type ShopeeAdStatus = "berjalan" | "dijeda" | "berakhir"
+export type ShopeeCampaignType = "product" | "shop"
+export type ShopeeBiddingMethod =
+  | "gmv_max_roas"
+  | "gmv_max_auto"
+  | "manual_bidding"
+  | "auto_bidding"
+  | string
+
+export interface ShopeeAdDailyRow {
+  campaign_id: number
+  campaign_type?: ShopeeCampaignType
+  bidding_method?: ShopeeBiddingMethod
+  ad_name?: string
+  ad_status?: ShopeeAdStatus
+  date: string
+  impression?: number
+  clicks?: number
+  ctr?: number
+  expense?: number
+  order_amount?: number
+  direct_order_amount?: number
+  roi?: number
+  direct_roi?: number
+  broad_roas?: number
+  broad_gmv?: number
+  item_sold?: number
+  direct_item_sold?: number
+  item_id?: number
+  item_name?: string
+}
+
+export interface ShopeeAdsDailyPerformanceResponse {
+  response: {
+    ad_performance_list?: ShopeeAdDailyRow[]
+    list?: ShopeeAdDailyRow[]
+    total?: number
+  }
+  error?: string
+  message?: string
+}
