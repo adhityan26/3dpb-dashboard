@@ -2,16 +2,30 @@ import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { TabNav } from "@/components/layout/TabNav"
 import { countBelumCetak } from "@/lib/orders/service"
+import { getAdsPerformance } from "@/lib/ads/service"
 
 async function getBadges(): Promise<Record<string, number>> {
-  // Don't let Shopee API failures break the whole dashboard — badges are optional.
-  try {
-    const belumCetak = await countBelumCetak()
-    return { order: belumCetak }
-  } catch (err) {
-    console.warn("Failed to fetch badge counts:", err)
-    return {}
+  // Fetch in parallel but tolerate individual failures — badges are optional.
+  const [orderResult, adsResult] = await Promise.allSettled([
+    countBelumCetak(),
+    getAdsPerformance("7d"),
+  ])
+
+  const badges: Record<string, number> = {}
+
+  if (orderResult.status === "fulfilled") {
+    badges.order = orderResult.value
+  } else {
+    console.warn("Failed to fetch order badge:", orderResult.reason)
   }
+
+  if (adsResult.status === "fulfilled") {
+    badges.iklan = adsResult.value.kpi.adsRugi
+  } else {
+    console.warn("Failed to fetch ads badge:", adsResult.reason)
+  }
+
+  return badges
 }
 
 export default async function DashboardLayout({
