@@ -28,14 +28,17 @@ async function getItemsForStatus(
         item_status: status,
       },
     )
-    for (const entry of json.response.item) {
+    // Some API versions return `item`, others return `item_list`.
+    // Empty shops return no array at all.
+    const entries = json.response.item ?? json.response.item_list ?? []
+    for (const entry of entries) {
       all.push({
         item_id: entry.item_id,
         item_status: entry.item_status ?? status,
       })
     }
     if (!json.response.has_next_page) break
-    offset = json.response.next_offset
+    offset = json.response.next_offset ?? offset + pageSize
     safety++
   }
 

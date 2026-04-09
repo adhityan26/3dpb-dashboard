@@ -131,10 +131,12 @@ export interface ShopeeItemListEntry {
 
 export interface ShopeeItemListResponse {
   response: {
-    item: ShopeeItemListEntry[]
-    total_count: number
-    has_next_page: boolean
-    next_offset: number
+    // Shopee has shipped both names across API versions. Handle both.
+    item?: ShopeeItemListEntry[]
+    item_list?: ShopeeItemListEntry[]
+    total_count?: number
+    has_next_page?: boolean
+    next_offset?: number
   }
   error?: string
   message?: string
