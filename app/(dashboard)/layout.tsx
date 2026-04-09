@@ -3,12 +3,14 @@ import { redirect } from "next/navigation"
 import { TabNav } from "@/components/layout/TabNav"
 import { countBelumCetak } from "@/lib/orders/service"
 import { getAdsPerformance } from "@/lib/ads/service"
+import { countPerluPerhatian } from "@/lib/products/service"
 
 async function getBadges(): Promise<Record<string, number>> {
   // Fetch in parallel but tolerate individual failures — badges are optional.
-  const [orderResult, adsResult] = await Promise.allSettled([
+  const [orderResult, adsResult, productsResult] = await Promise.allSettled([
     countBelumCetak(),
     getAdsPerformance("7d"),
+    countPerluPerhatian(),
   ])
 
   const badges: Record<string, number> = {}
@@ -23,6 +25,12 @@ async function getBadges(): Promise<Record<string, number>> {
     badges.iklan = adsResult.value.kpi.adsRugi
   } else {
     console.warn("Failed to fetch ads badge:", adsResult.reason)
+  }
+
+  if (productsResult.status === "fulfilled") {
+    badges.produk = productsResult.value
+  } else {
+    console.warn("Failed to fetch products badge:", productsResult.reason)
   }
 
   return badges
