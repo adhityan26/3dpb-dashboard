@@ -15,26 +15,39 @@ export function RefreshIndicator({
   onRefresh,
 }: RefreshIndicatorProps) {
   const [countdown, setCountdown] = useState(Math.floor(intervalMs / 1000))
+  const [now, setNow] = useState<number | null>(null)
 
+  // Tick every second: update countdown and `now` (used for "X ago" display).
+  // setState is only called from the interval callback — not synchronously in
+  // the effect body — to satisfy react-hooks/set-state-in-effect.
   useEffect(() => {
-    if (intervalMs <= 0) return
+    const tick = () => {
+      setNow(Date.now())
+      if (intervalMs > 0) {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            onRefresh()
+            return Math.floor(intervalMs / 1000)
+          }
+          return prev - 1
+        })
+      }
+    }
 
-    setCountdown(Math.floor(intervalMs / 1000))
-    const timer = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          onRefresh()
-          return Math.floor(intervalMs / 1000)
-        }
-        return prev - 1
-      })
-    }, 1000)
+    const timer = setInterval(tick, 1000)
     return () => clearInterval(timer)
   }, [lastUpdated, intervalMs, onRefresh])
 
-  const timeAgoSec = lastUpdated
-    ? Math.floor((Date.now() - lastUpdated.getTime()) / 1000)
-    : null
+  // When the interval config changes, reset the countdown via a separate
+  // effect that runs only on that change — not on every render.
+  useEffect(() => {
+    setCountdown(Math.floor(intervalMs / 1000))
+  }, [intervalMs])
+
+  const timeAgoSec =
+    lastUpdated && now != null
+      ? Math.floor((now - lastUpdated.getTime()) / 1000)
+      : null
 
   const timeAgoText =
     timeAgoSec == null
