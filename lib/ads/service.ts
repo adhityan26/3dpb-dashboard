@@ -5,12 +5,19 @@ import type { AdSummary, AdsListResult, AdStatus } from "./types"
 
 export type AdsRange = "7d" | "30d"
 
+function formatShopeeDate(d: Date): string {
+  // Shopee Ads API requires DD-MM-YYYY format.
+  const day = String(d.getDate()).padStart(2, "0")
+  const month = String(d.getMonth() + 1).padStart(2, "0")
+  const year = d.getFullYear()
+  return `${day}-${month}-${year}`
+}
+
 function getDateRange(range: AdsRange): { startDate: string; endDate: string } {
   const now = new Date()
-  const end = now.toISOString().slice(0, 10)
   const days = range === "7d" ? 7 : 30
-  const startDate = new Date(now.getTime() - (days - 1) * 24 * 60 * 60 * 1000)
-  return { startDate: startDate.toISOString().slice(0, 10), endDate: end }
+  const start = new Date(now.getTime() - (days - 1) * 24 * 60 * 60 * 1000)
+  return { startDate: formatShopeeDate(start), endDate: formatShopeeDate(now) }
 }
 
 function normalizeStatus(status: string | undefined): AdStatus {
