@@ -34,19 +34,9 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 
-# Copy Prisma client + adapter (needed at runtime)
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/better-sqlite3 ./node_modules/better-sqlite3
-COPY --from=builder /app/node_modules/@prisma/adapter-better-sqlite3 ./node_modules/@prisma/adapter-better-sqlite3
-
-# Copy seed script + tsx for initial setup
-COPY --from=builder /app/scripts ./scripts
-COPY --from=builder /app/node_modules/tsx ./node_modules/tsx
-COPY --from=builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
-
-# Copy dotenv (needed by prisma.config.ts)
-COPY --from=builder /app/node_modules/dotenv ./node_modules/dotenv
+# Copy full node_modules for runtime, prisma CLI, and seed script.
+# Standalone output handles Next.js deps; we need the rest for Prisma + tools.
+COPY --from=builder /app/node_modules ./node_modules
 
 # Copy entrypoint script (runs migrations before starting server)
 COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
