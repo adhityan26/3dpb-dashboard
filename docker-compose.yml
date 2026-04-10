@@ -1,0 +1,12 @@
+services:
+  shopee-dashboard:
+    build: .
+    container_name: shopee-dashboard
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persistent SQLite database — survives container rebuilds
+      - ./data:/app/data
+    env_file:
+      - .env.production
+    restart: unless-stopped
