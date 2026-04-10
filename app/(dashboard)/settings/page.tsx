@@ -5,6 +5,7 @@ import { NotificationConfigCard } from "@/components/settings/NotificationConfig
 import { AlertThresholdCard } from "@/components/settings/AlertThresholdCard"
 import { RefreshIntervalCard } from "@/components/settings/RefreshIntervalCard"
 import { UserManagementCard } from "@/components/settings/UserManagementCard"
+import { NotificationRunnerCard } from "@/components/settings/NotificationRunnerCard"
 import { useSettings } from "@/lib/hooks/use-settings"
 import { Button } from "@/components/ui/button"
 
@@ -43,6 +44,8 @@ export default function SettingsPage() {
       <NotificationConfigCard config={data.notification} />
 
       <AlertThresholdCard thresholds={data.thresholds} />
+
+      <NotificationRunnerCard />
 
       <UserManagementCard />
     </div>
