@@ -42,3 +42,19 @@ model VariantHpp {
   hpp       Float?
   product   ProductHpp @relation(fields: [productId], references: [productId])
 }
+
+model NotificationLog {
+  id       String   @id @default(cuid())
+  alertKey String
+  channel  String
+  sentAt   DateTime @default(now())
+  message  String
+
+  @@index([alertKey, sentAt])
+}
+
+model ProductStatusSnapshot {
+  productId String   @id
+  status    String
+  updatedAt DateTime @updatedAt
+}
