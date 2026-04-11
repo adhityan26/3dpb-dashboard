@@ -11,6 +11,8 @@ interface Props {
     hpp: number | null,
     variantId?: string,
   ) => void
+  onUploadImage: (productId: string, file: File) => void
+  uploadingImageFor: string | null
   canEditHpp: boolean
 }
 
@@ -18,6 +20,8 @@ export function ProductList({
   products,
   onEditHpp,
   onQuickSetHpp,
+  onUploadImage,
+  uploadingImageFor,
   canEditHpp,
 }: Props) {
   if (products.length === 0) {
@@ -36,6 +40,8 @@ export function ProductList({
           product={p}
           onEditHpp={onEditHpp}
           onQuickSetHpp={onQuickSetHpp}
+          onUploadImage={onUploadImage}
+          uploadingImageFor={uploadingImageFor}
           canEditHpp={canEditHpp}
         />
       ))}

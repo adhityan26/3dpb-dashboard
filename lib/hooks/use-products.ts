@@ -110,3 +110,41 @@ export function useSetHpp() {
     },
   })
 }
+
+interface UploadImageVars {
+  productId: string
+  file: File
+}
+
+interface UploadImageResult {
+  ok: boolean
+  imageId?: string
+  imageUrl?: string
+  totalImages?: number
+}
+
+async function uploadProductImage(
+  vars: UploadImageVars,
+): Promise<UploadImageResult> {
+  const fd = new FormData()
+  fd.append("image", vars.file)
+  const res = await fetch(`/api/products/${vars.productId}/image`, {
+    method: "POST",
+    body: fd,
+  })
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Unknown error" }))
+    throw new Error(err.error ?? `HTTP ${res.status}`)
+  }
+  return res.json()
+}
+
+export function useUploadProductImage() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: uploadProductImage,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: PRODUCTS_KEY })
+    },
+  })
+}

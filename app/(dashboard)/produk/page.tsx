@@ -7,7 +7,11 @@ import { ProductFilter } from "@/components/products/ProductFilter"
 import { ProductList } from "@/components/products/ProductList"
 import { HppEditModal } from "@/components/products/HppEditModal"
 import { RefreshIndicator } from "@/components/layout/RefreshIndicator"
-import { useProducts, useSetHpp } from "@/lib/hooks/use-products"
+import {
+  useProducts,
+  useSetHpp,
+  useUploadProductImage,
+} from "@/lib/hooks/use-products"
 import { useRefreshConfig } from "@/lib/use-refresh-config"
 import { Button } from "@/components/ui/button"
 import type { ProductSummary } from "@/lib/products/types"
@@ -20,10 +24,46 @@ export default function ProdukPage() {
   const { data, isLoading, isError, error, refetch, dataUpdatedAt } =
     useProducts()
   const setHpp = useSetHpp()
+  const uploadImage = useUploadProductImage()
   const [filter, setFilter] = useState<ProductFilterValue>("perlu_perhatian")
   const [editingProduct, setEditingProduct] = useState<ProductSummary | null>(
     null,
   )
+  const [uploadingImageFor, setUploadingImageFor] = useState<string | null>(
+    null,
+  )
+  const [toast, setToast] = useState<{
+    message: string
+    type: "success" | "error"
+  } | null>(null)
+
+  function handleUploadImage(productId: string, file: File) {
+    setUploadingImageFor(productId)
+    setToast(null)
+    uploadImage.mutate(
+      { productId, file },
+      {
+        onSuccess: () => {
+          setToast({
+            message:
+              "✅ Foto di-upload. Shopee mungkin review perubahan dalam beberapa menit.",
+            type: "success",
+          })
+        },
+        onError: (err) => {
+          setToast({
+            message: `❌ Upload gagal: ${err.message}`,
+            type: "error",
+          })
+        },
+        onSettled: () => {
+          setUploadingImageFor(null)
+          // Auto-dismiss toast after 6 seconds
+          setTimeout(() => setToast(null), 6000)
+        },
+      },
+    )
+  }
 
   const filtered = useMemo(() => {
     if (!data) return []
@@ -100,8 +140,35 @@ export default function ProdukPage() {
       <ProductList
         products={filtered}
         onEditHpp={setEditingProduct}
+        onQuickSetHpp={(productId, hpp, variantId) => {
+          if (variantId) {
+            setHpp.mutate({
+              productId,
+              variants: [{ variantId, hpp }],
+            })
+          } else {
+            setHpp.mutate({
+              productId,
+              productHpp: hpp,
+            })
+          }
+        }}
+        onUploadImage={handleUploadImage}
+        uploadingImageFor={uploadingImageFor}
         canEditHpp={canEditHpp}
       />
+
+      {toast && (
+        <div
+          className={`fixed bottom-4 right-4 z-50 max-w-sm p-3 rounded-md shadow-lg text-sm ${
+            toast.type === "success"
+              ? "bg-green-50 border border-green-200 text-green-800"
+              : "bg-red-50 border border-red-200 text-red-800"
+          }`}
+        >
+          {toast.message}
+        </div>
+      )}
 
       <HppEditModal
         product={editingProduct}

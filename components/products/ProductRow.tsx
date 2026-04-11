@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -16,6 +16,8 @@ interface Props {
     hpp: number | null,
     variantId?: string,
   ) => void
+  onUploadImage: (productId: string, file: File) => void
+  uploadingImageFor: string | null
   canEditHpp: boolean
 }
 
@@ -117,10 +119,14 @@ export function ProductRow({
   product,
   onEditHpp,
   onQuickSetHpp,
+  onUploadImage,
+  uploadingImageFor,
   canEditHpp,
 }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [zoomOpen, setZoomOpen] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const isUploading = uploadingImageFor === product.productId
 
   const bgClass = product.isStockLow
     ? "bg-red-50/40"
@@ -142,13 +148,42 @@ export function ProductRow({
             onClick={() => product.hasVariants && setExpanded((e) => !e)}
             className="flex-1 text-left flex items-start gap-3 min-w-0"
           >
-            <ProductThumb
-              src={product.imageUrl}
-              alt={product.name}
-              onClick={
-                product.imageUrl ? () => setZoomOpen(true) : undefined
-              }
-            />
+            <div className="relative shrink-0">
+              <ProductThumb
+                src={product.imageUrl}
+                alt={product.name}
+                onClick={
+                  product.imageUrl ? () => setZoomOpen(true) : undefined
+                }
+              />
+              {canEditHpp && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    fileInputRef.current?.click()
+                  }}
+                  disabled={isUploading}
+                  title="Upload foto baru"
+                  className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#EE4D2D] hover:bg-[#d44226] text-white text-[10px] flex items-center justify-center shadow border-2 border-white disabled:opacity-50 disabled:cursor-wait"
+                >
+                  {isUploading ? "⋯" : "📷"}
+                </button>
+              )}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) onUploadImage(product.productId, file)
+                  // Reset so same file can be selected again
+                  e.target.value = ""
+                }}
+              />
+            </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-medium text-sm">{product.name}</span>

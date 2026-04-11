@@ -158,6 +158,7 @@ export interface ShopeeItemBaseInfo {
   }
   image?: {
     image_url_list?: string[]
+    image_id_list?: string[]
   }
 }
 
