@@ -39,7 +39,15 @@ const STATUS_COLOR: Record<ProductSummary["status"], string> = {
   REVIEWING: "bg-amber-100 text-amber-800",
 }
 
-function ProductThumb({ src, alt }: { src: string | null; alt: string }) {
+function ProductThumb({
+  src,
+  alt,
+  onClick,
+}: {
+  src: string | null
+  alt: string
+  onClick?: () => void
+}) {
   const [errored, setErrored] = useState(false)
   if (!src || errored) {
     return (
@@ -54,9 +62,54 @@ function ProductThumb({ src, alt }: { src: string | null; alt: string }) {
       src={src}
       alt={alt}
       onError={() => setErrored(true)}
-      className="w-14 h-14 shrink-0 rounded object-cover border border-gray-200 bg-gray-50"
+      onClick={(e) => {
+        if (!onClick) return
+        e.stopPropagation()
+        onClick()
+      }}
+      className={`w-14 h-14 shrink-0 rounded object-cover border border-gray-200 bg-gray-50 ${
+        onClick ? "cursor-zoom-in hover:ring-2 hover:ring-[#EE4D2D]" : ""
+      }`}
       loading="lazy"
     />
+  )
+}
+
+function ImageZoomModal({
+  src,
+  alt,
+  onClose,
+}: {
+  src: string
+  alt: string
+  onClose: () => void
+}) {
+  return (
+    <div
+      className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4 cursor-zoom-out"
+      onClick={onClose}
+      role="dialog"
+      aria-label="Zoom gambar"
+    >
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute top-4 right-4 text-white text-2xl hover:text-[#EE4D2D]"
+        aria-label="Tutup"
+      >
+        ✕
+      </button>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={src}
+        alt={alt}
+        onClick={(e) => e.stopPropagation()}
+        className="max-w-[90vw] max-h-[90vh] object-contain rounded shadow-2xl cursor-default"
+      />
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-white text-sm bg-black/50 px-3 py-1 rounded max-w-[90vw] truncate">
+        {alt}
+      </div>
+    </div>
   )
 }
 
@@ -67,6 +120,7 @@ export function ProductRow({
   canEditHpp,
 }: Props) {
   const [expanded, setExpanded] = useState(false)
+  const [zoomOpen, setZoomOpen] = useState(false)
 
   const bgClass = product.isStockLow
     ? "bg-red-50/40"
@@ -88,7 +142,13 @@ export function ProductRow({
             onClick={() => product.hasVariants && setExpanded((e) => !e)}
             className="flex-1 text-left flex items-start gap-3 min-w-0"
           >
-            <ProductThumb src={product.imageUrl} alt={product.name} />
+            <ProductThumb
+              src={product.imageUrl}
+              alt={product.name}
+              onClick={
+                product.imageUrl ? () => setZoomOpen(true) : undefined
+              }
+            />
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-medium text-sm">{product.name}</span>
@@ -203,6 +263,13 @@ export function ProductRow({
           </div>
         )}
       </CardContent>
+      {zoomOpen && product.imageUrl && (
+        <ImageZoomModal
+          src={product.imageUrl}
+          alt={product.name}
+          onClose={() => setZoomOpen(false)}
+        />
+      )}
     </Card>
   )
 }
