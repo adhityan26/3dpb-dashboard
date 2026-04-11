@@ -58,3 +58,47 @@ model ProductStatusSnapshot {
   status    String
   updatedAt DateTime @updatedAt
 }
+
+model FilamentCatalog {
+  id         String   @id @default(cuid())
+  brand      String
+  material   String
+  colorName  String
+  colorHex   String
+  syncedAt   DateTime @default(now())
+  spools     Spool[]
+
+  @@unique([brand, material, colorName])
+  @@index([brand])
+}
+
+model Spool {
+  id              String           @id @default(cuid())
+  catalogId       String?
+  catalog         FilamentCatalog? @relation(fields: [catalogId], references: [id])
+  brand           String
+  material        String
+  colorName       String
+  colorHex        String
+  status          String           @default("new")  // new|full|mid|low|empty
+  barcode         String           @unique @default(cuid())
+  nfcTagId        String?          @unique
+  notes           String           @default("")
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  amsSlots        AmsSlot[]
+}
+
+model AmsSlot {
+  id            String   @id @default(cuid())
+  productType   String   // swoosh|clickers
+  variantName   String
+  slotNumber    Int      // 1–8
+  filamentName  String   // display name from Excel
+  spoolId       String?
+  spool         Spool?   @relation(fields: [spoolId], references: [id])
+
+  @@unique([productType, variantName, slotNumber])
+  @@index([productType])
+  @@index([spoolId])
+}
