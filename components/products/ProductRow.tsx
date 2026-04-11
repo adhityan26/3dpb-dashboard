@@ -39,6 +39,27 @@ const STATUS_COLOR: Record<ProductSummary["status"], string> = {
   REVIEWING: "bg-amber-100 text-amber-800",
 }
 
+function ProductThumb({ src, alt }: { src: string | null; alt: string }) {
+  const [errored, setErrored] = useState(false)
+  if (!src || errored) {
+    return (
+      <div className="w-14 h-14 shrink-0 rounded bg-gray-100 border border-gray-200 flex items-center justify-center text-gray-300 text-2xl">
+        📦
+      </div>
+    )
+  }
+  // eslint-disable-next-line @next/next/no-img-element
+  return (
+    <img
+      src={src}
+      alt={alt}
+      onError={() => setErrored(true)}
+      className="w-14 h-14 shrink-0 rounded object-cover border border-gray-200 bg-gray-50"
+      loading="lazy"
+    />
+  )
+}
+
 export function ProductRow({
   product,
   onEditHpp,
@@ -65,45 +86,49 @@ export function ProductRow({
           <button
             type="button"
             onClick={() => product.hasVariants && setExpanded((e) => !e)}
-            className="flex-1 text-left"
+            className="flex-1 text-left flex items-start gap-3 min-w-0"
           >
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-medium text-sm">{product.name}</span>
-              <Badge className={STATUS_COLOR[product.status]}>
-                {product.status}
-              </Badge>
-              {product.isStockLow && (
-                <Badge className="bg-red-100 text-red-800">Stok Kritis</Badge>
-              )}
-              {product.qtySold30d === 0 && product.status === "NORMAL" && (
-                <Badge className="bg-amber-100 text-amber-800">
-                  Tidak ada sales 30d
+            <ProductThumb src={product.imageUrl} alt={product.name} />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-medium text-sm">{product.name}</span>
+                <Badge className={STATUS_COLOR[product.status]}>
+                  {product.status}
                 </Badge>
-              )}
-            </div>
-            <div className="mt-1 text-xs text-gray-500 flex gap-3 flex-wrap items-center">
-              <span>Stok: {fmtNum(product.stockTotal)}</span>
-              <span>Harga: {priceLabel}</span>
-              <span>
-                30d: {fmtNum(product.qtySold30d)} pcs · {fmt(product.omzet30d)}
-              </span>
-              {product.grossMargin30d !== null && (
-                <span
-                  className={
-                    product.grossMargin30d > 0
-                      ? "text-green-600"
-                      : "text-red-600"
-                  }
-                >
-                  Margin: {fmt(product.grossMargin30d)}
+                {product.isStockLow && (
+                  <Badge className="bg-red-100 text-red-800">Stok Kritis</Badge>
+                )}
+                {product.qtySold30d === 0 && product.status === "NORMAL" && (
+                  <Badge className="bg-amber-100 text-amber-800">
+                    Tidak ada sales 30d
+                  </Badge>
+                )}
+              </div>
+              <div className="mt-1 text-xs text-gray-500 flex gap-3 flex-wrap items-center">
+                <span>Stok: {fmtNum(product.stockTotal)}</span>
+                <span>Harga: {priceLabel}</span>
+                <span>
+                  30d: {fmtNum(product.qtySold30d)} pcs ·{" "}
+                  {fmt(product.omzet30d)}
                 </span>
-              )}
-              <InlineHppEdit
-                value={product.hpp}
-                onSave={(v) => onQuickSetHpp(product.productId, v)}
-                disabled={!canEditHpp}
-                label="HPP:"
-              />
+                {product.grossMargin30d !== null && (
+                  <span
+                    className={
+                      product.grossMargin30d > 0
+                        ? "text-green-600"
+                        : "text-red-600"
+                    }
+                  >
+                    Margin: {fmt(product.grossMargin30d)}
+                  </span>
+                )}
+                <InlineHppEdit
+                  value={product.hpp}
+                  onSave={(v) => onQuickSetHpp(product.productId, v)}
+                  disabled={!canEditHpp}
+                  label="HPP:"
+                />
+              </div>
             </div>
           </button>
 
