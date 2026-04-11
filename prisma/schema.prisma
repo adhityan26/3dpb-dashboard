@@ -97,6 +97,8 @@ model AmsSlot {
   filamentName  String   // display name from Excel
   spoolId       String?
   spool         Spool?   @relation(fields: [spoolId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@unique([productType, variantName, slotNumber])
   @@index([productType])
