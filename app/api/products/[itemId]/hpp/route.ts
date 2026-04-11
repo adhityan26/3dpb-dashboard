@@ -33,24 +33,29 @@ export async function PUT(req: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
   }
 
-  const productHpp =
-    body.productHpp === null
-      ? null
-      : typeof body.productHpp === "number"
-        ? body.productHpp
-        : undefined
-
-  if (productHpp === undefined) {
+  // productHpp is optional:
+  //   missing from body → don't touch (undefined)
+  //   null → delete
+  //   number → upsert
+  let productHpp: number | null | undefined
+  if (!("productHpp" in body)) {
+    productHpp = undefined
+  } else if (body.productHpp === null) {
+    productHpp = null
+  } else if (typeof body.productHpp === "number") {
+    productHpp = body.productHpp
+  } else {
     return NextResponse.json(
-      { error: "productHpp must be number or null" },
+      { error: "productHpp must be number, null, or omitted" },
       { status: 400 },
     )
   }
 
-  const variantsRaw = body.variants
+  // variants is optional (default empty)
+  const variantsRaw = body.variants ?? []
   if (!Array.isArray(variantsRaw)) {
     return NextResponse.json(
-      { error: "variants must be array" },
+      { error: "variants must be array if provided" },
       { status: 400 },
     )
   }
@@ -62,6 +67,14 @@ export async function PUT(req: NextRequest, ctx: RouteContext) {
     if (typeof vo.variantId !== "string") continue
     if (vo.hpp !== null && typeof vo.hpp !== "number") continue
     variants.push({ variantId: vo.variantId, hpp: vo.hpp ?? null })
+  }
+
+  // At least one of productHpp or variants must be specified
+  if (productHpp === undefined && variants.length === 0) {
+    return NextResponse.json(
+      { error: "Must provide productHpp or at least one variant override" },
+      { status: 400 },
+    )
   }
 
   try {

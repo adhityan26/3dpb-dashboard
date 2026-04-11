@@ -191,21 +191,34 @@ export async function getProducts(): Promise<ProductsListResult> {
 }
 
 /**
- * Set HPP for a product and optional per-variant overrides.
+ * Set HPP for a product and/or per-variant overrides.
+ *
+ * Semantics:
+ * - `productHpp === undefined` → don't touch product-level HPP
+ * - `productHpp === null` → delete product-level HPP
+ * - `productHpp === <number>` → upsert product-level HPP
+ *
+ * Same semantics for each entry in `variantOverrides`:
+ * - `hpp === null` → delete that variant override
+ * - `hpp === <number>` → upsert that variant override
+ *
+ * Variants not listed in `variantOverrides` are untouched.
  */
 export async function setProductHpp(
   productId: string,
-  productHpp: number | null,
+  productHpp: number | null | undefined,
   variantOverrides: Array<{ variantId: string; hpp: number | null }>,
 ): Promise<void> {
-  if (productHpp === null) {
-    await prisma.productHpp.deleteMany({ where: { productId } })
-  } else {
-    await prisma.productHpp.upsert({
-      where: { productId },
-      update: { hpp: productHpp },
-      create: { productId, hpp: productHpp },
-    })
+  if (productHpp !== undefined) {
+    if (productHpp === null) {
+      await prisma.productHpp.deleteMany({ where: { productId } })
+    } else {
+      await prisma.productHpp.upsert({
+        where: { productId },
+        update: { hpp: productHpp },
+        create: { productId, hpp: productHpp },
+      })
+    }
   }
 
   for (const { variantId, hpp } of variantOverrides) {

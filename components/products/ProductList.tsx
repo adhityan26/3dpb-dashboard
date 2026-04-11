@@ -6,10 +6,20 @@ import { ProductRow } from "./ProductRow"
 interface Props {
   products: ProductSummary[]
   onEditHpp: (product: ProductSummary) => void
+  onQuickSetHpp: (
+    productId: string,
+    hpp: number | null,
+    variantId?: string,
+  ) => void
   canEditHpp: boolean
 }
 
-export function ProductList({ products, onEditHpp, canEditHpp }: Props) {
+export function ProductList({
+  products,
+  onEditHpp,
+  onQuickSetHpp,
+  canEditHpp,
+}: Props) {
   if (products.length === 0) {
     return (
       <div className="py-12 text-center text-gray-400 text-sm">
@@ -25,6 +35,7 @@ export function ProductList({ products, onEditHpp, canEditHpp }: Props) {
           key={p.productId}
           product={p}
           onEditHpp={onEditHpp}
+          onQuickSetHpp={onQuickSetHpp}
           canEditHpp={canEditHpp}
         />
       ))}

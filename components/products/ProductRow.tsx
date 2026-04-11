@@ -6,10 +6,16 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import type { ProductSummary } from "@/lib/products/types"
 import { STOCK_LOW_THRESHOLD } from "@/lib/products/types"
+import { InlineHppEdit } from "./InlineHppEdit"
 
 interface Props {
   product: ProductSummary
   onEditHpp: (product: ProductSummary) => void
+  onQuickSetHpp: (
+    productId: string,
+    hpp: number | null,
+    variantId?: string,
+  ) => void
   canEditHpp: boolean
 }
 
@@ -33,7 +39,12 @@ const STATUS_COLOR: Record<ProductSummary["status"], string> = {
   REVIEWING: "bg-amber-100 text-amber-800",
 }
 
-export function ProductRow({ product, onEditHpp, canEditHpp }: Props) {
+export function ProductRow({
+  product,
+  onEditHpp,
+  onQuickSetHpp,
+  canEditHpp,
+}: Props) {
   const [expanded, setExpanded] = useState(false)
 
   const bgClass = product.isStockLow
@@ -70,7 +81,7 @@ export function ProductRow({ product, onEditHpp, canEditHpp }: Props) {
                 </Badge>
               )}
             </div>
-            <div className="mt-1 text-xs text-gray-500 flex gap-3 flex-wrap">
+            <div className="mt-1 text-xs text-gray-500 flex gap-3 flex-wrap items-center">
               <span>Stok: {fmtNum(product.stockTotal)}</span>
               <span>Harga: {priceLabel}</span>
               <span>
@@ -87,7 +98,12 @@ export function ProductRow({ product, onEditHpp, canEditHpp }: Props) {
                   Margin: {fmt(product.grossMargin30d)}
                 </span>
               )}
-              {product.hpp !== null && <span>HPP: {fmt(product.hpp)}</span>}
+              <InlineHppEdit
+                value={product.hpp}
+                onSave={(v) => onQuickSetHpp(product.productId, v)}
+                disabled={!canEditHpp}
+                label="HPP:"
+              />
             </div>
           </button>
 
@@ -96,8 +112,9 @@ export function ProductRow({ product, onEditHpp, canEditHpp }: Props) {
               variant="outline"
               size="sm"
               onClick={() => onEditHpp(product)}
+              title="Edit semua HPP (termasuk override per varian)"
             >
-              Edit HPP
+              Edit Batch
             </Button>
           )}
         </div>
@@ -109,7 +126,6 @@ export function ProductRow({ product, onEditHpp, canEditHpp }: Props) {
             </div>
             <div className="space-y-1.5">
               {product.variants.map((v) => {
-                const vHpp = v.hpp ?? product.hpp
                 const isLow = v.stock < STOCK_LOW_THRESHOLD
                 return (
                   <div
@@ -122,23 +138,38 @@ export function ProductRow({ product, onEditHpp, canEditHpp }: Props) {
                         <div className="text-gray-400">SKU: {v.sku}</div>
                       )}
                     </div>
-                    <div className="text-right">
+                    <div className="text-right space-y-0.5">
                       <div
                         className={`font-semibold ${isLow ? "text-red-600" : ""}`}
                       >
                         {v.stock} pcs
                       </div>
                       <div className="text-gray-500">{fmt(v.price)}</div>
-                      {vHpp !== null && (
-                        <div className="text-gray-400 text-[10px]">
-                          HPP {fmt(vHpp)}
-                          {v.hpp !== null && (
-                            <span className="ml-1 text-blue-500">
-                              (override)
-                            </span>
-                          )}
-                        </div>
-                      )}
+                      <div className="flex justify-end items-center gap-1">
+                        <InlineHppEdit
+                          value={v.hpp}
+                          onSave={(nv) =>
+                            onQuickSetHpp(
+                              product.productId,
+                              nv,
+                              v.variantId,
+                            )
+                          }
+                          disabled={!canEditHpp}
+                          placeholder={
+                            product.hpp !== null
+                              ? `${fmt(product.hpp)} (default)`
+                              : "Set HPP"
+                          }
+                          label=""
+                          compact
+                        />
+                        {v.hpp !== null && (
+                          <span className="text-[9px] text-blue-500">
+                            override
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )
