@@ -2,6 +2,7 @@ import { detectOrderPileup } from "./detectors/order-pileup"
 import { detectStockLow } from "./detectors/stock-low"
 import { detectRoasDrop } from "./detectors/roas-drop"
 import { detectProductDelist } from "./detectors/product-delist"
+import { detectSpoolLow } from "./detectors/spool-low"
 import { wasRecentlySent } from "./dedupe"
 import { sendAlert } from "./senders"
 import type { AlertEvent, RunnerResult } from "./types"
@@ -16,6 +17,7 @@ export async function runAllDetectors(): Promise<RunnerResult> {
     detectStockLow(),
     detectRoasDrop(),
     detectProductDelist(),
+    detectSpoolLow(),
   ])
 
   const allEvents: AlertEvent[] = []

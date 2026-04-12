@@ -4,6 +4,13 @@ export type AlertKind =
   | "stock_low"
   | "roas_drop"
   | "product_delist"
+  | "spool_low"
+
+export interface NotificationAlert {
+  alertKey: string
+  message: string
+  severity: "warning" | "critical"
+}
 
 export interface AlertEvent {
   kind: AlertKind
