@@ -74,7 +74,10 @@ export function useDeleteSpool() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: deleteSpool,
-    onSuccess: () => qc.invalidateQueries({ queryKey: SPOOLS_KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: SPOOLS_KEY })
+      qc.invalidateQueries({ queryKey: AMS_KEY })
+    },
   })
 }
 

@@ -79,6 +79,3 @@ export async function assignSpoolToSlot(
   return toSlotData(updated)
 }
 
-export async function countLowSpools(): Promise<number> {
-  return prisma.spool.count({ where: { status: 'low' } })
-}

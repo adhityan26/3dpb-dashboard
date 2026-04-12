@@ -12,9 +12,10 @@ const STICKER_OPTIONS = [
 
 interface StickerSizeCardProps {
   initialSize: string
+  canEdit?: boolean
 }
 
-export function StickerSizeCard({ initialSize }: StickerSizeCardProps) {
+export function StickerSizeCard({ initialSize, canEdit = false }: StickerSizeCardProps) {
   const [selected, setSelected] = useState(initialSize)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
@@ -66,7 +67,7 @@ export function StickerSizeCard({ initialSize }: StickerSizeCardProps) {
                 key={opt.value}
                 variant={isActive ? "default" : "outline"}
                 size="sm"
-                disabled={saving}
+                disabled={saving || !canEdit}
                 onClick={() => handleSave(opt.value)}
                 className={
                   isActive

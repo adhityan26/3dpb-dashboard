@@ -10,6 +10,7 @@ import { NotificationRunnerCard } from "@/components/settings/NotificationRunner
 import { FilamenCatalogCard } from "@/components/settings/FilamenCatalogCard"
 import { StickerSizeCard } from "@/components/settings/StickerSizeCard"
 import { useSettings } from "@/lib/hooks/use-settings"
+import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
 
 interface FilamenSettings {
@@ -19,6 +20,7 @@ interface FilamenSettings {
 
 export default function SettingsPage() {
   const { data, isLoading, isError, error, refetch } = useSettings()
+  const { data: session } = useSession()
   const [filamenSettings, setFilamenSettings] = useState<FilamenSettings | null>(null)
 
   useEffect(() => {
@@ -69,7 +71,7 @@ export default function SettingsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <FilamenCatalogCard lastCatalogSync={filamenSettings?.lastCatalogSync ?? null} />
-        <StickerSizeCard initialSize={filamenSettings?.stickerSize ?? "40x30"} />
+        <StickerSizeCard initialSize={filamenSettings?.stickerSize ?? "40x30"} canEdit={session?.user?.role === "OWNER"} />
       </div>
     </div>
   )
