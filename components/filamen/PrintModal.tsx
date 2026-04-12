@@ -28,11 +28,13 @@ export function PrintModal({ spool, onClose }: PrintModalProps) {
     })
   }, [spool.barcode])
 
+  const onCloseRef = useRef(onClose)
+  useEffect(() => { onCloseRef.current = onClose })
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onCloseRef.current() }
     window.addEventListener("keydown", handler)
     return () => window.removeEventListener("keydown", handler)
-  }, [onClose])
+  }, []) // stable — subscribes once
 
   async function handleBluetooth() {
     if (!("bluetooth" in navigator)) {

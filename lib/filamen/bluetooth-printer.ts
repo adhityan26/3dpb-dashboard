@@ -7,10 +7,10 @@ const PRINTER_CHARACTERISTIC = "00002af1-0000-1000-8000-00805f9b34fb"
 export async function connectPrinter(): Promise<BluetoothRemoteGATTCharacteristic> {
   const device = await navigator.bluetooth.requestDevice({
     filters: [{ services: [PRINTER_SERVICE] }],
-    optionalServices: [PRINTER_SERVICE],
   })
 
-  const server = await device.gatt!.connect()
+  if (!device.gatt) throw new Error("GATT server tidak tersedia pada perangkat ini.")
+  const server = await device.gatt.connect()
   const service = await server.getPrimaryService(PRINTER_SERVICE)
   const characteristic = await service.getCharacteristic(PRINTER_CHARACTERISTIC)
   return characteristic
@@ -59,6 +59,9 @@ export function buildStickerEscPos(
   const qrEcc   = [GS, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x45, 0x31]
   const qrPrint = [GS, 0x28, 0x6b, 0x03, 0x00, 0x31, 0x51, 0x30]
 
+  // Warning: Most BLE thermal printers expect ASCII/Latin-1.
+  // Non-ASCII characters (e.g. multi-byte UTF-8) may print as garbage.
+  // Ensure label and subLabel contain only printable ASCII characters.
   const labelBytes = enc.encode(label)
   const subLabelBytes = enc.encode(subLabel)
 

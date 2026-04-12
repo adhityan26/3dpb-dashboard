@@ -130,6 +130,12 @@
 }
 
 @media print {
-  body > *:not(#print-stiker) { display: none !important; }
-  #print-stiker { display: block !important; }
+  body * { visibility: hidden; }
+  #print-stiker,
+  #print-stiker * { visibility: visible; }
+  #print-stiker {
+    position: fixed;
+    top: 0;
+    left: 0;
+  }
 }
