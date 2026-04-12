@@ -5,6 +5,7 @@ import { useSpools } from "@/lib/hooks/use-filamen"
 import { SpoolKpiBar } from "./SpoolKpiBar"
 import { SpoolCard } from "./SpoolCard"
 import { SpoolForm } from "./SpoolForm"
+import { ScanModal } from "./ScanModal"
 import type { SpoolData, SpoolStatus } from "@/lib/filamen/types"
 
 export function SpoolTab() {
@@ -15,6 +16,7 @@ export function SpoolTab() {
   const [printingSpool, setPrintingSpool] = useState<SpoolData | null>(null)
   const [showAddForm, setShowAddForm] = useState(false)
   const [prefillNfc, setPrefillNfc] = useState<string | undefined>()
+  const [showScanModal, setShowScanModal] = useState(false)
 
   const filtered = useMemo(() => {
     if (!data) return []
@@ -60,11 +62,11 @@ export function SpoolTab() {
         >
           + Spool Baru
         </button>
-        <button className="border border-gray-300 text-sm px-3 py-1.5 rounded-md text-gray-600 hover:bg-gray-50">
-          📷 Scan
-        </button>
-        <button className="border border-gray-300 text-sm px-3 py-1.5 rounded-md text-gray-600 hover:bg-gray-50">
-          📡 NFC
+        <button
+          onClick={() => setShowScanModal(true)}
+          className="border border-gray-300 text-sm px-3 py-1.5 rounded-md text-gray-600 hover:bg-gray-50"
+        >
+          📷 Scan / 📡 NFC
         </button>
         <div className="flex-1" />
         <select
@@ -114,6 +116,21 @@ export function SpoolTab() {
 
       {filtered.length === 0 && (
         <div className="text-gray-400 py-8 text-center">Tidak ada spool ditemukan.</div>
+      )}
+
+      {showScanModal && (
+        <ScanModal
+          onFound={(spool) => {
+            setShowScanModal(false)
+            setEditingSpool(spool)
+          }}
+          onNotFound={(rawValue, type) => {
+            setShowScanModal(false)
+            if (type === "nfc") setPrefillNfc(rawValue)
+            setShowAddForm(true)
+          }}
+          onClose={() => setShowScanModal(false)}
+        />
       )}
 
       {/* Modals — wired in later tasks */}
