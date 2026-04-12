@@ -7,6 +7,7 @@ import { SpoolCard } from "./SpoolCard"
 import { SpoolForm } from "./SpoolForm"
 import { ScanModal } from "./ScanModal"
 import type { SpoolData, SpoolStatus } from "@/lib/filamen/types"
+import { PrintModal } from "./PrintModal"
 
 export function SpoolTab() {
   const { data, isLoading, isError } = useSpools()
@@ -141,7 +142,12 @@ export function SpoolTab() {
           onClose={() => { setShowAddForm(false); setEditingSpool(null); setPrefillNfc(undefined) }}
         />
       )}
-      {printingSpool && <div>{/* PrintModal — Task 13 */}</div>}
+      {printingSpool && (
+        <PrintModal
+          spool={printingSpool}
+          onClose={() => setPrintingSpool(null)}
+        />
+      )}
     </div>
   )
 }

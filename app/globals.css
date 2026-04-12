@@ -128,3 +128,8 @@
     @apply font-sans;
   }
 }
+
+@media print {
+  body > *:not(#print-stiker) { display: none !important; }
+  #print-stiker { display: block !important; }
+}
