@@ -4,6 +4,7 @@ import { useState, useMemo } from "react"
 import { useSpools } from "@/lib/hooks/use-filamen"
 import { SpoolKpiBar } from "./SpoolKpiBar"
 import { SpoolCard } from "./SpoolCard"
+import { SpoolForm } from "./SpoolForm"
 import type { SpoolData, SpoolStatus } from "@/lib/filamen/types"
 
 export function SpoolTab() {
@@ -12,6 +13,8 @@ export function SpoolTab() {
   const [search, setSearch] = useState("")
   const [editingSpool, setEditingSpool] = useState<SpoolData | null>(null)
   const [printingSpool, setPrintingSpool] = useState<SpoolData | null>(null)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [prefillNfc, setPrefillNfc] = useState<string | undefined>()
 
   const filtered = useMemo(() => {
     if (!data) return []
@@ -51,7 +54,10 @@ export function SpoolTab() {
 
       {/* Toolbar */}
       <div className="flex flex-wrap gap-2 items-center">
-        <button className="bg-[#EE4D2D] text-white text-sm px-3 py-1.5 rounded-md hover:bg-[#d44226]">
+        <button
+          onClick={() => setShowAddForm(true)}
+          className="bg-[#EE4D2D] text-white text-sm px-3 py-1.5 rounded-md hover:bg-[#d44226]"
+        >
           + Spool Baru
         </button>
         <button className="border border-gray-300 text-sm px-3 py-1.5 rounded-md text-gray-600 hover:bg-gray-50">
@@ -111,7 +117,13 @@ export function SpoolTab() {
       )}
 
       {/* Modals — wired in later tasks */}
-      {editingSpool && <div>{/* SpoolForm modal — Task 11 */}</div>}
+      {(showAddForm || editingSpool) && (
+        <SpoolForm
+          spool={editingSpool}
+          prefillNfcTagId={showAddForm ? prefillNfc : undefined}
+          onClose={() => { setShowAddForm(false); setEditingSpool(null); setPrefillNfc(undefined) }}
+        />
+      )}
       {printingSpool && <div>{/* PrintModal — Task 13 */}</div>}
     </div>
   )
