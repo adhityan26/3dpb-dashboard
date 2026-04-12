@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useCatalog, useCreateSpool, useUpdateSpool, useDeleteSpool } from "@/lib/hooks/use-filamen"
 import type { SpoolData, SpoolStatus } from "@/lib/filamen/types"
+import { writeNfcTag } from "@/lib/filamen/nfc-writer"
 
 interface SpoolFormProps {
   /** null = add mode, SpoolData = edit mode */
@@ -25,6 +26,7 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
   const [status, setStatus] = useState<SpoolStatus>(spool?.status ?? "new")
   const [notes, setNotes] = useState(spool?.notes ?? "")
   const [submitError, setSubmitError] = useState<string | null>(null)
+  const [nfcStatus, setNfcStatus] = useState<"idle" | "writing" | "done" | "error">("idle")
 
   const catalog = catalogData?.catalog ?? {}
   const brands = Object.keys(catalog).sort()
@@ -164,6 +166,36 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
                 <option value="low">LOW — hampir habis</option>
                 <option value="empty">EMPTY — habis</option>
               </select>
+            </div>
+          )}
+
+          {spool && (
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Tag NFC</label>
+              {spool.nfcTagId ? (
+                <p className="text-xs text-green-600">📡 Tag terpasang: {spool.nfcTagId.slice(0, 16)}...</p>
+              ) : (
+                <button
+                  type="button"
+                  onClick={async () => {
+                    setNfcStatus("writing")
+                    try {
+                      await writeNfcTag(spool.id)
+                      await updateSpool.mutateAsync({ id: spool.id, nfcTagId: spool.id })
+                      setNfcStatus("done")
+                    } catch (e) {
+                      setNfcStatus("error")
+                    }
+                  }}
+                  disabled={nfcStatus === "writing"}
+                  className="text-sm border border-indigo-300 text-indigo-600 px-3 py-1.5 rounded hover:bg-indigo-50 disabled:opacity-50"
+                >
+                  {nfcStatus === "idle" && "✍️ Tulis NFC Tag"}
+                  {nfcStatus === "writing" && "Dekatkan HP ke tag..."}
+                  {nfcStatus === "done" && "✅ Tag berhasil ditulis"}
+                  {nfcStatus === "error" && "❌ Gagal — coba lagi"}
+                </button>
+              )}
             </div>
           )}
 
