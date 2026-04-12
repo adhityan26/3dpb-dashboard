@@ -4,12 +4,12 @@ import { SPOOL_STATUS_LABELS, SPOOL_STATUS_COLORS } from "@/lib/filamen/types"
 export function SpoolKpiBar({ kpi }: { kpi: SpoolsResponse["kpi"] }) {
   const items = [
     { key: "total", label: "Total Spool", value: kpi.total, color: "#94a3b8" },
-    { key: "new", label: "New", value: kpi.byStatus.new, color: SPOOL_STATUS_COLORS.new },
-    { key: "full", label: "Full", value: kpi.byStatus.full, color: SPOOL_STATUS_COLORS.full },
-    { key: "mid", label: "Mid", value: kpi.byStatus.mid, color: SPOOL_STATUS_COLORS.mid },
-    { key: "low", label: "Low ⚠️", value: kpi.byStatus.low, color: SPOOL_STATUS_COLORS.low },
-    { key: "empty", label: "Empty", value: kpi.byStatus.empty, color: SPOOL_STATUS_COLORS.empty },
-  ] as const
+    { key: "new", label: SPOOL_STATUS_LABELS.new, value: kpi.byStatus.new, color: SPOOL_STATUS_COLORS.new },
+    { key: "full", label: SPOOL_STATUS_LABELS.full, value: kpi.byStatus.full, color: SPOOL_STATUS_COLORS.full },
+    { key: "mid", label: SPOOL_STATUS_LABELS.mid, value: kpi.byStatus.mid, color: SPOOL_STATUS_COLORS.mid },
+    { key: "low", label: SPOOL_STATUS_LABELS.low, value: kpi.byStatus.low, color: SPOOL_STATUS_COLORS.low },
+    { key: "empty", label: SPOOL_STATUS_LABELS.empty, value: kpi.byStatus.empty, color: SPOOL_STATUS_COLORS.empty },
+  ]
 
   return (
     <div className="grid grid-cols-6 gap-px bg-gray-200 rounded-lg overflow-hidden">

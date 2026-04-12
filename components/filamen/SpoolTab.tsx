@@ -7,7 +7,7 @@ import { SpoolCard } from "./SpoolCard"
 import type { SpoolData, SpoolStatus } from "@/lib/filamen/types"
 
 export function SpoolTab() {
-  const { data, isLoading } = useSpools()
+  const { data, isLoading, isError } = useSpools()
   const [statusFilter, setStatusFilter] = useState<SpoolStatus | "all">("all")
   const [search, setSearch] = useState("")
   const [editingSpool, setEditingSpool] = useState<SpoolData | null>(null)
@@ -42,6 +42,7 @@ export function SpoolTab() {
   }, [filtered])
 
   if (isLoading) return <div className="text-gray-400 py-8 text-center">Memuat spool...</div>
+  if (isError) return <div className="text-red-500 py-8 text-center">Gagal memuat data spool.</div>
   if (!data) return null
 
   return (
@@ -82,7 +83,7 @@ export function SpoolTab() {
 
       {/* Grouped grid */}
       {Array.from(grouped.entries()).map(([key, spools]) => {
-        const [brand, colorName, material] = key.split("|||")
+        const { brand, colorName, material } = spools[0]
         const hasLow = spools.some((s) => s.status === "low" || s.status === "empty")
         return (
           <div key={key}>
