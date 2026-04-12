@@ -27,6 +27,7 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
   const [notes, setNotes] = useState(spool?.notes ?? "")
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [nfcStatus, setNfcStatus] = useState<"idle" | "writing" | "done" | "error">("idle")
+  const [nfcError, setNfcError] = useState<string | null>(null)
 
   const catalog = catalogData?.catalog ?? {}
   const brands = Object.keys(catalog).sort()
@@ -179,12 +180,14 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
                   type="button"
                   onClick={async () => {
                     setNfcStatus("writing")
+                    setNfcError(null)
                     try {
                       await writeNfcTag(spool.id)
                       await updateSpool.mutateAsync({ id: spool.id, nfcTagId: spool.id })
                       setNfcStatus("done")
                     } catch (e) {
                       setNfcStatus("error")
+                      setNfcError(e instanceof Error ? e.message : "Gagal menulis tag.")
                     }
                   }}
                   disabled={nfcStatus === "writing"}
@@ -195,6 +198,9 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
                   {nfcStatus === "done" && "✅ Tag berhasil ditulis"}
                   {nfcStatus === "error" && "❌ Gagal — coba lagi"}
                 </button>
+              )}
+              {nfcError && (
+                <p className="text-xs text-red-600 mt-1">{nfcError}</p>
               )}
             </div>
           )}
