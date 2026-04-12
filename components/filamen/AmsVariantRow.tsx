@@ -8,6 +8,7 @@ import type { AmsVariant, AmsSlotData } from "@/lib/filamen/types"
 export function AmsVariantRow({ variant }: { variant: AmsVariant }) {
   const [expanded, setExpanded] = useState(false)
   const [assigningSlot, setAssigningSlot] = useState<AmsSlotData | null>(null)
+  const [assignError, setAssignError] = useState<string | null>(null)
   const assignSpool = useAssignSpool()
   const { data: spoolsData } = useSpools()
 
@@ -87,35 +88,51 @@ export function AmsVariantRow({ variant }: { variant: AmsVariant }) {
       {assigningSlot && spoolsData && (
         <div
           className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-          onClick={(e) => { if (e.target === e.currentTarget) setAssigningSlot(null) }}
+          onClick={(e) => { if (e.target === e.currentTarget) { setAssigningSlot(null); setAssignError(null) } }}
         >
           <div className="bg-white rounded-xl w-full max-w-sm shadow-xl" role="dialog" aria-modal="true" aria-labelledby="assign-modal-title">
             <div className="flex items-center justify-between px-5 py-4 border-b">
               <h3 id="assign-modal-title" className="font-semibold text-gray-800">
                 Assign AMS {assigningSlot.slotNumber} — {assigningSlot.filamentName}
               </h3>
-              <button onClick={() => setAssigningSlot(null)} aria-label="Tutup" className="text-gray-400 hover:text-gray-600">✕</button>
+              <button onClick={() => { setAssigningSlot(null); setAssignError(null) }} aria-label="Tutup" className="text-gray-400 hover:text-gray-600">✕</button>
             </div>
             <div className="p-4 max-h-96 overflow-y-auto space-y-2">
               {/* Unassign option */}
               {assigningSlot.spoolId && (
                 <button
                   onClick={async () => {
-                    await assignSpool.mutateAsync({ slotId: assigningSlot.id, spoolId: null })
-                    setAssigningSlot(null)
+                    setAssignError(null)
+                    try {
+                      await assignSpool.mutateAsync({ slotId: assigningSlot.id, spoolId: null })
+                      setAssigningSlot(null)
+                    } catch (e) {
+                      setAssignError(e instanceof Error ? e.message : "Gagal melepas spool.")
+                    }
                   }}
                   className="w-full text-left px-3 py-2 border border-red-200 rounded-lg text-sm text-red-600 hover:bg-red-50"
                 >
                   ✕ Lepas spool dari slot ini
                 </button>
               )}
+              {assignError && (
+                <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded">{assignError}</p>
+              )}
+              {spoolsData.spools.length === 0 && (
+                <div className="text-sm text-gray-400 py-4 text-center">Belum ada spool tersedia.</div>
+              )}
               {/* Spool options */}
               {spoolsData.spools.map((spool) => (
                 <button
                   key={spool.id}
                   onClick={async () => {
-                    await assignSpool.mutateAsync({ slotId: assigningSlot.id, spoolId: spool.id })
-                    setAssigningSlot(null)
+                    setAssignError(null)
+                    try {
+                      await assignSpool.mutateAsync({ slotId: assigningSlot.id, spoolId: spool.id })
+                      setAssigningSlot(null)
+                    } catch (e) {
+                      setAssignError(e instanceof Error ? e.message : "Gagal assign spool.")
+                    }
                   }}
                   className={`w-full text-left px-3 py-2 border rounded-lg hover:bg-gray-50 ${
                     assigningSlot.spoolId === spool.id ? "border-[#EE4D2D] bg-orange-50" : "border-gray-200"
