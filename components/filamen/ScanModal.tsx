@@ -37,54 +37,60 @@ export function ScanModal({ onFound, onNotFound, onClose }: ScanModalProps) {
     }
   }
 
-  async function startNfc() {
-    if (!("NDEFReader" in window)) {
-      setStatus("Browser tidak support NFC. Gunakan Android Chrome.")
-      return
-    }
-    const ndef = new (window as unknown as { NDEFReader: new () => NDEFReader }).NDEFReader()
-    const abort = new AbortController()
-    nfcAbortRef.current = abort
-    setStatus("Dekatkan HP ke tag NFC...")
-    try {
-      await ndef.scan({ signal: abort.signal })
-      ndef.addEventListener("reading", async (event: Event) => {
-        const nfcEvent = event as NDEFReadingEvent
-        const record = nfcEvent.message.records[0]
-        if (!record) return
-        const decoder = new TextDecoder()
-        const value = decoder.decode(record.data as unknown as ArrayBuffer)
-        setStatus("Mencari...")
-        try {
-          const result = await scanLookup("nfc", value)
-          if (result.found && result.spool) {
-            onFound(result.spool)
-          } else {
-            onNotFound(value, "nfc")
-          }
-        } catch {
-          setStatus("Error. Coba lagi.")
-        }
-      })
-    } catch (e) {
-      if ((e as Error).name !== "AbortError") {
-        setStatus("NFC error: " + (e as Error).message)
-      }
-    }
-  }
-
   useEffect(() => {
     if (mode !== "nfc") return
-    startNfc()
+
+    const abort = new AbortController()
+    nfcAbortRef.current = abort
+
+    async function runNfc() {
+      if (!("NDEFReader" in window)) {
+        setStatus("Browser tidak support NFC. Gunakan Android Chrome.")
+        return
+      }
+      const ndef = new (window as unknown as { NDEFReader: new () => NDEFReader }).NDEFReader()
+      setStatus("Dekatkan HP ke tag NFC...")
+      try {
+        await ndef.scan({ signal: abort.signal })
+        ndef.addEventListener("reading", async (event: Event) => {
+          const e = event as NDEFReadingEvent
+          const record = e.message.records[0]
+          if (!record) return
+          const decoder = new TextDecoder()
+          const value = decoder.decode(record.data as unknown as ArrayBuffer)
+          setStatus("Mencari...")
+          try {
+            const result = await scanLookup("nfc", value)
+            if (result.found && result.spool) {
+              onFound(result.spool)
+            } else {
+              onNotFound(value, "nfc")
+            }
+          } catch {
+            setStatus("Error. Coba lagi.")
+          }
+        })
+      } catch (e) {
+        if ((e as Error).name !== "AbortError") {
+          setStatus("NFC error: " + (e as Error).message)
+        }
+      }
+    }
+
+    runNfc()
     return () => { nfcAbortRef.current?.abort() }
-  }, [mode])
+  }, [mode, onFound, onNotFound])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose() }
+    window.addEventListener("keydown", handler)
+    return () => window.removeEventListener("keydown", handler)
+  }, [onClose])
 
   return (
     <div
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
-      onKeyDown={(e) => { if (e.key === "Escape") onClose() }}
-      tabIndex={-1}
     >
       <div className="bg-white rounded-xl w-full max-w-sm shadow-xl" role="dialog" aria-modal="true" aria-labelledby="scan-modal-title">
         <div className="flex items-center justify-between px-5 py-4 border-b">
@@ -98,7 +104,7 @@ export function ScanModal({ onFound, onNotFound, onClose }: ScanModalProps) {
             {(["keyboard", "nfc", "camera"] as const).map((m) => (
               <button
                 key={m}
-                onClick={() => setMode(m)}
+                onClick={() => { setMode(m); setStatus("Siap scan") }}
                 className={`flex-1 text-xs py-2 rounded border transition-colors ${
                   mode === m
                     ? "bg-[#EE4D2D] text-white border-[#EE4D2D]"
