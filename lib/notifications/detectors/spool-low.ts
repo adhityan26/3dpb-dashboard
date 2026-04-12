@@ -6,7 +6,7 @@ export async function detectSpoolLow(): Promise<AlertEvent[]> {
     where: { status: "low" },
     include: {
       amsSlots: {
-        select: { variantName: true, productType: true },
+        select: { productType: true },
       },
     },
   })
@@ -16,7 +16,7 @@ export async function detectSpoolLow(): Promise<AlertEvent[]> {
     const id = `#${spool.barcode.slice(0, 8).toUpperCase()}`
     const variantNote =
       variantCount > 0
-        ? ` — dipakai di ${variantCount} varian ${spool.amsSlots[0]?.productType ?? ""}`
+        ? ` — dipakai di ${variantCount} slot${spool.amsSlots[0]?.productType ? ` (${spool.amsSlots[0].productType})` : ""}`
         : ""
 
     return {
