@@ -21,9 +21,10 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
   const [brand, setBrand] = useState(spool?.brand ?? "")
   const [material, setMaterial] = useState(spool?.material ?? "")
   const [colorName, setColorName] = useState(spool?.colorName ?? "")
-  const [colorHex, setColorHex] = useState(spool?.colorHex ?? "#000000")
+  const [colorHex, setColorHex] = useState(spool?.colorHex ?? "")
   const [status, setStatus] = useState<SpoolStatus>(spool?.status ?? "new")
   const [notes, setNotes] = useState(spool?.notes ?? "")
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   const catalog = catalogData?.catalog ?? {}
   const brands = Object.keys(catalog).sort()
@@ -36,42 +37,57 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
     if (entry) setColorHex(entry.colorHex)
   }
 
-  const isPending = createSpool.isPending || updateSpool.isPending
+  const isPending = createSpool.isPending || updateSpool.isPending || deleteSpool.isPending
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (spool) {
-      await updateSpool.mutateAsync({ id: spool.id, status, notes })
-    } else {
-      const entry = colors.find((c) => c.colorName === colorName)
-      await createSpool.mutateAsync({
-        brand,
-        material,
-        colorName,
-        colorHex,
-        catalogId: entry?.id,
-        nfcTagId: prefillNfcTagId,
-        notes,
-      })
+    setSubmitError(null)
+    try {
+      if (spool) {
+        await updateSpool.mutateAsync({ id: spool.id, status, notes })
+      } else {
+        const entry = colors.find((c) => c.colorName === colorName)
+        await createSpool.mutateAsync({
+          brand,
+          material,
+          colorName,
+          colorHex,
+          catalogId: entry?.id,
+          nfcTagId: prefillNfcTagId,
+          notes,
+        })
+      }
+      onClose()
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Gagal menyimpan.")
     }
-    onClose()
   }
 
   async function handleDelete() {
     if (!spool) return
     if (!confirm(`Hapus spool ${spool.brand} ${spool.colorName}? Tidak bisa dibatalkan.`)) return
-    await deleteSpool.mutateAsync(spool.id)
-    onClose()
+    setSubmitError(null)
+    try {
+      await deleteSpool.mutateAsync(spool.id)
+      onClose()
+    } catch (err) {
+      setSubmitError(err instanceof Error ? err.message : "Gagal menghapus.")
+    }
   }
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl w-full max-w-md shadow-xl">
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
+      onKeyDown={(e) => { if (e.key === "Escape") onClose() }}
+      tabIndex={-1}
+    >
+      <div className="bg-white rounded-xl w-full max-w-md shadow-xl" role="dialog" aria-modal="true" aria-labelledby="spool-form-title">
         <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 className="font-semibold text-gray-800">
+          <h2 id="spool-form-title" className="font-semibold text-gray-800">
             {spool ? "Edit Spool" : "Tambah Spool Baru"}
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">✕</button>
+          <button onClick={onClose} aria-label="Tutup" className="text-gray-400 hover:text-gray-600">✕</button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
@@ -79,8 +95,9 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
           {!spool && (
             <>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Brand</label>
+                <label htmlFor="spool-brand" className="text-xs text-gray-500 block mb-1">Brand</label>
                 <select
+                  id="spool-brand"
                   value={brand}
                   onChange={(e) => { setBrand(e.target.value); setMaterial(""); setColorName("") }}
                   className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm"
@@ -91,8 +108,9 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Material</label>
+                <label htmlFor="spool-material" className="text-xs text-gray-500 block mb-1">Material</label>
                 <select
+                  id="spool-material"
                   value={material}
                   onChange={(e) => { setMaterial(e.target.value); setColorName("") }}
                   className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm"
@@ -104,9 +122,10 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
                 </select>
               </div>
               <div>
-                <label className="text-xs text-gray-500 block mb-1">Warna</label>
+                <label htmlFor="spool-color" className="text-xs text-gray-500 block mb-1">Warna</label>
                 <div className="flex gap-2">
                   <select
+                    id="spool-color"
                     value={colorName}
                     onChange={(e) => handleColorSelect(e.target.value)}
                     className="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-sm"
@@ -118,10 +137,12 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
                       <option key={c.id} value={c.colorName}>{c.colorName}</option>
                     ))}
                   </select>
-                  <div
-                    className="w-8 h-8 rounded border border-gray-300 flex-shrink-0"
-                    style={{ backgroundColor: colorHex }}
-                  />
+                  {colorHex && (
+                    <div
+                      className="w-8 h-8 rounded border border-gray-300 flex-shrink-0"
+                      style={{ backgroundColor: colorHex }}
+                    />
+                  )}
                 </div>
               </div>
             </>
@@ -130,8 +151,9 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
           {/* Edit mode: only status + notes */}
           {spool && (
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Status</label>
+              <label htmlFor="spool-status" className="text-xs text-gray-500 block mb-1">Status</label>
               <select
+                id="spool-status"
                 value={status}
                 onChange={(e) => setStatus(e.target.value as SpoolStatus)}
                 className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm"
@@ -146,8 +168,9 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
           )}
 
           <div>
-            <label className="text-xs text-gray-500 block mb-1">Catatan</label>
+            <label htmlFor="spool-notes" className="text-xs text-gray-500 block mb-1">Catatan</label>
             <input
+              id="spool-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Opsional..."
@@ -159,6 +182,10 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
             <p className="text-xs text-indigo-600 bg-indigo-50 px-3 py-2 rounded">
               📡 NFC tag akan otomatis ter-link ke spool ini.
             </p>
+          )}
+
+          {submitError && (
+            <p className="text-xs text-red-600 bg-red-50 px-3 py-2 rounded">{submitError}</p>
           )}
 
           <div className="flex gap-2 pt-2">
