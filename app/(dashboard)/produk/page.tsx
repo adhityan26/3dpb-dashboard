@@ -26,7 +26,7 @@ export default function ProdukPage() {
     useProducts()
   const setHpp = useSetHpp()
   const uploadImage = useUploadProductImage()
-  const [produkTab, setProdukTab] = useState<'produk' | 'filamen'>('produk')
+  const [produkTab, setProdukTab] = useState<"produk" | "filamen">("produk")
   const [filter, setFilter] = useState<ProductFilterValue>("perlu_perhatian")
   const [editingProduct, setEditingProduct] = useState<ProductSummary | null>(
     null,
@@ -91,125 +91,131 @@ export default function ProdukPage() {
     }
   }, [data])
 
-  if (isLoading && !data) {
-    return (
-      <div className="py-12 text-center text-gray-400">Memuat produk...</div>
-    )
-  }
-
-  if (isError) {
-    const msg = error instanceof Error ? error.message : "Unknown error"
-    const needsConnect =
-      msg.toLowerCase().includes("not authorized") ||
-      msg.toLowerCase().includes("shop_id not found")
-    return (
-      <div className="py-12 text-center space-y-3">
-        <div className="text-red-500">{msg}</div>
-        {needsConnect && (
-          <a
-            href="/api/shopee/auth"
-            className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-[#EE4D2D] hover:bg-[#d44226] text-white text-sm font-medium"
-          >
-            Hubungkan Shopee
-          </a>
-        )}
-        <div>
-          <Button variant="outline" size="sm" onClick={() => refetch()}>
-            Coba lagi
-          </Button>
-        </div>
-      </div>
-    )
-  }
-
-  if (!data) return null
-
   return (
     <div className="space-y-4">
       {/* Sub-tab nav: Produk / Filamen */}
       <div className="flex border-b border-gray-200">
         <button
-          onClick={() => setProdukTab('produk')}
+          onClick={() => setProdukTab("produk")}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            produkTab === 'produk'
-              ? 'border-[#EE4D2D] text-[#EE4D2D]'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
+            produkTab === "produk"
+              ? "border-[#EE4D2D] text-[#EE4D2D]"
+              : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >
           Produk
         </button>
         <button
-          onClick={() => setProdukTab('filamen')}
+          onClick={() => setProdukTab("filamen")}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            produkTab === 'filamen'
-              ? 'border-[#EE4D2D] text-[#EE4D2D]'
-              : 'border-transparent text-gray-500 hover:text-gray-700'
+            produkTab === "filamen"
+              ? "border-[#EE4D2D] text-[#EE4D2D]"
+              : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >
           Filamen
         </button>
       </div>
 
-      {produkTab === 'filamen' ? (
+      {produkTab === "filamen" ? (
         <FilamenTab />
       ) : (
         <>
-          <div className="flex items-center justify-between">
-            <h1 className="text-xl font-semibold">Produk</h1>
-            <RefreshIndicator
-              lastUpdated={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
-              intervalMs={intervalMs}
-              onRefresh={() => refetch()}
-            />
-          </div>
-
-          <ProductsKpiBar kpi={data.kpi} />
-
-          <ProductFilter value={filter} onChange={setFilter} counts={counts} />
-
-          <ProductList
-            products={filtered}
-            onEditHpp={setEditingProduct}
-            onQuickSetHpp={(productId, hpp, variantId) => {
-              if (variantId) {
-                setHpp.mutate({
-                  productId,
-                  variants: [{ variantId, hpp }],
-                })
-              } else {
-                setHpp.mutate({
-                  productId,
-                  productHpp: hpp,
-                })
-              }
-            }}
-            onUploadImage={handleUploadImage}
-            uploadingImageFor={uploadingImageFor}
-            canEditHpp={canEditHpp}
-          />
-
-          {toast && (
-            <div
-              className={`fixed bottom-4 right-4 z-50 max-w-sm p-3 rounded-md shadow-lg text-sm ${
-                toast.type === "success"
-                  ? "bg-green-50 border border-green-200 text-green-800"
-                  : "bg-red-50 border border-red-200 text-red-800"
-              }`}
-            >
-              {toast.message}
+          {isLoading && !data && (
+            <div className="py-12 text-center text-gray-400">
+              Memuat produk...
             </div>
           )}
 
-          <HppEditModal
-            product={editingProduct}
-            onClose={() => setEditingProduct(null)}
-            onSave={(vars) => {
-              setHpp.mutate(vars, {
-                onSuccess: () => setEditingProduct(null),
-              })
-            }}
-            isPending={setHpp.isPending}
-          />
+          {isError && (() => {
+            const msg = error instanceof Error ? error.message : "Unknown error"
+            const needsConnect =
+              msg.toLowerCase().includes("not authorized") ||
+              msg.toLowerCase().includes("shop_id not found")
+            return (
+              <div className="py-12 text-center space-y-3">
+                <div className="text-red-500">{msg}</div>
+                {needsConnect && (
+                  <a
+                    href="/api/shopee/auth"
+                    className="inline-flex items-center justify-center h-9 px-4 rounded-md bg-[#EE4D2D] hover:bg-[#d44226] text-white text-sm font-medium"
+                  >
+                    Hubungkan Shopee
+                  </a>
+                )}
+                <div>
+                  <Button variant="outline" size="sm" onClick={() => refetch()}>
+                    Coba lagi
+                  </Button>
+                </div>
+              </div>
+            )
+          })()}
+
+          {data && (
+            <>
+              <div className="flex items-center justify-between">
+                <h1 className="text-xl font-semibold">Produk</h1>
+                <RefreshIndicator
+                  lastUpdated={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
+                  intervalMs={intervalMs}
+                  onRefresh={() => refetch()}
+                />
+              </div>
+
+              <ProductsKpiBar kpi={data.kpi} />
+
+              <ProductFilter
+                value={filter}
+                onChange={setFilter}
+                counts={counts}
+              />
+
+              <ProductList
+                products={filtered}
+                onEditHpp={setEditingProduct}
+                onQuickSetHpp={(productId, hpp, variantId) => {
+                  if (variantId) {
+                    setHpp.mutate({
+                      productId,
+                      variants: [{ variantId, hpp }],
+                    })
+                  } else {
+                    setHpp.mutate({
+                      productId,
+                      productHpp: hpp,
+                    })
+                  }
+                }}
+                onUploadImage={handleUploadImage}
+                uploadingImageFor={uploadingImageFor}
+                canEditHpp={canEditHpp}
+              />
+
+              {toast && (
+                <div
+                  className={`fixed bottom-4 right-4 z-50 max-w-sm p-3 rounded-md shadow-lg text-sm ${
+                    toast.type === "success"
+                      ? "bg-green-50 border border-green-200 text-green-800"
+                      : "bg-red-50 border border-red-200 text-red-800"
+                  }`}
+                >
+                  {toast.message}
+                </div>
+              )}
+
+              <HppEditModal
+                product={editingProduct}
+                onClose={() => setEditingProduct(null)}
+                onSave={(vars) => {
+                  setHpp.mutate(vars, {
+                    onSuccess: () => setEditingProduct(null),
+                  })
+                }}
+                isPending={setHpp.isPending}
+              />
+            </>
+          )}
         </>
       )}
     </div>
