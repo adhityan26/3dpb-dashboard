@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 
+const VALID_SIZES = ["40x30", "30x20", "50x30"]
+
 export async function GET() {
   const session = await auth()
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -26,13 +28,15 @@ export async function POST(req: Request) {
 
   const { stickerSize } = await req.json() as { stickerSize?: string }
 
-  if (stickerSize) {
-    await prisma.config.upsert({
-      where: { key: "sticker_size" },
-      update: { value: stickerSize },
-      create: { key: "sticker_size", value: stickerSize },
-    })
+  if (!stickerSize || !VALID_SIZES.includes(stickerSize)) {
+    return NextResponse.json({ error: "Invalid stickerSize" }, { status: 400 })
   }
+
+  await prisma.config.upsert({
+    where: { key: "sticker_size" },
+    update: { value: stickerSize },
+    create: { key: "sticker_size", value: stickerSize },
+  })
 
   return NextResponse.json({ ok: true })
 }

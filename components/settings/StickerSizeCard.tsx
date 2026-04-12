@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 
@@ -20,8 +20,13 @@ export function StickerSizeCard({ initialSize }: StickerSizeCardProps) {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  useEffect(() => {
+    if (!saved) return
+    const t = setTimeout(() => setSaved(false), 3000)
+    return () => clearTimeout(t)
+  }, [saved])
+
   async function handleSave(size: string) {
-    setSelected(size)
     setSaving(true)
     setSaved(false)
     setError(null)
@@ -35,8 +40,8 @@ export function StickerSizeCard({ initialSize }: StickerSizeCardProps) {
         const err = await res.json().catch(() => ({ error: "Unknown error" }))
         throw new Error((err as { error?: string }).error ?? `HTTP ${res.status}`)
       }
+      setSelected(size)
       setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unknown error")
     } finally {

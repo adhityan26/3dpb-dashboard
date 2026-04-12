@@ -25,7 +25,9 @@ export default function SettingsPage() {
     fetch("/api/settings/filamen")
       .then((res) => res.ok ? res.json() as Promise<FilamenSettings> : null)
       .then((data) => { if (data) setFilamenSettings(data) })
-      .catch(() => {})
+      .catch((err) => {
+        console.error("Failed to fetch filamen settings:", err)
+      })
   }, [])
 
   if (isLoading && !data) {
