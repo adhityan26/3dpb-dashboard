@@ -5,6 +5,7 @@ import { useSpools } from "@/lib/hooks/use-filamen"
 import { SpoolKpiBar } from "./SpoolKpiBar"
 import { SpoolCard } from "./SpoolCard"
 import { SpoolForm } from "./SpoolForm"
+import { SpoolAddPicker } from "./SpoolAddPicker"
 import { ScanModal } from "./ScanModal"
 import type { SpoolData, SpoolStatus } from "@/lib/filamen/types"
 import { PrintModal } from "./PrintModal"
@@ -134,12 +135,19 @@ export function SpoolTab() {
         />
       )}
 
-      {/* Modals — wired in later tasks */}
-      {(showAddForm || editingSpool) && (
+      {/* Add mode: searchable catalog picker */}
+      {showAddForm && !editingSpool && (
+        <SpoolAddPicker
+          prefillNfcTagId={prefillNfc}
+          onClose={() => { setShowAddForm(false); setPrefillNfc(undefined) }}
+        />
+      )}
+
+      {/* Edit mode: keep existing SpoolForm */}
+      {editingSpool && (
         <SpoolForm
           spool={editingSpool}
-          prefillNfcTagId={showAddForm ? prefillNfc : undefined}
-          onClose={() => { setShowAddForm(false); setEditingSpool(null); setPrefillNfc(undefined) }}
+          onClose={() => { setEditingSpool(null) }}
         />
       )}
       {printingSpool && (
