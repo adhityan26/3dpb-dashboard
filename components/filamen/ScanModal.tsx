@@ -45,7 +45,11 @@ export function ScanModal({ onFound, onNotFound, onClose }: ScanModalProps) {
 
     async function runNfc() {
       if (!("NDEFReader" in window)) {
-        setStatus("Browser tidak support NFC. Gunakan Android Chrome.")
+        setStatus(
+          location.protocol !== "https:"
+            ? `NFC butuh HTTPS. Di Chrome Android: buka chrome://flags → cari "unsafely-treat-insecure-origin-as-secure" → tambah ${location.origin} → Relaunch.`
+            : "Browser tidak support NFC. Gunakan Chrome di Android."
+        )
         return
       }
       const ndef = new (window as unknown as { NDEFReader: new () => NDEFReader }).NDEFReader()
