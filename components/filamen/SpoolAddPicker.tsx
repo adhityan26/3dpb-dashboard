@@ -148,13 +148,13 @@ export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps
 
   const filteredEntries = useMemo<FilamentCatalogEntry[]>(() => {
     if (!search.trim()) return flatEntries
-    const q = search.toLowerCase()
-    return flatEntries.filter(
-      (e) =>
-        e.brand.toLowerCase().includes(q) ||
-        e.material.toLowerCase().includes(q) ||
-        e.colorName.toLowerCase().includes(q)
-    )
+    // Split query into words — every word must match somewhere (AND logic)
+    // e.g. "esun blue" → must contain "esun" AND "blue" anywhere in brand+material+colorName
+    const words = search.toLowerCase().split(/\s+/).filter(Boolean)
+    return flatEntries.filter((e) => {
+      const haystack = `${e.brand} ${e.material} ${e.colorName}`.toLowerCase()
+      return words.every((w) => haystack.includes(w))
+    })
   }, [flatEntries, search])
 
   const isSearching = search.trim().length > 0
