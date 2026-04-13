@@ -11,6 +11,97 @@ interface SpoolAddPickerProps {
 
 type Mode = "list" | "manual"
 
+// ── Fix 1: CatalogRow extracted as module-level component ──────────────────────
+interface CatalogRowProps {
+  entry: FilamentCatalogEntry
+  isExpanded: boolean
+  notes: string
+  rowError: string | null
+  isPending: boolean
+  prefillNfcTagId?: string
+  onToggle: (id: string) => void
+  onNotesChange: (id: string, value: string) => void
+  onSave: (entry: FilamentCatalogEntry) => void
+  onCancel: () => void
+}
+
+function CatalogRow({ entry, isExpanded, notes, rowError, isPending, prefillNfcTagId, onToggle, onNotesChange, onSave, onCancel }: CatalogRowProps) {
+  return (
+    <div className="border-b border-gray-100 last:border-0">
+      <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50">
+        {/* Color swatch */}
+        <div
+          className="w-4 h-4 rounded-full flex-shrink-0 border border-gray-200"
+          style={{ backgroundColor: entry.colorHex }}
+          aria-hidden="true"
+        />
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          {/* Fix 4: font-medium → font-semibold */}
+          <span className="text-sm font-semibold text-gray-800 truncate block">
+            {entry.brand} · {entry.colorName}
+          </span>
+          <span className="text-xs text-gray-400">{entry.material}</span>
+        </div>
+        {/* Fix 5: aria-expanded added to + button */}
+        <button
+          type="button"
+          onClick={() => onToggle(entry.id)}
+          aria-label={`Tambah ${entry.colorName}`}
+          aria-expanded={isExpanded}
+          className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-base font-bold flex-shrink-0 transition-colors ${
+            isExpanded
+              ? "bg-gray-400 hover:bg-gray-500"
+              : "bg-[#EE4D2D] hover:bg-[#d44226]"
+          }`}
+        >
+          {isExpanded ? "−" : "+"}
+        </button>
+      </div>
+
+      {/* Expanded inline notes */}
+      {isExpanded && (
+        <div className="px-4 pb-3 bg-orange-50 border-t border-orange-100">
+          <label className="text-xs text-gray-500 block mt-2 mb-1">Catatan (opsional)</label>
+          <textarea
+            value={notes}
+            onChange={(e) => onNotesChange(entry.id, e.target.value)}
+            placeholder="Contoh: beli batch ke-2..."
+            rows={2}
+            className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm resize-none"
+            autoFocus
+          />
+          {prefillNfcTagId && (
+            <p className="text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded mt-1">
+              NFC tag akan otomatis ter-link.
+            </p>
+          )}
+          {rowError && (
+            <p className="text-xs text-red-600 mt-1">{rowError}</p>
+          )}
+          <div className="flex gap-2 mt-2">
+            <button
+              type="button"
+              onClick={onCancel}
+              className="text-sm text-gray-600 px-3 py-1.5 rounded border border-gray-200 hover:bg-gray-100"
+            >
+              Batal
+            </button>
+            <button
+              type="button"
+              onClick={() => onSave(entry)}
+              disabled={isPending}
+              className="text-sm bg-[#EE4D2D] text-white px-4 py-1.5 rounded hover:bg-[#d44226] disabled:opacity-50"
+            >
+              {isPending ? "Menyimpan..." : "Simpan"}
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps) {
   const [mode, setMode] = useState<Mode>("list")
   const [search, setSearch] = useState("")
@@ -87,6 +178,20 @@ export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps
     [onClose]
   )
 
+  const handleRowToggle = useCallback((id: string) => {
+    setExpandedId((prev) => (prev === id ? null : id))
+    setRowError(null)
+  }, [])
+
+  const handleRowNotesChange = useCallback((id: string, value: string) => {
+    setRowNotes((prev) => ({ ...prev, [id]: value }))
+  }, [])
+
+  const handleRowCancel = useCallback(() => {
+    setExpandedId(null)
+    setRowError(null)
+  }, [])
+
   async function handleRowSave(entry: FilamentCatalogEntry) {
     setRowError(null)
     try {
@@ -131,89 +236,6 @@ export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps
     }
   }
 
-  // ── Row component (inline) ─────────────────────────────────────────────────
-  function CatalogRow({ entry }: { entry: FilamentCatalogEntry }) {
-    const isExpanded = expandedId === entry.id
-
-    return (
-      <div className="border-b border-gray-100 last:border-0">
-        <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50">
-          {/* Color swatch */}
-          <div
-            className="w-4 h-4 rounded-full flex-shrink-0 border border-gray-200"
-            style={{ backgroundColor: entry.colorHex }}
-            aria-hidden="true"
-          />
-          {/* Info */}
-          <div className="flex-1 min-w-0">
-            <span className="text-sm font-medium text-gray-800 truncate block">
-              {entry.brand} · {entry.colorName}
-            </span>
-            <span className="text-xs text-gray-400">{entry.material}</span>
-          </div>
-          {/* + button */}
-          <button
-            type="button"
-            onClick={() => {
-              setExpandedId(isExpanded ? null : entry.id)
-              setRowError(null)
-            }}
-            aria-label={`Tambah ${entry.colorName}`}
-            className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-base font-bold flex-shrink-0 transition-colors ${
-              isExpanded
-                ? "bg-gray-400 hover:bg-gray-500"
-                : "bg-[#EE4D2D] hover:bg-[#d44226]"
-            }`}
-          >
-            {isExpanded ? "−" : "+"}
-          </button>
-        </div>
-
-        {/* Expanded inline notes */}
-        {isExpanded && (
-          <div className="px-4 pb-3 bg-orange-50 border-t border-orange-100">
-            <label className="text-xs text-gray-500 block mt-2 mb-1">Catatan (opsional)</label>
-            <textarea
-              value={rowNotes[entry.id] ?? ""}
-              onChange={(e) =>
-                setRowNotes((prev) => ({ ...prev, [entry.id]: e.target.value }))
-              }
-              placeholder="Contoh: beli batch ke-2..."
-              rows={2}
-              className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm resize-none"
-              autoFocus
-            />
-            {prefillNfcTagId && (
-              <p className="text-xs text-indigo-600 bg-indigo-50 px-2 py-1 rounded mt-1">
-                NFC tag akan otomatis ter-link.
-              </p>
-            )}
-            {rowError && (
-              <p className="text-xs text-red-600 mt-1">{rowError}</p>
-            )}
-            <div className="flex gap-2 mt-2">
-              <button
-                type="button"
-                onClick={() => { setExpandedId(null); setRowError(null) }}
-                className="text-sm text-gray-600 px-3 py-1.5 rounded border border-gray-200 hover:bg-gray-100"
-              >
-                Batal
-              </button>
-              <button
-                type="button"
-                onClick={() => handleRowSave(entry)}
-                disabled={createSpool.isPending}
-                className="text-sm bg-[#EE4D2D] text-white px-4 py-1.5 rounded hover:bg-[#d44226] disabled:opacity-50"
-              >
-                {createSpool.isPending ? "Menyimpan..." : "Simpan"}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
-
   return (
     <div
       ref={backdropRef}
@@ -227,34 +249,17 @@ export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps
         aria-modal="true"
         aria-labelledby="spool-picker-title"
       >
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 flex-shrink-0">
-          {mode === "manual" ? (
-            <button
-              type="button"
-              onClick={() => setMode("list")}
-              className="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1"
-            >
-              ← Kembali
-            </button>
-          ) : (
+        {/* Fix 3: Header always 2 flex children — left group + close button */}
+        <div className="flex items-center justify-between px-5 py-4 border-b">
+          <div className="flex items-center gap-2">
+            {mode === "manual" && (
+              <button onClick={() => setMode("list")} className="text-gray-500 hover:text-gray-700 text-sm">← Kembali</button>
+            )}
             <h2 id="spool-picker-title" className="font-semibold text-gray-800">
-              Tambah Spool Baru
+              {mode === "list" ? "Tambah Spool" : "Tambah Manual"}
             </h2>
-          )}
-          {mode === "manual" && (
-            <h2 id="spool-picker-title" className="font-semibold text-gray-800">
-              Tambah Manual
-            </h2>
-          )}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Tutup"
-            className="text-gray-400 hover:text-gray-600"
-          >
-            ✕
-          </button>
+          </div>
+          <button onClick={onClose} aria-label="Tutup" className="text-gray-400 hover:text-gray-600">✕</button>
         </div>
 
         {/* ── Mode 1: List ──────────────────────────────────────────────────── */}
@@ -295,7 +300,19 @@ export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps
               {!catalogLoading && filteredEntries.length > 0 && isSearching && (
                 // Flat list when searching
                 filteredEntries.map((entry) => (
-                  <CatalogRow key={entry.id} entry={entry} />
+                  <CatalogRow
+                    key={entry.id}
+                    entry={entry}
+                    isExpanded={expandedId === entry.id}
+                    notes={rowNotes[entry.id] ?? ""}
+                    rowError={expandedId === entry.id ? rowError : null}
+                    isPending={createSpool.isPending}
+                    prefillNfcTagId={prefillNfcTagId}
+                    onToggle={handleRowToggle}
+                    onNotesChange={handleRowNotesChange}
+                    onSave={handleRowSave}
+                    onCancel={handleRowCancel}
+                  />
                 ))
               )}
 
@@ -307,15 +324,27 @@ export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps
                       {brand}
                     </div>
                     {brandEntries.map((entry) => (
-                      <CatalogRow key={entry.id} entry={entry} />
+                      <CatalogRow
+                        key={entry.id}
+                        entry={entry}
+                        isExpanded={expandedId === entry.id}
+                        notes={rowNotes[entry.id] ?? ""}
+                        rowError={expandedId === entry.id ? rowError : null}
+                        isPending={createSpool.isPending}
+                        prefillNfcTagId={prefillNfcTagId}
+                        onToggle={handleRowToggle}
+                        onNotesChange={handleRowNotesChange}
+                        onSave={handleRowSave}
+                        onCancel={handleRowCancel}
+                      />
                     ))}
                   </div>
                 ))
               )}
             </div>
 
-            {/* Footer link */}
-            {!catalogLoading && filteredEntries.length > 0 && (
+            {/* Fix 2: Footer visible when catalog has data (flatEntries), not just filtered */}
+            {!catalogLoading && flatEntries.length > 0 && (
               <div className="px-4 py-3 border-t border-gray-100 flex-shrink-0">
                 <button
                   type="button"
