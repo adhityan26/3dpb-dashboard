@@ -35,7 +35,7 @@ export function OrderRow({ order, onToggleLabel, isPending }: OrderRowProps) {
   const firstItem = order.items[0]
 
   return (
-    <Card className={order.labelPrinted ? "bg-green-50/40" : "bg-amber-50/40"}>
+    <Card className={order.labelPrinted ? "bg-green-50/40 dark:bg-green-950/30" : "bg-amber-50/40 dark:bg-amber-950/30"}>
       <CardContent className="p-3">
         <div className="flex items-start justify-between gap-3">
           <button
