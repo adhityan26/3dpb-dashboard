@@ -3,6 +3,7 @@ import type { SpoolData, SpoolStatus, SpoolsResponse } from './types'
 
 type PrismaSpoolWithCount = NonNullable<Awaited<ReturnType<typeof prisma.spool.findUnique>>> & {
   _count?: { amsSlots: number }
+  spoolmanSpool?: { usedWeight: number; initialWeight: number | null } | null
 }
 
 function toSpoolData(s: PrismaSpoolWithCount): SpoolData {
@@ -19,13 +20,18 @@ function toSpoolData(s: PrismaSpoolWithCount): SpoolData {
     createdAt: s.createdAt.toISOString(),
     updatedAt: s.updatedAt.toISOString(),
     assignedSlotCount: s._count?.amsSlots ?? 0,
+    usedWeight: s.spoolmanSpool?.usedWeight ?? null,
+    initialWeight: s.spoolmanSpool?.initialWeight ?? null,
   }
 }
 
 export async function listSpools(): Promise<SpoolsResponse> {
   const spools = await prisma.spool.findMany({
     orderBy: [{ brand: 'asc' }, { colorName: 'asc' }, { createdAt: 'asc' }],
-    include: { _count: { select: { amsSlots: true } } },
+    include: {
+      _count: { select: { amsSlots: true } },
+      spoolmanSpool: { select: { usedWeight: true, initialWeight: true } },
+    },
   })
 
   const byStatus = { new: 0, full: 0, mid: 0, low: 0, empty: 0 } as Record<SpoolStatus, number>
@@ -42,7 +48,8 @@ export async function getSpoolByBarcode(barcode: string): Promise<SpoolData | nu
     where: { barcode },
     include: { _count: { select: { amsSlots: true } } },
   })
-  return s ? toSpoolData(s) : null
+  if (!s) return null
+  return toSpoolData({ ...s, spoolmanSpool: null })
 }
 
 export async function getSpoolByNfc(nfcTagId: string): Promise<SpoolData | null> {
@@ -50,7 +57,8 @@ export async function getSpoolByNfc(nfcTagId: string): Promise<SpoolData | null>
     where: { nfcTagId },
     include: { _count: { select: { amsSlots: true } } },
   })
-  return s ? toSpoolData(s) : null
+  if (!s) return null
+  return toSpoolData({ ...s, spoolmanSpool: null })
 }
 
 export interface CreateSpoolInput {
@@ -77,7 +85,7 @@ export async function createSpool(input: CreateSpoolInput): Promise<SpoolData> {
     },
     include: { _count: { select: { amsSlots: true } } },
   })
-  return toSpoolData(s)
+  return toSpoolData({ ...s, spoolmanSpool: null })
 }
 
 export interface UpdateSpoolInput {
@@ -96,7 +104,7 @@ export async function updateSpool(id: string, input: UpdateSpoolInput): Promise<
     },
     include: { _count: { select: { amsSlots: true } } },
   })
-  return toSpoolData(s)
+  return toSpoolData({ ...s, spoolmanSpool: null })
 }
 
 export async function deleteSpool(id: string): Promise<void> {
