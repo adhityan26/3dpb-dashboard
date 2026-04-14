@@ -12,13 +12,13 @@ export function SpoolKpiBar({ kpi }: { kpi: SpoolsResponse["kpi"] }) {
   ]
 
   return (
-    <div className="grid grid-cols-6 gap-px bg-gray-200 rounded-lg overflow-hidden">
+    <div className="grid grid-cols-6 gap-px bg-gray-200 dark:bg-slate-700 rounded-lg overflow-hidden">
       {items.map((item) => (
-        <div key={item.key} className="bg-white px-3 py-3 text-center">
+        <div key={item.key} className="bg-white dark:bg-slate-800 px-3 py-3 text-center">
           <div className="text-xl font-bold" style={{ color: item.color }}>
             {item.value}
           </div>
-          <div className="text-xs text-gray-500 mt-0.5">{item.label}</div>
+          <div className="text-xs text-gray-500 dark:text-slate-400 mt-0.5">{item.label}</div>
         </div>
       ))}
     </div>

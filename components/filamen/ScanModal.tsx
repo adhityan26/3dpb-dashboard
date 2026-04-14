@@ -57,12 +57,31 @@ export function ScanModal({ onFound, onNotFound, onClose }: ScanModalProps) {
       try {
         await ndef.scan({ signal: abort.signal })
         ndef.addEventListener("reading", async (event: Event) => {
-          const e = event as NDEFReadingEvent
-          const record = e.message.records[0]
-          if (!record) return
-          const decoder = new TextDecoder()
-          const value = decoder.decode(record.data as unknown as ArrayBuffer)
-          setStatus("Mencari...")
+          const e = event as NDEFReadingEvent & { serialNumber?: string }
+
+          // Immediate feedback
+          setStatus("Tag terdeteksi, mencari...")
+
+          // Try each record in order — support text, url, unknown/binary
+          let value: string | null = null
+          for (const record of e.message.records) {
+            if (!record.data) continue
+            try {
+              const raw = new TextDecoder().decode(record.data as unknown as ArrayBuffer)
+              if (raw.trim()) { value = raw.trim(); break }
+            } catch { /* ignore */ }
+          }
+
+          // Fallback: use serialNumber (tag UID) — works for blank or proprietary tags
+          if (!value) {
+            value = e.serialNumber ?? null
+          }
+
+          if (!value) {
+            setStatus("Tag terbaca tapi tidak ada data. Coba tulis tag NFC dulu.")
+            return
+          }
+
           try {
             const result = await scanLookup("nfc", value)
             if (result.found && result.spool) {
@@ -96,10 +115,10 @@ export function ScanModal({ onFound, onNotFound, onClose }: ScanModalProps) {
       className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-white rounded-xl w-full max-w-sm shadow-xl" role="dialog" aria-modal="true" aria-labelledby="scan-modal-title">
-        <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 id="scan-modal-title" className="font-semibold text-gray-800">Scan Spool</h2>
-          <button onClick={onClose} aria-label="Tutup" className="text-gray-400 hover:text-gray-600">✕</button>
+      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm shadow-xl" role="dialog" aria-modal="true" aria-labelledby="scan-modal-title">
+        <div className="flex items-center justify-between px-5 py-4 border-b dark:border-slate-700">
+          <h2 id="scan-modal-title" className="font-semibold text-gray-800 dark:text-slate-100">Scan Spool</h2>
+          <button onClick={onClose} aria-label="Tutup" className="text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300">✕</button>
         </div>
 
         <div className="p-5 space-y-4">
@@ -111,8 +130,8 @@ export function ScanModal({ onFound, onNotFound, onClose }: ScanModalProps) {
                 onClick={() => { setMode(m); setStatus("Siap scan") }}
                 className={`flex-1 text-xs py-2 rounded border transition-colors ${
                   mode === m
-                    ? "bg-[#EE4D2D] text-white border-[#EE4D2D]"
-                    : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"
+                    ? "bg-[#EE4D2D] dark:bg-indigo-600 text-white border-[#EE4D2D] dark:border-indigo-600"
+                    : "bg-white dark:bg-slate-700 text-gray-600 dark:text-slate-300 border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-600"
                 }`}
               >
                 {m === "keyboard" ? "⌨️ Scanner" : m === "nfc" ? "📡 NFC" : "📷 Kamera"}
@@ -121,7 +140,7 @@ export function ScanModal({ onFound, onNotFound, onClose }: ScanModalProps) {
           </div>
 
           {/* Status */}
-          <div className="text-sm text-gray-600 text-center py-2">{status}</div>
+          <div className="text-sm text-gray-600 dark:text-slate-300 text-center py-2">{status}</div>
 
           {/* Keyboard mode: captures hardware scanner or manual input */}
           {mode === "keyboard" && (
@@ -138,10 +157,10 @@ export function ScanModal({ onFound, onNotFound, onClose }: ScanModalProps) {
                   }
                 }}
                 placeholder="Arahkan scanner ke barcode, atau ketik manual + Enter"
-                className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm"
+                className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 dark:placeholder:text-slate-500"
                 autoFocus
               />
-              <p className="text-xs text-gray-400 mt-1">
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-1">
                 Hardware scanner otomatis input + Enter. Bisa juga ketik manual.
               </p>
             </div>
@@ -151,13 +170,13 @@ export function ScanModal({ onFound, onNotFound, onClose }: ScanModalProps) {
           {mode === "nfc" && (
             <div className="text-center py-4">
               <div className="text-4xl mb-2">📡</div>
-              <p className="text-sm text-gray-500">Dekatkan HP ke tag NFC spool</p>
+              <p className="text-sm text-gray-500 dark:text-slate-400">Dekatkan HP ke tag NFC spool</p>
             </div>
           )}
 
           {/* Camera mode: placeholder */}
           {mode === "camera" && (
-            <div className="text-center py-4 text-gray-400">
+            <div className="text-center py-4 text-gray-400 dark:text-slate-500">
               <div className="text-4xl mb-2">📷</div>
               <p className="text-sm">Camera scan tersedia di update berikutnya.</p>
               <p className="text-xs mt-1">Gunakan hardware scanner atau NFC untuk sekarang.</p>

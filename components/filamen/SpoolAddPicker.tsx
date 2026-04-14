@@ -27,21 +27,21 @@ interface CatalogRowProps {
 
 function CatalogRow({ entry, isExpanded, notes, rowError, isPending, prefillNfcTagId, onToggle, onNotesChange, onSave, onCancel }: CatalogRowProps) {
   return (
-    <div className="border-b border-gray-100 last:border-0">
-      <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50">
+    <div className="border-b border-gray-100 dark:border-slate-700 last:border-0">
+      <div className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-slate-700">
         {/* Color swatch */}
         <div
-          className="w-4 h-4 rounded-full flex-shrink-0 border border-gray-200"
+          className="w-4 h-4 rounded-full flex-shrink-0 border border-gray-200 dark:border-slate-600"
           style={{ backgroundColor: entry.colorHex }}
           aria-hidden="true"
         />
         {/* Info */}
         <div className="flex-1 min-w-0">
           {/* Fix 4: font-medium → font-semibold */}
-          <span className="text-sm font-semibold text-gray-800 truncate block">
+          <span className="text-sm font-semibold text-gray-800 dark:text-slate-100 truncate block">
             {entry.brand} · {entry.colorName}
           </span>
-          <span className="text-xs text-gray-400">{entry.material}</span>
+          <span className="text-xs text-gray-400 dark:text-slate-500">{entry.material}</span>
         </div>
         {/* Fix 5: aria-expanded added to + button */}
         <button
@@ -52,7 +52,7 @@ function CatalogRow({ entry, isExpanded, notes, rowError, isPending, prefillNfcT
           className={`w-7 h-7 rounded-full flex items-center justify-center text-white text-base font-bold flex-shrink-0 transition-colors ${
             isExpanded
               ? "bg-gray-400 hover:bg-gray-500"
-              : "bg-[#EE4D2D] hover:bg-[#d44226]"
+              : "bg-[#EE4D2D] dark:bg-indigo-600 hover:bg-[#d44226] dark:hover:bg-indigo-700"
           }`}
         >
           {isExpanded ? "−" : "+"}
@@ -61,14 +61,14 @@ function CatalogRow({ entry, isExpanded, notes, rowError, isPending, prefillNfcT
 
       {/* Expanded inline notes */}
       {isExpanded && (
-        <div className="px-4 pb-3 bg-orange-50 border-t border-orange-100">
-          <label className="text-xs text-gray-500 block mt-2 mb-1">Catatan (opsional)</label>
+        <div className="px-4 pb-3 bg-orange-50 dark:bg-slate-900 border-t border-orange-100 dark:border-slate-700">
+          <label className="text-xs text-gray-500 dark:text-slate-400 block mt-2 mb-1">Catatan (opsional)</label>
           <textarea
             value={notes}
             onChange={(e) => onNotesChange(entry.id, e.target.value)}
             placeholder="Contoh: beli batch ke-2..."
             rows={2}
-            className="w-full border border-gray-200 rounded-md px-3 py-1.5 text-sm resize-none"
+            className="w-full border border-gray-200 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm resize-none bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 dark:placeholder:text-slate-500"
             autoFocus
           />
           {prefillNfcTagId && (
@@ -83,7 +83,7 @@ function CatalogRow({ entry, isExpanded, notes, rowError, isPending, prefillNfcT
             <button
               type="button"
               onClick={onCancel}
-              className="text-sm text-gray-600 px-3 py-1.5 rounded border border-gray-200 hover:bg-gray-100"
+              className="text-sm text-gray-600 dark:text-slate-300 px-3 py-1.5 rounded border border-gray-200 dark:border-slate-600 hover:bg-gray-100 dark:hover:bg-slate-700"
             >
               Batal
             </button>
@@ -91,7 +91,7 @@ function CatalogRow({ entry, isExpanded, notes, rowError, isPending, prefillNfcT
               type="button"
               onClick={() => onSave(entry)}
               disabled={isPending}
-              className="text-sm bg-[#EE4D2D] text-white px-4 py-1.5 rounded hover:bg-[#d44226] disabled:opacity-50"
+              className="text-sm bg-[#EE4D2D] dark:bg-indigo-600 text-white px-4 py-1.5 rounded hover:bg-[#d44226] dark:hover:bg-indigo-700 disabled:opacity-50"
             >
               {isPending ? "Menyimpan..." : "Simpan"}
             </button>
@@ -244,36 +244,36 @@ export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps
       role="presentation"
     >
       <div
-        className="bg-white rounded-xl w-full max-w-md shadow-xl flex flex-col max-h-[90vh]"
+        className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md shadow-xl flex flex-col max-h-[90vh]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="spool-picker-title"
       >
         {/* Fix 3: Header always 2 flex children — left group + close button */}
-        <div className="flex items-center justify-between px-5 py-4 border-b">
+        <div className="flex items-center justify-between px-5 py-4 border-b dark:border-slate-700">
           <div className="flex items-center gap-2">
             {mode === "manual" && (
-              <button onClick={() => setMode("list")} className="text-gray-500 hover:text-gray-700 text-sm">← Kembali</button>
+              <button onClick={() => setMode("list")} className="text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200 text-sm">← Kembali</button>
             )}
-            <h2 id="spool-picker-title" className="font-semibold text-gray-800">
+            <h2 id="spool-picker-title" className="font-semibold text-gray-800 dark:text-slate-100">
               {mode === "list" ? "Tambah Spool" : "Tambah Manual"}
             </h2>
           </div>
-          <button onClick={onClose} aria-label="Tutup" className="text-gray-400 hover:text-gray-600">✕</button>
+          <button onClick={onClose} aria-label="Tutup" className="text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300">✕</button>
         </div>
 
         {/* ── Mode 1: List ──────────────────────────────────────────────────── */}
         {mode === "list" && (
           <>
             {/* Search */}
-            <div className="px-4 py-3 border-b border-gray-200 flex-shrink-0">
+            <div className="px-4 py-3 border-b border-gray-200 dark:border-slate-700 flex-shrink-0">
               <input
                 ref={searchRef}
                 type="search"
                 value={search}
                 onChange={(e) => { setSearch(e.target.value); setExpandedId(null) }}
                 placeholder="Cari brand, material, atau warna..."
-                className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#EE4D2D]/30 focus:border-[#EE4D2D]"
+                className="w-full border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#EE4D2D]/30 focus:border-[#EE4D2D] bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 dark:placeholder:text-slate-500"
                 aria-label="Cari filamen"
               />
             </div>
@@ -281,16 +281,16 @@ export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps
             {/* List */}
             <div className="overflow-y-auto max-h-96 flex-1">
               {catalogLoading && (
-                <div className="py-10 text-center text-gray-400 text-sm">Memuat katalog...</div>
+                <div className="py-10 text-center text-gray-400 dark:text-slate-500 text-sm">Memuat katalog...</div>
               )}
 
               {!catalogLoading && filteredEntries.length === 0 && (
-                <div className="py-10 text-center text-sm text-gray-500">
+                <div className="py-10 text-center text-sm text-gray-500 dark:text-slate-400">
                   Tidak ditemukan.{" "}
                   <button
                     type="button"
                     onClick={() => setMode("manual")}
-                    className="text-[#EE4D2D] hover:underline font-medium"
+                    className="text-[#EE4D2D] dark:text-indigo-400 hover:underline font-medium"
                   >
                     Tambah manual →
                   </button>
@@ -320,7 +320,7 @@ export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps
                 // Grouped by brand
                 groupedEntries.map(({ brand, entries: brandEntries }) => (
                   <div key={brand}>
-                    <div className="sticky top-0 bg-gray-50 px-4 py-1 text-[10px] uppercase tracking-widest text-gray-400 font-semibold z-10">
+                    <div className="sticky top-0 bg-gray-50 dark:bg-slate-900 px-4 py-1 text-[10px] uppercase tracking-widest text-gray-400 dark:text-slate-500 font-semibold z-10">
                       {brand}
                     </div>
                     {brandEntries.map((entry) => (
@@ -345,11 +345,11 @@ export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps
 
             {/* Fix 2: Footer visible when catalog has data (flatEntries), not just filtered */}
             {!catalogLoading && flatEntries.length > 0 && (
-              <div className="px-4 py-3 border-t border-gray-100 flex-shrink-0">
+              <div className="px-4 py-3 border-t border-gray-100 dark:border-slate-700 flex-shrink-0">
                 <button
                   type="button"
                   onClick={() => setMode("manual")}
-                  className="text-xs text-gray-400 hover:text-[#EE4D2D] transition-colors"
+                  className="text-xs text-gray-400 dark:text-slate-500 hover:text-[#EE4D2D] dark:hover:text-indigo-400 transition-colors"
                 >
                   Filamen tidak ada di katalog? Tambah manual →
                 </button>
@@ -362,7 +362,7 @@ export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps
         {mode === "manual" && (
           <form onSubmit={handleManualSave} className="p-5 space-y-4 overflow-y-auto">
             <div>
-              <label htmlFor="manual-brand" className="text-xs text-gray-500 block mb-1">
+              <label htmlFor="manual-brand" className="text-xs text-gray-500 dark:text-slate-400 block mb-1">
                 Brand
               </label>
               <input
@@ -371,11 +371,11 @@ export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps
                 onChange={(e) => setManualBrand(e.target.value)}
                 required
                 placeholder="Contoh: Bambu Lab"
-                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm"
+                className="w-full border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 dark:placeholder:text-slate-500"
               />
             </div>
             <div>
-              <label htmlFor="manual-material" className="text-xs text-gray-500 block mb-1">
+              <label htmlFor="manual-material" className="text-xs text-gray-500 dark:text-slate-400 block mb-1">
                 Material
               </label>
               <input
@@ -384,11 +384,11 @@ export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps
                 onChange={(e) => setManualMaterial(e.target.value)}
                 required
                 placeholder="Contoh: PLA"
-                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm"
+                className="w-full border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 dark:placeholder:text-slate-500"
               />
             </div>
             <div>
-              <label htmlFor="manual-color-name" className="text-xs text-gray-500 block mb-1">
+              <label htmlFor="manual-color-name" className="text-xs text-gray-500 dark:text-slate-400 block mb-1">
                 Nama Warna
               </label>
               <input
@@ -397,11 +397,11 @@ export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps
                 onChange={(e) => setManualColorName(e.target.value)}
                 required
                 placeholder="Contoh: Jade White"
-                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm"
+                className="w-full border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 dark:placeholder:text-slate-500"
               />
             </div>
             <div>
-              <label htmlFor="manual-color-hex" className="text-xs text-gray-500 block mb-1">
+              <label htmlFor="manual-color-hex" className="text-xs text-gray-500 dark:text-slate-400 block mb-1">
                 Warna (Color Picker)
               </label>
               <div className="flex gap-2 items-center">
@@ -410,13 +410,13 @@ export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps
                   type="color"
                   value={manualColorHex}
                   onChange={(e) => setManualColorHex(e.target.value)}
-                  className="w-10 h-8 rounded border border-gray-200 cursor-pointer p-0.5"
+                  className="w-10 h-8 rounded border border-gray-200 dark:border-slate-600 cursor-pointer p-0.5"
                 />
-                <span className="text-sm text-gray-500 font-mono">{manualColorHex}</span>
+                <span className="text-sm text-gray-500 dark:text-slate-400 font-mono">{manualColorHex}</span>
               </div>
             </div>
             <div>
-              <label htmlFor="manual-notes" className="text-xs text-gray-500 block mb-1">
+              <label htmlFor="manual-notes" className="text-xs text-gray-500 dark:text-slate-400 block mb-1">
                 Catatan
               </label>
               <input
@@ -424,7 +424,7 @@ export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps
                 value={manualNotes}
                 onChange={(e) => setManualNotes(e.target.value)}
                 placeholder="Opsional..."
-                className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm"
+                className="w-full border border-gray-200 dark:border-slate-600 rounded-lg px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 dark:placeholder:text-slate-500"
               />
             </div>
             {prefillNfcTagId && (
@@ -439,7 +439,7 @@ export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps
               <button
                 type="button"
                 onClick={onClose}
-                className="text-sm text-gray-600 px-3 py-1.5 rounded border border-gray-200 hover:bg-gray-50"
+                className="text-sm text-gray-600 dark:text-slate-300 px-3 py-1.5 rounded border border-gray-200 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700"
               >
                 Batal
               </button>
@@ -447,7 +447,7 @@ export function SpoolAddPicker({ prefillNfcTagId, onClose }: SpoolAddPickerProps
               <button
                 type="submit"
                 disabled={createSpool.isPending}
-                className="text-sm bg-[#EE4D2D] text-white px-4 py-1.5 rounded hover:bg-[#d44226] disabled:opacity-50"
+                className="text-sm bg-[#EE4D2D] dark:bg-indigo-600 text-white px-4 py-1.5 rounded hover:bg-[#d44226] dark:hover:bg-indigo-700 disabled:opacity-50"
               >
                 {createSpool.isPending ? "Menyimpan..." : "Simpan"}
               </button>

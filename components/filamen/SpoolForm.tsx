@@ -85,12 +85,12 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
       onKeyDown={(e) => { if (e.key === "Escape") onClose() }}
       tabIndex={-1}
     >
-      <div className="bg-white rounded-xl w-full max-w-md shadow-xl" role="dialog" aria-modal="true" aria-labelledby="spool-form-title">
-        <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 id="spool-form-title" className="font-semibold text-gray-800">
+      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-md shadow-xl" role="dialog" aria-modal="true" aria-labelledby="spool-form-title">
+        <div className="flex items-center justify-between px-5 py-4 border-b dark:border-slate-700">
+          <h2 id="spool-form-title" className="font-semibold text-gray-800 dark:text-slate-100">
             {spool ? "Edit Spool" : "Tambah Spool Baru"}
           </h2>
-          <button onClick={onClose} aria-label="Tutup" className="text-gray-400 hover:text-gray-600">✕</button>
+          <button onClick={onClose} aria-label="Tutup" className="text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300">✕</button>
         </div>
 
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
@@ -98,12 +98,12 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
           {!spool && (
             <>
               <div>
-                <label htmlFor="spool-brand" className="text-xs text-gray-500 block mb-1">Brand</label>
+                <label htmlFor="spool-brand" className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Brand</label>
                 <select
                   id="spool-brand"
                   value={brand}
                   onChange={(e) => { setBrand(e.target.value); setMaterial(""); setColorName("") }}
-                  className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+                  className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
                   required
                 >
                   <option value="">Pilih brand...</option>
@@ -111,12 +111,12 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
                 </select>
               </div>
               <div>
-                <label htmlFor="spool-material" className="text-xs text-gray-500 block mb-1">Material</label>
+                <label htmlFor="spool-material" className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Material</label>
                 <select
                   id="spool-material"
                   value={material}
                   onChange={(e) => { setMaterial(e.target.value); setColorName("") }}
-                  className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+                  className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
                   required
                   disabled={!brand}
                 >
@@ -125,13 +125,13 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
                 </select>
               </div>
               <div>
-                <label htmlFor="spool-color" className="text-xs text-gray-500 block mb-1">Warna</label>
+                <label htmlFor="spool-color" className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Warna</label>
                 <div className="flex gap-2">
                   <select
                     id="spool-color"
                     value={colorName}
                     onChange={(e) => handleColorSelect(e.target.value)}
-                    className="flex-1 border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+                    className="flex-1 border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
                     required
                     disabled={!material}
                   >
@@ -142,7 +142,7 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
                   </select>
                   {colorHex && (
                     <div
-                      className="w-8 h-8 rounded border border-gray-300 flex-shrink-0"
+                      className="w-8 h-8 rounded border border-gray-300 dark:border-slate-600 flex-shrink-0"
                       style={{ backgroundColor: colorHex }}
                     />
                   )}
@@ -154,12 +154,12 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
           {/* Edit mode: only status + notes */}
           {spool && (
             <div>
-              <label htmlFor="spool-status" className="text-xs text-gray-500 block mb-1">Status</label>
+              <label htmlFor="spool-status" className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Status</label>
               <select
                 id="spool-status"
                 value={status}
                 onChange={(e) => setStatus(e.target.value as SpoolStatus)}
-                className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+                className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
               >
                 <option value="new">NEW — tersegel</option>
                 <option value="full">FULL — sudah dibuka, masih penuh</option>
@@ -172,7 +172,7 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
 
           {spool && (
             <div>
-              <label className="text-xs text-gray-500 block mb-1">Tag NFC</label>
+              <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Tag NFC</label>
               {spool.nfcTagId ? (
                 <p className="text-xs text-green-600">📡 Tag terpasang: {spool.nfcTagId.slice(0, 16)}...</p>
               ) : (
@@ -206,13 +206,13 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
           )}
 
           <div>
-            <label htmlFor="spool-notes" className="text-xs text-gray-500 block mb-1">Catatan</label>
+            <label htmlFor="spool-notes" className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Catatan</label>
             <input
               id="spool-notes"
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Opsional..."
-              className="w-full border border-gray-300 rounded-md px-3 py-1.5 text-sm"
+              className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 dark:placeholder:text-slate-500"
             />
           </div>
 
@@ -241,14 +241,14 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
             <button
               type="button"
               onClick={onClose}
-              className="text-sm text-gray-600 px-3 py-1.5 rounded border border-gray-300 hover:bg-gray-50"
+              className="text-sm text-gray-600 dark:text-slate-300 px-3 py-1.5 rounded border border-gray-300 dark:border-slate-600 hover:bg-gray-50 dark:hover:bg-slate-700"
             >
               Batal
             </button>
             <button
               type="submit"
               disabled={isPending}
-              className="text-sm bg-[#EE4D2D] text-white px-4 py-1.5 rounded hover:bg-[#d44226] disabled:opacity-50"
+              className="text-sm bg-[#EE4D2D] dark:bg-indigo-600 text-white px-4 py-1.5 rounded hover:bg-[#d44226] dark:hover:bg-indigo-700 disabled:opacity-50"
             >
               {isPending ? "Menyimpan..." : "Simpan"}
             </button>
