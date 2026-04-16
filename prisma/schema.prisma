@@ -67,9 +67,21 @@ model FilamentCatalog {
   colorHex   String
   syncedAt   DateTime @default(now())
   spools     Spool[]
+  amsSlots   AmsSlot[]
+  slotAlternatives AmsSlotAlternative[]
 
   @@unique([brand, material, colorName])
   @@index([brand])
+}
+
+model Printer {
+  id        String   @id @default(cuid())
+  name      String
+  model     String   @default("")
+  isActive  Boolean  @default(true)
+  notes     String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 model Spool {
@@ -87,20 +99,84 @@ model Spool {
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   amsSlots        AmsSlot[]
+  spoolmanSpool   SpoolmanSpool?
+}
+
+// ── Spoolman-compatible tables (for MrBambuSpoolPal Android app integration) ──
+
+model SpoolmanVendor {
+  id               Int                @id @default(autoincrement())
+  name             String             @unique
+  comment          String             @default("")
+  emptySpoolWeight Float?
+  externalId       String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  filaments        SpoolmanFilament[]
+}
+
+model SpoolmanFilament {
+  id          Int              @id @default(autoincrement())
+  externalId  String?          @unique   // Bambu DB ID e.g. "GFA00"
+  name        String
+  material    String           @default("")
+  diameter    Float            @default(1.75)
+  density     Float            @default(1.24)
+  weight      Float?
+  spoolWeight Float?
+  colorHex    String?
+  vendorId    Int?
+  vendor      SpoolmanVendor?  @relation(fields: [vendorId], references: [id])
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  spools      SpoolmanSpool[]
+}
+
+model SpoolmanSpool {
+  id            Int               @id @default(autoincrement())
+  filamentId    Int
+  filament      SpoolmanFilament  @relation(fields: [filamentId], references: [id])
+  lotNr         String?           @unique   // NFC tray UID from Bambu tag
+  initialWeight Float?
+  usedWeight    Float             @default(0)
+  firstUsed     DateTime?
+  lastUsed      DateTime?
+  spoolId       String?           @unique   // FK to our Spool
+  spool         Spool?            @relation(fields: [spoolId], references: [id])
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
 }
 
 model AmsSlot {
-  id            String   @id @default(cuid())
-  productType   String   // swoosh|clickers
+  id            String              @id @default(cuid())
+  productType   String              // swoosh|clickers
   variantName   String
-  slotNumber    Int      // 1–8
-  filamentName  String   // display name from Excel
+  slotNumber    Int                 // 1–8
+  filamentName  String              // display name from CSV
   spoolId       String?
-  spool         Spool?   @relation(fields: [spoolId], references: [id])
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  spool         Spool?              @relation(fields: [spoolId], references: [id])
+  catalogId     String?             // auto-matched from SpoolmanDB catalog
+  catalog       FilamentCatalog?    @relation(fields: [catalogId], references: [id])
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  alternatives  AmsSlotAlternative[]
 
   @@unique([productType, variantName, slotNumber])
   @@index([productType])
   @@index([spoolId])
+  @@index([catalogId])
+}
+
+model AmsSlotAlternative {
+  id         String           @id @default(cuid())
+  slotId     String
+  slot       AmsSlot          @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  type       String           // "specific" | "general"
+  catalogId  String?
+  catalog    FilamentCatalog? @relation(fields: [catalogId], references: [id], onDelete: SetNull)
+  brand      String?
+  material   String?
+  createdAt  DateTime         @default(now())
+
+  @@index([slotId])
 }
