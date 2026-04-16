@@ -138,4 +138,15 @@
     top: 0;
     left: 0;
   }
+  #print-batch,
+  #print-batch * { visibility: visible; }
+  #print-batch {
+    position: fixed;
+    top: 0;
+    left: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 4px;
+  }
 }

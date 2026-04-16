@@ -30,7 +30,7 @@ export function TabNav({ role, badges = {} }: TabNavProps) {
   const visibleTabs = TABS.filter((tab) => tab.roles.includes(role))
 
   return (
-    <nav className="sticky top-0 z-50 bg-[#EE4D2D] dark:bg-slate-900 shadow-md">
+    <nav className="sticky top-0 z-50 bg-[#EE4D2D] dark:bg-slate-950 shadow-md">
       <div className="max-w-6xl mx-auto flex items-center overflow-x-auto">
         <div className="flex flex-1">
           {visibleTabs.map((tab) => {
