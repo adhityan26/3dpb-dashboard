@@ -1,71 +1,44 @@
 import { prisma } from '@/lib/db'
 import type { FilamentCatalogEntry } from './types'
 
-const SPOOLMANDB_API = 'https://api.github.com/repos/Donkie/SpoolmanDB/contents/filaments'
-const SPOOLMANDB_RAW = 'https://raw.githubusercontent.com/Donkie/SpoolmanDB/main/filaments'
+const SPOOLMANDB_URL = 'https://donkie.github.io/SpoolmanDB/filaments.json'
 
-interface SpoolmanColor {
-  name: string
-  hex: string
-}
-
-interface SpoolmanFilamentEntry {
-  material: string
-  colors?: SpoolmanColor[]
-}
-
-interface SpoolmanBrandFile {
+interface SpoolmanEntry {
+  id: string
   manufacturer: string
-  filaments: SpoolmanFilamentEntry[]
-}
-
-interface GithubContentItem {
   name: string
-  type: string
+  material: string
+  color_hex?: string | null
 }
 
 export async function syncCatalogFromSpoolmanDB(): Promise<{ count: number }> {
-  // Step 1: get list of brand JSON files
-  const listRes = await fetch(SPOOLMANDB_API, {
-    headers: { Accept: 'application/vnd.github+json' },
-    next: { revalidate: 0 },
-  })
-  if (!listRes.ok) throw new Error(`SpoolmanDB listing failed: ${listRes.status}`)
-  const files: GithubContentItem[] = await listRes.json()
-  const brandFiles = files.filter((f) => f.type === 'file' && f.name.endsWith('.json'))
+  const res = await fetch(SPOOLMANDB_URL, { next: { revalidate: 0 } })
+  if (!res.ok) throw new Error(`SpoolmanDB fetch failed: ${res.status}`)
+
+  const entries: SpoolmanEntry[] = await res.json()
 
   let count = 0
-  for (const file of brandFiles) {
-    const rawRes = await fetch(`${SPOOLMANDB_RAW}/${file.name}`, { next: { revalidate: 0 } })
-    if (!rawRes.ok) continue
+  for (const entry of entries) {
+    if (!entry.manufacturer || !entry.material || !entry.name || !entry.color_hex) continue
+    const colorHex = entry.color_hex.startsWith('#') ? entry.color_hex : `#${entry.color_hex}`
 
-    const brand: SpoolmanBrandFile = await rawRes.json()
-    const brandName = brand.manufacturer
-
-    for (const filament of brand.filaments) {
-      if (!filament.colors?.length) continue
-      for (const color of filament.colors) {
-        if (!color.hex) continue
-        const colorHex = color.hex.startsWith('#') ? color.hex : `#${color.hex}`
-        await prisma.filamentCatalog.upsert({
-          where: {
-            brand_material_colorName: {
-              brand: brandName,
-              material: filament.material,
-              colorName: color.name,
-            },
-          },
-          update: { colorHex, syncedAt: new Date() },
-          create: {
-            brand: brandName,
-            material: filament.material,
-            colorName: color.name,
-            colorHex,
-          },
-        })
-        count++
-      }
-    }
+    await prisma.filamentCatalog.upsert({
+      where: {
+        brand_material_colorName: {
+          brand: entry.manufacturer,
+          material: entry.material,
+          colorName: entry.name,
+        },
+      },
+      update: { colorHex, syncedAt: new Date() },
+      create: {
+        brand: entry.manufacturer,
+        material: entry.material,
+        colorName: entry.name,
+        colorHex,
+      },
+    })
+    count++
   }
 
   return { count }

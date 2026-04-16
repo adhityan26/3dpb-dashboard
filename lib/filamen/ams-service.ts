@@ -1,5 +1,22 @@
 import { prisma } from '@/lib/db'
-import type { AmsSlotData, AmsVariant, AmsSectionResponse, ProductType } from './types'
+import type { AmsSlotData, AmsAlternativeData, AmsVariant, AmsSectionResponse, ProductType } from './types'
+
+function toAlternativeData(a: {
+  id: string; type: string; catalogId: string | null; brand: string | null; material: string | null
+  catalog?: { id: string; brand: string; material: string; colorName: string; colorHex: string } | null
+}): AmsAlternativeData {
+  return {
+    id: a.id,
+    type: a.type as 'specific' | 'general',
+    catalogId: a.catalogId,
+    catalogColorHex: a.catalog?.colorHex ?? null,
+    catalogBrand: a.catalog?.brand ?? null,
+    catalogMaterial: a.catalog?.material ?? null,
+    catalogColorName: a.catalog?.colorName ?? null,
+    brand: a.brand,
+    material: a.material,
+  }
+}
 
 function toSlotData(s: {
   id: string
@@ -9,6 +26,11 @@ function toSlotData(s: {
   filamentName: string
   spoolId: string | null
   spool: { id: string; barcode: string; status: string; colorHex: string; brand: string; colorName: string } | null
+  catalog?: { colorHex: string } | null
+  alternatives: Array<{
+    id: string; type: string; catalogId: string | null; brand: string | null; material: string | null
+    catalog?: { id: string; brand: string; material: string; colorName: string; colorHex: string } | null
+  }>
 }): AmsSlotData {
   return {
     id: s.id,
@@ -16,6 +38,7 @@ function toSlotData(s: {
     variantName: s.variantName,
     slotNumber: s.slotNumber,
     filamentName: s.filamentName,
+    catalogColorHex: s.catalog?.colorHex ?? null,
     spoolId: s.spoolId,
     spool: s.spool
       ? {
@@ -27,6 +50,7 @@ function toSlotData(s: {
           colorName: s.spool.colorName,
         }
       : null,
+    alternatives: (s.alternatives ?? []).map(toAlternativeData),
   }
 }
 
@@ -36,6 +60,13 @@ export async function getAmsSections(): Promise<AmsSectionResponse> {
     include: {
       spool: {
         select: { id: true, barcode: true, status: true, colorHex: true, brand: true, colorName: true },
+      },
+      catalog: { select: { colorHex: true } },
+      alternatives: {
+        include: {
+          catalog: { select: { id: true, brand: true, material: true, colorName: true, colorHex: true } },
+        },
+        orderBy: { createdAt: 'asc' },
       },
     },
   })
@@ -74,8 +105,13 @@ export async function assignSpoolToSlot(
       spool: {
         select: { id: true, barcode: true, status: true, colorHex: true, brand: true, colorName: true },
       },
+      catalog: { select: { colorHex: true } },
+      alternatives: {
+        include: {
+          catalog: { select: { id: true, brand: true, material: true, colorName: true, colorHex: true } },
+        },
+      },
     },
   })
   return toSlotData(updated)
 }
-

@@ -132,6 +132,86 @@ export function useAssignSpool() {
   })
 }
 
+// ── Printer ──────────────────────────────────────────────────────────────────
+
+const PRINTERS_KEY = ['filamen', 'printers'] as const
+
+async function fetchPrinters() {
+  const res = await fetch('/api/filamen/printers')
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json()
+}
+
+export function usePrinters() {
+  return useQuery({ queryKey: PRINTERS_KEY, queryFn: fetchPrinters })
+}
+
+export function useCreatePrinter() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (body: { name: string; model?: string; notes?: string }) => {
+      const res = await fetch('/api/filamen/printers', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return res.json()
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: PRINTERS_KEY }),
+  })
+}
+
+export function useUpdatePrinter() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, ...body }: { id: string; name?: string; model?: string; isActive?: boolean; notes?: string }) => {
+      const res = await fetch(`/api/filamen/printers/${id}`, {
+        method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return res.json()
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: PRINTERS_KEY }),
+  })
+}
+
+export function useDeletePrinter() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await fetch(`/api/filamen/printers/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: PRINTERS_KEY }),
+  })
+}
+
+// ── AMS Alternatives ─────────────────────────────────────────────────────────
+
+export function useAddAlternative() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ slotId, ...body }: { slotId: string; type: 'specific' | 'general'; catalogId?: string; brand?: string; material?: string }) => {
+      const res = await fetch(`/api/filamen/ams/${slotId}/alternatives`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return res.json()
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: AMS_KEY }),
+  })
+}
+
+export function useDeleteAlternative() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (altId: string) => {
+      const res = await fetch(`/api/filamen/ams/alternatives/${altId}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: AMS_KEY }),
+  })
+}
+
 // ── Catalog ───────────────────────────────────────────────────────────────────
 
 async function fetchCatalog(): Promise<{
