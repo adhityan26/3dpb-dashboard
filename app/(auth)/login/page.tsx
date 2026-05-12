@@ -1,36 +1,10 @@
-"use client"
-
-import { useState } from "react"
-import { signIn } from "next-auth/react"
+import { signIn } from "@/lib/auth"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 export default function LoginPage() {
-  const [showFallback, setShowFallback] = useState(false)
-  const [email, setEmail] = useState("")
-  const [password, setPassword] = useState("")
-  const [error, setError] = useState("")
-  const [loading, setLoading] = useState(false)
-
-  async function handleCredentials(e: React.FormEvent) {
-    e.preventDefault()
-    setLoading(true)
-    setError("")
-    const result = await signIn("credentials", {
-      email,
-      password,
-      redirect: false,
-    })
-    setLoading(false)
-    if (result?.error) {
-      setError("Email atau password salah.")
-      return
-    }
-    window.location.href = "/order"
-  }
-
   return (
     <Card className="w-full max-w-sm">
       <CardHeader>
@@ -41,13 +15,20 @@ export default function LoginPage() {
         <p className="text-sm text-muted-foreground">3D Printing Bandung</p>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Primary: Authentik SSO — direct link, no JS required */}
-        <a
-          href="/api/auth/signin/authentik?callbackUrl=%2Forder"
-          className="flex items-center justify-center w-full h-10 px-4 rounded-md text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#d44226] transition-colors"
+        {/* Primary: Authentik SSO via Server Action */}
+        <form
+          action={async () => {
+            "use server"
+            await signIn("authentik", { redirectTo: "/order" })
+          }}
         >
-          🔐 Masuk dengan SSO
-        </a>
+          <Button
+            type="submit"
+            className="w-full bg-[#EE4D2D] hover:bg-[#d44226]"
+          >
+            🔐 Masuk dengan SSO
+          </Button>
+        </form>
 
         {/* Divider */}
         <div className="relative">
@@ -59,48 +40,41 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Fallback: email/password */}
-        {!showFallback ? (
-          <button
-            onClick={() => setShowFallback(true)}
-            className="w-full text-xs text-muted-foreground hover:text-foreground text-center"
-          >
-            Login dengan password (fallback)
-          </button>
-        ) : (
-          <form onSubmit={handleCredentials} className="space-y-3">
-            <div className="space-y-1">
-              <Label htmlFor="email">Email</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="owner@example.com"
-                required
-              />
-            </div>
-            <div className="space-y-1">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-              />
-            </div>
-            {error && <p className="text-xs text-red-500">{error}</p>}
-            <Button
-              type="submit"
-              variant="outline"
-              className="w-full"
-              disabled={loading}
-            >
-              {loading ? "Masuk..." : "Masuk"}
-            </Button>
-          </form>
-        )}
+        {/* Fallback: email/password via Server Action */}
+        <form
+          action={async (formData: FormData) => {
+            "use server"
+            await signIn("credentials", {
+              email: formData.get("email"),
+              password: formData.get("password"),
+              redirectTo: "/order",
+            })
+          }}
+          className="space-y-3"
+        >
+          <div className="space-y-1">
+            <Label htmlFor="email">Email</Label>
+            <Input
+              id="email"
+              name="email"
+              type="email"
+              placeholder="owner@example.com"
+              required
+            />
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              name="password"
+              type="password"
+              required
+            />
+          </div>
+          <Button type="submit" variant="outline" className="w-full">
+            Masuk dengan Password
+          </Button>
+        </form>
       </CardContent>
     </Card>
   )
