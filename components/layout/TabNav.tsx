@@ -59,8 +59,15 @@ export function TabNav({ role, badges = {} }: TabNavProps) {
             )
           })}
         </div>
-        <div className="px-3 py-1.5 flex-shrink-0">
+        <div className="px-3 py-1.5 flex-shrink-0 flex items-center gap-2">
           <ThemeToggle />
+          <a
+            href="/api/auth/logout"
+            title="Logout"
+            className="text-white/70 hover:text-white dark:text-slate-400 dark:hover:text-slate-200 transition-colors text-sm px-1"
+          >
+            ⏻
+          </a>
         </div>
       </div>
     </nav>
