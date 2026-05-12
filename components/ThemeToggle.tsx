@@ -3,37 +3,163 @@
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
 
-const OPTIONS = [
-  { value: "light", icon: "☀️", label: "Light" },
-  { value: "system", icon: "💻", label: "Auto" },
-  { value: "dark", icon: "🌙", label: "Dark" },
-] as const
+type ThemeState = "light" | "system" | "dark"
+
+const POSITIONS: Record<ThemeState, number> = { light: 4, system: 28, dark: 52 }
+const STATES: ThemeState[] = ["light", "system", "dark"]
+
+function SunIcon() {
+  return (
+    <div className="relative w-[12px] h-[12px]">
+      {/* Sun body */}
+      <div
+        className="w-full h-full rounded-full"
+        style={{ background: "radial-gradient(circle at 38% 36%, #ffe570, #fbbf24, #e07b00)" }}
+      />
+      {/* Rays */}
+      <div
+        className="absolute inset-[-4px] rounded-full"
+        style={{
+          background: [
+            "radial-gradient(circle at 50% 0%,   #fbbf24 1px, transparent 1.5px)",
+            "radial-gradient(circle at 50% 100%, #fbbf24 1px, transparent 1.5px)",
+            "radial-gradient(circle at 0%   50%, #fbbf24 1px, transparent 1.5px)",
+            "radial-gradient(circle at 100% 50%, #fbbf24 1px, transparent 1.5px)",
+            "radial-gradient(circle at 15%  15%, #fbbf24 1px, transparent 1.5px)",
+            "radial-gradient(circle at 85%  15%, #fbbf24 1px, transparent 1.5px)",
+            "radial-gradient(circle at 15%  85%, #fbbf24 1px, transparent 1.5px)",
+            "radial-gradient(circle at 85%  85%, #fbbf24 1px, transparent 1.5px)",
+          ].join(", "),
+        }}
+      />
+    </div>
+  )
+}
+
+function LaptopIcon() {
+  return (
+    <div className="relative w-[16px] h-[12px]">
+      <div
+        className="absolute top-0 left-0 right-0 h-[8px] rounded-[2px]"
+        style={{ border: "1px solid rgba(165,180,252,0.8)", background: "rgba(99,102,241,0.25)" }}
+      />
+      <div className="absolute bottom-0 left-0 right-0 h-[2px] rounded-[1px] bg-[#a5b4fc]" />
+    </div>
+  )
+}
+
+function MoonIcon() {
+  return (
+    <div
+      className="relative w-[13px] h-[13px] rounded-full overflow-hidden"
+      style={{
+        background: "radial-gradient(circle at 38% 35%, #e4e4e7, #a1a1aa, #71717a)",
+        boxShadow: "inset -2px -1px 4px rgba(0,0,0,0.12)",
+      }}
+    >
+      <div className="absolute w-[4px] h-[4px] rounded-full bg-black/10 top-[3px] left-[3px]" />
+      <div className="absolute w-[3px] h-[3px] rounded-full bg-black/[0.08] top-[7px] left-[7px]" />
+    </div>
+  )
+}
+
+const BALL_STYLES: Record<ThemeState, React.CSSProperties> = {
+  light: {
+    background: "radial-gradient(circle at 35% 35%, #fffbeb, #fde68a, #f59e0b)",
+    boxShadow: "0 0 10px rgba(251,191,36,0.4), 0 2px 6px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.3)",
+  },
+  system: {
+    background: "radial-gradient(circle at 35% 35%, #e0e7ff, #a5b4fc, #6366f1)",
+    boxShadow: "0 0 8px rgba(99,102,241,0.4), 0 2px 6px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.3)",
+  },
+  dark: {
+    background: "radial-gradient(circle at 35% 35%, #f1f5f9, #cbd5e1, #94a3b8)",
+    boxShadow: "inset -2px -1px 4px rgba(0,0,0,0.15), 0 2px 6px rgba(0,0,0,0.25)",
+  },
+}
+
+const BG_STYLES: Record<ThemeState, React.CSSProperties> = {
+  light: { background: "linear-gradient(160deg, #38bdf8, #7dd3fc, #bae6fd)" },
+  system: { background: "linear-gradient(160deg, #0f172a, #1e1b4b, #0f172a)" },
+  dark: { background: "linear-gradient(160deg, #020617, #0f0f2e, #020617)" },
+}
 
 export function ThemeToggle() {
   const { theme, setTheme } = useTheme()
   const [mounted, setMounted] = useState(false)
+  const [active, setActive] = useState<ThemeState>("system")
 
-  // Avoid hydration mismatch — only render after mount
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), [])
-  if (!mounted) return <div className="w-24 h-7" />
+
+  useEffect(() => {
+    if (theme === "light" || theme === "dark" || theme === "system") {
+      setActive(theme as ThemeState)
+    }
+  }, [theme])
+
+  if (!mounted) return <div className="w-[80px] h-[32px] rounded-full bg-white/5" />
+
+  function cycle() {
+    const idx = STATES.indexOf(active)
+    const next = STATES[(idx + 1) % STATES.length]
+    setActive(next)
+    setTheme(next)
+  }
 
   return (
-    <div className="flex items-center bg-white/10 rounded-full p-0.5 gap-0.5">
-      {OPTIONS.map((opt) => (
-        <button
-          key={opt.value}
-          onClick={() => setTheme(opt.value)}
-          title={opt.label}
-          className={`px-2 py-1 rounded-full text-xs transition-colors ${
-            theme === opt.value
-              ? "bg-indigo-500 text-white"
-              : "text-white/70 hover:text-white"
-          }`}
-        >
-          {opt.icon}
-        </button>
-      ))}
-    </div>
+    <button
+      onClick={cycle}
+      title={`Theme: ${active}`}
+      aria-label="Toggle theme"
+      className="relative w-[80px] h-[32px] rounded-full overflow-hidden flex-shrink-0 cursor-pointer"
+      style={{ border: "1px solid rgba(255,255,255,0.08)", boxShadow: "inset 0 1px 3px rgba(0,0,0,0.2)" }}
+    >
+      {/* Background */}
+      <div className="absolute inset-0 transition-all duration-500" style={BG_STYLES[active]} />
+
+      {/* Stars (system/dark) */}
+      {(active === "system" || active === "dark") && (
+        <div className="absolute inset-0" aria-hidden>
+          {[
+            { top: "28%", left: "60%", size: 2 },
+            { top: "55%", left: "75%", size: 1.5 },
+            { top: "22%", left: "84%", size: 2 },
+            { top: "65%", left: "88%", size: 1 },
+          ].map((s, i) => (
+            <div
+              key={i}
+              className="absolute rounded-full"
+              style={{ width: s.size, height: s.size, top: s.top, left: s.left, background: "rgba(255,255,255,0.7)" }}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* Cloud (light) */}
+      {active === "light" && (
+        <div className="absolute" style={{ right: 6, top: 7 }} aria-hidden>
+          <div className="relative w-[34px] h-[18px]">
+            <div className="absolute w-[22px] h-[15px] rounded-full bg-white/60 top-[2px] left-0" />
+            <div className="absolute w-[16px] h-[12px] rounded-full bg-white/60 top-[4px] left-[14px]" />
+            <div className="absolute w-[34px] h-[8px] rounded-full bg-white/60 bottom-0" />
+          </div>
+        </div>
+      )}
+
+      {/* Sliding ball */}
+      <div
+        className="absolute top-1/2 -translate-y-1/2 w-[24px] h-[24px] rounded-full flex items-center justify-center z-10"
+        style={{
+          left: POSITIONS[active],
+          transition: "left 0.4s cubic-bezier(0.34, 1.4, 0.64, 1)",
+          ...BALL_STYLES[active],
+        }}
+      >
+        {active === "light"  && <SunIcon />}
+        {active === "system" && <LaptopIcon />}
+        {active === "dark"   && <MoonIcon />}
+      </div>
+    </button>
   )
 }
