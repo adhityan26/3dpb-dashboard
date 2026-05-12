@@ -15,20 +15,13 @@ export default function LoginPage() {
         <p className="text-sm text-muted-foreground">3D Printing Bandung</p>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Primary: Authentik SSO via Server Action */}
-        <form
-          action={async () => {
-            "use server"
-            await signIn("authentik", { redirectTo: "/order" })
-          }}
+        {/* Primary: Authentik SSO — GET route handler */}
+        <a
+          href="/api/auth/sso"
+          className="flex items-center justify-center w-full h-10 px-4 rounded-md text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#d44226] transition-colors"
         >
-          <Button
-            type="submit"
-            className="w-full bg-[#EE4D2D] hover:bg-[#d44226]"
-          >
-            🔐 Masuk dengan SSO
-          </Button>
-        </form>
+          🔐 Masuk dengan SSO
+        </a>
 
         {/* Divider */}
         <div className="relative">
