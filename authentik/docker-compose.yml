@@ -12,6 +12,7 @@ services:
       AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
       AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+      AUTHENTIK_AUTHENTIK__DOMAIN: auth.homelab.lan
     ports:
       - "9001:9000"   # 9000 dipakai Portainer
     networks:
@@ -33,6 +34,7 @@ services:
       AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}
       AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
       AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+      AUTHENTIK_AUTHENTIK__DOMAIN: auth.homelab.lan
     networks:
       - homelab
     volumes:
