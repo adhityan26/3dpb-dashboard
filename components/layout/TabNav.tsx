@@ -43,8 +43,12 @@ export function TabNav({ role, badges = {}, userName = "" }: TabNavProps) {
       }}
     >
       {/* Logo */}
-      <div className="text-[15px] font-extrabold min-w-[120px] text-white">
-        🛍️ <span style={{ color: "#a5b4fc" }}>Shopee</span>
+      <div className="text-[15px] font-extrabold min-w-[160px] text-white flex items-center gap-[6px]">
+        <span>🛍️</span>
+        <span>
+          <span style={{ color: "#a5b4fc", textShadow: "0 0 24px rgba(165,180,252,0.35)" }}>Shopee</span>
+          <span className="font-medium text-white/60 ml-[5px]">Dashboard</span>
+        </span>
       </div>
 
       {/* Floating Island — centered */}
