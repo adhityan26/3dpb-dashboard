@@ -23,9 +23,10 @@ const TABS: Tab[] = [
 interface TabNavProps {
   role: string
   badges?: Record<string, number>
+  userName?: string
 }
 
-export function TabNav({ role, badges = {} }: TabNavProps) {
+export function TabNav({ role, badges = {}, userName = "" }: TabNavProps) {
   const pathname = usePathname()
   const visibleTabs = TABS.filter((tab) => tab.roles.includes(role))
 
