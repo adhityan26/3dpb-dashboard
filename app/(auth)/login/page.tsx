@@ -1,10 +1,16 @@
-import { signIn } from "@/lib/auth"
+import { auth, signIn } from "@/lib/auth"
+import { redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
-export default function LoginPage() {
+export default async function LoginPage() {
+  // Kalau sudah login, langsung masuk
+  const session = await auth()
+  if (session?.user && !("error" in session)) {
+    redirect("/order")
+  }
   return (
     <Card className="w-full max-w-sm">
       <CardHeader>
