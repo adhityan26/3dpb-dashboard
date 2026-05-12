@@ -2,6 +2,8 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
+import { useTheme } from "next-themes"
+import { useEffect, useState } from "react"
 import { motion, LayoutGroup } from "framer-motion"
 import { GooeyFilter } from "@/components/ui/GooeyFilter"
 import { ControlIsland } from "@/components/layout/ControlIsland"
@@ -29,44 +31,75 @@ interface TabNavProps {
 
 export function TabNav({ role, badges = {}, userName = "" }: TabNavProps) {
   const pathname = usePathname()
+  const { resolvedTheme } = useTheme()
+  const [mounted, setMounted] = useState(false)
+  // eslint-disable-next-line react-hooks/set-state-in-effect
+  useEffect(() => setMounted(true), [])
+
+  const isDark = !mounted || resolvedTheme === "dark"
   const visibleTabs = TABS.filter((tab) => tab.roles.includes(role))
+
+  // Theme-aware styles
+  const navStyle = isDark ? {
+    background: "rgba(6,6,20,0.72)",
+    backdropFilter: "blur(20px) saturate(1.4)",
+    WebkitBackdropFilter: "blur(20px) saturate(1.4)",
+    borderBottom: "1px solid rgba(99,102,241,0.12)",
+    boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
+  } : {
+    background: "rgba(255,255,255,0.55)",
+    backdropFilter: "blur(28px) saturate(2) brightness(1.02)",
+    WebkitBackdropFilter: "blur(28px) saturate(2) brightness(1.02)",
+    borderBottom: "1px solid rgba(255,255,255,0.6)",
+    boxShadow: "0 4px 24px rgba(99,102,241,0.06), inset 0 -1px 0 rgba(99,102,241,0.06)",
+  }
+
+  const islandStyle = isDark ? {
+    background: "rgba(16,16,52,0.85)",
+    border: "1px solid rgba(99,102,241,0.22)",
+    boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08)",
+  } : {
+    background: "rgba(255,255,255,0.42)",
+    border: "1px solid rgba(200,190,255,0.35)",
+    boxShadow: "0 4px 24px rgba(99,102,241,0.08), inset 0 1px 0 rgba(255,255,255,0.95)",
+  }
+
+  const blobStyle = isDark ? {
+    background: "linear-gradient(135deg, #5055e8, #818cf8)",
+    borderRadius: 32,
+    boxShadow: "0 0 24px rgba(99,102,241,0.6), 0 0 50px rgba(99,102,241,0.2)",
+  } : {
+    background: "linear-gradient(135deg, rgba(99,102,241,0.35), rgba(139,92,246,0.28))",
+    borderRadius: 32,
+    border: "1px solid rgba(120,100,255,0.3)",
+    boxShadow: "0 2px 12px rgba(99,102,241,0.15), inset 0 1px 0 rgba(255,255,255,0.5)",
+  }
+
+  const activeTabColor  = isDark ? "rgba(255,255,255,1)"   : "rgba(30,27,75,0.9)"
+  const inactiveTabColor = isDark ? "rgba(255,255,255,0.32)" : "rgba(30,27,75,0.38)"
+  const logoAccentColor = isDark ? "#a5b4fc" : "#6366f1"
+  const logoDashColor   = isDark ? "rgba(255,255,255,0.6)"  : "rgba(30,27,75,0.4)"
 
   return (
     <nav
       className="hidden md:flex sticky top-0 z-50 items-center gap-5 px-8 py-[10px]"
-      style={{
-        background: "rgba(6,6,20,0.72)",
-        backdropFilter: "blur(20px) saturate(1.4)",
-        WebkitBackdropFilter: "blur(20px) saturate(1.4)",
-        borderBottom: "1px solid rgba(99,102,241,0.12)",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.15)",
-      }}
+      style={navStyle}
     >
       {/* Logo */}
-      <div className="text-[15px] font-extrabold min-w-[160px] text-white flex items-center gap-[6px]">
+      <div className="text-[15px] font-extrabold min-w-[160px] flex items-center gap-[6px]">
         <span>🛍️</span>
         <span>
-          <span style={{ color: "#a5b4fc", textShadow: "0 0 24px rgba(165,180,252,0.35)" }}>Shopee</span>
-          <span className="font-medium text-white/60 ml-[5px]">Dashboard</span>
+          <span style={{ color: logoAccentColor, textShadow: isDark ? "0 0 24px rgba(165,180,252,0.35)" : "none" }}>Shopee</span>
+          <span className="font-medium ml-[5px]" style={{ color: logoDashColor }}>Dashboard</span>
         </span>
       </div>
 
       {/* Floating Island — centered */}
       <div className="flex-1 flex justify-center">
-        {/* Invisible gooey filter definition */}
         <GooeyFilter id="nav-goo" />
 
-        {/* Island shell — border + shadow outside gooey layer */}
-        <div
-          className="relative rounded-[48px]"
-          style={{
-            background: "rgba(16,16,52,0.85)",
-            border: "1px solid rgba(99,102,241,0.22)",
-            padding: "8px 10px",
-            boxShadow: "0 8px 32px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.08)",
-          }}
-        >
-          {/* Gooey layer — clips and blurs the blob. Must be overflow:hidden */}
+        <div className="relative rounded-[48px]" style={{ ...islandStyle, padding: "8px 10px" }}>
+          {/* Gooey layer — clips and blurs the blob */}
           <div
             className="absolute inset-0 rounded-[48px] overflow-hidden pointer-events-none"
             style={{ filter: "url(#nav-goo)" }}
@@ -82,9 +115,7 @@ export function TabNav({ role, badges = {}, userName = "" }: TabNavProps) {
                     layoutId="nav-blob"
                     className="absolute top-[8px] bottom-[8px]"
                     style={{
-                      background: "linear-gradient(135deg, #5055e8, #818cf8)",
-                      borderRadius: 32,
-                      boxShadow: "0 0 24px rgba(99,102,241,0.6), 0 0 50px rgba(99,102,241,0.2)",
+                      ...blobStyle,
                       left: `${idx * 72 + 10}px`,
                       width: 72,
                     }}
@@ -95,7 +126,7 @@ export function TabNav({ role, badges = {}, userName = "" }: TabNavProps) {
             </LayoutGroup>
           </div>
 
-          {/* Tab labels — rendered above gooey layer */}
+          {/* Tab labels */}
           <div className="relative z-10 flex">
             {visibleTabs.map((tab) => {
               const isActive = pathname.startsWith(tab.href)
@@ -106,10 +137,7 @@ export function TabNav({ role, badges = {}, userName = "" }: TabNavProps) {
                   key={tab.href}
                   href={tab.href}
                   className="relative flex flex-col items-center gap-[3px] px-[8px] py-[7px] rounded-[40px] transition-colors"
-                  style={{
-                    width: 72,
-                    color: isActive ? "rgba(255,255,255,1)" : "rgba(255,255,255,0.32)",
-                  }}
+                  style={{ width: 72, color: isActive ? activeTabColor : inactiveTabColor }}
                 >
                   <span
                     className="text-[18px] leading-none transition-transform duration-300"
@@ -122,11 +150,7 @@ export function TabNav({ role, badges = {}, userName = "" }: TabNavProps) {
                   {badgeCount != null && badgeCount > 0 && (
                     <div
                       className="absolute top-[3px] right-[6px] min-w-[15px] h-[15px] rounded-full text-white text-[8px] font-bold flex items-center justify-center px-[3px]"
-                      style={{
-                        background: "#ef4444",
-                        boxShadow: "0 0 6px rgba(239,68,68,0.5)",
-                        border: "1px solid rgba(8,8,24,0.5)",
-                      }}
+                      style={{ background: "#ef4444", boxShadow: "0 0 6px rgba(239,68,68,0.5)" }}
                     >
                       {badgeCount}
                     </div>
@@ -138,8 +162,8 @@ export function TabNav({ role, badges = {}, userName = "" }: TabNavProps) {
         </div>
       </div>
 
-      {/* Control island — right side */}
-      <ControlIsland userName={userName} />
+      {/* Control island */}
+      <ControlIsland userName={userName} isDark={isDark} />
     </nav>
   )
 }
