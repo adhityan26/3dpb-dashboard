@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { TabNav } from "@/components/layout/TabNav"
+import { MobileBottomNav } from "@/components/layout/MobileBottomNav"
 import { AmbientOrbs } from "@/components/ui/AmbientOrbs"
 import { countBelumCetak } from "@/lib/orders/service"
 import { getAdsPerformance } from "@/lib/ads/service"
@@ -39,8 +40,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {children}
       </main>
 
-      {/* Mobile bottom nav placeholder — implemented in Task 7 */}
-      {/* <MobileBottomNav role={session.user.role} badges={badges} userName={userName} /> */}
+      <MobileBottomNav role={session.user.role} badges={badges} userName={userName} />
     </div>
   )
 }
