@@ -1,48 +1,42 @@
 import NextAuth from "next-auth"
-import Credentials from "next-auth/providers/credentials"
+import Authentik from "next-auth/providers/authentik"
 import { prisma } from "@/lib/db"
-import bcrypt from "bcryptjs"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   providers: [
-    Credentials({
-      credentials: {
-        email: { label: "Email", type: "email" },
-        password: { label: "Password", type: "password" },
-      },
-      authorize: async (credentials) => {
-        if (!credentials?.email || !credentials?.password) return null
-
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
-        })
-
-        if (!user) return null
-
-        const valid = await bcrypt.compare(
-          credentials.password as string,
-          user.password
-        )
-        if (!valid) return null
-
-        return {
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-        }
-      },
+    Authentik({
+      clientId: process.env.AUTHENTIK_CLIENT_ID!,
+      clientSecret: process.env.AUTHENTIK_CLIENT_SECRET!,
+      issuer: process.env.AUTHENTIK_ISSUER!,
     }),
   ],
   callbacks: {
-    jwt({ token, user }) {
-      if (user) token.role = (user as { role?: string }).role
+    async signIn({ user }) {
+      // Only allow users that exist in local DB
+      if (!user.email) return false
+      const dbUser = await prisma.user.findUnique({
+        where: { email: user.email },
+      })
+      return !!dbUser
+    },
+    async jwt({ token, user }) {
+      // On first login, fetch role from local DB
+      if (user?.email) {
+        const dbUser = await prisma.user.findUnique({
+          where: { email: user.email },
+          select: { id: true, role: true },
+        })
+        if (dbUser) {
+          token.role = dbUser.role
+          token.id = dbUser.id
+        }
+      }
       return token
     },
     session({ session, token }) {
       if (session.user) {
         session.user.role = token.role as string
-        session.user.id = token.sub as string
+        session.user.id = token.id as string
       }
       return session
     },
