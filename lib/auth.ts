@@ -11,32 +11,37 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
-    async signIn({ user }) {
-      // Only allow users that exist in local DB
-      if (!user.email) return false
-      const dbUser = await prisma.user.findUnique({
-        where: { email: user.email },
-      })
-      return !!dbUser
-    },
     async jwt({ token, user }) {
-      // On first login, fetch role from local DB
+      // On first login (user object present), fetch role from local DB
+      // Also acts as the access gate — deny if user not in DB
       if (user?.email) {
-        const dbUser = await prisma.user.findUnique({
-          where: { email: user.email },
-          select: { id: true, role: true },
-        })
-        if (dbUser) {
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { email: user.email },
+            select: { id: true, role: true },
+          })
+          if (!dbUser) {
+            // User authenticated via Authentik but not in our DB — deny
+            token.error = "UserNotInDB"
+            return token
+          }
           token.role = dbUser.role
           token.id = dbUser.id
+        } catch (err) {
+          console.error("[auth] Failed to fetch user from DB:", err)
+          token.error = "DBError"
         }
       }
       return token
     },
     session({ session, token }) {
+      if (token.error) {
+        // Propagate error so middleware can handle it
+        (session as { error?: string }).error = token.error as string
+      }
       if (session.user) {
-        session.user.role = token.role as string
-        session.user.id = token.id as string
+        session.user.role = (token.role as string) ?? null
+        session.user.id = (token.id as string) ?? null
       }
       return session
     },
