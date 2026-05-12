@@ -35,11 +35,13 @@ set +a
 
 # ── Validate required vars ─────────────────────────────────────────────────────
 REQUIRED_VARS=(
-  DATABASE_URL NEXTAUTH_URL NEXTAUTH_SECRET
+  DATABASE_URL NEXTAUTH_SECRET
   SHOPEE_PARTNER_ID SHOPEE_PARTNER_KEY SHOPEE_SHOP_ID
   INTERNAL_NOTIFICATION_SECRET
   AUTHENTIK_CLIENT_ID AUTHENTIK_CLIENT_SECRET AUTHENTIK_ISSUER
 )
+# NEXTAUTH_URL tidak diperlukan — AUTH_TRUST_HOST=true membuat NextAuth
+# menggunakan Host header dari request, sehingga works untuk semua domain
 for var in "${REQUIRED_VARS[@]}"; do
   if [ -z "${!var:-}" ]; then
     echo "❌  Env var '$var' kosong di .env.deploy"
@@ -73,7 +75,6 @@ docker run -d \
   -p 3000:3000 \
   -v "$DATA_VOLUME:/app/data" \
   -e DATABASE_URL="$DATABASE_URL" \
-  -e NEXTAUTH_URL="$NEXTAUTH_URL" \
   -e NEXTAUTH_SECRET="$NEXTAUTH_SECRET" \
   -e SHOPEE_PARTNER_ID="$SHOPEE_PARTNER_ID" \
   -e SHOPEE_PARTNER_KEY="$SHOPEE_PARTNER_KEY" \
