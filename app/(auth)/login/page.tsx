@@ -41,13 +41,13 @@ export default function LoginPage() {
         <p className="text-sm text-muted-foreground">3D Printing Bandung</p>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Primary: Authentik SSO */}
-        <Button
-          className="w-full bg-[#EE4D2D] hover:bg-[#d44226]"
-          onClick={() => signIn("authentik", { callbackUrl: "/order" })}
+        {/* Primary: Authentik SSO — direct link, no JS required */}
+        <a
+          href="/api/auth/signin/authentik?callbackUrl=%2Forder"
+          className="flex items-center justify-center w-full h-10 px-4 rounded-md text-sm font-medium text-white bg-[#EE4D2D] hover:bg-[#d44226] transition-colors"
         >
           🔐 Masuk dengan SSO
-        </Button>
+        </a>
 
         {/* Divider */}
         <div className="relative">
