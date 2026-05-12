@@ -1,0 +1,32 @@
+services:
+  npm:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: nginx-proxy-manager
+    restart: unless-stopped
+    ports:
+      - "80:80"     # HTTP proxy
+      - "443:443"   # HTTPS proxy
+      - "81:81"     # Admin UI → http://npm.homelab:81 atau http://192.168.88.113:81
+    volumes:
+      - npm_data:/data
+      - npm_letsencrypt:/etc/letsencrypt
+    networks:
+      - homelab
+
+volumes:
+  npm_data:
+  npm_letsencrypt:
+
+networks:
+  homelab:
+    external: true
+
+# Deploy:
+#   cd nginx-proxy-manager/
+#   docker-compose up -d
+#
+# Default login pertama kali:
+#   Email:    admin@example.com
+#   Password: changeme
+#
+# Admin UI: http://192.168.88.113:81

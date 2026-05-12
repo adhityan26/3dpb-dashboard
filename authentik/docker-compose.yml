@@ -1,0 +1,59 @@
+services:
+  server:
+    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG}
+    container_name: authentik-server
+    command: server
+    restart: unless-stopped
+    environment:
+      AUTHENTIK_REDIS__HOST: light-generator-redis-1
+      AUTHENTIK_POSTGRESQL__HOST: light-generator-postgres-1
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+    ports:
+      - "9001:9000"   # 9000 dipakai Portainer
+    networks:
+      - homelab
+    volumes:
+      - authentik_media:/media
+      - authentik_templates:/templates
+
+  worker:
+    image: ghcr.io/goauthentik/server:${AUTHENTIK_TAG}
+    container_name: authentik-worker
+    command: worker
+    restart: unless-stopped
+    environment:
+      AUTHENTIK_REDIS__HOST: light-generator-redis-1
+      AUTHENTIK_POSTGRESQL__HOST: light-generator-postgres-1
+      AUTHENTIK_POSTGRESQL__USER: authentik
+      AUTHENTIK_POSTGRESQL__NAME: authentik
+      AUTHENTIK_POSTGRESQL__PASSWORD: ${AUTHENTIK_DB_PASSWORD}
+      AUTHENTIK_SECRET_KEY: ${AUTHENTIK_SECRET_KEY}
+      AUTHENTIK_ERROR_REPORTING__ENABLED: "false"
+    networks:
+      - homelab
+    volumes:
+      - authentik_media:/media
+      - authentik_templates:/templates
+
+volumes:
+  authentik_media:
+  authentik_templates:
+
+networks:
+  homelab:
+    external: true
+
+# Deploy:
+#   cd authentik/
+#   docker-compose --env-file .env up -d
+#
+# Update:
+#   docker-compose pull
+#   docker-compose --env-file .env up -d
+#
+# Logs:
+#   docker logs authentik-server -f
