@@ -20,16 +20,16 @@ function fmtNum(n: number): string {
 }
 
 const ROW_BG: Record<AdSummary["roasCategory"], string> = {
-  good: "bg-green-50/50",
-  medium: "bg-amber-50/40",
-  bad: "bg-red-50/50",
+  good:   "dark:bg-green-950/20  bg-green-50/40",
+  medium: "dark:bg-amber-950/20  bg-amber-50/30",
+  bad:    "dark:bg-red-950/20    bg-red-50/40",
 }
 
 const STATUS_COLOR: Record<AdSummary["status"], string> = {
-  berjalan: "bg-green-100 text-green-800",
-  dijeda: "bg-gray-100 text-gray-700",
-  berakhir: "bg-red-100 text-red-800",
-  unknown: "bg-gray-100 text-gray-500",
+  berjalan: "dark:bg-green-900/40 dark:text-green-300 bg-green-100 text-green-800",
+  dijeda:   "dark:bg-slate-700/60 dark:text-slate-300 bg-gray-100 text-gray-700",
+  berakhir: "dark:bg-red-900/40   dark:text-red-300   bg-red-100 text-red-800",
+  unknown:  "dark:bg-slate-700/60 dark:text-slate-400 bg-gray-100 text-gray-500",
 }
 
 const RECOMMENDATION_COLOR: Record<string, string> = {
@@ -44,12 +44,12 @@ export function AdsTableRow({ ad }: Props) {
   const recColor = RECOMMENDATION_COLOR[ad.recommendation.kind]
 
   return (
-    <tr className={`${ROW_BG[ad.roasCategory]} border-b`}>
+    <tr className={`${ROW_BG[ad.roasCategory]} border-b dark:border-white/5 border-black/5`}>
       <td className="px-3 py-2 text-sm">
-        <div className="font-medium truncate max-w-[240px]" title={ad.adName}>
+        <div className="font-medium truncate max-w-[240px] dark:text-slate-100" title={ad.adName}>
           {ad.adName}
         </div>
-        <div className="text-xs text-gray-500">{ad.biddingMethod}</div>
+        <div className="text-xs text-gray-500 dark:text-slate-500">{ad.biddingMethod}</div>
       </td>
       <td className="px-3 py-2">
         <Badge className={STATUS_COLOR[ad.status]}>{ad.status}</Badge>

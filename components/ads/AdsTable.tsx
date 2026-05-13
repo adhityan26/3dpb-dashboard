@@ -55,14 +55,14 @@ export function AdsTable({ ads }: Props) {
   }
 
   return (
-    <div className="overflow-x-auto rounded-md border bg-white">
+    <div className="overflow-x-auto rounded-xl" style={{ background: "rgba(255,255,255,0.04)", backdropFilter: "blur(12px)", border: "1px solid rgba(99,102,241,0.1)" }}>
       <table className="min-w-full">
-        <thead className="bg-gray-50 text-xs text-gray-600 uppercase">
+        <thead className="text-xs uppercase" style={{ background: "rgba(99,102,241,0.06)", borderBottom: "1px solid rgba(99,102,241,0.1)" }}>
           <tr>
             {HEADERS.map((h) => (
               <th
                 key={h.label}
-                className={`px-3 py-2 font-medium ${h.align === "right" ? "text-right" : "text-left"} ${h.key ? "cursor-pointer hover:text-[#EE4D2D]" : ""}`}
+                className={`px-3 py-2 font-medium dark:text-slate-400 text-slate-500 ${h.align === "right" ? "text-right" : "text-left"} ${h.key ? "cursor-pointer hover:text-indigo-400" : ""}`}
                 onClick={() => toggleSort(h.key)}
               >
                 {h.label}

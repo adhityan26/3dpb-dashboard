@@ -4,8 +4,6 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useTheme } from "next-themes"
 import { useEffect, useState } from "react"
-import { motion, LayoutGroup } from "framer-motion"
-import { GooeyFilter } from "@/components/ui/GooeyFilter"
 import { ControlIsland } from "@/components/layout/ControlIsland"
 
 interface Tab {
@@ -114,71 +112,41 @@ export function TabNav({ role, badges = {}, userName = "" }: TabNavProps) {
         </span>
       </div>
 
-      {/* Floating Island — centered */}
+      {/* Floating Island — centered, no blob — scale + brightness active indicator */}
       <div className="flex-1 flex justify-center">
-        <GooeyFilter id="nav-goo" />
+        <div className="relative rounded-[48px] flex" style={{ ...islandStyle, padding: "8px 10px" }}>
+          {visibleTabs.map((tab) => {
+            const isActive = pathname.startsWith(tab.href)
+            const badgeCount = badges[tab.href.slice(1)]
 
-        <div className="relative rounded-[48px]" style={{ ...islandStyle, padding: "8px 10px" }}>
-          {/* Gooey layer — clips and blurs the blob */}
-          <div
-            className="absolute inset-0 rounded-[48px] overflow-hidden pointer-events-none"
-            style={{ filter: "url(#nav-goo)" }}
-            aria-hidden
-          >
-            <LayoutGroup id="nav-island">
-              {visibleTabs.map((tab, idx) => {
-                const isActive = pathname.startsWith(tab.href)
-                if (!isActive) return null
-                return (
-                  <motion.div
-                    key="blob"
-                    layoutId="nav-blob"
-                    className="absolute top-[8px] bottom-[8px]"
-                    style={{
-                      ...blobStyle,
-                      left: `${idx * 72 + 10}px`,
-                      width: 72,
-                    }}
-                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                  />
-                )
-              })}
-            </LayoutGroup>
-          </div>
+            return (
+              <Link
+                key={tab.href}
+                href={tab.href}
+                className="relative flex flex-col items-center gap-[3px] px-[8px] py-[7px] rounded-[40px]"
+                style={{
+                  width: 72,
+                  color: isActive ? activeTabColor : inactiveTabColor,
+                  transform: isActive ? "scale(1.12)" : "scale(0.88)",
+                  opacity: isActive ? 1 : 0.5,
+                  transition: "transform 0.35s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s ease, color 0.3s ease",
+                  zIndex: isActive ? 2 : 1,
+                }}
+              >
+                <span className="text-[18px] leading-none">{tab.icon}</span>
+                <span className="text-[10px] font-semibold">{tab.label}</span>
 
-          {/* Tab labels */}
-          <div className="relative z-10 flex">
-            {visibleTabs.map((tab) => {
-              const isActive = pathname.startsWith(tab.href)
-              const badgeCount = badges[tab.href.slice(1)]
-
-              return (
-                <Link
-                  key={tab.href}
-                  href={tab.href}
-                  className="relative flex flex-col items-center gap-[3px] px-[8px] py-[7px] rounded-[40px] transition-colors"
-                  style={{ width: 72, color: isActive ? activeTabColor : inactiveTabColor }}
-                >
-                  <span
-                    className="text-[18px] leading-none transition-transform duration-300"
-                    style={{ transform: isActive ? "scale(1.15)" : "scale(1)" }}
+                {badgeCount != null && badgeCount > 0 && (
+                  <div
+                    className="absolute top-[3px] right-[6px] min-w-[15px] h-[15px] rounded-full text-white text-[8px] font-bold flex items-center justify-center px-[3px]"
+                    style={{ background: "#ef4444", boxShadow: "0 0 6px rgba(239,68,68,0.5)" }}
                   >
-                    {tab.icon}
-                  </span>
-                  <span className="text-[10px] font-semibold">{tab.label}</span>
-
-                  {badgeCount != null && badgeCount > 0 && (
-                    <div
-                      className="absolute top-[3px] right-[6px] min-w-[15px] h-[15px] rounded-full text-white text-[8px] font-bold flex items-center justify-center px-[3px]"
-                      style={{ background: "#ef4444", boxShadow: "0 0 6px rgba(239,68,68,0.5)" }}
-                    >
-                      {badgeCount}
-                    </div>
-                  )}
-                </Link>
-              )
-            })}
-          </div>
+                    {badgeCount}
+                  </div>
+                )}
+              </Link>
+            )
+          })}
         </div>
       </div>
 
