@@ -18,7 +18,8 @@ const OPTIONS: Array<{ key: ProductFilterValue; label: string }> = [
 
 export function ProductFilter({ value, onChange, counts }: Props) {
   return (
-    <div className="inline-flex rounded-md border bg-white p-1 gap-1 flex-wrap">
+    <div className="inline-flex rounded-xl p-1 gap-1 flex-wrap"
+         style={{ background: "rgba(255,255,255,0.06)", backdropFilter: "blur(12px)", border: "1px solid rgba(99,102,241,0.15)" }}>
       {OPTIONS.map((opt) => {
         const isActive = value === opt.key
         return (
@@ -29,8 +30,8 @@ export function ProductFilter({ value, onChange, counts }: Props) {
             onClick={() => onChange(opt.key)}
             className={
               isActive
-                ? "bg-[#EE4D2D] hover:bg-[#d44226] text-white h-8"
-                : "h-8"
+                ? "bg-indigo-600 hover:bg-indigo-700 text-white h-8"
+                : "h-8 dark:text-slate-300 dark:hover:text-white dark:hover:bg-white/10"
             }
           >
             {opt.label}
