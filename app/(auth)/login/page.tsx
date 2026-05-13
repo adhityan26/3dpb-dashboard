@@ -1,11 +1,19 @@
 import { auth, signIn } from "@/lib/auth"
 import { redirect } from "next/navigation"
+import { AuthError } from "next-auth"
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string }>
+}) {
   const session = await auth()
   if (session?.user && !("error" in session)) {
     redirect("/order")
   }
+
+  const params = await searchParams
+  const loginError = params.error
 
   return (
     <div
@@ -45,7 +53,7 @@ export default async function LoginPage() {
       <div className="relative z-10 px-8 py-9">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="text-4xl mb-3">🛍️</div>
+          <div className="text-4xl mb-3">🖨️</div>
           <h1
             className="text-[22px] font-extrabold mb-1"
             style={{
@@ -55,7 +63,7 @@ export default async function LoginPage() {
               backgroundClip: "text",
             }}
           >
-            Shopee Dashboard
+            3DPB Ops
           </h1>
           <p className="text-[13px]" style={{ color: "rgba(165,180,252,0.6)" }}>
             3D Printing Bandung
@@ -81,11 +89,18 @@ export default async function LoginPage() {
         <form
           action={async (formData: FormData) => {
             "use server"
-            await signIn("credentials", {
-              email: formData.get("email"),
-              password: formData.get("password"),
-              redirectTo: "/order",
-            })
+            try {
+              await signIn("credentials", {
+                email: formData.get("email"),
+                password: formData.get("password"),
+                redirectTo: "/order",
+              })
+            } catch (error) {
+              if (error instanceof AuthError) {
+                redirect("/login?error=Email+atau+password+salah")
+              }
+              throw error // Re-throw NEXT_REDIRECT so it still redirects on success
+            }
           }}
           className="space-y-3"
         >
@@ -124,6 +139,12 @@ export default async function LoginPage() {
               className="glass-input w-full h-10 rounded-[10px] px-3 text-[13px]"
             />
           </div>
+
+          {loginError && (
+            <p className="text-[12px] text-center" style={{ color: "rgba(239,100,100,0.85)" }}>
+              {decodeURIComponent(loginError)}
+            </p>
+          )}
 
           <button type="submit" className="glass-submit mt-1">
             Masuk dengan Password
