@@ -55,10 +55,10 @@ export function NfcLinkModal({ nfcTagId, onLinked, onAddNew, onClose }: NfcLinkM
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      className="glass-modal-backdrop fixed inset-0 flex items-center justify-center z-50 p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm shadow-xl max-h-[80vh] flex flex-col" role="dialog" aria-modal="true">
+      <div className="glass-modal-panel rounded-xl w-full max-w-sm shadow-xl max-h-[80vh] flex flex-col" role="dialog" aria-modal="true">
         <div className="flex items-center justify-between px-5 py-4 border-b dark:border-slate-700 shrink-0">
           <div>
             <h2 className="font-semibold text-gray-800 dark:text-slate-100">Hubungkan NFC ke Spool</h2>

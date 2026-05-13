@@ -112,10 +112,10 @@ export function ScanModal({ onFound, onNotFound, onClose }: ScanModalProps) {
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+      className="glass-modal-backdrop fixed inset-0 flex items-center justify-center z-50 p-4"
       onClick={(e) => { if (e.target === e.currentTarget) onClose() }}
     >
-      <div className="bg-white dark:bg-slate-800 rounded-xl w-full max-w-sm shadow-xl" role="dialog" aria-modal="true" aria-labelledby="scan-modal-title">
+      <div className="glass-modal-panel rounded-xl w-full max-w-sm shadow-xl" role="dialog" aria-modal="true" aria-labelledby="scan-modal-title">
         <div className="flex items-center justify-between px-5 py-4 border-b dark:border-slate-700">
           <h2 id="scan-modal-title" className="font-semibold text-gray-800 dark:text-slate-100">Scan Spool</h2>
           <button onClick={onClose} aria-label="Tutup" className="text-gray-400 dark:text-slate-500 hover:text-gray-600 dark:hover:text-slate-300">✕</button>

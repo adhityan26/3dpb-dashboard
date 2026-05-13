@@ -15,12 +15,12 @@ export function SpoolActionSheet({ spool, onEdit, onPrint, onScanNfc, onClose }:
     <>
       {/* Overlay */}
       <div
-        className="fixed inset-0 z-40 bg-black/60"
+        className="glass-modal-backdrop fixed inset-0 z-40"
         onClick={onClose}
       />
 
       {/* Bottom sheet */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-800 rounded-t-2xl shadow-2xl pb-safe">
+      <div className="glass-modal-panel fixed bottom-0 left-0 right-0 z-50 rounded-t-2xl shadow-2xl pb-safe">
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-1">
           <div className="w-10 h-1 rounded-full bg-gray-300 dark:bg-slate-600" />
