@@ -28,12 +28,11 @@ export function SpoolCard({ spool, onEdit, onPrint, onTap, selected, onSelect }:
     <div
       className={`relative flex rounded-lg overflow-hidden border transition-colors cursor-pointer
         ${selected
-          ? "ring-2 ring-[#EE4D2D] dark:ring-indigo-400 border-[#EE4D2D] dark:border-indigo-400"
+          ? "ring-2 ring-indigo-400 border-indigo-400 bg-[rgba(99,102,241,0.12)] dark:bg-[rgba(99,102,241,0.1)] backdrop-blur-[12px]"
           : isLow
-            ? "border-orange-300 dark:border-orange-700"
-            : "border-gray-200 dark:border-slate-700"
-        }
-        bg-white dark:bg-slate-800`}
+            ? "border-orange-300/60 dark:border-orange-700/60 bg-[rgba(245,158,11,0.06)] dark:bg-[rgba(245,158,11,0.05)] backdrop-blur-[12px]"
+            : "border-[rgba(200,190,255,0.3)] dark:border-[rgba(99,102,241,0.12)] bg-[rgba(255,255,255,0.38)] dark:bg-[rgba(255,255,255,0.05)] backdrop-blur-[12px]"
+        }`}
       onClick={() => onTap?.(spool)}
     >
       {/* Selection checkbox */}
