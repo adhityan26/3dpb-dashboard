@@ -131,7 +131,7 @@ export function ProductRow({
   const bgClass = product.isStockLow
     ? "bg-red-50/40"
     : product.perluPerhatian
-      ? "bg-amber-50/40"
+      ? "row-status-pending"
       : ""
 
   const priceLabel =

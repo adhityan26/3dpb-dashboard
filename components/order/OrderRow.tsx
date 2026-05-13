@@ -35,7 +35,7 @@ export function OrderRow({ order, onToggleLabel, isPending }: OrderRowProps) {
   const firstItem = order.items[0]
 
   return (
-    <Card className={order.labelPrinted ? "bg-green-50/40 dark:bg-green-950/30" : "bg-amber-50/40 dark:bg-amber-950/30"}>
+    <Card className={order.labelPrinted ? "row-status-printed" : "row-status-pending"}>
       <CardContent className="p-3">
         <div className="flex items-start justify-between gap-3">
           <button
@@ -58,22 +58,22 @@ export function OrderRow({ order, onToggleLabel, isPending }: OrderRowProps) {
                 {formatTime(order.createTime)}
               </span>
             </div>
-            <div className="mt-1 text-sm text-gray-700">
+            <div className="mt-1 text-sm text-gray-700 dark:text-slate-300">
               {firstItem?.productName ?? "(no items)"}
               {firstItem?.variantName && (
-                <span className="text-gray-500">
+                <span className="text-gray-500 dark:text-slate-400">
                   {" "}
                   · {firstItem.variantName}
                 </span>
               )}
               {order.items.length > 1 && (
-                <span className="text-gray-500">
+                <span className="text-gray-500 dark:text-slate-400">
                   {" "}
                   · +{order.items.length - 1} item lain
                 </span>
               )}
             </div>
-            <div className="text-xs text-gray-500">
+            <div className="text-xs text-gray-500 dark:text-slate-400">
               {totalQty} pcs · {formatCurrency(order.totalAmount, order.currency)}
               {order.buyerUsername && <> · {order.buyerUsername}</>}
             </div>
@@ -95,28 +95,28 @@ export function OrderRow({ order, onToggleLabel, isPending }: OrderRowProps) {
         </div>
 
         {expanded && (
-          <div className="mt-3 border-t pt-3 space-y-2 text-xs">
+          <div className="mt-3 border-t dark:border-slate-700 pt-3 space-y-2 text-xs">
             {order.items.map((item, idx) => (
               <div key={idx} className="flex justify-between gap-2">
                 <div>
                   <div className="font-medium">{item.productName}</div>
                   {item.variantName && (
-                    <div className="text-gray-500">{item.variantName}</div>
+                    <div className="text-gray-500 dark:text-slate-400">{item.variantName}</div>
                   )}
                   {item.sku && (
-                    <div className="text-gray-400">SKU: {item.sku}</div>
+                    <div className="text-gray-400 dark:text-slate-500">SKU: {item.sku}</div>
                   )}
                 </div>
                 <div className="text-right">
                   <div>{item.qty} pcs</div>
-                  <div className="text-gray-500">
+                  <div className="text-gray-500 dark:text-slate-400">
                     {formatCurrency(item.unitPrice, order.currency)}
                   </div>
                 </div>
               </div>
             ))}
             {order.labelPrintedAt && (
-              <div className="text-gray-400 pt-1 border-t">
+              <div className="text-gray-400 dark:text-slate-500 pt-1 border-t dark:border-slate-700">
                 Dicetak:{" "}
                 {new Date(order.labelPrintedAt).toLocaleString("id-ID")}
                 {order.labelPrintedBy && <> oleh {order.labelPrintedBy}</>}
