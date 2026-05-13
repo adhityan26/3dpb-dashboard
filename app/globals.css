@@ -198,3 +198,88 @@
     to   { opacity: 1; transform: translateY(0); }
   }
 }
+
+/* ── GLASS UI: SHADCN CARD OVERRIDES ─────────────────────────────
+   Target ALL ShadCN Card elements via data-slot attribute.
+   This avoids per-component changes — all cards auto-get glass.
+──────────────────────────────────────────────────────────────── */
+
+/* Dark mode glass cards */
+.dark [data-slot="card"] {
+  background: rgba(255, 255, 255, 0.05) !important;
+  backdrop-filter: blur(12px) saturate(1.8) !important;
+  -webkit-backdrop-filter: blur(12px) saturate(1.8) !important;
+  border: 1px solid rgba(99, 102, 241, 0.10) !important;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.05) !important;
+  --tw-ring-color: rgba(99,102,241,0.10);
+}
+
+/* Light mode liquid glass cards */
+[data-slot="card"] {
+  background: rgba(255, 255, 255, 0.38) !important;
+  backdrop-filter: blur(20px) saturate(2) brightness(1.02) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(2) brightness(1.02) !important;
+  border: 1px solid rgba(200, 190, 255, 0.30) !important;
+  box-shadow: 0 4px 20px rgba(99,102,241,0.06), inset 0 1px 0 rgba(255,255,255,0.95) !important;
+}
+
+/* Status tints: glass-aware amber/green for order & product rows */
+.dark .row-status-printed {
+  background: rgba(16, 185, 129, 0.08) !important;
+  border-color: rgba(16, 185, 129, 0.15) !important;
+}
+.dark .row-status-pending {
+  background: rgba(245, 158, 11, 0.08) !important;
+  border-color: rgba(245, 158, 11, 0.15) !important;
+}
+.row-status-printed {
+  background: rgba(16, 185, 129, 0.06) !important;
+  border-color: rgba(16, 185, 129, 0.12) !important;
+}
+.row-status-pending {
+  background: rgba(245, 158, 11, 0.06) !important;
+  border-color: rgba(245, 158, 11, 0.12) !important;
+}
+
+/* Glass input fields in dark mode */
+.dark input[type="text"],
+.dark input[type="search"],
+.dark input[type="email"],
+.dark input[type="number"],
+.dark textarea,
+.dark select {
+  background: rgba(255,255,255,0.06) !important;
+  border-color: rgba(99,102,241,0.15) !important;
+}
+
+/* Glass modal backdrop */
+.glass-modal-backdrop {
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+/* Glass modal panel dark */
+.dark .glass-modal-panel {
+  background: rgba(14, 14, 44, 0.92) !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  border: 1px solid rgba(99,102,241,0.2) !important;
+}
+/* Glass modal panel light */
+.glass-modal-panel {
+  background: rgba(255,255,255,0.75) !important;
+  backdrop-filter: blur(24px) saturate(2) !important;
+  -webkit-backdrop-filter: blur(24px) saturate(2) !important;
+  border: 1px solid rgba(200,190,255,0.4) !important;
+}
+
+/* Page title gradient tokens */
+:root {
+  --glass-title-from: #1a1a2e;
+  --glass-title-to:   #6366f1;
+}
+.dark {
+  --glass-title-from: #ffffff;
+  --glass-title-to:   #a5b4fc;
+}
