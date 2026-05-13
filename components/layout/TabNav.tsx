@@ -64,15 +64,35 @@ export function TabNav({ role, badges = {}, userName = "" }: TabNavProps) {
     boxShadow: "0 4px 24px rgba(99,102,241,0.08), inset 0 1px 0 rgba(255,255,255,0.95)",
   }
 
+  // Glass blob — mimics real glass: frosted, specular highlight, iridescent edge
   const blobStyle = isDark ? {
-    background: "linear-gradient(135deg, #5055e8, #818cf8)",
+    // Dark: deep indigo glass with strong glow
+    background: "linear-gradient(160deg, rgba(120,120,255,0.55) 0%, rgba(80,85,232,0.45) 50%, rgba(60,65,200,0.55) 100%)",
+    backdropFilter: "blur(20px) saturate(2) brightness(1.15)",
+    WebkitBackdropFilter: "blur(20px) saturate(2) brightness(1.15)",
     borderRadius: 32,
-    boxShadow: "0 0 24px rgba(99,102,241,0.6), 0 0 50px rgba(99,102,241,0.2)",
+    // Specular top highlight + outer glow
+    boxShadow: [
+      "inset 0 1.5px 0 rgba(255,255,255,0.45)",   // top specular
+      "inset 0 -1px 0 rgba(0,0,0,0.2)",            // bottom shadow
+      "inset 1px 0 0 rgba(255,255,255,0.1)",        // left rim
+      "0 0 28px rgba(99,102,241,0.55)",             // outer glow
+      "0 0 60px rgba(99,102,241,0.2)",              // wide ambient
+    ].join(", "),
+    border: "1px solid rgba(180,180,255,0.3)",
   } : {
-    background: "linear-gradient(135deg, rgba(99,102,241,0.35), rgba(139,92,246,0.28))",
+    // Light: clear frosted glass lens
+    background: "linear-gradient(160deg, rgba(255,255,255,0.55) 0%, rgba(220,215,255,0.35) 50%, rgba(200,195,255,0.4) 100%)",
+    backdropFilter: "blur(24px) saturate(2.5) brightness(1.08)",
+    WebkitBackdropFilter: "blur(24px) saturate(2.5) brightness(1.08)",
     borderRadius: 32,
-    border: "1px solid rgba(120,100,255,0.3)",
-    boxShadow: "0 2px 12px rgba(99,102,241,0.15), inset 0 1px 0 rgba(255,255,255,0.5)",
+    boxShadow: [
+      "inset 0 1.5px 0 rgba(255,255,255,0.9)",     // top specular
+      "inset 0 -1px 0 rgba(0,0,0,0.06)",            // bottom shadow
+      "0 4px 16px rgba(99,102,241,0.15)",            // soft drop shadow
+      "0 1px 0 rgba(255,255,255,0.8)",               // base highlight
+    ].join(", "),
+    border: "1px solid rgba(180,170,255,0.5)",
   }
 
   const activeTabColor  = isDark ? "rgba(255,255,255,1)"   : "rgba(30,27,75,0.9)"

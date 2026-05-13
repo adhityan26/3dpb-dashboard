@@ -126,15 +126,29 @@ export function ThemeToggle() {
     })
 
     transition.ready.then(() => {
-      const isDarkNext = next === "dark" || next === "system"
+      // Circular reveal expands from toggle button — new page slides in like glass
       document.documentElement.animate(
         [
-          { clipPath: `circle(0px at ${x}px ${y}px)` },
-          { clipPath: `circle(${maxR}px at ${x}px ${y}px)` },
+          {
+            clipPath: `circle(0px at ${x}px ${y}px)`,
+            filter: "blur(12px) brightness(1.15)",
+            opacity: "0",
+          },
+          {
+            clipPath: `circle(${maxR * 0.3}px at ${x}px ${y}px)`,
+            filter: "blur(4px) brightness(1.05)",
+            opacity: "0.8",
+            offset: 0.3,
+          },
+          {
+            clipPath: `circle(${maxR}px at ${x}px ${y}px)`,
+            filter: "blur(0px) brightness(1)",
+            opacity: "1",
+          },
         ],
         {
-          duration: 420,
-          easing: "cubic-bezier(0.4, 0, 0.2, 1)",
+          duration: 500,
+          easing: "cubic-bezier(0.22, 1, 0.36, 1)",
           pseudoElement: "::view-transition-new(root)",
         }
       )
