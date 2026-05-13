@@ -11,6 +11,7 @@ import { RefreshIndicator } from "@/components/layout/RefreshIndicator"
 import { useOrders, useMarkLabel } from "@/lib/hooks/use-orders"
 import { useRefreshConfig } from "@/lib/use-refresh-config"
 import { Button } from "@/components/ui/button"
+import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
 
 export default function OrderPage() {
   const { intervalMs } = useRefreshConfig()
@@ -77,14 +78,13 @@ export default function OrderPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Order</h1>
+      <GlassPageHeader title="Order" subtitle="Kelola dan cetak label pesanan Shopee">
         <RefreshIndicator
           lastUpdated={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
           intervalMs={intervalMs}
           onRefresh={() => refetch()}
         />
-      </div>
+      </GlassPageHeader>
 
       <OrderKpiBar
         total={data.kpi.total}

@@ -15,6 +15,7 @@ import {
 } from "@/lib/hooks/use-products"
 import { useRefreshConfig } from "@/lib/use-refresh-config"
 import { Button } from "@/components/ui/button"
+import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
 import type { ProductSummary } from "@/lib/products/types"
 import type { ProductFilterValue } from "@/components/products/types"
 
@@ -154,14 +155,13 @@ export default function ProdukPage() {
 
           {data && (
             <>
-              <div className="flex items-center justify-between">
-                <h1 className="text-xl font-semibold">Produk</h1>
+              <GlassPageHeader title="Produk" subtitle="Pantau produk aktif dan HPP">
                 <RefreshIndicator
                   lastUpdated={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
                   intervalMs={intervalMs}
                   onRefresh={() => refetch()}
                 />
-              </div>
+              </GlassPageHeader>
 
               <ProductsKpiBar kpi={data.kpi} />
 

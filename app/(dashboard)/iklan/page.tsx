@@ -9,6 +9,7 @@ import { RefreshIndicator } from "@/components/layout/RefreshIndicator"
 import { useAds } from "@/lib/hooks/use-ads"
 import { useRefreshConfig } from "@/lib/use-refresh-config"
 import { Button } from "@/components/ui/button"
+import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
 import type { AdsRange } from "@/lib/ads/service"
 
 export default function IklanPage() {
@@ -52,14 +53,13 @@ export default function IklanPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Iklan</h1>
+      <GlassPageHeader title="Iklan" subtitle="Performa iklan Shopee hari ini">
         <RefreshIndicator
           lastUpdated={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
           intervalMs={intervalMs}
           onRefresh={() => refetch()}
         />
-      </div>
+      </GlassPageHeader>
 
       <div className="flex items-center justify-between">
         <AdsRangeSelector value={range} onChange={setRange} />

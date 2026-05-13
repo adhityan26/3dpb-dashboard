@@ -12,6 +12,7 @@ import { StickerSizeCard } from "@/components/settings/StickerSizeCard"
 import { useSettings } from "@/lib/hooks/use-settings"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
+import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
 
 interface FilamenSettings {
   lastCatalogSync: string | null
@@ -54,7 +55,7 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-xl font-semibold">Settings</h1>
+      <GlassPageHeader title="Settings" subtitle="Konfigurasi sistem, notifikasi, dan printer" />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <ShopeeStatusCard status={data.shopee} />

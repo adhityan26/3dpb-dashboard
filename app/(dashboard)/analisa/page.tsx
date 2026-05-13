@@ -10,6 +10,7 @@ import { RefreshIndicator } from "@/components/layout/RefreshIndicator"
 import { useAnalytics } from "@/lib/hooks/use-analytics"
 import { useRefreshConfig } from "@/lib/use-refresh-config"
 import { Button } from "@/components/ui/button"
+import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
 import type { AnalyticsRange } from "@/lib/analytics/service"
 
 export default function AnalisaPage() {
@@ -53,14 +54,13 @@ export default function AnalisaPage() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold">Analisa</h1>
+      <GlassPageHeader title="Analisa" subtitle="Laporan penjualan & tren bisnis">
         <RefreshIndicator
           lastUpdated={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
           intervalMs={intervalMs}
           onRefresh={() => refetch()}
         />
-      </div>
+      </GlassPageHeader>
 
       <div className="flex items-center justify-between">
         <AdsRangeSelector value={range} onChange={setRange} />
