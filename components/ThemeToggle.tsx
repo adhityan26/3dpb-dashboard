@@ -100,11 +100,45 @@ export function ThemeToggle() {
 
   if (!mounted) return <div className="w-[80px] h-[32px] rounded-full bg-white/5" />
 
-  function cycle() {
+  function cycle(e: React.MouseEvent<HTMLButtonElement>) {
     const idx = STATES.indexOf(active)
     const next = STATES[(idx + 1) % STATES.length]
-    setActive(next)
-    setTheme(next)
+
+    // View Transitions API — circular reveal from toggle button position
+    if (!document.startViewTransition) {
+      setActive(next)
+      setTheme(next)
+      return
+    }
+
+    // Get click position for the reveal origin
+    const rect = e.currentTarget.getBoundingClientRect()
+    const x = Math.round(rect.left + rect.width / 2)
+    const y = Math.round(rect.top + rect.height / 2)
+    const maxR = Math.hypot(
+      Math.max(x, window.innerWidth - x),
+      Math.max(y, window.innerHeight - y)
+    )
+
+    const transition = document.startViewTransition(() => {
+      setActive(next)
+      setTheme(next)
+    })
+
+    transition.ready.then(() => {
+      const isDarkNext = next === "dark" || next === "system"
+      document.documentElement.animate(
+        [
+          { clipPath: `circle(0px at ${x}px ${y}px)` },
+          { clipPath: `circle(${maxR}px at ${x}px ${y}px)` },
+        ],
+        {
+          duration: 420,
+          easing: "cubic-bezier(0.4, 0, 0.2, 1)",
+          pseudoElement: "::view-transition-new(root)",
+        }
+      )
+    })
   }
 
   return (
