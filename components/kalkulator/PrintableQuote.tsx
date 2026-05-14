@@ -50,6 +50,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
   const [shopeeStr, setShopeeStr] = useState(initialHargaShopee ? String(initialHargaShopee) : "")
   const [buyerName, setBuyerName] = useState("")
   const [buyerContact, setBuyerContact] = useState("")
+  const [exportingJpeg, setExportingJpeg] = useState(false)
 
   const hargaOfflineAktual = parseInt(offlineStr.replace(/\D/g, "")) || 0
   const hargaShopeeAktual  = parseInt(shopeeStr.replace(/\D/g, ""))  || 0
@@ -60,6 +61,26 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
   const totalGramasi = plates.reduce((s, p) => s + p.gramasi, 0)
   const totalDurasi  = plates.reduce((s, p) => s + p.durasiJam, 0)
   const today = new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
+
+  async function handleExportJpeg() {
+    if (!printRef.current) return
+    setExportingJpeg(true)
+    try {
+      const html2canvas = (await import("html2canvas")).default
+      const canvas = await html2canvas(printRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+      })
+      const link = document.createElement("a")
+      const safeName = (buyerName || nama).replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 40)
+      link.download = `quote-${safeName}.jpg`
+      link.href = canvas.toDataURL("image/jpeg", 0.92)
+      link.click()
+    } finally {
+      setExportingJpeg(false)
+    }
+  }
 
   function handlePrint() {
     if (!printRef.current) return
@@ -120,11 +141,23 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
           </span>
           <div className="flex items-center gap-2">
             <button
+              onClick={handleExportJpeg}
+              disabled={exportingJpeg}
+              className="h-8 px-4 rounded-[8px] text-xs font-semibold transition-all"
+              style={{
+                background: exportingJpeg ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.08)",
+                border: "1px solid rgba(255,255,255,0.15)",
+                color: exportingJpeg ? "rgba(255,255,255,0.3)" : "rgba(255,255,255,0.8)",
+              }}
+            >
+              {exportingJpeg ? "Memproses..." : "📸 Simpan JPEG"}
+            </button>
+            <button
               onClick={handlePrint}
               className="h-8 px-4 rounded-[8px] text-xs font-semibold text-white"
               style={{ background: "linear-gradient(135deg, #5055e8, #7c84f8)" }}
             >
-              Print / Simpan PDF
+              🖨️ Print / PDF
             </button>
             <button onClick={onClose} className="text-sm w-7 h-7 flex items-center justify-center rounded-full"
                     style={{ color: "rgba(255,255,255,0.4)" }}>✕</button>
