@@ -363,6 +363,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
         plates={plates.filter(p => p.gramasi > 0)}
         hasil={hasil}
         marginTier={marginTier}
+        initialHargaShopee={shopeeIsLocked ? (linkedShopeePrice ?? undefined) : (hargaShopee && hargaShopee > 0 ? hargaShopee : undefined)}
         onClose={() => setShowPrint(false)}
       />
     )}
