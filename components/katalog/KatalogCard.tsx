@@ -6,6 +6,7 @@ import { useProducts } from "@/lib/hooks/use-products"
 import type { ProdukInternalData } from "@/lib/katalog/types"
 import { ShopeeLinksSection } from "./ShopeeLinksSection"
 import { KalkulasiLinkSection } from "./KalkulasiLinkSection"
+import { HistorySection } from "./HistorySection"
 
 function fmt(n: number) {
   return `Rp ${Math.round(n).toLocaleString("id-ID")}`
@@ -162,6 +163,14 @@ export function KatalogCard({ produk, onEdit }: Props) {
                 style={{ background: "rgba(99,102,241,0.1)", color: "#a5b4fc", border: "1px solid rgba(99,102,241,0.18)" }}
               >
                 🛍️ {produk.shopeeLinks.length} linked
+              </span>
+            )}
+            {produk.historyStats && produk.historyStats.totalRuns > 0 && (
+              <span
+                className="text-[10px] px-2 py-0.5 rounded-full"
+                style={{ background: "rgba(52,211,153,0.1)", color: "#34d399", border: "1px solid rgba(52,211,153,0.2)" }}
+              >
+                🖨️ {produk.historyStats.totalQty} pcs dicetak
               </span>
             )}
             {produk.floorPrice != null && (
@@ -322,6 +331,11 @@ export function KatalogCard({ produk, onEdit }: Props) {
               currentKalkulasiNama={produk.kalkulasiNama ?? null}
               currentHpp={produk.hppTotal ?? null}
             />
+          </div>
+
+          {/* History */}
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16 }}>
+            <HistorySection produkId={produk.id} />
           </div>
         </div>
       )}

@@ -272,8 +272,20 @@ model ProdukInternal {
   primaryKalkulasiId String?
   primaryKalkulasi   KalkulasiHarga?            @relation(fields: [primaryKalkulasiId], references: [id], onDelete: SetNull)
   shopeeLinks        ProdukInternalShopeeLink[]
+  history            ProdukHistory[]
   createdAt          DateTime                   @default(now())
   updatedAt          DateTime                   @updatedAt
+}
+
+model ProdukHistory {
+  id               String         @id @default(cuid())
+  produkInternalId String
+  produkInternal   ProdukInternal @relation(fields: [produkInternalId], references: [id], onDelete: Cascade)
+  tanggal          DateTime       @default(now())
+  qty              Int
+  catatan          String?
+  kalkulasiId      String?        // optional link to the kalkulasi used
+  createdAt        DateTime       @default(now())
 }
 
 model ProdukInternalShopeeLink {

@@ -8,10 +8,23 @@ const INCLUDE_ALL = {
     },
   },
   shopeeLinks: true,
+  history: {
+    select: { qty: true, tanggal: true },
+    orderBy: { tanggal: 'desc' as const },
+    take: 200,
+  },
 } as const
 
 function toProdukInternalData(raw: any): ProdukInternalData {
   const k = raw.primaryKalkulasi ?? null
+  const history = raw.history ?? []
+  const historyStats = history.length > 0 ? {
+    totalQty: history.reduce((s: number, h: any) => s + h.qty, 0),
+    totalRuns: history.length,
+    lastPrintedAt: history[0]?.tanggal instanceof Date
+      ? history[0].tanggal.toISOString()
+      : history[0]?.tanggal ? String(history[0].tanggal) : null,
+  } : null
   return {
     id: raw.id,
     nama: raw.nama,
@@ -39,6 +52,7 @@ function toProdukInternalData(raw: any): ProdukInternalData {
       id: l.id,
       shopeeItemId: l.shopeeItemId,
     })),
+    historyStats,
     createdAt: raw.createdAt.toISOString(),
     updatedAt: raw.updatedAt.toISOString(),
   }

@@ -1,3 +1,9 @@
+export interface HistoryStats {
+  totalQty: number
+  totalRuns: number
+  lastPrintedAt: string | null
+}
+
 export interface PlateInfo {
   namaPart: string | null
   tipe: string           // "FDM" | "SLA"
@@ -25,6 +31,7 @@ export interface ProdukInternalData {
   kalkulasiNama: string | null     // .nama from the linked KalkulasiHarga
   plates: PlateInfo[]              // plates from the primary kalkulasi
   shopeeLinks: { id: string; shopeeItemId: string }[]
+  historyStats: HistoryStats | null
   createdAt: string
   updatedAt: string
 }
