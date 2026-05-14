@@ -5,6 +5,7 @@ import type { HasilKalkulasi, KalkulasiStatus } from "@/lib/kalkulator/types"
 interface Props {
   hasil: HasilKalkulasi | null
   hargaShopeeAktual?: number
+  hargaOfflineAktual?: number
   isLoading?: boolean
   marginTier?: "A" | "B" | "C"
 }
@@ -29,7 +30,7 @@ function Row({ label, value, color, bold }: { label: string; value: string; colo
   )
 }
 
-export function HasilPanel({ hasil, hargaShopeeAktual, isLoading, marginTier = "A" }: Props) {
+export function HasilPanel({ hasil, hargaShopeeAktual, hargaOfflineAktual, isLoading, marginTier = "A" }: Props) {
   if (isLoading) {
     return (
       <div className="space-y-3 animate-pulse">
@@ -52,8 +53,9 @@ export function HasilPanel({ hasil, hargaShopeeAktual, isLoading, marginTier = "
 
   const statusCfg = STATUS_CONFIG[hasil.status]
 
-  // Margin-aware Shopee price
-  const shopeeRekm = marginTier === "B" ? hasil.shopeeB : marginTier === "C" ? hasil.shopeeC : hasil.shopeeA
+  // Margin-aware prices
+  const shopeeRekm  = marginTier === "B" ? hasil.shopeeB  : marginTier === "C" ? hasil.shopeeC  : hasil.shopeeA
+  const offlineRekm = marginTier === "B" ? hasil.offlineB : marginTier === "C" ? hasil.offlineC : hasil.offlineA
 
   return (
     <div className="space-y-4">
@@ -125,6 +127,34 @@ export function HasilPanel({ hasil, hargaShopeeAktual, isLoading, marginTier = "
           <Row label="vs Rekm. Shopee A"
                value={`${hargaShopeeAktual >= hasil.shopeeA ? "+" : ""}${fmt(hargaShopeeAktual - hasil.shopeeA)}`}
                color={hargaShopeeAktual >= hasil.shopeeA ? "#34d399" : "#f87171"} />
+          {marginTier !== "A" && (
+            <Row label={`vs Rekm. Shopee ${marginTier}`}
+                 value={`${hargaShopeeAktual >= shopeeRekm ? "+" : ""}${fmt(hargaShopeeAktual - shopeeRekm)}`}
+                 color={hargaShopeeAktual >= shopeeRekm ? "#34d399" : "#f87171"} />
+          )}
+        </div>
+      )}
+
+      {/* vs Harga Offline Aktual — status badge NOT shown, acuan aman tetap dari Shopee A */}
+      {hargaOfflineAktual !== undefined && hargaOfflineAktual > 0 && (
+        <div className="rounded-[10px] p-4"
+             style={{ background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.15)" }}>
+          <div className="flex justify-between items-center mb-2">
+            <div className="text-xs font-semibold uppercase tracking-wider"
+                 style={{ color: "rgba(255,255,255,0.5)" }}>vs Harga Offline Saat Ini</div>
+          </div>
+          <Row label="Harga Offline saat ini" value={fmt(hargaOfflineAktual)} bold />
+          <Row label="vs Floor Price"
+               value={`${hargaOfflineAktual >= hasil.floorPrice ? "+" : ""}${fmt(hargaOfflineAktual - hasil.floorPrice)}`}
+               color={hargaOfflineAktual >= hasil.floorPrice ? "#34d399" : "#f87171"} />
+          <Row label="vs Rekm. Offline A"
+               value={`${hargaOfflineAktual >= hasil.offlineA ? "+" : ""}${fmt(hargaOfflineAktual - hasil.offlineA)}`}
+               color={hargaOfflineAktual >= hasil.offlineA ? "#34d399" : "#f87171"} />
+          {marginTier !== "A" && (
+            <Row label={`vs Rekm. Offline ${marginTier}`}
+                 value={`${hargaOfflineAktual >= offlineRekm ? "+" : ""}${fmt(hargaOfflineAktual - offlineRekm)}`}
+                 color={hargaOfflineAktual >= offlineRekm ? "#34d399" : "#f87171"} />
+          )}
         </div>
       )}
 

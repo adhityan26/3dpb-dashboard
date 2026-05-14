@@ -64,6 +64,7 @@ export interface KalkulasiInput {
   batch: number
   marginTier: MarginTier
   hargaShopeeAktual?: number
+  hargaOfflineAktual?: number
   packingType?: PackingType
   gantunganType?: string
   switchQty: number
@@ -80,6 +81,7 @@ export interface KalkulasiData extends HasilKalkulasi {
   batch: number
   marginTier: MarginTier
   hargaShopeeAktual?: number
+  hargaOfflineAktual?: number
   packingType?: PackingType
   gantunganType?: string
   switchQty: number

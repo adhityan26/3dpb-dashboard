@@ -63,6 +63,8 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   const [marginTier, setMarginTier] = useState<MarginTier>(initial?.marginTier ?? "A")
   const [hargaShopee, setHargaShopee] = useState<number | undefined>(initial?.hargaShopeeAktual ?? undefined)
   const [hargaShopeeStr, setHargaShopeeStr] = useState(initial?.hargaShopeeAktual ? String(initial.hargaShopeeAktual) : "")
+  const [hargaOffline, setHargaOffline] = useState<number | undefined>(initial?.hargaOfflineAktual ?? undefined)
+  const [hargaOfflineStr, setHargaOfflineStr] = useState(initial?.hargaOfflineAktual ? String(initial.hargaOfflineAktual) : "")
   const [plates, setPlates] = useState<PlateRow[]>(
     initial?.plates.map(p => ({
       key: `p-${p.id}`,
@@ -123,6 +125,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
       batch: Math.max(1, batch),
       marginTier,
       hargaShopeeAktual: hargaShopee && hargaShopee > 0 ? hargaShopee : undefined,
+      hargaOfflineAktual: hargaOffline && hargaOffline > 0 ? hargaOffline : undefined,
       packingType: aksesori.packingType,
       gantunganType: aksesori.gantunganType,
       switchQty: aksesori.switchQty,
@@ -291,6 +294,27 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           />
         </div>
 
+        {/* Harga Offline Aktual */}
+        <div>
+          <div className="flex items-center gap-2 mb-1.5">
+            <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: "rgba(165,180,252,0.6)" }}>
+              Harga Offline Saat Ini
+            </div>
+            <span className="text-[10px] font-normal" style={{ color: "rgba(255,255,255,0.25)" }}>(opsional)</span>
+          </div>
+          <input
+            type="text"
+            placeholder="Rp 30.000"
+            value={hargaOfflineStr}
+            onChange={e => {
+              setHargaOfflineStr(e.target.value)
+              const n = parseInt(e.target.value.replace(/\D/g, ""))
+              setHargaOffline(n > 0 ? n : undefined)
+            }}
+            className="glass-input w-full h-10 rounded-[10px] px-3 text-sm"
+          />
+        </div>
+
         {/* Buttons row */}
         <div className="flex gap-2">
           {/* Print quote button — only when there are valid results */}
@@ -348,6 +372,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
         <HasilPanel
           hasil={hasil}
           hargaShopeeAktual={shopeeIsLocked ? linkedShopeePrice ?? undefined : hargaShopee}
+          hargaOfflineAktual={hargaOffline && hargaOffline > 0 ? hargaOffline : undefined}
           isLoading={!ratesData}
           marginTier={marginTier}
         />

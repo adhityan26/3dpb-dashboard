@@ -188,7 +188,8 @@ model KalkulasiHarga {
   updatedAt         DateTime @updatedAt
   batch             Int      @default(1)
   marginTier        String   @default("A")
-  hargaShopeeAktual Float?
+  hargaShopeeAktual  Float?
+  hargaOfflineAktual Float?
   packingType       String?
   gantunganType     String?
   switchQty         Int      @default(0)
