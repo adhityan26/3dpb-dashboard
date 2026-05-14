@@ -19,6 +19,7 @@ function toProdukInternalData(raw: any): ProdukInternalData {
     kategori: raw.kategori ?? null,
     tags: raw.tags ? raw.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
     sourceModel: raw.sourceModel ?? null,
+    imageUrl: raw.imageUrl ?? null,
     primaryKalkulasiId: raw.primaryKalkulasiId ?? null,
     hppTotal: k ? (k.hppTotal ?? null) : null,
     floorPrice: k ? (k.floorPrice ?? null) : null,

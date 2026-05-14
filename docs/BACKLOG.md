@@ -27,3 +27,21 @@
 - Gambar dari `imageUrl`
 - Harga dari linked kalkulasi (shopeeA / offlineA)
 - Bisa embed di bio link / Linktree
+
+---
+## Image Storage Migration Path
+
+### Phase 1 (sekarang): Local Filesystem
+- `/app/data/images/katalog/[id].jpg`
+- Serve via `/api/images/katalog/[filename]`
+- MVP, cukup untuk puluhan produk
+
+### Phase 2: MinIO (homelab)
+- Deploy MinIO container di Proxmox
+- Ganti storage backend, API tidak berubah dari frontend
+- Bucket: `3pb-katalog`
+
+### Phase 3: Sanity CDN (untuk landing page)
+- Sync ProdukInternal ke Sanity Studio (webhook / manual push)
+- Gambar di-upload ke Sanity asset pipeline → CDN otomatis
+- Landing page di-build dari Sanity data

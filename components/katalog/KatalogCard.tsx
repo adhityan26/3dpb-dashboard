@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
-import { useDeleteKatalog } from "@/lib/hooks/use-katalog"
+import { useState, useMemo, useRef } from "react"
+import { useDeleteKatalog, useUploadKatalogImage, useDeleteKatalogImage } from "@/lib/hooks/use-katalog"
 import { useProducts } from "@/lib/hooks/use-products"
 import type { ProdukInternalData } from "@/lib/katalog/types"
 import { ShopeeLinksSection } from "./ShopeeLinksSection"
@@ -17,7 +17,7 @@ function fmtDurasi(jam: number): string {
   return m === 0 ? `${h}j` : `${h}j ${m}m`
 }
 
-const COL = "140px 140px 160px 96px"
+const COL = "52px 1fr 140px 140px 160px 96px"
 
 interface Props {
   produk: ProdukInternalData
@@ -35,7 +35,16 @@ function PriceCol({ value, color }: { value: string | null; color: string }) {
 export function KatalogCard({ produk, onEdit }: Props) {
   const [expanded, setExpanded] = useState(false)
   const deleteMut = useDeleteKatalog()
+  const uploadImage = useUploadKatalogImage()
+  const deleteImage = useDeleteKatalogImage()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const { data: productsData } = useProducts()
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (file) uploadImage.mutate({ katalogId: produk.id, file })
+    e.target.value = ""
+  }
 
   async function handleDelete() {
     if (!confirm(`Hapus produk "${produk.nama}"?`)) return
@@ -65,10 +74,47 @@ export function KatalogCard({ produk, onEdit }: Props) {
     >
       {/* Table-style main row */}
       <div
-        className="items-center px-5 py-4 gap-4"
-        style={{ display: "grid", gridTemplateColumns: `1fr ${COL}` }}
+        className="items-center px-5 py-4 gap-3"
+        style={{ display: "grid", gridTemplateColumns: COL }}
       >
-        {/* Col 1: Name + meta badges only */}
+        {/* Col 1: Image thumbnail */}
+        <div className="relative flex-shrink-0">
+          <div
+            className="w-12 h-12 rounded-[8px] overflow-hidden flex items-center justify-center cursor-pointer"
+            style={{
+              background: produk.imageUrl ? "transparent" : "rgba(255,255,255,0.05)",
+              border: "1px solid rgba(255,255,255,0.1)",
+            }}
+            onClick={() => fileInputRef.current?.click()}
+            title="Klik untuk upload gambar"
+          >
+            {produk.imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={produk.imageUrl} alt={produk.nama} className="w-full h-full object-cover" />
+            ) : (
+              <span className="text-[18px]" style={{ opacity: 0.3 }}>
+                {uploadImage.isPending ? "⋯" : "📷"}
+              </span>
+            )}
+          </div>
+          {produk.imageUrl && (
+            <button
+              onClick={() => deleteImage.mutate(produk.id)}
+              className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center text-[8px] font-bold"
+              style={{ background: "rgba(239,68,68,0.85)", color: "white" }}
+              title="Hapus gambar"
+            >✕</button>
+          )}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+        </div>
+
+        {/* Col 2: Name + meta badges only */}
         <div className="min-w-0">
           <div className="text-[15px] font-bold truncate" style={{ color: "rgba(255,255,255,0.9)" }}>
             {produk.nama}

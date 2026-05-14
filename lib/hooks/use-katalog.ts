@@ -90,3 +90,35 @@ export function useSetKatalogKalkulasi() {
     },
   })
 }
+
+export function useUploadKatalogImage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ katalogId, file }: { katalogId: string; file: File }) => {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await fetch(`/api/katalog/${katalogId}/image`, { method: 'POST', body: formData })
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+        throw new Error(err.error ?? 'Upload gagal')
+      }
+      return res.json() as Promise<{ imageUrl: string }>
+    },
+    onSuccess: (_, { katalogId }) => {
+      qc.invalidateQueries({ queryKey: KATALOG_KEY })
+      qc.invalidateQueries({ queryKey: [...KATALOG_KEY, katalogId] })
+    },
+  })
+}
+
+export function useDeleteKatalogImage() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (katalogId: string) =>
+      apiFetch<void>(`/api/katalog/${katalogId}/image`, { method: 'DELETE' }),
+    onSuccess: (_, katalogId) => {
+      qc.invalidateQueries({ queryKey: KATALOG_KEY })
+      qc.invalidateQueries({ queryKey: [...KATALOG_KEY, katalogId] })
+    },
+  })
+}

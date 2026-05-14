@@ -13,6 +13,7 @@ export interface ProdukInternalData {
   kategori: string | null
   tags: string[]
   sourceModel: string | null
+  imageUrl: string | null
   primaryKalkulasiId: string | null
   // Denormalized from primaryKalkulasi for convenience in UI:
   hppTotal: number | null

@@ -74,9 +74,10 @@ export function KatalogTab() {
         <div className="space-y-3">
           {/* Column headers */}
           <div
-            className="items-center px-5 pb-1 gap-4"
-            style={{ display: "grid", gridTemplateColumns: `1fr 140px 140px 160px 96px` }}
+            className="items-center px-5 pb-1 gap-3"
+            style={{ display: "grid", gridTemplateColumns: "52px 1fr 140px 140px 160px 96px" }}
           >
+            <div />
             <div className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.25)" }}>Produk</div>
             <div className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.25)" }}>Offline</div>
             <div className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.25)" }}>Rekm Shopee</div>
