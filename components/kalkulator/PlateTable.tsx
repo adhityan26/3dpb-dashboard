@@ -148,7 +148,7 @@ export function PlateTable({ plates, onChange }: PlateTableProps) {
                 <input
                   type="text"
                   placeholder="1:30 atau 1.5"
-                  value={durasiRaw[plate.key] ?? (plate.durasiJam ? String(plate.durasiJam) : "")}
+                  value={durasiRaw[plate.key] ?? (plate.durasiJam ? String(parseFloat(plate.durasiJam.toFixed(2))) : "")}
                   onChange={e => handleDurasiChange(plate.key, e.target.value)}
                   className="glass-input w-full h-10 rounded-[8px] px-3 text-sm"
                 />
