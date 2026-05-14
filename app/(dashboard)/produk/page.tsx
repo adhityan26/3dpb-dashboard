@@ -2,23 +2,19 @@
 
 import { useMemo, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { useSession } from "next-auth/react"
 import { FilamenTab } from "@/components/filamen/FilamenTab"
 import { KalkulasiTab } from "@/components/kalkulator/KalkulasiTab"
 import { ProductsKpiBar } from "@/components/products/ProductsKpiBar"
 import { ProductFilter } from "@/components/products/ProductFilter"
 import { ProductList } from "@/components/products/ProductList"
-import { HppEditModal } from "@/components/products/HppEditModal"
 import { RefreshIndicator } from "@/components/layout/RefreshIndicator"
 import {
   useProducts,
-  useSetHpp,
   useUploadProductImage,
 } from "@/lib/hooks/use-products"
 import { useRefreshConfig } from "@/lib/use-refresh-config"
 import { Button } from "@/components/ui/button"
 import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
-import type { ProductSummary } from "@/lib/products/types"
 import type { ProductFilterValue } from "@/components/products/types"
 
 export default function ProdukPage() {
@@ -30,12 +26,9 @@ export default function ProdukPage() {
 }
 
 function ProdukPageInner() {
-  const { data: session } = useSession()
-  const canEditHpp = session?.user?.role === "OWNER"
   const { intervalMs } = useRefreshConfig()
   const { data, isLoading, isError, error, refetch, dataUpdatedAt } =
     useProducts()
-  const setHpp = useSetHpp()
   const uploadImage = useUploadProductImage()
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -49,9 +42,6 @@ function ProdukPageInner() {
     router.replace(`?${params.toString()}`, { scroll: false })
   }
   const [filter, setFilter] = useState<ProductFilterValue>("perlu_perhatian")
-  const [editingProduct, setEditingProduct] = useState<ProductSummary | null>(
-    null,
-  )
   const [uploadingImageFor, setUploadingImageFor] = useState<string | null>(
     null,
   )
@@ -205,23 +195,8 @@ function ProdukPageInner() {
 
               <ProductList
                 products={filtered}
-                onEditHpp={setEditingProduct}
-                onQuickSetHpp={(productId, hpp, variantId) => {
-                  if (variantId) {
-                    setHpp.mutate({
-                      productId,
-                      variants: [{ variantId, hpp }],
-                    })
-                  } else {
-                    setHpp.mutate({
-                      productId,
-                      productHpp: hpp,
-                    })
-                  }
-                }}
                 onUploadImage={handleUploadImage}
                 uploadingImageFor={uploadingImageFor}
-                canEditHpp={canEditHpp}
               />
 
               {toast && (
@@ -236,16 +211,6 @@ function ProdukPageInner() {
                 </div>
               )}
 
-              <HppEditModal
-                product={editingProduct}
-                onClose={() => setEditingProduct(null)}
-                onSave={(vars) => {
-                  setHpp.mutate(vars, {
-                    onSuccess: () => setEditingProduct(null),
-                  })
-                }}
-                isPending={setHpp.isPending}
-              />
             </>
           )}
         </>

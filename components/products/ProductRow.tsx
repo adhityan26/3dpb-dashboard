@@ -2,23 +2,14 @@
 
 import { useRef, useState } from "react"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import type { ProductSummary } from "@/lib/products/types"
 import { STOCK_LOW_THRESHOLD } from "@/lib/products/types"
-import { InlineHppEdit } from "./InlineHppEdit"
 
 interface Props {
   product: ProductSummary
-  onEditHpp: (product: ProductSummary) => void
-  onQuickSetHpp: (
-    productId: string,
-    hpp: number | null,
-    variantId?: string,
-  ) => void
   onUploadImage: (productId: string, file: File) => void
   uploadingImageFor: string | null
-  canEditHpp: boolean
 }
 
 function fmt(amount: number): string {
@@ -117,11 +108,8 @@ function ImageZoomModal({
 
 export function ProductRow({
   product,
-  onEditHpp,
-  onQuickSetHpp,
   onUploadImage,
   uploadingImageFor,
-  canEditHpp,
 }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [zoomOpen, setZoomOpen] = useState(false)
@@ -142,7 +130,7 @@ export function ProductRow({
   return (
     <Card className={bgClass}>
       <CardContent className="p-3">
-        <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-3">
           <button
             type="button"
             onClick={() => product.hasVariants && setExpanded((e) => !e)}
@@ -156,20 +144,18 @@ export function ProductRow({
                   product.imageUrl ? () => setZoomOpen(true) : undefined
                 }
               />
-              {canEditHpp && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    fileInputRef.current?.click()
-                  }}
-                  disabled={isUploading}
-                  title="Upload foto baru"
-                  className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#EE4D2D] hover:bg-[#d44226] text-white text-[10px] flex items-center justify-center shadow border-2 border-white disabled:opacity-50 disabled:cursor-wait"
-                >
-                  {isUploading ? "⋯" : "📷"}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  fileInputRef.current?.click()
+                }}
+                disabled={isUploading}
+                title="Upload foto baru"
+                className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#EE4D2D] hover:bg-[#d44226] text-white text-[10px] flex items-center justify-center shadow border-2 border-white disabled:opacity-50 disabled:cursor-wait"
+              >
+                {isUploading ? "⋯" : "📷"}
+              </button>
               <input
                 ref={fileInputRef}
                 type="file"
@@ -179,7 +165,6 @@ export function ProductRow({
                 onChange={(e) => {
                   const file = e.target.files?.[0]
                   if (file) onUploadImage(product.productId, file)
-                  // Reset so same file can be selected again
                   e.target.value = ""
                 }}
               />
@@ -217,26 +202,22 @@ export function ProductRow({
                     Margin: {fmt(product.grossMargin30d)}
                   </span>
                 )}
-                <InlineHppEdit
-                  value={product.hpp}
-                  onSave={(v) => onQuickSetHpp(product.productId, v)}
-                  disabled={!canEditHpp}
-                  label="HPP:"
-                />
+                {product.katalog ? (
+                  <span
+                    className="text-xs"
+                    title={`dari kalkulasi "${product.katalog.nama}"`}
+                  >
+                    HPP: Rp {product.katalog.hppTotal.toLocaleString("id-ID")}
+                    <span className="ml-1 text-[10px] opacity-50">
+                      (via {product.katalog.nama})
+                    </span>
+                  </span>
+                ) : (
+                  <span className="text-xs text-gray-400">HPP: —</span>
+                )}
               </div>
             </div>
           </button>
-
-          {canEditHpp && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => onEditHpp(product)}
-              title="Edit semua HPP (termasuk override per varian)"
-            >
-              Edit Batch
-            </Button>
-          )}
         </div>
 
         {expanded && product.hasVariants && (
@@ -265,31 +246,6 @@ export function ProductRow({
                         {v.stock} pcs
                       </div>
                       <div className="text-gray-500">{fmt(v.price)}</div>
-                      <div className="flex justify-end items-center gap-1">
-                        <InlineHppEdit
-                          value={v.hpp}
-                          onSave={(nv) =>
-                            onQuickSetHpp(
-                              product.productId,
-                              nv,
-                              v.variantId,
-                            )
-                          }
-                          disabled={!canEditHpp}
-                          placeholder={
-                            product.hpp !== null
-                              ? `${fmt(product.hpp)} (default)`
-                              : "Set HPP"
-                          }
-                          label=""
-                          compact
-                        />
-                        {v.hpp !== null && (
-                          <span className="text-[9px] text-blue-500">
-                            override
-                          </span>
-                        )}
-                      </div>
                     </div>
                   </div>
                 )
