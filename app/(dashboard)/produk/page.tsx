@@ -33,7 +33,7 @@ function ProdukPageInner() {
   const uploadImage = useUploadProductImage()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const VALID_TABS = ["produk", "filamen", "kalkulator", "katalog"] as const
+  const VALID_TABS = ["katalog", "produk", "kalkulator", "filamen"] as const
   type ProdukTab = typeof VALID_TABS[number]
   const rawTab = searchParams.get("tab") ?? "produk"
   const produkTab: ProdukTab = (VALID_TABS as readonly string[]).includes(rawTab) ? rawTab as ProdukTab : "produk"
@@ -105,7 +105,7 @@ function ProdukPageInner() {
 
   return (
     <div className="space-y-4">
-      {/* Sub-tab nav: Katalog / Shopee / Filamen / Kalkulator */}
+      {/* Sub-tab nav: Katalog / Shopee / Kalkulator / Filamen */}
       <div className="flex border-b border-gray-200">
         <button
           onClick={() => setProdukTab("katalog")}
@@ -128,16 +128,6 @@ function ProdukPageInner() {
           🛍️ Shopee
         </button>
         <button
-          onClick={() => setProdukTab("filamen")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            produkTab === "filamen"
-              ? "border-[#EE4D2D] text-[#EE4D2D]"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          🧵 Filamen
-        </button>
-        <button
           onClick={() => setProdukTab("kalkulator")}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
             produkTab === "kalkulator"
@@ -146,6 +136,16 @@ function ProdukPageInner() {
           }`}
         >
           🧮 Kalkulator
+        </button>
+        <button
+          onClick={() => setProdukTab("filamen")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            produkTab === "filamen"
+              ? "border-[#EE4D2D] text-[#EE4D2D]"
+              : "border-transparent text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          🧵 Filamen
         </button>
       </div>
 

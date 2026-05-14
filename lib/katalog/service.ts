@@ -2,7 +2,11 @@ import { prisma } from '@/lib/db'
 import type { ProdukInternalData, ProdukInternalInput } from './types'
 
 const INCLUDE_ALL = {
-  primaryKalkulasi: true,
+  primaryKalkulasi: {
+    include: {
+      plates: { orderBy: { urutan: 'asc' as const } },
+    },
+  },
   shopeeLinks: true,
 } as const
 
@@ -12,6 +16,8 @@ function toProdukInternalData(raw: any): ProdukInternalData {
     id: raw.id,
     nama: raw.nama,
     deskripsi: raw.deskripsi ?? null,
+    kategori: raw.kategori ?? null,
+    tags: raw.tags ? raw.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
     primaryKalkulasiId: raw.primaryKalkulasiId ?? null,
     hppTotal: k ? (k.hppTotal ?? null) : null,
     floorPrice: k ? (k.floorPrice ?? null) : null,
@@ -20,6 +26,13 @@ function toProdukInternalData(raw: any): ProdukInternalData {
     hargaShopeeAktual: k ? (k.hargaShopeeAktual ?? null) : null,
     kalkulasiStatus: k ? (k.status ?? null) : null,
     kalkulasiNama: k ? (k.nama ?? null) : null,
+    plates: (k?.plates ?? []).map((p: any) => ({
+      namaPart: p.namaPart ?? null,
+      tipe: p.tipe,
+      printer: p.printer ?? null,
+      gramasi: p.gramasi,
+      durasiJam: p.durasiJam,
+    })),
     shopeeLinks: (raw.shopeeLinks ?? []).map((l: any) => ({
       id: l.id,
       shopeeItemId: l.shopeeItemId,
@@ -46,11 +59,17 @@ export async function getKatalog(id: string): Promise<ProdukInternalData | null>
   return toProdukInternalData(row)
 }
 
+function toTagsString(tags?: string[] | null): string | null {
+  return tags?.length ? tags.map(t => t.trim()).filter(Boolean).join(',') : null
+}
+
 export async function createKatalog(input: ProdukInternalInput): Promise<ProdukInternalData> {
   const row = await prisma.produkInternal.create({
     data: {
       nama: input.nama.trim(),
       deskripsi: input.deskripsi?.trim() ?? null,
+      kategori: input.kategori?.trim() ?? null,
+      tags: toTagsString(input.tags),
     },
     include: INCLUDE_ALL,
   })
@@ -66,6 +85,8 @@ export async function updateKatalog(
     data: {
       nama: input.nama.trim(),
       deskripsi: input.deskripsi?.trim() ?? null,
+      kategori: input.kategori?.trim() ?? null,
+      tags: toTagsString(input.tags),
     },
     include: INCLUDE_ALL,
   })

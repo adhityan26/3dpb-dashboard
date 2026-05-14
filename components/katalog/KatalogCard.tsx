@@ -11,7 +11,12 @@ function fmt(n: number) {
   return `Rp ${Math.round(n).toLocaleString("id-ID")}`
 }
 
-// Fixed column widths — same across all cards so prices align like a table
+function fmtDurasi(jam: number): string {
+  const h = Math.floor(jam)
+  const m = Math.round((jam - h) * 60)
+  return m === 0 ? `${h}j` : `${h}j ${m}m`
+}
+
 const COL = "140px 140px 160px 96px"
 
 interface Props {
@@ -39,7 +44,6 @@ export function KatalogCard({ produk, onEdit }: Props) {
 
   const hasHpp = produk.hppTotal != null && produk.hppTotal > 0
 
-  // Actual Shopee price from linked Shopee products
   const actualShopeePrice = useMemo(() => {
     if (!produk.shopeeLinks.length || !productsData?.products) return null
     const linkedIds = new Set(produk.shopeeLinks.map(l => l.shopeeItemId))
@@ -49,6 +53,8 @@ export function KatalogCard({ produk, onEdit }: Props) {
     return prices.length > 0 ? Math.min(...prices) : null
   }, [produk.shopeeLinks, productsData])
 
+  const shopeeDisplayPrice = actualShopeePrice ?? (produk.hargaShopeeAktual && produk.hargaShopeeAktual > 0 ? produk.hargaShopeeAktual : null)
+
   return (
     <div
       className="rounded-[14px] overflow-hidden"
@@ -57,28 +63,35 @@ export function KatalogCard({ produk, onEdit }: Props) {
         border: "1px solid rgba(255,255,255,0.07)",
       }}
     >
-      {/* Table-style main row: name | offline | shopeeA | hargaShopee | actions */}
+      {/* Table-style main row */}
       <div
         className="items-center px-5 py-4 gap-4"
         style={{ display: "grid", gridTemplateColumns: `1fr ${COL}` }}
       >
-        {/* Col 1: Name + meta */}
+        {/* Col 1: Name + meta badges only */}
         <div className="min-w-0">
-          <div
-            className="text-[15px] font-bold truncate"
-            style={{ color: "rgba(255,255,255,0.9)" }}
-          >
+          <div className="text-[15px] font-bold truncate" style={{ color: "rgba(255,255,255,0.9)" }}>
             {produk.nama}
           </div>
 
-          {produk.deskripsi && (
-            <div className="text-[11px] mt-0.5 truncate" style={{ color: "rgba(255,255,255,0.3)" }}>
-              {produk.deskripsi}
-            </div>
-          )}
-
-          {/* Meta badges */}
           <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+            {produk.kategori && (
+              <span
+                className="text-[10px] px-2 py-0.5 rounded-full"
+                style={{ background: "rgba(139,92,246,0.12)", color: "#c4b5fd", border: "1px solid rgba(139,92,246,0.2)" }}
+              >
+                {produk.kategori}
+              </span>
+            )}
+            {produk.tags.map(tag => (
+              <span
+                key={tag}
+                className="text-[10px] px-2 py-0.5 rounded-full"
+                style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.1)" }}
+              >
+                {tag}
+              </span>
+            ))}
             {hasHpp ? (
               <span
                 className="text-[10px] font-semibold px-2 py-0.5 rounded-full"
@@ -97,7 +110,6 @@ export function KatalogCard({ produk, onEdit }: Props) {
                 Belum ada kalkulasi
               </span>
             )}
-
             {produk.shopeeLinks.length > 0 && (
               <span
                 className="text-[10px] px-2 py-0.5 rounded-full"
@@ -106,7 +118,6 @@ export function KatalogCard({ produk, onEdit }: Props) {
                 🛍️ {produk.shopeeLinks.length} linked
               </span>
             )}
-
             {produk.floorPrice != null && (
               <span className="text-[10px]" style={{ color: "rgba(251,191,36,0.45)" }}>
                 Floor: {fmt(produk.floorPrice)}
@@ -115,31 +126,14 @@ export function KatalogCard({ produk, onEdit }: Props) {
           </div>
         </div>
 
-        {/* Col 2: Offline */}
+        <PriceCol value={produk.offlineA != null ? fmt(produk.offlineA) : null} color="#6ee7b7" />
+        <PriceCol value={produk.shopeeA != null ? fmt(produk.shopeeA) : null} color="#fb923c" />
         <PriceCol
-          value={produk.offlineA != null ? fmt(produk.offlineA) : null}
-          color="#6ee7b7"
-        />
-
-        {/* Col 3: Rekm Shopee */}
-        <PriceCol
-          value={produk.shopeeA != null ? fmt(produk.shopeeA) : null}
-          color="#fb923c"
-        />
-
-        {/* Col 4: Harga Shopee — actual from linked product, else kalkulasi input */}
-        <PriceCol
-          value={
-            actualShopeePrice != null
-              ? fmt(actualShopeePrice)
-              : produk.hargaShopeeAktual != null && produk.hargaShopeeAktual > 0
-                ? fmt(produk.hargaShopeeAktual)
-                : null
-          }
+          value={shopeeDisplayPrice != null ? fmt(shopeeDisplayPrice) : null}
           color={actualShopeePrice != null ? "#a5b4fc" : "rgba(165,180,252,0.5)"}
         />
 
-        {/* Col 5: Actions */}
+        {/* Actions */}
         <div className="flex items-center justify-end gap-1.5">
           <button
             onClick={() => setExpanded(v => !v)}
@@ -173,13 +167,85 @@ export function KatalogCard({ produk, onEdit }: Props) {
       {/* Expanded detail */}
       {expanded && (
         <div
-          className="px-5 pb-5 space-y-4"
+          className="px-5 pb-5 space-y-4 pt-4"
           style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
         >
-          <div className="pt-4">
+          {/* Deskripsi */}
+          {produk.deskripsi && (
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: "rgba(165,180,252,0.5)" }}>
+                Deskripsi
+              </div>
+              <div className="text-sm" style={{ color: "rgba(255,255,255,0.6)", lineHeight: 1.6 }}>
+                {produk.deskripsi}
+              </div>
+            </div>
+          )}
+
+          {/* Plates dari kalkulasi primary */}
+          {produk.plates.length > 0 && (
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: "rgba(165,180,252,0.5)" }}>
+                Part / Plate
+                {produk.kalkulasiNama && (
+                  <span className="ml-1 font-normal normal-case" style={{ color: "rgba(255,255,255,0.25)" }}>
+                    (dari: {produk.kalkulasiNama})
+                  </span>
+                )}
+              </div>
+              <div className="rounded-[10px] overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+                {/* Table header */}
+                <div
+                  className="grid text-[9px] font-semibold uppercase tracking-wider px-3 py-2"
+                  style={{
+                    gridTemplateColumns: "1fr 60px 140px 70px 70px",
+                    background: "rgba(255,255,255,0.03)",
+                    color: "rgba(165,180,252,0.5)",
+                    borderBottom: "1px solid rgba(255,255,255,0.05)",
+                  }}
+                >
+                  <span>Nama Part</span>
+                  <span>Tipe</span>
+                  <span>Printer</span>
+                  <span>Gramasi</span>
+                  <span>Durasi</span>
+                </div>
+                {produk.plates.map((plate, i) => (
+                  <div
+                    key={i}
+                    className="grid px-3 py-2 text-xs items-center"
+                    style={{
+                      gridTemplateColumns: "1fr 60px 140px 70px 70px",
+                      borderBottom: i < produk.plates.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                    }}
+                  >
+                    <span style={{ color: plate.namaPart ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.25)" }}>
+                      {plate.namaPart ?? "—"}
+                    </span>
+                    <span
+                      className="font-semibold"
+                      style={{ color: plate.tipe === "SLA" ? "#fb923c" : "#6ee7b7" }}
+                    >
+                      {plate.tipe}
+                    </span>
+                    <span style={{ color: plate.printer ? "rgba(165,180,252,0.7)" : "rgba(255,255,255,0.2)" }}>
+                      {plate.printer ?? "—"}
+                    </span>
+                    <span style={{ color: "rgba(255,255,255,0.6)" }}>{plate.gramasi.toFixed(1)}g</span>
+                    <span style={{ color: "rgba(255,255,255,0.6)" }}>{fmtDurasi(plate.durasiJam)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Shopee links */}
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16 }}>
             <ShopeeLinksSection produkId={produk.id} links={produk.shopeeLinks} />
           </div>
-          <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)" }} className="pt-4">
+
+          {/* Kalkulasi link */}
+          <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16 }}>
             <KalkulasiLinkSection
               produkId={produk.id}
               currentKalkulasiId={produk.primaryKalkulasiId ?? null}
