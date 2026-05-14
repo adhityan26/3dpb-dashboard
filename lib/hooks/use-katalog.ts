@@ -60,6 +60,7 @@ export function useAddShopeeLink() {
     onSuccess: (_, { katalogId }) => {
       qc.invalidateQueries({ queryKey: KATALOG_KEY })
       qc.invalidateQueries({ queryKey: [...KATALOG_KEY, katalogId] })
+      qc.invalidateQueries({ queryKey: ['products'] })
     },
   })
 }
@@ -72,6 +73,7 @@ export function useRemoveShopeeLink() {
     onSuccess: (_, { katalogId }) => {
       qc.invalidateQueries({ queryKey: KATALOG_KEY })
       qc.invalidateQueries({ queryKey: [...KATALOG_KEY, katalogId] })
+      qc.invalidateQueries({ queryKey: ['products'] })
     },
   })
 }
@@ -84,6 +86,7 @@ export function useSetKatalogKalkulasi() {
     onSuccess: (_, { katalogId }) => {
       qc.invalidateQueries({ queryKey: KATALOG_KEY })
       qc.invalidateQueries({ queryKey: [...KATALOG_KEY, katalogId] })
+      qc.invalidateQueries({ queryKey: ['products'] })
     },
   })
 }

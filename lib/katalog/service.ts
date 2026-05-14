@@ -15,6 +15,7 @@ function toProdukInternalData(raw: any): ProdukInternalData {
     primaryKalkulasiId: raw.primaryKalkulasiId ?? null,
     hppTotal: k ? (k.hppTotal ?? null) : null,
     floorPrice: k ? (k.floorPrice ?? null) : null,
+    offlineA: k ? (k.offlineA ?? null) : null,
     shopeeA: k ? (k.shopeeA ?? null) : null,
     kalkulasiStatus: k ? (k.status ?? null) : null,
     kalkulasiNama: k ? (k.nama ?? null) : null,

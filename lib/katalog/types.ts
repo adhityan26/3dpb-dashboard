@@ -6,6 +6,7 @@ export interface ProdukInternalData {
   // Denormalized from primaryKalkulasi for convenience in UI:
   hppTotal: number | null
   floorPrice: number | null
+  offlineA: number | null
   shopeeA: number | null
   kalkulasiStatus: string | null   // KalkulasiStatus value e.g. "AMAN"
   kalkulasiNama: string | null     // .nama from the linked KalkulasiHarga

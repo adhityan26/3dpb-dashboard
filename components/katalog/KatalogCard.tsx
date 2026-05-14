@@ -97,6 +97,48 @@ export function KatalogCard({ produk, onEdit }: Props) {
                 {produk.shopeeLinks.length} Shopee link
               </span>
             )}
+
+          {/* Price pills: offline A + shopee A */}
+          {(produk.offlineA != null || produk.shopeeA != null) && (
+            <div className="flex items-center gap-2 flex-wrap mt-1">
+              {produk.offlineA != null && (
+                <span
+                  className="text-[10px] px-2 py-0.5 rounded-full"
+                  style={{
+                    background: "rgba(52,211,153,0.08)",
+                    color: "#6ee7b7",
+                    border: "1px solid rgba(52,211,153,0.15)",
+                  }}
+                >
+                  Offline: {fmt(produk.offlineA)}
+                </span>
+              )}
+              {produk.shopeeA != null && (
+                <span
+                  className="text-[10px] px-2 py-0.5 rounded-full"
+                  style={{
+                    background: "rgba(251,146,60,0.1)",
+                    color: "#fb923c",
+                    border: "1px solid rgba(251,146,60,0.2)",
+                  }}
+                >
+                  Shopee: {fmt(produk.shopeeA)}
+                </span>
+              )}
+              {produk.floorPrice != null && (
+                <span
+                  className="text-[10px] px-2 py-0.5 rounded-full"
+                  style={{
+                    background: "rgba(245,158,11,0.08)",
+                    color: "#fbbf24",
+                    border: "1px solid rgba(245,158,11,0.15)",
+                  }}
+                >
+                  Floor: {fmt(produk.floorPrice)}
+                </span>
+              )}
+            </div>
+          )}
           </div>
         </div>
 

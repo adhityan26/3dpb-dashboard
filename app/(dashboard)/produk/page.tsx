@@ -105,8 +105,18 @@ function ProdukPageInner() {
 
   return (
     <div className="space-y-4">
-      {/* Sub-tab nav: Produk / Filamen / Kalkulator */}
+      {/* Sub-tab nav: Katalog / Shopee / Filamen / Kalkulator */}
       <div className="flex border-b border-gray-200">
+        <button
+          onClick={() => setProdukTab("katalog")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            produkTab === "katalog"
+              ? "border-indigo-500 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400"
+              : "border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
+          }`}
+        >
+          📦 Katalog
+        </button>
         <button
           onClick={() => setProdukTab("produk")}
           className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
@@ -115,7 +125,7 @@ function ProdukPageInner() {
               : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >
-          Produk
+          🛍️ Shopee
         </button>
         <button
           onClick={() => setProdukTab("filamen")}
@@ -125,7 +135,7 @@ function ProdukPageInner() {
               : "border-transparent text-gray-500 hover:text-gray-700"
           }`}
         >
-          Filamen
+          🧵 Filamen
         </button>
         <button
           onClick={() => setProdukTab("kalkulator")}
@@ -136,16 +146,6 @@ function ProdukPageInner() {
           }`}
         >
           🧮 Kalkulator
-        </button>
-        <button
-          onClick={() => setProdukTab("katalog")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            produkTab === "katalog"
-              ? "border-indigo-500 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400"
-              : "border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
-          }`}
-        >
-          📦 Katalog
         </button>
       </div>
 
