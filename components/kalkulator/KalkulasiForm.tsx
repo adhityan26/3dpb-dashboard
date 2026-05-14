@@ -6,6 +6,8 @@ import { AksesoriSection } from "./AksesoriSection"
 import { HasilPanel } from "./HasilPanel"
 import { hitungKalkulasi } from "@/lib/kalkulator/formula"
 import { useCreateKalkulasi, useUpdateKalkulasi, useKalkulatorRates } from "@/lib/hooks/use-kalkulator"
+import { useKatalogList } from "@/lib/hooks/use-katalog"
+import { useProducts } from "@/lib/hooks/use-products"
 import type { KalkulasiData, KalkulasiInput, MarginTier, HasilKalkulasi } from "@/lib/kalkulator/types"
 import type { AksesoriState } from "./AksesoriSection"
 
@@ -37,6 +39,23 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   const { data: ratesData } = useKalkulatorRates()
   const createMut = useCreateKalkulasi()
   const updateMut = useUpdateKalkulasi()
+  const { data: katalogList } = useKatalogList()
+  const { data: productsData } = useProducts()
+
+  // Find if this kalkulasi is set as primary HPP source for any katalog product
+  // If yes and that product has Shopee links → auto-fill harga shopee from actual Shopee price
+  const linkedShopeePrice = useMemo(() => {
+    if (!initial?.id || !katalogList || !productsData?.products) return null
+    const katalog = katalogList.find(k => k.primaryKalkulasiId === initial.id)
+    if (!katalog || !katalog.shopeeLinks.length) return null
+    const linkedIds = new Set(katalog.shopeeLinks.map(l => l.shopeeItemId))
+    const prices = productsData.products
+      .filter(p => linkedIds.has(p.productId) && p.priceMin > 0)
+      .map(p => p.priceMin)
+    return prices.length > 0 ? Math.min(...prices) : null
+  }, [initial?.id, katalogList, productsData])
+
+  const shopeeIsLocked = linkedShopeePrice != null
 
   const [nama, setNama] = useState(initial?.nama ?? "")
   const [batch, setBatch] = useState(initial?.batch ?? 1)
@@ -88,10 +107,11 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
         Math.max(1, batch),
         ratesData,
         marginTier,
-        hargaShopee && hargaShopee > 0 ? hargaShopee : undefined
+        // Use actual Shopee price from linked product if available, otherwise manual input
+        (shopeeIsLocked ? linkedShopeePrice : hargaShopee) ?? undefined
       )
     } catch { return null }
-  }, [plates, aksesori, batch, marginTier, hargaShopee, ratesData])
+  }, [plates, aksesori, batch, marginTier, hargaShopee, shopeeIsLocked, linkedShopeePrice, ratesData])
 
   const isEditing = !!initial
 
@@ -233,28 +253,38 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
 
         {/* Harga Shopee */}
         <div>
-          <div
-            className="text-xs font-semibold uppercase tracking-wider mb-1.5"
-            style={{ color: "rgba(165,180,252,0.6)" }}
-          >
-            Harga Shopee Saat Ini{" "}
-            <span
-              className="ml-1 font-normal normal-case"
-              style={{ color: "rgba(255,255,255,0.25)" }}
+          <div className="flex items-center gap-2 mb-1.5">
+            <div
+              className="text-xs font-semibold uppercase tracking-wider"
+              style={{ color: "rgba(165,180,252,0.6)" }}
             >
-              (opsional)
-            </span>
+              Harga Shopee Saat Ini
+            </div>
+            {shopeeIsLocked ? (
+              <span
+                className="text-[9px] px-1.5 py-0.5 rounded font-medium"
+                style={{ background: "rgba(99,102,241,0.15)", color: "#a5b4fc" }}
+              >
+                🔗 Dari Shopee
+              </span>
+            ) : (
+              <span className="text-[10px] font-normal" style={{ color: "rgba(255,255,255,0.25)" }}>
+                (opsional)
+              </span>
+            )}
           </div>
           <input
             type="text"
             placeholder="Rp 35.000"
-            value={hargaShopeeStr}
-            onChange={e => {
+            value={shopeeIsLocked ? `Rp ${linkedShopeePrice!.toLocaleString("id-ID")}` : hargaShopeeStr}
+            disabled={shopeeIsLocked}
+            onChange={shopeeIsLocked ? undefined : e => {
               setHargaShopeeStr(e.target.value)
               const n = parseInt(e.target.value.replace(/\D/g, ""))
               setHargaShopee(n > 0 ? n : undefined)
             }}
             className="glass-input w-full h-10 rounded-[10px] px-3 text-sm"
+            style={shopeeIsLocked ? { opacity: 0.6, cursor: "not-allowed" } : undefined}
           />
         </div>
 
