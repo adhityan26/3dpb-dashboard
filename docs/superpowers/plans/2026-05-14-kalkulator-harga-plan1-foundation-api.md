@@ -25,6 +25,8 @@
 | Create | `lib/kalkulator/rates.ts` | Load rates from Config |
 | Create | `app/api/kalkulator/route.ts` | GET list + POST create |
 | Create | `app/api/kalkulator/[id]/route.ts` | GET + PUT + DELETE |
+| Create | `app/api/kalkulator/[id]/duplicate/route.ts` | POST save-as / duplicate |
+| Create | `app/api/kalkulator/[id]/links/[linkId]/primary/route.ts` | PUT set isPrimary |
 | Create | `app/api/kalkulator/filament-harga/route.ts` | FDM filament prices |
 | Create | `app/api/kalkulator/resin-harga/route.ts` | SLA resin prices |
 | Create | `app/api/kalkulator/rates/route.ts` | GET + PUT machine/component rates |
@@ -45,9 +47,10 @@ Append at the end of the file (after the last existing model):
 ```prisma
 model KalkulasiHarga {
   id                String   @id @default(cuid())
-  nama              String
+  nama              String   // e.g. "Hammerhead 10pcs" — bisa include batch info
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  batch             Int      @default(1)   // jumlah unit yang dicetak
   marginTier        String   @default("A")
   hargaShopeeAktual Float?
   packingType       String?
@@ -103,6 +106,7 @@ model KalkulasiProduk {
   kalkulasi    KalkulasiHarga @relation(fields: [kalkulasiId], references: [id], onDelete: Cascade)
   shopeeItemId String?
   namaManual   String?
+  isPrimary    Boolean        @default(false) // referensi harga utama untuk produk ini
 }
 
 model FilamentHarga {
@@ -139,6 +143,7 @@ CREATE TABLE "KalkulasiHarga" (
     "nama" TEXT NOT NULL,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
+    "batch" INTEGER NOT NULL DEFAULT 1,
     "marginTier" TEXT NOT NULL DEFAULT 'A',
     "hargaShopeeAktual" REAL,
     "packingType" TEXT,
@@ -190,6 +195,7 @@ CREATE TABLE "KalkulasiProduk" (
     "kalkulasiId" TEXT NOT NULL,
     "shopeeItemId" TEXT,
     "namaManual" TEXT,
+    "isPrimary" BOOLEAN NOT NULL DEFAULT false,
     CONSTRAINT "KalkulasiProduk_kalkulasiId_fkey" FOREIGN KEY ("kalkulasiId") REFERENCES "KalkulasiHarga" ("id") ON DELETE CASCADE ON UPDATE CASCADE
 );
 
@@ -339,6 +345,7 @@ export interface HasilKalkulasi {
 
 export interface KalkulasiInput {
   nama: string
+  batch: number              // jumlah unit yang dicetak
   marginTier: MarginTier
   hargaShopeeAktual?: number
   packingType?: PackingType
@@ -354,6 +361,7 @@ export interface KalkulasiData extends HasilKalkulasi {
   nama: string
   createdAt: string
   updatedAt: string
+  batch: number
   marginTier: MarginTier
   hargaShopeeAktual?: number
   packingType?: PackingType
@@ -370,11 +378,13 @@ export interface KalkulasiData extends HasilKalkulasi {
 export interface KalkulasiProdukInput {
   shopeeItemId?: string
   namaManual?: string
+  isPrimary?: boolean   // set sebagai referensi harga utama untuk produk ini
 }
 
 export interface KalkulasiProdukData extends KalkulasiProdukInput {
   id: string
   kalkulasiId: string
+  isPrimary: boolean
 }
 
 // ── Filament/Resin Harga ────────────────────────────────────────────────────
@@ -935,12 +945,58 @@ export async function addProdukLink(
   input: KalkulasiProdukInput
 ): Promise<void> {
   await prisma.kalkulasiProduk.create({
-    data: { kalkulasiId, ...input },
+    data: { kalkulasiId, isPrimary: input.isPrimary ?? false, ...input },
   })
 }
 
 export async function removeProdukLink(linkId: string): Promise<void> {
   await prisma.kalkulasiProduk.delete({ where: { id: linkId } })
+}
+
+export async function setPrimaryLink(linkId: string, kalkulasiId: string): Promise<void> {
+  // Unset other primaries for same product key (shopeeItemId or namaManual)
+  const link = await prisma.kalkulasiProduk.findUnique({ where: { id: linkId } })
+  if (!link) return
+  // Unset all primaries for this product identifier
+  await prisma.kalkulasiProduk.updateMany({
+    where: link.shopeeItemId
+      ? { shopeeItemId: link.shopeeItemId }
+      : { namaManual: link.namaManual ?? undefined },
+    data: { isPrimary: false },
+  })
+  // Set this one as primary
+  await prisma.kalkulasiProduk.update({
+    where: { id: linkId },
+    data: { isPrimary: true },
+  })
+}
+
+export async function duplicateKalkulasi(id: string, newNama: string, newBatch?: number): Promise<KalkulasiData> {
+  const source = await getKalkulasi(id)
+  if (!source) throw new Error('Kalkulasi not found')
+
+  const input: KalkulasiInput = {
+    nama: newNama,
+    batch: newBatch ?? source.batch,
+    marginTier: source.marginTier as MarginTier,
+    hargaShopeeAktual: source.hargaShopeeAktual ?? undefined,
+    packingType: source.packingType as any ?? undefined,
+    gantunganType: source.gantunganType ?? undefined,
+    switchQty: source.switchQty,
+    hasLabel: source.hasLabel,
+    plates: source.plates.map(p => ({
+      namaPart: p.namaPart ?? undefined,
+      tipe: p.tipe as 'FDM' | 'SLA',
+      gramasi: p.gramasi,
+      durasiJam: p.durasiJam,
+    })),
+    komponenKustom: source.komponenKustom.map(k => ({
+      nama: k.nama,
+      harga: k.harga,
+      qty: k.qty,
+    })),
+  }
+  return createKalkulasi(input)
 }
 
 // ── Filament/Resin Harga ─────────────────────────────────────────────────────
@@ -1188,7 +1244,44 @@ export async function DELETE(req: NextRequest) {
 }
 ```
 
-- [ ] **Step 7: Create `app/api/kalkulator/rates/route.ts`**
+- [ ] **Step 7: Create `app/api/kalkulator/[id]/duplicate/route.ts`**
+
+```typescript
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import { duplicateKalkulasi } from '@/lib/kalkulator/service'
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await auth()
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id } = await params
+  const { nama, batch } = await req.json()
+  if (!nama?.trim()) return NextResponse.json({ error: 'nama is required' }, { status: 400 })
+
+  const result = await duplicateKalkulasi(id, nama, batch)
+  return NextResponse.json(result, { status: 201 })
+}
+```
+
+- [ ] **Step 7b: Create `app/api/kalkulator/[id]/links/[linkId]/primary/route.ts`**
+
+```typescript
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import { setPrimaryLink } from '@/lib/kalkulator/service'
+
+export async function PUT(_: NextRequest, { params }: { params: Promise<{ id: string; linkId: string }> }) {
+  const session = await auth()
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { id, linkId } = await params
+  await setPrimaryLink(linkId, id)
+  return new NextResponse(null, { status: 204 })
+}
+```
+
+- [ ] **Step 8: Create `app/api/kalkulator/rates/route.ts`**
 
 ```typescript
 import { NextRequest, NextResponse } from 'next/server'
@@ -1334,6 +1427,39 @@ export function useDeleteKalkulasi() {
 }
 
 // ── Produk Links ──────────────────────────────────────────────────────────────
+
+// ── Duplicate ─────────────────────────────────────────────────────────────────
+
+export function useDuplicateKalkulasi() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ id, nama, batch }: { id: string; nama: string; batch?: number }): Promise<KalkulasiData> => {
+      const res = await fetch(`/api/kalkulator/${id}/duplicate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nama, batch }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return res.json()
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: KALK_KEY }),
+  })
+}
+
+// ── Set Primary ───────────────────────────────────────────────────────────────
+
+export function useSetPrimaryLink() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async ({ kalkulasiId, linkId }: { kalkulasiId: string; linkId: string }) => {
+      const res = await fetch(`/api/kalkulator/${kalkulasiId}/links/${linkId}/primary`, {
+        method: 'PUT',
+      })
+      if (!res.ok && res.status !== 204) throw new Error(`HTTP ${res.status}`)
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: KALK_KEY }),
+  })
+}
 
 export function useAddProdukLink() {
   const qc = useQueryClient()

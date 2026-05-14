@@ -9,6 +9,11 @@
 
 Fitur kalkulator harga jual untuk produk 3D print (FDM & SLA). User bisa hitung HPP, Floor Price, rekomendasi harga offline/Shopee/reseller, lalu simpan hasilnya dan link ke produk. Satu kalkulasi mendukung multi-part (plate-based input) dan campuran FDM + SLA.
 
+**Relasi kalkulasi ↔ produk:**
+- **1 produk → banyak kalkulasi**: e.g., Hammerhead Shark punya kalkulasi batch-1 dan batch-10 terpisah
+- **1 kalkulasi → banyak produk**: e.g., varian warna berbeda dengan konfigurasi cetak sama
+- **Primary kalkulasi**: per produk, 1 kalkulasi ditandai `isPrimary` sebagai referensi harga utama
+
 ---
 
 ## Lokasi di App
@@ -41,11 +46,12 @@ Produk tidak harus ada di Shopee dulu — bisa kalkulasi untuk produk yang belum
 ```prisma
 model KalkulasiHarga {
   id            String   @id @default(cuid())
-  nama          String   // nama produk (manual atau dari Shopee)
+  nama          String   // nama kalkulasi, bisa include batch info e.g. "Hammerhead 10pcs"
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  batch         Int      @default(1)  // jumlah unit yang dicetak — penting untuk referensi next print
   marginTier    String   // "A" | "B" | "C"
-  hargaShopeeAktual Float?  // harga Shopee saat ini (opsional, untuk compare)
+  hargaShopeeAktual Float?
 
   // Aksesori standar
   packingType   String?  // "S"|"M"|"L"|"XL"|null
@@ -54,21 +60,21 @@ model KalkulasiHarga {
   hasLabel      Boolean  @default(false)
 
   // Hasil kalkulasi (tersimpan snapshot)
-  hppProduksi   Float
-  hppKomponen   Float
-  hppTotal      Float
-  floorPrice    Float
-  offlineA      Float
-  offlineB      Float
-  offlineC      Float
-  shopeeA       Float
-  shopeeB       Float
-  shopeeC       Float
-  resellerStd   Float
-  resellerBulk  Float
-  status        String   // "AMAN"|"BAWAH_REKM"|"RUGI"
-  marginOfflineA Float
-  marginShopeeA  Float
+  hppProduksi   Float    @default(0)
+  hppKomponen   Float    @default(0)
+  hppTotal      Float    @default(0)
+  floorPrice    Float    @default(0)
+  offlineA      Float    @default(0)
+  offlineB      Float    @default(0)
+  offlineC      Float    @default(0)
+  shopeeA       Float    @default(0)
+  shopeeB       Float    @default(0)
+  shopeeC       Float    @default(0)
+  resellerStd   Float    @default(0)
+  resellerBulk  Float    @default(0)
+  status        String   @default("TIDAK_DISET")
+  marginOfflineA Float   @default(0)
+  marginShopeeA  Float   @default(0)
 
   // Relations
   plates        KalkulasiPlate[]
@@ -97,12 +103,14 @@ model KomponenKustom {
 }
 
 // Junction table: 1 kalkulasi bisa link ke banyak produk/varian
+// 1 produk bisa punya banyak kalkulasi, tapi hanya 1 yang isPrimary
 model KalkulasiProduk {
   id           String   @id @default(cuid())
   kalkulasiId  String
   kalkulasi    KalkulasiHarga @relation(fields: [kalkulasiId], references: [id], onDelete: Cascade)
   shopeeItemId String?  // link ke produk Shopee (nullable)
   namaManual   String?  // nama manual kalau belum ada di Shopee
+  isPrimary    Boolean  @default(false)  // kalkulasi referensi utama untuk produk ini
 }
 
 // Harga filamen FDM per brand+material (untuk mode Per Filamen)
@@ -316,9 +324,18 @@ Catatan: "Di bawah rekm. tapi tidak rugi —
 ## Riwayat Tersimpan (Bawah)
 
 - Search bar + filter status (Semua / 🟢 / 🟡 / 🔴)
-- Setiap row: nama, summary (gramasi, durasi, plates), floor price, status, tanggal
-- Klik row → load ulang form dengan data tersimpan (untuk edit/duplicate)
-- "Link produk" badge bila sudah terhubung ke produk
+- Setiap row: nama, batch info, summary (gramasi, durasi, plates), floor price, status, tanggal
+- Klik row → load ulang form dengan data tersimpan
+- "Link produk" badge bila sudah terhubung ke produk, "🔑 Primary" badge bila isPrimary
+
+**Actions per row:**
+- **Edit** → load ke form, update record yang sama (tidak membuat history baru)
+- **Duplicate / Save As** → buat record baru dari data ini, nama bisa diubah, batch bisa diubah
+- **Compare** → pilih 2+ kalkulasi untuk ditampilkan side-by-side (misal: batch-1 vs batch-10)
+
+**Compare view:**
+- Tampilkan tabel perbandingan: HPP, Floor Price, Offline A/B/C, Shopee A/B/C per kalkulasi
+- Berguna untuk keputusan: "lebih untung cetak 1 atau 10 sekaligus?"
 
 ---
 
@@ -375,13 +392,32 @@ Dipakai di mode "Per Material" untuk plate SLA.
 
 ---
 
+## Input Form — Tambahan Field Batch
+
+Field **Batch** ada di atas plate table:
+```
+Batch (jumlah unit): [10]  ← user input jumlah unit yang akan diproduksi
+```
+Gramasi dan durasi di tiap plate = total untuk seluruh batch (output slicer).
+Formula otomatis bagi batch untuk dapat harga per unit.
+
+Nama kalkulasi bisa include batch info: "Hammerhead 10pcs" vs "Hammerhead 1pcs" untuk mudah dibedakan di riwayat.
+
+---
+
 ## Scope Phase 1 (ini)
 
 - ✅ Kalkulator FDM + SLA
 - ✅ Multi-plate (part) per kalkulasi
+- ✅ Field `batch` disimpan ke DB (referensi next print)
 - ✅ Save kalkulasi + riwayat
+- ✅ Duplicate / Save As kalkulasi
 - ✅ Link ke produk Shopee atau nama manual
 - ✅ 1 kalkulasi → multiple produk/varian (many-to-many)
+- ✅ 1 produk → multiple kalkulasi (batch berbeda)
+- ✅ `isPrimary` flag per kalkulasi-produk link (referensi harga utama)
+- ✅ Compare 2+ kalkulasi side-by-side
+- ✅ Buat/link produk langsung dari kalkulasi (+ set primary)
 - ✅ Margin offline vs Shopee (terpisah, dengan fee sebagai cost)
 - ✅ Semua tipe aksesori (packing, gantungan multi-tipe, switch+qty, label, elektronik)
 - ✅ Settings harga komponen + gantungan configurable
@@ -392,5 +428,4 @@ Dipakai di mode "Per Material" untuk plate SLA.
 - ⏭ Mode Topeng/Costume (perhitungan berbeda)
 - ⏭ Auto-fetch harga Shopee aktual
 - ⏭ Analisa trend margin historis
-- ⏭ Batch comparison multi-produk
 - ⏭ Labor/overhead packing (treated as operating expense)
