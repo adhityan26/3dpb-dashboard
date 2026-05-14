@@ -107,7 +107,7 @@ export function TabNav({ role, badges = {}, userName = "" }: TabNavProps) {
       <div className="text-[15px] font-extrabold min-w-[160px] flex items-center gap-[6px]">
         <span>🖨️</span>
         <span>
-          <span style={{ color: logoAccentColor, textShadow: isDark ? "0 0 24px rgba(165,180,252,0.35)" : "none" }}>3DPB</span>
+          <span style={{ color: logoAccentColor, textShadow: isDark ? "0 0 24px rgba(165,180,252,0.35)" : "none" }}>3PB</span>
           <span className="font-medium ml-[5px]" style={{ color: logoDashColor }}>Ops</span>
         </span>
       </div>

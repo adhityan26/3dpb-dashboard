@@ -63,7 +63,7 @@ export default async function LoginPage({
               backgroundClip: "text",
             }}
           >
-            3DPB Ops
+            3PB Ops
           </h1>
           <p className="text-[13px]" style={{ color: "rgba(165,180,252,0.6)" }}>
             3D Printing Bandung
