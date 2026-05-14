@@ -220,6 +220,7 @@ model KalkulasiPlate {
   urutan      Int
   namaPart    String?
   tipe        String         @default("FDM")
+  printer     String?
   gramasi     Float
   durasiJam   Float
 }

@@ -67,7 +67,7 @@ export async function createKalkulasi(input: KalkulasiInput): Promise<KalkulasiD
       switchQty: input.switchQty,
       hasLabel: input.hasLabel,
       ...hasil,
-      plates: { create: input.plates.map((p, i) => ({ urutan: i + 1, namaPart: p.namaPart, tipe: p.tipe, gramasi: p.gramasi, durasiJam: p.durasiJam })) },
+      plates: { create: input.plates.map((p, i) => ({ urutan: i + 1, namaPart: p.namaPart, tipe: p.tipe, printer: p.printer, gramasi: p.gramasi, durasiJam: p.durasiJam })) },
       komponenKustom: { create: input.komponenKustom.map(k => ({ nama: k.nama, harga: k.harga, qty: k.qty })) },
     },
     include: INCLUDE_ALL,
@@ -94,7 +94,7 @@ export async function updateKalkulasi(id: string, input: KalkulasiInput): Promis
       switchQty: input.switchQty,
       hasLabel: input.hasLabel,
       ...hasil,
-      plates: { create: input.plates.map((p, i) => ({ urutan: i + 1, namaPart: p.namaPart, tipe: p.tipe, gramasi: p.gramasi, durasiJam: p.durasiJam })) },
+      plates: { create: input.plates.map((p, i) => ({ urutan: i + 1, namaPart: p.namaPart, tipe: p.tipe, printer: p.printer, gramasi: p.gramasi, durasiJam: p.durasiJam })) },
       komponenKustom: { create: input.komponenKustom.map(k => ({ nama: k.nama, harga: k.harga, qty: k.qty })) },
     },
     include: INCLUDE_ALL,
@@ -118,7 +118,7 @@ export async function duplicateKalkulasi(id: string, newNama: string, newBatch?:
     gantunganType: source.gantunganType ?? undefined,
     switchQty: source.switchQty,
     hasLabel: source.hasLabel,
-    plates: source.plates.map(p => ({ namaPart: p.namaPart ?? undefined, tipe: p.tipe as 'FDM' | 'SLA', gramasi: p.gramasi, durasiJam: p.durasiJam })),
+    plates: source.plates.map(p => ({ namaPart: p.namaPart ?? undefined, tipe: p.tipe as 'FDM' | 'SLA', printer: p.printer ?? undefined, gramasi: p.gramasi, durasiJam: p.durasiJam })),
     komponenKustom: source.komponenKustom.map(k => ({ nama: k.nama, harga: k.harga, qty: k.qty })),
   }
   return createKalkulasi(input)

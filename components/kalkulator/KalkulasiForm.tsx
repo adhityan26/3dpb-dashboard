@@ -13,6 +13,7 @@ interface PlateRow {
   key: string
   namaPart?: string
   tipe: "FDM" | "SLA"
+  printer?: string
   gramasi: number
   durasiJam: number
 }
@@ -47,6 +48,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
       key: `p-${p.id}`,
       namaPart: p.namaPart ?? undefined,
       tipe: p.tipe as "FDM" | "SLA",
+      printer: p.printer ?? undefined,
       gramasi: p.gramasi,
       durasiJam: p.durasiJam,
     })) ?? [DEFAULT_PLATE]
@@ -107,6 +109,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
       plates: plates.filter(p => p.gramasi > 0).map(p => ({
         namaPart: p.namaPart,
         tipe: p.tipe,
+        printer: p.printer,
         gramasi: p.gramasi,
         durasiJam: p.durasiJam,
       })),

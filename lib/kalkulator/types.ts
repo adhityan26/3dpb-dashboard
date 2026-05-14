@@ -6,6 +6,7 @@ export type PackingType = 'S' | 'M' | 'L' | 'XL'
 export interface PlateInput {
   namaPart?: string
   tipe: PrintTipe
+  printer?: string
   gramasi: number
   durasiJam: number
 }
