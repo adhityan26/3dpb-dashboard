@@ -1,0 +1,89 @@
+"use client"
+
+import { useState } from "react"
+import { useKatalogList } from "@/lib/hooks/use-katalog"
+import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
+import { KatalogCard } from "./KatalogCard"
+import { KatalogForm } from "./KatalogForm"
+import type { ProdukInternalData } from "@/lib/katalog/types"
+
+export function KatalogTab() {
+  const { data, isLoading } = useKatalogList()
+  const items: ProdukInternalData[] = data ?? []
+
+  const [showForm, setShowForm] = useState(false)
+  const [editingProduk, setEditingProduk] = useState<ProdukInternalData | null>(null)
+
+  function handleEdit(p: ProdukInternalData) {
+    setEditingProduk(p)
+    setShowForm(true)
+  }
+
+  function handleCloseForm() {
+    setShowForm(false)
+    setEditingProduk(null)
+  }
+
+  return (
+    <div className="space-y-6">
+      <GlassPageHeader
+        title="Katalog Produk"
+        subtitle="Daftar produk internal yang kamu jual"
+      >
+        <button
+          onClick={() => { setEditingProduk(null); setShowForm(true) }}
+          className="h-9 px-4 rounded-[10px] text-[12px] font-semibold text-white flex items-center gap-1.5 transition-all"
+          style={{ background: "linear-gradient(135deg, #5055e8, #7c84f8)" }}
+          onMouseEnter={e => (e.currentTarget.style.opacity = "0.9")}
+          onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
+        >
+          <span className="text-[15px] leading-none">+</span>
+          Produk Baru
+        </button>
+      </GlassPageHeader>
+
+      {isLoading && (
+        <div className="text-[11px] text-center py-12" style={{ color: "rgba(255,255,255,0.25)" }}>
+          Memuat katalog...
+        </div>
+      )}
+
+      {!isLoading && items.length === 0 && (
+        <div
+          className="flex flex-col items-center justify-center py-16 rounded-[16px] gap-4"
+          style={{
+            background: "rgba(255,255,255,0.02)",
+            border: "1px dashed rgba(255,255,255,0.1)",
+          }}
+        >
+          <div className="text-4xl">📦</div>
+          <div className="text-[13px] font-medium text-center" style={{ color: "rgba(255,255,255,0.35)" }}>
+            Belum ada produk di katalog.
+          </div>
+          <button
+            onClick={() => { setEditingProduk(null); setShowForm(true) }}
+            className="h-9 px-5 rounded-[10px] text-[12px] font-semibold text-white transition-all"
+            style={{ background: "linear-gradient(135deg, #5055e8, #7c84f8)" }}
+          >
+            Tambah produk pertama →
+          </button>
+        </div>
+      )}
+
+      {!isLoading && items.length > 0 && (
+        <div className="space-y-3">
+          {items.map(p => (
+            <KatalogCard key={p.id} produk={p} onEdit={handleEdit} />
+          ))}
+        </div>
+      )}
+
+      {showForm && (
+        <KatalogForm
+          initial={editingProduk}
+          onClose={handleCloseForm}
+        />
+      )}
+    </div>
+  )
+}
