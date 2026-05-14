@@ -180,3 +180,80 @@ model AmsSlotAlternative {
 
   @@index([slotId])
 }
+
+model KalkulasiHarga {
+  id                String   @id @default(cuid())
+  nama              String
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  batch             Int      @default(1)
+  marginTier        String   @default("A")
+  hargaShopeeAktual Float?
+  packingType       String?
+  gantunganType     String?
+  switchQty         Int      @default(0)
+  hasLabel          Boolean  @default(false)
+  hppProduksi       Float    @default(0)
+  hppKomponen       Float    @default(0)
+  hppTotal          Float    @default(0)
+  floorPrice        Float    @default(0)
+  offlineA          Float    @default(0)
+  offlineB          Float    @default(0)
+  offlineC          Float    @default(0)
+  shopeeA           Float    @default(0)
+  shopeeB           Float    @default(0)
+  shopeeC           Float    @default(0)
+  resellerStd       Float    @default(0)
+  resellerBulk      Float    @default(0)
+  marginOfflineA    Float    @default(0)
+  marginShopeeA     Float    @default(0)
+  status            String   @default("TIDAK_DISET")
+  plates            KalkulasiPlate[]
+  komponenKustom    KomponenKustom[]
+  produkLinks       KalkulasiProduk[]
+}
+
+model KalkulasiPlate {
+  id          String         @id @default(cuid())
+  kalkulasiId String
+  kalkulasi   KalkulasiHarga @relation(fields: [kalkulasiId], references: [id], onDelete: Cascade)
+  urutan      Int
+  namaPart    String?
+  tipe        String         @default("FDM")
+  gramasi     Float
+  durasiJam   Float
+}
+
+model KomponenKustom {
+  id          String         @id @default(cuid())
+  kalkulasiId String
+  kalkulasi   KalkulasiHarga @relation(fields: [kalkulasiId], references: [id], onDelete: Cascade)
+  nama        String
+  harga       Float
+  qty         Int            @default(1)
+}
+
+model KalkulasiProduk {
+  id           String         @id @default(cuid())
+  kalkulasiId  String
+  kalkulasi    KalkulasiHarga @relation(fields: [kalkulasiId], references: [id], onDelete: Cascade)
+  shopeeItemId String?
+  namaManual   String?
+  isPrimary    Boolean        @default(false)
+}
+
+model FilamentHarga {
+  id           String @id @default(cuid())
+  brand        String
+  material     String
+  hargaPerGram Float
+  @@unique([brand, material])
+}
+
+model ResinHarga {
+  id           String @id @default(cuid())
+  brand        String
+  grade        String
+  hargaPerGram Float
+  @@unique([brand, grade])
+}
