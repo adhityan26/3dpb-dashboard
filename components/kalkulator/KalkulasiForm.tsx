@@ -165,6 +165,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   }
 
   return (
+    <>
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
 
       {/* LEFT: Input */}
@@ -365,5 +366,6 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
         onClose={() => setShowPrint(false)}
       />
     )}
+    </>
   )
 }
