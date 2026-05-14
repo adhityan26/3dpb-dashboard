@@ -170,6 +170,30 @@ export function KatalogCard({ produk, onEdit }: Props) {
           className="px-5 pb-5 space-y-4 pt-4"
           style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
         >
+          {/* Source Model */}
+          {produk.sourceModel && (
+            <div>
+              <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: "rgba(165,180,252,0.5)" }}>
+                Source / Model Referensi
+              </div>
+              {/^https?:\/\//.test(produk.sourceModel) ? (
+                <a
+                  href={produk.sourceModel}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm break-all"
+                  style={{ color: "#a5b4fc", textDecoration: "underline", textUnderlineOffset: 3 }}
+                >
+                  {produk.sourceModel}
+                </a>
+              ) : (
+                <div className="text-sm" style={{ color: "rgba(255,255,255,0.6)" }}>
+                  {produk.sourceModel}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Deskripsi */}
           {produk.deskripsi && (
             <div>

@@ -18,6 +18,7 @@ function toProdukInternalData(raw: any): ProdukInternalData {
     deskripsi: raw.deskripsi ?? null,
     kategori: raw.kategori ?? null,
     tags: raw.tags ? raw.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [],
+    sourceModel: raw.sourceModel ?? null,
     primaryKalkulasiId: raw.primaryKalkulasiId ?? null,
     hppTotal: k ? (k.hppTotal ?? null) : null,
     floorPrice: k ? (k.floorPrice ?? null) : null,
@@ -70,6 +71,7 @@ export async function createKatalog(input: ProdukInternalInput): Promise<ProdukI
       deskripsi: input.deskripsi?.trim() ?? null,
       kategori: input.kategori?.trim() ?? null,
       tags: toTagsString(input.tags),
+      sourceModel: input.sourceModel?.trim() ?? null,
     },
     include: INCLUDE_ALL,
   })
@@ -87,6 +89,7 @@ export async function updateKatalog(
       deskripsi: input.deskripsi?.trim() ?? null,
       kategori: input.kategori?.trim() ?? null,
       tags: toTagsString(input.tags),
+      sourceModel: input.sourceModel?.trim() ?? null,
     },
     include: INCLUDE_ALL,
   })

@@ -12,6 +12,7 @@ export interface ProdukInternalData {
   deskripsi: string | null
   kategori: string | null
   tags: string[]
+  sourceModel: string | null
   primaryKalkulasiId: string | null
   // Denormalized from primaryKalkulasi for convenience in UI:
   hppTotal: number | null
@@ -32,4 +33,5 @@ export interface ProdukInternalInput {
   deskripsi?: string | null
   kategori?: string | null
   tags?: string[]
+  sourceModel?: string | null
 }

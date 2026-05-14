@@ -14,6 +14,7 @@ export function KatalogForm({ initial, onClose, onSaved }: Props) {
   const [nama, setNama] = useState(initial?.nama ?? "")
   const [deskripsi, setDeskripsi] = useState(initial?.deskripsi ?? "")
   const [kategori, setKategori] = useState(initial?.kategori ?? "")
+  const [sourceModel, setSourceModel] = useState(initial?.sourceModel ?? "")
   const [tags, setTags] = useState<string[]>(initial?.tags ?? [])
   const [tagInput, setTagInput] = useState("")
   const [showKategoriDropdown, setShowKategoriDropdown] = useState(false)
@@ -38,6 +39,7 @@ export function KatalogForm({ initial, onClose, onSaved }: Props) {
     setNama(initial?.nama ?? "")
     setDeskripsi(initial?.deskripsi ?? "")
     setKategori(initial?.kategori ?? "")
+    setSourceModel(initial?.sourceModel ?? "")
     setTags(initial?.tags ?? [])
     setTagInput("")
     setError(null)
@@ -74,6 +76,7 @@ export function KatalogForm({ initial, onClose, onSaved }: Props) {
         deskripsi: deskripsi.trim() || null,
         kategori: kategori.trim() || null,
         tags,
+        sourceModel: sourceModel.trim() || null,
       }
       const saved = initial
         ? await updateMut.mutateAsync({ id: initial.id, input })
@@ -217,6 +220,21 @@ export function KatalogForm({ initial, onClose, onSaved }: Props) {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+
+          {/* Source Model */}
+          <div>
+            <label className={fieldLabel} style={fieldColor}>Source / Model Referensi (opsional)</label>
+            <input
+              type="text"
+              value={sourceModel}
+              onChange={e => setSourceModel(e.target.value)}
+              placeholder="URL, path folder, atau keterangan bebas..."
+              className="glass-input w-full h-10 rounded-[10px] px-3 text-sm"
+            />
+            <div className="text-[10px] mt-1" style={{ color: "rgba(255,255,255,0.25)" }}>
+              Cth: https://makerworld.com/... · /Designs/Flexi Shark/ · Dibuat dari scratch
             </div>
           </div>
 

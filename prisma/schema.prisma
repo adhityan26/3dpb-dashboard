@@ -266,6 +266,7 @@ model ProdukInternal {
   deskripsi          String?
   kategori           String?
   tags               String?                    // comma-separated
+  sourceModel        String?                    // URL, folder path, or free text
   primaryKalkulasiId String?
   primaryKalkulasi   KalkulasiHarga?            @relation(fields: [primaryKalkulasiId], references: [id], onDelete: SetNull)
   shopeeLinks        ProdukInternalShopeeLink[]

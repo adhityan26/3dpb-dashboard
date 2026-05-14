@@ -214,7 +214,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, onClose
               {/* Shopee */}
               <div style={{ border: "2px solid #111", borderRadius: 8, padding: 14, background: "#f9fafb" }}>
                 <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "#555", marginBottom: 4 }}>
-                  Harga Shopee
+                  Harga Marketplace
                 </div>
                 <div style={{ fontSize: 20, fontWeight: 700 }}>{fmt(shopeePrice)}</div>
                 {batch > 1 && (
