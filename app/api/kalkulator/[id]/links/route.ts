@@ -12,5 +12,5 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'shopeeItemId or namaManual is required' }, { status: 400 })
   }
   await addProdukLink(id, body)
-  return new NextResponse(null, { status: 201 })
+  return new NextResponse(null, { status: 204 })
 }

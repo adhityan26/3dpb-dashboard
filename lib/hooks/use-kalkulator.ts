@@ -17,8 +17,12 @@ async function apiFetch<T>(url: string, opts?: RequestInit): Promise<T> {
     const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
     throw new Error(err.error ?? `HTTP ${res.status}`)
   }
-  if (res.status === 204) return undefined as T
-  return res.json()
+  // 204 No Content, 201 with empty body, etc.
+  const contentLength = res.headers.get("content-length")
+  if (res.status === 204 || contentLength === "0" || !res.body) return undefined as T
+  const text = await res.text()
+  if (!text) return undefined as T
+  return JSON.parse(text) as T
 }
 
 export function useKalkulasiList() {
@@ -68,7 +72,10 @@ export function useAddProdukLink() {
   return useMutation({
     mutationFn: ({ kalkulasiId, input }: { kalkulasiId: string; input: KalkulasiProdukInput }) =>
       apiFetch<void>(`/api/kalkulator/${kalkulasiId}/links`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KALK_KEY }),
+    onSuccess: (_, { kalkulasiId }) => {
+      qc.invalidateQueries({ queryKey: KALK_KEY })
+      qc.invalidateQueries({ queryKey: [...KALK_KEY, kalkulasiId] })
+    },
   })
 }
 
@@ -77,7 +84,10 @@ export function useRemoveProdukLink() {
   return useMutation({
     mutationFn: ({ kalkulasiId, linkId }: { kalkulasiId: string; linkId: string }) =>
       apiFetch<void>(`/api/kalkulator/${kalkulasiId}/links/${linkId}`, { method: 'DELETE' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KALK_KEY }),
+    onSuccess: (_, { kalkulasiId }) => {
+      qc.invalidateQueries({ queryKey: KALK_KEY })
+      qc.invalidateQueries({ queryKey: [...KALK_KEY, kalkulasiId] })
+    },
   })
 }
 
@@ -86,7 +96,10 @@ export function useSetPrimaryLink() {
   return useMutation({
     mutationFn: ({ kalkulasiId, linkId }: { kalkulasiId: string; linkId: string }) =>
       apiFetch<void>(`/api/kalkulator/${kalkulasiId}/links/${linkId}/primary`, { method: 'PUT' }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: KALK_KEY }),
+    onSuccess: (_, { kalkulasiId }) => {
+      qc.invalidateQueries({ queryKey: KALK_KEY })
+      qc.invalidateQueries({ queryKey: [...KALK_KEY, kalkulasiId] })
+    },
   })
 }
 
