@@ -296,3 +296,31 @@ model ProdukInternalShopeeLink {
 
   @@unique([produkInternalId, shopeeItemId])
 }
+
+model Quotation {
+  id            String          @id @default(cuid())
+  nomor         String          @unique // e.g. INV-20260514-001
+  buyerNama     String
+  buyerContact  String?
+  catatan       String?
+  status        String          @default("DRAFT") // DRAFT|SENT|PAID|PARTIAL|CANCELLED
+  tanggal       DateTime        @default(now())
+  dueDate       DateTime?
+  dpAmount      Float?
+  dpTanggal     DateTime?
+  items         QuotationItem[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+}
+
+model QuotationItem {
+  id               String      @id @default(cuid())
+  quotationId      String
+  quotation        Quotation   @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  produkInternalId String?
+  namaProduk       String      // denormalized — survives if catalog entry deleted
+  qty              Int         @default(1)
+  hargaPerUnit     Float
+  channelHarga     String      @default("marketplace") // "offline"|"marketplace"
+  catatan          String?
+}
