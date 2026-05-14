@@ -1,6 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useMemo, useState, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { FilamenTab } from "@/components/filamen/FilamenTab"
 import { KalkulasiTab } from "@/components/kalkulator/KalkulasiTab"
@@ -21,6 +22,14 @@ import type { ProductSummary } from "@/lib/products/types"
 import type { ProductFilterValue } from "@/components/products/types"
 
 export default function ProdukPage() {
+  return (
+    <Suspense>
+      <ProdukPageInner />
+    </Suspense>
+  )
+}
+
+function ProdukPageInner() {
   const { data: session } = useSession()
   const canEditHpp = session?.user?.role === "OWNER"
   const { intervalMs } = useRefreshConfig()
@@ -28,7 +37,17 @@ export default function ProdukPage() {
     useProducts()
   const setHpp = useSetHpp()
   const uploadImage = useUploadProductImage()
-  const [produkTab, setProdukTab] = useState<"produk" | "filamen" | "kalkulator">("produk")
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const VALID_TABS = ["produk", "filamen", "kalkulator"] as const
+  type ProdukTab = typeof VALID_TABS[number]
+  const rawTab = searchParams.get("tab") ?? "produk"
+  const produkTab: ProdukTab = (VALID_TABS as readonly string[]).includes(rawTab) ? rawTab as ProdukTab : "produk"
+  function setProdukTab(tab: ProdukTab) {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("tab", tab)
+    router.replace(`?${params.toString()}`, { scroll: false })
+  }
   const [filter, setFilter] = useState<ProductFilterValue>("perlu_perhatian")
   const [editingProduct, setEditingProduct] = useState<ProductSummary | null>(
     null,
