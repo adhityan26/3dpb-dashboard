@@ -10,6 +10,7 @@ import { useKatalogList } from "@/lib/hooks/use-katalog"
 import { useProducts } from "@/lib/hooks/use-products"
 import type { KalkulasiData, KalkulasiInput, MarginTier, HasilKalkulasi } from "@/lib/kalkulator/types"
 import type { AksesoriState } from "./AksesoriSection"
+import { PrintableQuote } from "./PrintableQuote"
 
 interface PlateRow {
   key: string
@@ -153,6 +154,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
 
   const isSaving = createMut.isPending || updateMut.isPending
   const hasValidInput = nama.trim().length > 0 && plates.some(p => p.gramasi > 0)
+  const [showPrint, setShowPrint] = useState(false)
 
   // Fallback rates for AksesoriSection while ratesData is loading
   const aksesoriRates = ratesData ?? {
@@ -288,30 +290,44 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           />
         </div>
 
-        {/* Save button */}
-        <button
-          onClick={handleSave}
-          disabled={!hasValidInput || isSaving}
-          className="w-full h-12 rounded-[12px] text-sm font-semibold text-white transition-all"
-          style={{
-            background:
-              hasValidInput && !isSaving
-                ? "linear-gradient(135deg, #5055e8, #7c84f8)"
-                : "rgba(99,102,241,0.3)",
-            boxShadow:
-              hasValidInput && !isSaving
-                ? "0 4px 16px rgba(99,102,241,0.4)"
-                : "none",
-            cursor:
-              hasValidInput && !isSaving ? "pointer" : "not-allowed",
-          }}
-        >
-          {isSaving
-            ? "Menyimpan..."
-            : isEditing
-            ? "💾 Update Kalkulasi"
-            : "Simpan Kalkulasi"}
-        </button>
+        {/* Buttons row */}
+        <div className="flex gap-2">
+          {/* Print quote button — only when there are valid results */}
+          {hasil && hasValidInput && (
+            <button
+              onClick={() => setShowPrint(true)}
+              className="h-12 px-4 rounded-[12px] text-sm font-semibold transition-all flex-shrink-0"
+              style={{
+                background: "rgba(255,255,255,0.06)",
+                border: "1px solid rgba(255,255,255,0.12)",
+                color: "rgba(255,255,255,0.7)",
+              }}
+              title="Buat quote untuk customer"
+            >
+              🖨️
+            </button>
+          )}
+
+          <button
+            onClick={handleSave}
+            disabled={!hasValidInput || isSaving}
+            className="flex-1 h-12 rounded-[12px] text-sm font-semibold text-white transition-all"
+            style={{
+              background:
+                hasValidInput && !isSaving
+                  ? "linear-gradient(135deg, #5055e8, #7c84f8)"
+                  : "rgba(99,102,241,0.3)",
+              boxShadow:
+                hasValidInput && !isSaving
+                  ? "0 4px 16px rgba(99,102,241,0.4)"
+                  : "none",
+              cursor:
+                hasValidInput && !isSaving ? "pointer" : "not-allowed",
+            }}
+          >
+            {isSaving ? "Menyimpan..." : isEditing ? "💾 Update Kalkulasi" : "Simpan Kalkulasi"}
+          </button>
+        </div>
       </div>
 
       {/* RIGHT: Results */}
@@ -330,11 +346,24 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
         </div>
         <HasilPanel
           hasil={hasil}
-          hargaShopeeAktual={hargaShopee}
+          hargaShopeeAktual={shopeeIsLocked ? linkedShopeePrice ?? undefined : hargaShopee}
           isLoading={!ratesData}
+          marginTier={marginTier}
         />
       </div>
 
     </div>
+
+    {/* Printable quote modal */}
+    {showPrint && hasil && (
+      <PrintableQuote
+        nama={nama || "Kalkulasi"}
+        batch={Math.max(1, batch)}
+        plates={plates.filter(p => p.gramasi > 0)}
+        hasil={hasil}
+        marginTier={marginTier}
+        onClose={() => setShowPrint(false)}
+      />
+    )}
   )
 }

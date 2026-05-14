@@ -6,6 +6,7 @@ interface Props {
   hasil: HasilKalkulasi | null
   hargaShopeeAktual?: number
   isLoading?: boolean
+  marginTier?: "A" | "B" | "C"
 }
 
 const STATUS_CONFIG: Record<KalkulasiStatus, { label: string; color: string; bg: string; border: string }> = {
@@ -28,7 +29,7 @@ function Row({ label, value, color, bold }: { label: string; value: string; colo
   )
 }
 
-export function HasilPanel({ hasil, hargaShopeeAktual, isLoading }: Props) {
+export function HasilPanel({ hasil, hargaShopeeAktual, isLoading, marginTier = "A" }: Props) {
   if (isLoading) {
     return (
       <div className="space-y-3 animate-pulse">
@@ -51,10 +52,13 @@ export function HasilPanel({ hasil, hargaShopeeAktual, isLoading }: Props) {
 
   const statusCfg = STATUS_CONFIG[hasil.status]
 
+  // Margin-aware Shopee price
+  const shopeeRekm = marginTier === "B" ? hasil.shopeeB : marginTier === "C" ? hasil.shopeeC : hasil.shopeeA
+
   return (
     <div className="space-y-4">
 
-      {/* Hero: Floor Price + Rekm Shopee A */}
+      {/* Hero: Floor Price + Rekm Shopee (margin-aware) */}
       <div className="grid grid-cols-2 gap-3">
         <div className="rounded-[10px] p-4 text-center"
              style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)" }}>
@@ -68,9 +72,9 @@ export function HasilPanel({ hasil, hargaShopeeAktual, isLoading }: Props) {
         <div className="rounded-[10px] p-4 text-center"
              style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.25)" }}>
           <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5"
-               style={{ color: "rgba(165,180,252,0.7)" }}>Rekm. Shopee A</div>
+               style={{ color: "rgba(165,180,252,0.7)" }}>Rekm. Shopee {marginTier}</div>
           <div className="text-xl font-bold" style={{ color: "#a5b4fc" }}>
-            {fmt(hasil.shopeeA)}
+            {fmt(shopeeRekm)}
           </div>
           <div className="text-[11px] mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>target ideal</div>
         </div>
