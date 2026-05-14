@@ -276,7 +276,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           {isSaving
             ? "Menyimpan..."
             : isEditing
-            ? "Simpan Perubahan"
+            ? "💾 Update Kalkulasi"
             : "Simpan Kalkulasi"}
         </button>
       </div>
