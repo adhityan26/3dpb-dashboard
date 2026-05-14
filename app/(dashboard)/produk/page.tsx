@@ -4,6 +4,7 @@ import { useMemo, useState, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { FilamenTab } from "@/components/filamen/FilamenTab"
 import { KalkulasiTab } from "@/components/kalkulator/KalkulasiTab"
+import { KatalogTab } from "@/components/katalog/KatalogTab"
 import { ProductsKpiBar } from "@/components/products/ProductsKpiBar"
 import { ProductFilter } from "@/components/products/ProductFilter"
 import { ProductList } from "@/components/products/ProductList"
@@ -32,7 +33,7 @@ function ProdukPageInner() {
   const uploadImage = useUploadProductImage()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const VALID_TABS = ["produk", "filamen", "kalkulator"] as const
+  const VALID_TABS = ["produk", "filamen", "kalkulator", "katalog"] as const
   type ProdukTab = typeof VALID_TABS[number]
   const rawTab = searchParams.get("tab") ?? "produk"
   const produkTab: ProdukTab = (VALID_TABS as readonly string[]).includes(rawTab) ? rawTab as ProdukTab : "produk"
@@ -136,9 +137,21 @@ function ProdukPageInner() {
         >
           🧮 Kalkulator
         </button>
+        <button
+          onClick={() => setProdukTab("katalog")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+            produkTab === "katalog"
+              ? "border-indigo-500 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400"
+              : "border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
+          }`}
+        >
+          📦 Katalog
+        </button>
       </div>
 
-      {produkTab === "kalkulator" ? (
+      {produkTab === "katalog" ? (
+        <KatalogTab />
+      ) : produkTab === "kalkulator" ? (
         <KalkulasiTab />
       ) : produkTab === "filamen" ? (
         <FilamenTab />
