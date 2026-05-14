@@ -18,6 +18,7 @@ const TABS: Tab[] = [
   { href: "/iklan",    label: "Iklan",    icon: "📊", roles: ["OWNER", "TEST_USER"] },
   { href: "/analisa",  label: "Analisa",  icon: "📈", roles: ["OWNER", "TEST_USER"] },
   { href: "/produk",   label: "Produk",   icon: "🏷️", roles: ["OWNER", "ADMIN", "TEST_USER"] },
+  { href: "/invoice",  label: "Invoice",  icon: "📄", roles: ["OWNER", "ADMIN"] },
   { href: "/settings", label: "Settings", icon: "⚙️", roles: ["OWNER"] },
 ]
 
