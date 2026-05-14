@@ -36,9 +36,9 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, onClose
   const printRef = useRef<HTMLDivElement>(null)
 
   const shopeePrice = marginTier === "B" ? hasil.shopeeB : marginTier === "C" ? hasil.shopeeC : hasil.shopeeA
+  const offlinePrice = marginTier === "B" ? hasil.offlineB : marginTier === "C" ? hasil.offlineC : hasil.offlineA
   const totalGramasi = plates.reduce((s, p) => s + p.gramasi, 0)
   const totalDurasi = plates.reduce((s, p) => s + p.durasiJam, 0)
-  const totalHarga = shopeePrice * batch
   const today = new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
 
   function handlePrint() {
@@ -197,22 +197,32 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, onClose
 
             <hr style={{ border: "none", borderTop: "1px solid #e5e7eb", margin: "16px 0" }} />
 
-            {/* Price box */}
-            <div style={{ border: "2px solid #111", borderRadius: 8, padding: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <div>
-                <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", color: "#555" }}>
-                  Harga per unit
+            {/* Price box: two columns - Offline & Shopee */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+              {/* Offline */}
+              <div style={{ border: "2px solid #111", borderRadius: 8, padding: 14 }}>
+                <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "#555", marginBottom: 4 }}>
+                  Harga Offline
                 </div>
-                <div style={{ fontSize: 22, fontWeight: 700, marginTop: 2 }}>{fmt(shopeePrice)}</div>
-              </div>
-              {batch > 1 && (
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.06em", color: "#555" }}>
-                    Total ({batch} pcs)
+                <div style={{ fontSize: 20, fontWeight: 700 }}>{fmt(offlinePrice)}</div>
+                {batch > 1 && (
+                  <div style={{ fontSize: 12, color: "#777", marginTop: 4 }}>
+                    Total: {fmt(offlinePrice * batch)}
                   </div>
-                  <div style={{ fontSize: 22, fontWeight: 700, marginTop: 2 }}>{fmt(totalHarga)}</div>
+                )}
+              </div>
+              {/* Shopee */}
+              <div style={{ border: "2px solid #111", borderRadius: 8, padding: 14, background: "#f9fafb" }}>
+                <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "#555", marginBottom: 4 }}>
+                  Harga Shopee
                 </div>
-              )}
+                <div style={{ fontSize: 20, fontWeight: 700 }}>{fmt(shopeePrice)}</div>
+                {batch > 1 && (
+                  <div style={{ fontSize: 12, color: "#777", marginTop: 4 }}>
+                    Total: {fmt(shopeePrice * batch)}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div style={{ marginTop: 24, fontSize: 11, color: "#aaa", textAlign: "center" }}>
