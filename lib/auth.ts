@@ -44,12 +44,23 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             select: { id: true, role: true },
           })
           if (!dbUser) {
-            // User authenticated via Authentik but not in our DB — deny
-            token.error = "UserNotInDB"
-            return token
+            // Authentik SSO user not in local DB — auto-provision with OWNER role
+            // (Authentik is already the trust authority, so if they got past SSO they're legit)
+            const newUser = await prisma.user.create({
+              data: {
+                email: user.email,
+                name: user.name ?? user.email.split("@")[0],
+                password: `sso-${Date.now()}`, // placeholder, SSO users don't use password
+                role: "OWNER",
+              },
+              select: { id: true, role: true },
+            })
+            token.role = newUser.role
+            token.id = newUser.id
+          } else {
+            token.role = dbUser.role
+            token.id = dbUser.id
           }
-          token.role = dbUser.role
-          token.id = dbUser.id
         } catch (err) {
           console.error("[auth] Failed to fetch user from DB:", err)
           token.error = "DBError"
