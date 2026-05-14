@@ -11,6 +11,7 @@ import type {
   ProductSummary,
   VariantSummary,
   ProductStatus,
+  KatalogInfo,
 } from "./types"
 import { STOCK_LOW_THRESHOLD } from "./types"
 
@@ -97,28 +98,42 @@ export async function getProducts(): Promise<ProductsListResult> {
     }
   }
 
-  const [productHpps, variantHpps, soldStats] = await Promise.all([
-    prisma.productHpp.findMany({
-      where: { productId: { in: itemIds.map(String) } },
+  const itemIdStrings = itemIds.map(String)
+
+  const [shopeeLinks, soldStats] = await Promise.all([
+    prisma.produkInternalShopeeLink.findMany({
+      where: { shopeeItemId: { in: itemIdStrings } },
+      include: {
+        produkInternal: {
+          include: { primaryKalkulasi: true },
+        },
+      },
     }),
-    prisma.variantHpp.findMany(),
     getSoldStatsPerItem(),
   ])
-  const productHppMap = new Map(
-    productHpps.map((p) => [p.productId, p.hpp ?? null] as const),
-  )
-  const variantHppMap = new Map(
-    variantHpps.map((v) => [v.variantId, v.hpp ?? null] as const),
-  )
+
+  // Map shopeeItemId -> KatalogInfo (from linked ProdukInternal's primary kalkulasi)
+  const katalogByItemId = new Map<string, KatalogInfo>()
+  for (const link of shopeeLinks) {
+    const pi = link.produkInternal
+    const k = pi.primaryKalkulasi
+    if (k && k.hppTotal > 0) {
+      katalogByItemId.set(link.shopeeItemId, {
+        id: pi.id,
+        nama: pi.nama,
+        hppTotal: k.hppTotal,
+        floorPrice: k.floorPrice,
+        shopeeA: k.shopeeA,
+        kalkulasiStatus: k.status,
+      })
+    }
+  }
 
   const products: ProductSummary[] = baseInfos.map((b) => {
     const productIdStr = String(b.item_id)
     const hasVariants = b.has_model
     const variants = hasVariants
-      ? (variantsByItem.get(b.item_id) ?? []).map((v) => ({
-          ...v,
-          hpp: variantHppMap.get(v.variantId) ?? null,
-        }))
+      ? (variantsByItem.get(b.item_id) ?? [])
       : []
 
     const stockTotal = hasVariants
@@ -132,7 +147,8 @@ export async function getProducts(): Promise<ProductsListResult> {
     const priceMax = prices.length > 0 ? Math.max(...prices) : 0
 
     const stats = soldStats.get(productIdStr) ?? { qty: 0, omzet: 0 }
-    const productHpp = productHppMap.get(productIdStr) ?? null
+    const katalog = katalogByItemId.get(productIdStr) ?? null
+    const productHpp = katalog?.hppTotal ?? null
 
     let grossMargin30d: number | null = null
     if (productHpp !== null) {
@@ -157,6 +173,7 @@ export async function getProducts(): Promise<ProductsListResult> {
       priceMin,
       priceMax,
       hpp: productHpp,
+      katalog,
       variants,
       qtySold30d: stats.qty,
       omzet30d: stats.omzet,

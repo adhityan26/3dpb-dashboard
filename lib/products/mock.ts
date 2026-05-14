@@ -16,6 +16,7 @@ const MOCK_PRODUCTS: MockBase[] = [
     priceMin: 55000,
     priceMax: 85000,
     hpp: 15000,
+    katalog: null,
     variants: [
       {
         variantId: "4420_red",
@@ -55,6 +56,7 @@ const MOCK_PRODUCTS: MockBase[] = [
     priceMin: 50000,
     priceMax: 65000,
     hpp: 14000,
+    katalog: null,
     variants: [
       {
         variantId: "2584_black",
@@ -86,6 +88,7 @@ const MOCK_PRODUCTS: MockBase[] = [
     priceMin: 45000,
     priceMax: 45000,
     hpp: 12000,
+    katalog: null,
     variants: [],
     qtySold30d: 560,
     omzet30d: 30200000,
@@ -100,6 +103,7 @@ const MOCK_PRODUCTS: MockBase[] = [
     priceMin: 55000,
     priceMax: 55000,
     hpp: null,
+    katalog: null,
     variants: [],
     qtySold30d: 275,
     omzet30d: 14800000,
@@ -114,6 +118,7 @@ const MOCK_PRODUCTS: MockBase[] = [
     priceMin: 22500,
     priceMax: 22500,
     hpp: 8000,
+    katalog: null,
     variants: [],
     qtySold30d: 1,
     omzet30d: 22500,
@@ -128,6 +133,7 @@ const MOCK_PRODUCTS: MockBase[] = [
     priceMin: 18000,
     priceMax: 18000,
     hpp: null,
+    katalog: null,
     variants: [],
     qtySold30d: 0,
     omzet30d: 0,

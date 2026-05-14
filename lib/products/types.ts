@@ -14,6 +14,15 @@ export interface VariantSummary {
   hpp: number | null
 }
 
+export interface KatalogInfo {
+  id: string
+  nama: string
+  hppTotal: number
+  floorPrice: number
+  shopeeA: number
+  kalkulasiStatus: string
+}
+
 export interface ProductSummary {
   productId: string
   name: string
@@ -23,7 +32,10 @@ export interface ProductSummary {
   stockTotal: number
   priceMin: number
   priceMax: number
+  /** HPP sourced from linked ProdukInternal.primaryKalkulasi.hppTotal. Null if no katalog link. */
   hpp: number | null
+  /** Full katalog record if this Shopee item has a ProdukInternal link. */
+  katalog: KatalogInfo | null
   variants: VariantSummary[]
   qtySold30d: number
   omzet30d: number
