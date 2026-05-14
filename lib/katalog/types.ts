@@ -8,6 +8,7 @@ export interface ProdukInternalData {
   floorPrice: number | null
   offlineA: number | null
   shopeeA: number | null
+  hargaShopeeAktual: number | null
   kalkulasiStatus: string | null   // KalkulasiStatus value e.g. "AMAN"
   kalkulasiNama: string | null     // .nama from the linked KalkulasiHarga
   shopeeLinks: { id: string; shopeeItemId: string }[]

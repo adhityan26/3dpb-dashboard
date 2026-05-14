@@ -17,6 +17,7 @@ function toProdukInternalData(raw: any): ProdukInternalData {
     floorPrice: k ? (k.floorPrice ?? null) : null,
     offlineA: k ? (k.offlineA ?? null) : null,
     shopeeA: k ? (k.shopeeA ?? null) : null,
+    hargaShopeeAktual: k ? (k.hargaShopeeAktual ?? null) : null,
     kalkulasiStatus: k ? (k.status ?? null) : null,
     kalkulasiNama: k ? (k.nama ?? null) : null,
     shopeeLinks: (raw.shopeeLinks ?? []).map((l: any) => ({

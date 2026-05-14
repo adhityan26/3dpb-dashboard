@@ -19,35 +19,11 @@ interface Props {
   onEdit: (p: ProdukInternalData) => void
 }
 
-function PriceCol({
-  label,
-  value,
-  color,
-  dimLabel,
-}: {
-  label: string
-  value: string | null
-  color: string
-  dimLabel?: boolean
-}) {
-  return (
-    <div>
-      <div
-        className="text-[9px] uppercase tracking-wider font-semibold mb-0.5"
-        style={{ color: dimLabel ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.35)" }}
-      >
-        {label}
-      </div>
-      {value ? (
-        <div className="text-sm font-bold" style={{ color }}>
-          {value}
-        </div>
-      ) : (
-        <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.18)" }}>
-          —
-        </div>
-      )}
-    </div>
+function PriceCol({ value, color }: { value: string | null; color: string }) {
+  return value ? (
+    <div className="text-sm font-bold" style={{ color }}>{value}</div>
+  ) : (
+    <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.18)" }}>—</div>
   )
 }
 
@@ -141,24 +117,26 @@ export function KatalogCard({ produk, onEdit }: Props) {
 
         {/* Col 2: Offline */}
         <PriceCol
-          label="Offline"
           value={produk.offlineA != null ? fmt(produk.offlineA) : null}
           color="#6ee7b7"
         />
 
         {/* Col 3: Rekm Shopee */}
         <PriceCol
-          label="Rekm Shopee"
           value={produk.shopeeA != null ? fmt(produk.shopeeA) : null}
           color="#fb923c"
         />
 
-        {/* Col 4: Harga Shopee aktual */}
+        {/* Col 4: Harga Shopee — actual from linked product, else kalkulasi input */}
         <PriceCol
-          label={actualShopeePrice != null ? "Harga Shopee (aktual)" : "Harga Shopee"}
-          value={actualShopeePrice != null ? fmt(actualShopeePrice) : null}
-          color="#a5b4fc"
-          dimLabel={actualShopeePrice == null}
+          value={
+            actualShopeePrice != null
+              ? fmt(actualShopeePrice)
+              : produk.hargaShopeeAktual != null && produk.hargaShopeeAktual > 0
+                ? fmt(produk.hargaShopeeAktual)
+                : null
+          }
+          color={actualShopeePrice != null ? "#a5b4fc" : "rgba(165,180,252,0.5)"}
         />
 
         {/* Col 5: Actions */}
