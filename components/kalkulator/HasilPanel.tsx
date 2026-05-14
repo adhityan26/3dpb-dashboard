@@ -20,10 +20,10 @@ function fmtPct(n: number) { return `${n.toFixed(1)}%` }
 
 function Row({ label, value, color, bold }: { label: string; value: string; color?: string; bold?: boolean }) {
   return (
-    <div className="flex justify-between items-center py-1.5"
+    <div className="flex justify-between items-center py-2"
          style={{ borderBottom: "1px solid rgba(255,255,255,0.04)" }}>
-      <span className="text-[10px]" style={{ color: "rgba(255,255,255,0.4)" }}>{label}</span>
-      <span className="text-[11px]" style={{ color: color ?? "rgba(255,255,255,0.8)", fontWeight: bold ? 700 : 500 }}>{value}</span>
+      <span className="text-xs" style={{ color: "rgba(255,255,255,0.45)" }}>{label}</span>
+      <span className="text-sm" style={{ color: color ?? "rgba(255,255,255,0.85)", fontWeight: bold ? 700 : 500 }}>{value}</span>
     </div>
   )
 }
@@ -44,7 +44,7 @@ export function HasilPanel({ hasil, hargaShopeeAktual, isLoading }: Props) {
       <div className="flex flex-col items-center justify-center h-48 text-center"
            style={{ color: "rgba(255,255,255,0.2)" }}>
         <div className="text-3xl mb-3">🧮</div>
-        <div className="text-[12px]">Isi form di kiri untuk melihat hasil kalkulasi</div>
+        <div className="text-sm">Isi form di kiri untuk melihat hasil kalkulasi</div>
       </div>
     )
   }
@@ -56,39 +56,39 @@ export function HasilPanel({ hasil, hargaShopeeAktual, isLoading }: Props) {
 
       {/* Hero: Floor Price + Rekm Shopee A */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-[10px] p-3 text-center"
+        <div className="rounded-[10px] p-4 text-center"
              style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)" }}>
-          <div className="text-[8px] font-semibold uppercase tracking-wider mb-1"
-               style={{ color: "rgba(251,191,36,0.6)" }}>Floor Price</div>
-          <div className="text-[15px] font-800" style={{ color: "#fbbf24" }}>
+          <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5"
+               style={{ color: "rgba(251,191,36,0.7)" }}>Floor Price</div>
+          <div className="text-xl font-bold" style={{ color: "#fbbf24" }}>
             {fmt(hasil.floorPrice)}
           </div>
-          <div className="text-[8px] mt-0.5" style={{ color: "rgba(255,255,255,0.25)" }}>batas diskon</div>
+          <div className="text-[11px] mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>batas diskon</div>
         </div>
-        <div className="rounded-[10px] p-3 text-center"
+        <div className="rounded-[10px] p-4 text-center"
              style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.25)" }}>
-          <div className="text-[8px] font-semibold uppercase tracking-wider mb-1"
-               style={{ color: "rgba(165,180,252,0.6)" }}>Rekm. Shopee A</div>
-          <div className="text-[15px] font-800" style={{ color: "#a5b4fc" }}>
+          <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5"
+               style={{ color: "rgba(165,180,252,0.7)" }}>Rekm. Shopee A</div>
+          <div className="text-xl font-bold" style={{ color: "#a5b4fc" }}>
             {fmt(hasil.shopeeA)}
           </div>
-          <div className="text-[8px] mt-0.5" style={{ color: "rgba(255,255,255,0.25)" }}>target ideal</div>
+          <div className="text-[11px] mt-1" style={{ color: "rgba(255,255,255,0.3)" }}>target ideal</div>
         </div>
       </div>
 
       {/* HPP Breakdown */}
-      <div className="rounded-[10px] p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-        <div className="text-[9px] font-semibold uppercase tracking-wider mb-2"
-             style={{ color: "rgba(165,180,252,0.5)" }}>HPP Breakdown</div>
+      <div className="rounded-[10px] p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="text-xs font-semibold uppercase tracking-wider mb-3"
+             style={{ color: "rgba(165,180,252,0.6)" }}>HPP Breakdown</div>
         <Row label="HPP Produksi (cetak)" value={fmt(hasil.hppProduksi)} />
         <Row label="HPP Komponen (aksesori)" value={fmt(hasil.hppKomponen)} />
         <Row label="HPP Total" value={fmt(hasil.hppTotal)} bold color="#e5e7eb" />
       </div>
 
       {/* Harga Lengkap */}
-      <div className="rounded-[10px] p-3" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
-        <div className="text-[9px] font-semibold uppercase tracking-wider mb-2"
-             style={{ color: "rgba(165,180,252,0.5)" }}>Harga Lengkap</div>
+      <div className="rounded-[10px] p-4" style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="text-xs font-semibold uppercase tracking-wider mb-3"
+             style={{ color: "rgba(165,180,252,0.6)" }}>Harga Lengkap</div>
         <Row label="Floor Price" value={fmt(hasil.floorPrice)} color="#fbbf24" />
         <Row label="Offline A · B · C"
              value={`${fmt(hasil.offlineA)} · ${fmt(hasil.offlineB)} · ${fmt(hasil.offlineC)}`}
@@ -108,11 +108,11 @@ export function HasilPanel({ hasil, hargaShopeeAktual, isLoading }: Props) {
 
       {/* Status vs Shopee Aktual */}
       {hargaShopeeAktual !== undefined && hargaShopeeAktual > 0 && (
-        <div className="rounded-[10px] p-3" style={{ background: statusCfg.bg, border: `1px solid ${statusCfg.border}` }}>
+        <div className="rounded-[10px] p-4" style={{ background: statusCfg.bg, border: `1px solid ${statusCfg.border}` }}>
           <div className="flex justify-between items-center mb-2">
-            <div className="text-[9px] font-semibold uppercase tracking-wider"
+            <div className="text-xs font-semibold uppercase tracking-wider"
                  style={{ color: "rgba(255,255,255,0.5)" }}>vs Harga Shopee Saat Ini</div>
-            <span className="text-[10px] font-bold" style={{ color: statusCfg.color }}>{statusCfg.label}</span>
+            <span className="text-sm font-bold" style={{ color: statusCfg.color }}>{statusCfg.label}</span>
           </div>
           <Row label="Harga Shopee saat ini" value={fmt(hargaShopeeAktual)} bold />
           <Row label="vs Floor Price"

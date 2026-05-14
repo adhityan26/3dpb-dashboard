@@ -63,8 +63,8 @@ export function PlateTable({ plates, onChange }: PlateTableProps) {
   return (
     <div>
       {/* Header */}
-      <div className={`grid gap-2 mb-2 text-[9px] font-semibold uppercase tracking-wider`}
-           style={{ gridTemplateColumns: multiPlate ? "1fr 60px 70px 80px 28px" : "60px 70px 80px", color: "rgba(165,180,252,0.6)" }}>
+      <div className={`grid gap-2 mb-2 text-xs font-semibold uppercase tracking-wider`}
+           style={{ gridTemplateColumns: multiPlate ? "1fr 80px 100px 110px 32px" : "80px 100px 110px", color: "rgba(165,180,252,0.6)" }}>
         {multiPlate && <span>Nama Part</span>}
         <span>Tipe</span>
         <span>Gramasi (g)</span>
@@ -76,7 +76,7 @@ export function PlateTable({ plates, onChange }: PlateTableProps) {
       {plates.map((plate) => (
         <div key={plate.key}
           className={`grid gap-2 mb-2 items-center`}
-          style={{ gridTemplateColumns: multiPlate ? "1fr 60px 70px 80px 28px" : "60px 70px 80px" }}>
+          style={{ gridTemplateColumns: multiPlate ? "1fr 80px 100px 110px 32px" : "80px 100px 110px" }}>
 
           {multiPlate && (
             <input
@@ -84,7 +84,7 @@ export function PlateTable({ plates, onChange }: PlateTableProps) {
               placeholder="Body, Face... (opsional)"
               value={plate.namaPart ?? ""}
               onChange={e => updatePlate(plate.key, "namaPart", e.target.value || undefined)}
-              className="glass-input w-full h-8 rounded-[8px] px-2 text-[11px]"
+              className="glass-input w-full h-10 rounded-[8px] px-3 text-sm"
             />
           )}
 
@@ -94,7 +94,7 @@ export function PlateTable({ plates, onChange }: PlateTableProps) {
               <button
                 key={t}
                 onClick={() => updatePlate(plate.key, "tipe", t)}
-                className="flex-1 h-8 rounded-[6px] text-[9px] font-bold transition-all"
+                className="flex-1 h-10 rounded-[6px] text-xs font-bold transition-all"
                 style={plate.tipe === t
                   ? { background: "rgba(99,102,241,0.3)", border: "1px solid rgba(99,102,241,0.5)", color: "#a5b4fc" }
                   : { background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }
@@ -113,7 +113,7 @@ export function PlateTable({ plates, onChange }: PlateTableProps) {
             placeholder="21"
             value={plate.gramasi || ""}
             onChange={e => updatePlate(plate.key, "gramasi", parseFloat(e.target.value) || 0)}
-            className="glass-input w-full h-8 rounded-[8px] px-2 text-[11px]"
+            className="glass-input w-full h-10 rounded-[8px] px-3 text-sm"
           />
 
           {/* Durasi */}
@@ -123,10 +123,10 @@ export function PlateTable({ plates, onChange }: PlateTableProps) {
               placeholder="1:30 or 1.5"
               value={durasiRaw[plate.key] ?? (plate.durasiJam ? String(plate.durasiJam) : "")}
               onChange={e => handleDurasiChange(plate.key, e.target.value)}
-              className="glass-input w-full h-8 rounded-[8px] px-2 text-[11px]"
+              className="glass-input w-full h-10 rounded-[8px] px-3 text-sm"
             />
             {plate.durasiJam > 0 && (
-              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[8px]"
+              <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px]"
                     style={{ color: "rgba(99,102,241,0.7)" }}>
                 {formatDurasiDisplay(plate.durasiJam)}
               </span>
@@ -137,7 +137,7 @@ export function PlateTable({ plates, onChange }: PlateTableProps) {
           {multiPlate && (
             <button
               onClick={() => removePlate(plate.key)}
-              className="h-8 w-7 rounded-[6px] flex items-center justify-center text-[12px] transition-all"
+              className="h-10 w-8 rounded-[6px] flex items-center justify-center text-sm transition-all"
               style={{ color: "rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.03)" }}
               onMouseEnter={e => (e.currentTarget.style.color = "rgba(239,68,68,0.7)")}
               onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.25)")}
@@ -152,22 +152,22 @@ export function PlateTable({ plates, onChange }: PlateTableProps) {
       {multiPlate && (
         <div className="flex items-center gap-2 mt-1 pt-2"
              style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-          <span className="text-[9px] font-semibold" style={{ color: "rgba(165,180,252,0.5)" }}>TOTAL</span>
-          <span className="flex-1 text-[9px]" style={{ color: "rgba(255,255,255,0.5)" }}>{plates.length} parts</span>
-          <span className="text-[11px] font-bold" style={{ color: "#a5b4fc", width: 70, textAlign: "right" }}>
+          <span className="text-xs font-semibold" style={{ color: "rgba(165,180,252,0.5)" }}>TOTAL</span>
+          <span className="flex-1 text-xs" style={{ color: "rgba(255,255,255,0.5)" }}>{plates.length} parts</span>
+          <span className="text-sm font-bold" style={{ color: "#a5b4fc", width: 100, textAlign: "right" }}>
             {totalGramasi.toFixed(1)}g
           </span>
-          <span className="text-[11px] font-bold" style={{ color: "#a5b4fc", width: 80, textAlign: "right" }}>
+          <span className="text-sm font-bold" style={{ color: "#a5b4fc", width: 110, textAlign: "right" }}>
             {formatDurasiDisplay(totalDurasi)}
           </span>
-          <div style={{ width: 28 }} />
+          <div style={{ width: 32 }} />
         </div>
       )}
 
       {/* Add plate button */}
       <button
         onClick={addPlate}
-        className="mt-2 text-[11px] font-medium transition-colors"
+        className="mt-3 text-sm font-medium transition-colors"
         style={{ color: "rgba(99,102,241,0.7)" }}
         onMouseEnter={e => (e.currentTarget.style.color = "#a5b4fc")}
         onMouseLeave={e => (e.currentTarget.style.color = "rgba(99,102,241,0.7)")}

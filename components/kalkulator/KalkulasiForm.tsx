@@ -149,7 +149,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
         <div className="space-y-3">
           <div>
             <div
-              className="text-[9px] font-semibold uppercase tracking-wider mb-1.5"
+              className="text-xs font-semibold uppercase tracking-wider mb-1.5"
               style={{ color: "rgba(165,180,252,0.6)" }}
             >
               Nama Kalkulasi
@@ -159,14 +159,14 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
               placeholder='e.g. "Flexi Shark 10pcs"'
               value={nama}
               onChange={e => setNama(e.target.value)}
-              className="glass-input w-full h-9 rounded-[10px] px-3 text-[12px]"
+              className="glass-input w-full h-10 rounded-[10px] px-3 text-sm"
             />
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <div
-                className="text-[9px] font-semibold uppercase tracking-wider mb-1.5"
+                className="text-xs font-semibold uppercase tracking-wider mb-1.5"
                 style={{ color: "rgba(165,180,252,0.6)" }}
               >
                 Batch (unit)
@@ -176,12 +176,12 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
                 min="1"
                 value={batch}
                 onChange={e => setBatch(parseInt(e.target.value) || 1)}
-                className="glass-input w-full h-9 rounded-[10px] px-3 text-[12px]"
+                className="glass-input w-full h-10 rounded-[10px] px-3 text-sm"
               />
             </div>
             <div>
               <div
-                className="text-[9px] font-semibold uppercase tracking-wider mb-1.5"
+                className="text-xs font-semibold uppercase tracking-wider mb-1.5"
                 style={{ color: "rgba(165,180,252,0.6)" }}
               >
                 Margin
@@ -191,7 +191,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
                   <button
                     key={tier}
                     onClick={() => setMarginTier(tier)}
-                    className="flex-1 h-9 rounded-[8px] text-[11px] font-bold transition-all"
+                    className="flex-1 h-10 rounded-[8px] text-sm font-bold transition-all"
                     style={
                       marginTier === tier
                         ? {
@@ -217,7 +217,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
         {/* Plate Table */}
         <div>
           <div
-            className="text-[9px] font-semibold uppercase tracking-wider mb-2"
+            className="text-xs font-semibold uppercase tracking-wider mb-2"
             style={{ color: "rgba(165,180,252,0.6)" }}
           >
             Part / Plate
@@ -231,7 +231,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
         {/* Harga Shopee */}
         <div>
           <div
-            className="text-[9px] font-semibold uppercase tracking-wider mb-1.5"
+            className="text-xs font-semibold uppercase tracking-wider mb-1.5"
             style={{ color: "rgba(165,180,252,0.6)" }}
           >
             Harga Shopee Saat Ini{" "}
@@ -251,7 +251,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
               const n = parseInt(e.target.value.replace(/\D/g, ""))
               setHargaShopee(n > 0 ? n : undefined)
             }}
-            className="glass-input w-full h-9 rounded-[10px] px-3 text-[12px]"
+            className="glass-input w-full h-10 rounded-[10px] px-3 text-sm"
           />
         </div>
 
@@ -259,7 +259,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
         <button
           onClick={handleSave}
           disabled={!hasValidInput || isSaving}
-          className="w-full h-11 rounded-[12px] text-[13px] font-semibold text-white transition-all"
+          className="w-full h-12 rounded-[12px] text-sm font-semibold text-white transition-all"
           style={{
             background:
               hasValidInput && !isSaving
@@ -290,8 +290,8 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
         }}
       >
         <div
-          className="text-[10px] font-bold uppercase tracking-wider mb-4"
-          style={{ color: "rgba(165,180,252,0.5)" }}
+          className="text-xs font-bold uppercase tracking-wider mb-4"
+          style={{ color: "rgba(165,180,252,0.6)" }}
         >
           Hasil Kalkulasi
         </div>
