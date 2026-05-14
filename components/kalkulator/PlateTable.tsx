@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import type { PlateInput, PrintTipe } from "@/lib/kalkulator/types"
 
 interface PlateRow extends PlateInput {
@@ -29,13 +29,10 @@ function formatDurasiDisplay(jam: number): string {
   return m === 0 ? `${h}j` : `${h}j ${m}m`
 }
 
-const TIPE_LABELS: Record<PrintTipe, string> = { FDM: "FDM", SLA: "SLA" }
-
-let keyCounter = 0
-function nextKey() { return `plate-${++keyCounter}` }
-
 export function PlateTable({ plates, onChange }: PlateTableProps) {
   const [durasiRaw, setDurasiRaw] = useState<Record<string, string>>({})
+  const keyCounterRef = useRef(0)
+  function nextKey() { return `plate-${++keyCounterRef.current}` }
 
   function addPlate() {
     const key = nextKey()
@@ -49,7 +46,7 @@ export function PlateTable({ plates, onChange }: PlateTableProps) {
     setDurasiRaw(prev => { const n = { ...prev }; delete n[key]; return n })
   }
 
-  function updatePlate(key: string, field: keyof PlateInput, value: unknown) {
+  function updatePlate<K extends keyof PlateInput>(key: string, field: K, value: PlateInput[K]) {
     onChange(plates.map(p => p.key === key ? { ...p, [field]: value } : p))
   }
 
@@ -67,7 +64,7 @@ export function PlateTable({ plates, onChange }: PlateTableProps) {
     <div>
       {/* Header */}
       <div className={`grid gap-2 mb-2 text-[9px] font-semibold uppercase tracking-wider`}
-           style={{ gridTemplateColumns: multiPlate ? "1fr 60px 70px 80px 28px" : "70px 80px", color: "rgba(165,180,252,0.6)" }}>
+           style={{ gridTemplateColumns: multiPlate ? "1fr 60px 70px 80px 28px" : "60px 70px 80px", color: "rgba(165,180,252,0.6)" }}>
         {multiPlate && <span>Nama Part</span>}
         <span>Tipe</span>
         <span>Gramasi (g)</span>
