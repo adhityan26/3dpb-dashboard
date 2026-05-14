@@ -44,19 +44,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
             select: { id: true, role: true },
           })
           if (!dbUser) {
-            // Authentik SSO user not in local DB — auto-provision with OWNER role
-            // (Authentik is already the trust authority, so if they got past SSO they're legit)
-            const newUser = await prisma.user.create({
-              data: {
+            // Authentik SSO user not in local DB — upsert with OWNER role
+            const upserted = await prisma.user.upsert({
+              where: { email: user.email },
+              create: {
                 email: user.email,
                 name: user.name ?? user.email.split("@")[0],
-                password: `sso-${Date.now()}`, // placeholder, SSO users don't use password
+                password: `sso-${Date.now()}`,
                 role: "OWNER",
               },
+              update: {}, // don't overwrite existing role
               select: { id: true, role: true },
             })
-            token.role = newUser.role
-            token.id = newUser.id
+            token.role = upserted.role
+            token.id = upserted.id
           } else {
             token.role = dbUser.role
             token.id = dbUser.id
