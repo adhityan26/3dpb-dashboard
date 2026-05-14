@@ -48,6 +48,8 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
   const [includeOngkir, setIncludeOngkir] = useState(false)
   const [offlineStr, setOfflineStr] = useState("")
   const [shopeeStr, setShopeeStr] = useState(initialHargaShopee ? String(initialHargaShopee) : "")
+  const [buyerName, setBuyerName] = useState("")
+  const [buyerContact, setBuyerContact] = useState("")
 
   const hargaOfflineAktual = parseInt(offlineStr.replace(/\D/g, "")) || 0
   const hargaShopeeAktual  = parseInt(shopeeStr.replace(/\D/g, ""))  || 0
@@ -136,6 +138,26 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
                style={{ borderRight: "1px solid rgba(255,255,255,0.07)" }}>
 
             <div>
+              <div className={ctrlLabel} style={ctrlColor}>Nama Buyer</div>
+              <input
+                type="text" value={buyerName}
+                onChange={e => setBuyerName(e.target.value)}
+                placeholder="Nama pembeli..."
+                className="glass-input w-full h-9 rounded-[8px] px-3 text-sm"
+              />
+            </div>
+
+            <div>
+              <div className={ctrlLabel} style={ctrlColor}>No. HP / WA (opsional)</div>
+              <input
+                type="text" value={buyerContact}
+                onChange={e => setBuyerContact(e.target.value)}
+                placeholder="08xx..."
+                className="glass-input w-full h-9 rounded-[8px] px-3 text-sm"
+              />
+            </div>
+
+            <div>
               <div className={ctrlLabel} style={ctrlColor}>Qty (untuk quote)</div>
               <input
                 type="number" min="1" value={qty}
@@ -198,9 +220,17 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
             <div ref={printRef} className="bg-white rounded-[12px] p-8" style={{ color: "#111" }}>
 
               {/* Header */}
-              <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{nama}</h1>
-              <div style={{ fontSize: 12, color: "#666", marginBottom: 20 }}>
-                Estimasi produksi · {today}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
+                <div>
+                  <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{nama}</h1>
+                  <div style={{ fontSize: 12, color: "#666" }}>Estimasi produksi · {today}</div>
+                </div>
+                {(buyerName || buyerContact) && (
+                  <div style={{ textAlign: "right" }}>
+                    {buyerName && <div style={{ fontSize: 14, fontWeight: 600 }}>{buyerName}</div>}
+                    {buyerContact && <div style={{ fontSize: 12, color: "#666", marginTop: 2 }}>{buyerContact}</div>}
+                  </div>
+                )}
               </div>
 
               <hr style={{ border: "none", borderTop: "2px solid #111", marginBottom: 14 }} />
