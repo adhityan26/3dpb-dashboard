@@ -120,11 +120,16 @@ export function TabNav({ role, badges = {}, userName = "" }: TabNavProps) {
             const isActive = pathname.startsWith(tab.href)
             const badgeCount = badges[tab.href.slice(1)]
 
+            // Use <a> for full page nav (bypasses RSC which drops session cookies for certain routes)
+            const NavEl = tab.href === "/invoice" ? "a" : Link
+            const navProps = tab.href === "/invoice"
+              ? { href: tab.href }
+              : { href: tab.href, prefetch: false }
+
             return (
-              <Link
+              <NavEl
                 key={tab.href}
-                href={tab.href}
-                prefetch={false}
+                {...(navProps as any)}
                 className="relative flex flex-col items-center gap-[3px] px-[8px] py-[7px] rounded-[40px]"
                 style={{
                   width: 72,
@@ -133,6 +138,7 @@ export function TabNav({ role, badges = {}, userName = "" }: TabNavProps) {
                   opacity: isActive ? 1 : 0.5,
                   transition: "transform 0.35s cubic-bezier(0.34,1.56,0.64,1), opacity 0.3s ease, color 0.3s ease",
                   zIndex: isActive ? 2 : 1,
+                  textDecoration: "none",
                 }}
               >
                 <span className="text-[18px] leading-none">{tab.icon}</span>
@@ -146,7 +152,7 @@ export function TabNav({ role, badges = {}, userName = "" }: TabNavProps) {
                     {badgeCount}
                   </div>
                 )}
-              </Link>
+              </NavEl>
             )
           })}
         </div>
