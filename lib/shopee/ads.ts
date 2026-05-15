@@ -26,7 +26,8 @@ export async function getAdsDailyPerformance(params: {
     query,
   )
 
-  console.log("[ads] API response:", JSON.stringify({ error: (json as any).error, message: (json as any).message, responseKeys: Object.keys(json.response ?? {}) }))
+  // Shopee returns response as array directly OR as object with ad_performance_list
+  if (Array.isArray(json.response)) return json.response
   return json.response?.ad_performance_list ?? json.response?.list ?? []
 }
 
