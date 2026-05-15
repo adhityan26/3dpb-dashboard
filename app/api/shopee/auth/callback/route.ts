@@ -1,13 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { exchangeCodeForToken } from "@/lib/shopee/auth"
 
-/**
- * Build an absolute redirect URL using NEXTAUTH_URL.
- *
- * We avoid `new URL(path, req.url)` because in Docker the server binds to
- * HOSTNAME=0.0.0.0, and `req.url` can end up with that host in some setups,
- * producing a broken redirect back to the browser.
- */
 function redirectTo(path: string): NextResponse {
   const base = process.env.NEXTAUTH_URL ?? "http://localhost:3000"
   return NextResponse.redirect(new URL(path, base))
@@ -15,11 +8,20 @@ function redirectTo(path: string): NextResponse {
 
 export async function GET(req: NextRequest) {
   const { searchParams } = req.nextUrl
+
+  // Log ALL received parameters for debugging
+  const allParams: Record<string, string> = {}
+  searchParams.forEach((v, k) => { allParams[k] = v })
+  console.log("[shopee] callback received params:", JSON.stringify(allParams))
+
   const code = searchParams.get("code")
-  const shopId = searchParams.get("shop_id")
+  // Shopee may use "shop_id" or "shopid" depending on API version/env
+  const shopId = searchParams.get("shop_id") ?? searchParams.get("shopid") ?? searchParams.get("shop")
 
   if (!code || !shopId) {
-    return redirectTo("/settings?error=missing_params")
+    const detail = `got: ${JSON.stringify(allParams)}`
+    console.error("[shopee] missing params:", detail)
+    return redirectTo(`/settings?error=missing_params&detail=${encodeURIComponent(detail)}`)
   }
 
   try {
