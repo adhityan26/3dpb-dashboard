@@ -124,6 +124,7 @@ export function TabNav({ role, badges = {}, userName = "" }: TabNavProps) {
               <Link
                 key={tab.href}
                 href={tab.href}
+                prefetch={false}
                 className="relative flex flex-col items-center gap-[3px] px-[8px] py-[7px] rounded-[40px]"
                 style={{
                   width: 72,

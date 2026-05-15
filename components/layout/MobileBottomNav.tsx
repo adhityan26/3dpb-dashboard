@@ -82,6 +82,7 @@ export function MobileBottomNav({ role, badges = {}, userName = "A" }: MobileBot
               <Link
                 key={tab.href}
                 href={tab.href}
+                prefetch={false}
                 className="flex-1 flex flex-col items-center justify-center gap-[3px] relative"
                 style={{ color: isActive ? "#fff" : "rgba(255,255,255,0.3)" }}
               >
@@ -152,6 +153,7 @@ export function MobileBottomNav({ role, badges = {}, userName = "A" }: MobileBot
                   <Link
                     key={tab.href}
                     href={tab.href}
+                prefetch={false}
                     onClick={() => setSheetOpen(false)}
                     className="flex flex-col items-center gap-2 p-3 rounded-[12px]"
                     style={{
