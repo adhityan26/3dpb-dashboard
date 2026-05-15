@@ -45,3 +45,35 @@
 - Sync ProdukInternal ke Sanity Studio (webhook / manual push)
 - Gambar di-upload ke Sanity asset pipeline → CDN otomatis
 - Landing page di-build dari Sanity data
+
+---
+## Shopee Live Push (Webhook)
+
+### Setup
+- Callback URL: `https://dashboard.3dprintingbandung.my.id/api/shopee/push`
+- Deployment Area: Singapore
+- Partner Key: generate dari Shopee portal, simpan di .env.deploy sebagai `SHOPEE_PUSH_PARTNER_KEY`
+
+### Implementasi
+- `POST /api/shopee/push` — receive webhook dari Shopee
+- Verifikasi signature: `HMAC-SHA256(requestBody, SHOPEE_PUSH_PARTNER_KEY)`
+- Handle events:
+  - `order_status_push` (code 3): update order status di DB / trigger notifikasi
+  - `order_trackingno_push` (code 4): simpan tracking number
+- Return 200 OK dalam < 5 detik (Shopee retry kalau timeout)
+
+---
+## Shopee Live Push (Webhook)
+
+### Setup
+- Callback URL: `https://dashboard.3dprintingbandung.my.id/api/shopee/push`
+- Deployment Area: Singapore
+- Partner Key: generate dari Shopee portal, simpan di .env.deploy sebagai `SHOPEE_PUSH_PARTNER_KEY`
+
+### Implementasi
+- `POST /api/shopee/push` — receive webhook dari Shopee
+- Verifikasi signature: `HMAC-SHA256(requestBody, SHOPEE_PUSH_PARTNER_KEY)`
+- Handle events:
+  - `order_status_push` (code 3): update order status di DB / trigger notifikasi
+  - `order_trackingno_push` (code 4): simpan tracking number
+- Return 200 OK dalam < 5 detik (Shopee retry kalau timeout)
