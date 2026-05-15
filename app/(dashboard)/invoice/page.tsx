@@ -1,7 +1,5 @@
-"use client"
-
-// Force client-only render — html2canvas and other browser modules
-// cause SSR failures that silently redirect to not-found → /order
+// Server component — DO NOT add "use client" here
+// Using next/dynamic with ssr:false to prevent browser-only module (html2canvas) from running on server
 import dynamic from "next/dynamic"
 
 const InvoiceClientPage = dynamic(
