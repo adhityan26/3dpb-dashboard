@@ -33,6 +33,7 @@ export function getShopeeAuthUrl(): string {
 export async function exchangeCodeForToken(
   code: string,
   shopId: string,
+  mainAccountId?: string,
 ): Promise<void> {
   const partnerId = process.env.SHOPEE_PARTNER_ID
   const partnerKey = process.env.SHOPEE_PARTNER_KEY
@@ -45,16 +46,26 @@ export async function exchangeCodeForToken(
   const timestamp = Math.floor(Date.now() / 1000)
   const sign = hmacSign(partnerKey, `${partnerId}${path}${timestamp}`)
 
+  // For In-House System apps, Shopee returns main_account_id instead of shop_id
+  // The token exchange uses main_account_id when available
+  const body: Record<string, string | number> = {
+    code,
+    partner_id: Number(partnerId),
+  }
+  if (mainAccountId) {
+    body.main_account_id = Number(mainAccountId)
+  } else {
+    body.shop_id = Number(shopId)
+  }
+
+  console.log("[shopee] token exchange body:", JSON.stringify(body))
+
   const res = await fetch(
     `${BASE_URL}${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        code,
-        shop_id: Number(shopId),
-        partner_id: Number(partnerId),
-      }),
+      body: JSON.stringify(body),
     },
   )
 
