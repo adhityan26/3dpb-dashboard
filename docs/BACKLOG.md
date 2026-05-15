@@ -87,3 +87,15 @@
 - Ini angka yang benar-benar masuk ke rekening seller
 - Butuh sensitive data access approval dari Shopee dulu
 - Laba Kotor di Analisa page = Omzet - AdSpend → harusnya = Escrow - AdSpend - HPP
+
+---
+## Kalkulator Harga
+
+### Per-Part Filament Selection
+- Saat ini HPP FDM = gramasi × fixed rate (300/gram dari Config)
+- Rencana: tiap part/plate bisa pilih filamen spesifik dari FilamentHarga catalog
+- Kalau filamen dipilih → gunakan hargaPerGram dari FilamentHarga
+- Kalau tidak dipilih → fallback ke rate default FDM/SLA dari Config
+- DB: tambah `filamentId String?` ke KalkulasiPlate (FK ke FilamentHarga)
+- UI: tambah dropdown filamen di PlateTable per row (setelah printer selector)
+- Formula: update `hitungKalkulasi()` agar terima `hargaPerGram` per plate
