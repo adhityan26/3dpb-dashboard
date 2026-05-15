@@ -65,6 +65,7 @@ export async function exchangeCodeForToken(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(15000),
       body: JSON.stringify(body),
     },
   )

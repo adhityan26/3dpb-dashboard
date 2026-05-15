@@ -128,7 +128,8 @@ export async function shopeeRequest<T = unknown>(
     url.searchParams.set(k, String(v))
   }
 
-  const res = await fetch(url.toString())
+  // Timeout 8s — prevents Shopee API hangs from blocking page renders
+  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) })
   const json = (await res.json()) as {
     error?: string
     message?: string
@@ -188,6 +189,7 @@ async function refreshShopeeToken(
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      signal: AbortSignal.timeout(8000),
       body: JSON.stringify({
         partner_id: Number(partnerId),
         shop_id: Number(shopId),
