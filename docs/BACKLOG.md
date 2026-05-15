@@ -77,3 +77,13 @@
   - `order_status_push` (code 3): update order status di DB / trigger notifikasi
   - `order_trackingno_push` (code 4): simpan tracking number
 - Return 200 OK dalam < 5 detik (Shopee retry kalau timeout)
+
+---
+## Analitik & Finance
+
+### Escrow Amount (Pendapatan Bersih Seller)
+- Omzet saat ini = total_amount (GMV, belum dikurangi fee Shopee)
+- Perlu tambah escrow_amount dari Shopee Finance API
+- Ini angka yang benar-benar masuk ke rekening seller
+- Butuh sensitive data access approval dari Shopee dulu
+- Laba Kotor di Analisa page = Omzet - AdSpend → harusnya = Escrow - AdSpend - HPP
