@@ -71,7 +71,6 @@ docker run -d \
   --name "$CONTAINER" \
   --restart unless-stopped \
   --network homelab \
-  --add-host "auth.homelab.lan:192.168.88.113" \
   -p 3000:3000 \
   -v "$DATA_VOLUME:/app/data" \
   -e DATABASE_URL="$DATABASE_URL" \
