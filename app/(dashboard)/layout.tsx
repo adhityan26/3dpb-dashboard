@@ -30,7 +30,7 @@ async function getBadges(): Promise<Record<string, number>> {
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const session = await auth()
-  console.log("[layout] session role:", session?.user?.role ?? "NULL", "error:", (session as Record<string,unknown>)?.error ?? "none")
+  console.log("[layout] session role:", session?.user?.role ?? "NULL", "error:", (session as unknown as Record<string,unknown>)?.error ?? "none")
   if (!session?.user) redirect("/login")
 
   const badges = await getBadges()
