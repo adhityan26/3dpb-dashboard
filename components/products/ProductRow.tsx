@@ -117,7 +117,7 @@ export function ProductRow({
   const isUploading = uploadingImageFor === product.productId
 
   const bgClass = product.isStockLow
-    ? "bg-red-50/40"
+    ? ""   // handled via inline style below
     : product.perluPerhatian
       ? "row-status-pending"
       : ""
@@ -128,7 +128,7 @@ export function ProductRow({
       : `${fmt(product.priceMin)} – ${fmt(product.priceMax)}`
 
   return (
-    <Card className={bgClass}>
+    <Card className={bgClass} style={product.isStockLow ? { background: "rgba(239,68,68,0.07)", border: "1px solid rgba(239,68,68,0.15)" } : undefined}>
       <CardContent className="p-3">
         <div className="flex items-start gap-3">
           <button
@@ -184,7 +184,7 @@ export function ProductRow({
                   </Badge>
                 )}
               </div>
-              <div className="mt-1 text-xs text-gray-500 flex gap-3 flex-wrap items-center">
+              <div className="mt-1 text-xs flex gap-3 flex-wrap items-center" style={{ color: "rgba(255,255,255,0.45)" }}>
                 <span>Stok: {fmtNum(product.stockTotal)}</span>
                 <span>Harga: {priceLabel}</span>
                 <span>
@@ -231,21 +231,23 @@ export function ProductRow({
                 return (
                   <div
                     key={v.variantId}
-                    className={`flex justify-between items-center text-xs px-2 py-1.5 rounded ${isLow ? "bg-red-50" : "bg-gray-50"}`}
+                    className="flex justify-between items-center text-xs px-2 py-1.5 rounded"
+                    style={{
+                      background: isLow ? "rgba(239,68,68,0.1)" : "rgba(255,255,255,0.05)",
+                      border: `1px solid ${isLow ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.07)"}`,
+                    }}
                   >
                     <div>
-                      <div className="font-medium">{v.variantName}</div>
+                      <div className="font-medium" style={{ color: "rgba(255,255,255,0.8)" }}>{v.variantName}</div>
                       {v.sku && (
-                        <div className="text-gray-400">SKU: {v.sku}</div>
+                        <div style={{ color: "rgba(255,255,255,0.35)" }}>SKU: {v.sku}</div>
                       )}
                     </div>
                     <div className="text-right space-y-0.5">
-                      <div
-                        className={`font-semibold ${isLow ? "text-red-600" : ""}`}
-                      >
+                      <div className="font-semibold" style={{ color: isLow ? "#f87171" : "rgba(255,255,255,0.7)" }}>
                         {v.stock} pcs
                       </div>
-                      <div className="text-gray-500">{fmt(v.price)}</div>
+                      <div style={{ color: "rgba(255,255,255,0.5)" }}>{fmt(v.price)}</div>
                     </div>
                   </div>
                 )
