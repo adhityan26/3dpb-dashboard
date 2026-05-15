@@ -7,6 +7,6 @@ export async function GET() {
     hasUser: !!session?.user,
     role: session?.user?.role ?? null,
     email: session?.user?.email ?? null,
-    error: (session as Record<string, unknown>)?.error ?? null,
+    error: (session as unknown as Record<string, unknown>)?.error ?? null,
   })
 }
