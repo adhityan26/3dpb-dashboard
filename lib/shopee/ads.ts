@@ -26,7 +26,8 @@ export async function getAdsDailyPerformance(params: {
     query,
   )
 
-  return json.response.ad_performance_list ?? json.response.list ?? []
+  console.log("[ads] API response:", JSON.stringify({ error: (json as any).error, message: (json as any).message, responseKeys: Object.keys(json.response ?? {}) }))
+  return json.response?.ad_performance_list ?? json.response?.list ?? []
 }
 
 /**
