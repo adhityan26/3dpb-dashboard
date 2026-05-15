@@ -24,9 +24,11 @@ export async function GET(req: NextRequest) {
 
   try {
     await exchangeCodeForToken(code, shopId)
+    console.log("[shopee] OAuth success — shop_id:", shopId)
     return redirectTo("/settings?shopee=connected")
   } catch (err) {
-    console.error("Shopee OAuth callback error:", err)
-    return redirectTo("/settings?error=token_exchange")
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error("[shopee] OAuth callback error:", msg, "| code:", code?.slice(0, 10), "| shop_id:", shopId)
+    return redirectTo(`/settings?error=token_exchange&detail=${encodeURIComponent(msg)}`)
   }
 }
