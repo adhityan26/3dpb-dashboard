@@ -7,11 +7,19 @@ import { countBelumCetak } from "@/lib/orders/service"
 import { getAdsPerformance } from "@/lib/ads/service"
 import { countPerluPerhatian } from "@/lib/products/service"
 
+// Hard timeout so Shopee API hangs never block page render
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`badge timeout ${ms}ms`)), ms)),
+  ])
+}
+
 async function getBadges(): Promise<Record<string, number>> {
   const [orderResult, adsResult, productsResult] = await Promise.allSettled([
-    countBelumCetak(),
-    getAdsPerformance("7d"),
-    countPerluPerhatian(),
+    withTimeout(countBelumCetak(), 3000),
+    withTimeout(getAdsPerformance("7d"), 3000),
+    withTimeout(countPerluPerhatian(), 3000),
   ])
   const badges: Record<string, number> = {}
   if (orderResult.status === "fulfilled") badges.order = orderResult.value
