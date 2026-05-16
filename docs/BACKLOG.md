@@ -133,3 +133,100 @@
 - Berbeda dengan `total_amount` (pembayaran buyer)
 - Escrow = yang benar-benar masuk ke seller
 - Mungkin butuh tambahan API permission dari Shopee
+
+---
+## Purchase Order & Filament Stock Management
+
+### Flow
+```
+Upload Invoice Image / Input Manual
+  → OCR Extract → PO Draft
+  → Review & Edit PO
+  → Create Purchase Order
+  → Order Receive (full / partial)
+  → Auto-update Filament Stock (Spool)
+```
+
+### DB Models needed
+```prisma
+model PurchaseOrder {
+  id          String   @id @default(cuid())
+  vendorNama  String
+  nomorPO     String?  // vendor invoice number e.g. "RGB.2603897"
+  tanggal     DateTime @default(now())
+  status      String   @default("DRAFT") // DRAFT|ORDERED|PARTIAL|RECEIVED|CANCELLED
+  catatan     String?
+  items       PurchaseOrderItem[]
+  receives    PurchaseOrderReceive[]
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PurchaseOrderItem {
+  id          String        @id @default(cuid())
+  poId        String
+  po          PurchaseOrder @relation(...)
+  namaProduct String        // "3D Printer FILAMENT ESUN PLA PLUS Red"
+  kode        String?       // "V-FIL-ESUN-PLAPLUS-Red"
+  qty         Float
+  uom         String        @default("EA") // EA, Roll, kg, etc.
+  harga       Float
+  diskon      Float         @default(0)    // %
+  total       Float
+  // Match ke catalog
+  filamentCatalogId String?
+  brand       String?
+  material    String?
+  colorName   String?
+}
+
+model PurchaseOrderReceive {
+  id        String        @id @default(cuid())
+  poId      String
+  po        PurchaseOrder @relation(...)
+  tanggal   DateTime      @default(now())
+  catatan   String?
+  items     PurchaseOrderReceiveItem[]
+}
+
+model PurchaseOrderReceiveItem {
+  id          String              @id @default(cuid())
+  receiveId   String
+  receive     PurchaseOrderReceive @relation(...)
+  poItemId    String
+  qtyReceived Float
+  // Auto-creates Spool records on receive
+}
+```
+
+### OCR dari Image
+- Upload invoice image (foto, scan, screenshot Tokopedia)
+- Kirim ke Claude API (vision) untuk extract:
+  - Vendor name, invoice number, date
+  - Line items: nama produk, kode, qty, harga, diskon
+- Return JSON → populate PO draft form
+- User review & koreksi sebelum save
+
+### Matching ke FilamentCatalog
+- Auto-match by keyword: brand (eSUN, BambuLab, Sunlu) + material (PLA+, PETG, TPU) + color
+- Kalau match → link ke FilamentCatalog
+- Kalau tidak match → create baru atau skip (manual link)
+
+### Stock Update saat Receive
+- Setiap item received → create Spool record:
+  - brand, material, colorName dari PO item
+  - status: "new" (belum dipakai)
+  - barcode: auto-generate
+- Update SpoolmanSpool jika terintegrasi
+
+### Input Sources
+1. **Image OCR** (foto invoice vendor, screenshot Tokopedia)
+2. **Manual input** (form biasa)
+3. **Template** (repeat PO dari PO sebelumnya)
+
+### UI
+- Halaman baru `/po` atau sub-tab di Filamen
+- List PO dengan status badges
+- PO Detail: items + receive history + total
+- "Receive" button → form qty per item
+- Auto-suggest untuk matching catalog
