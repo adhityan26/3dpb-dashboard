@@ -83,7 +83,7 @@ export function useSetVariantKalkulasi() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: ({ katalogId, linkId, kalkulasiId }: { katalogId: string; linkId: string; kalkulasiId: string | null }) =>
-      apiFetch<void>(`/api/katalog/${katalogId}/shopee-links/${linkId}/kalkulasi`, {
+      apiFetch<void>(`/api/katalog/${katalogId}/shopee-links/${linkId}/kalkulasi`, {  // linkId used as shopeeItemId slug
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ kalkulasiId }),
