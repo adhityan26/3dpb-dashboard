@@ -3,23 +3,9 @@ import type { ShopeeAdDailyRow } from "@/lib/shopee/types"
 import { classifyRoas, computeRecommendation } from "./classifier"
 import { generateMockAdsRows } from "./mock"
 import type { AdSummary, AdsListResult, AdStatus } from "./types"
+import { resolveRange, type FlexRange } from "@/lib/dateRange"
 
-export type AdsRange = "7d" | "30d"
-
-function formatShopeeDate(d: Date): string {
-  // Shopee Ads API requires DD-MM-YYYY format.
-  const day = String(d.getDate()).padStart(2, "0")
-  const month = String(d.getMonth() + 1).padStart(2, "0")
-  const year = d.getFullYear()
-  return `${day}-${month}-${year}`
-}
-
-function getDateRange(range: AdsRange): { startDate: string; endDate: string } {
-  const now = new Date()
-  const days = range === "7d" ? 7 : 30
-  const start = new Date(now.getTime() - (days - 1) * 24 * 60 * 60 * 1000)
-  return { startDate: formatShopeeDate(start), endDate: formatShopeeDate(now) }
-}
+export type AdsRange = FlexRange  // backwards-compatible alias
 
 function normalizeStatus(status: string | undefined): AdStatus {
   if (!status) return "unknown"
@@ -43,7 +29,7 @@ function firstNumber(...values: Array<number | undefined>): number {
 export async function getAdsPerformance(
   range: AdsRange,
 ): Promise<AdsListResult> {
-  const { startDate, endDate } = getDateRange(range)
+  const { startDate, endDate } = resolveRange(range)
 
   // Sandbox mode: use mock data when real Shopee Ads API is unavailable
   // (sandbox shops often don't have ads module). Set SHOPEE_MOCK_ADS=true

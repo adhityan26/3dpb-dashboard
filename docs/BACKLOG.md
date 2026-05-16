@@ -116,3 +116,20 @@
   - 📦 Reload Stok — stock_info only
 - Cache invalidation: manual only (untuk hemat quota Shopee API)
 - Show "last updated X ago" timestamp
+
+---
+## Analisa — Dana Dicairkan (Escrow Released)
+
+### API yang dibutuhkan
+- Shopee: `/api/v2/payment/get_escrow_list` atau `/api/v2/order/get_order_income_detail`
+- Returns: actual_seller_amount per order (setelah potongan komisi, biaya admin)
+
+### UI
+- Di AnalyticsKpiBar: tambah card "Dana Dicairkan" (warna hijau)
+- Breakdown: gross omzet - shopee_fee - voucher_subsidi = escrow
+- Bisa dibanding periode sebelumnya
+
+### Notes
+- Berbeda dengan `total_amount` (pembayaran buyer)
+- Escrow = yang benar-benar masuk ke seller
+- Mungkin butuh tambahan API permission dari Shopee

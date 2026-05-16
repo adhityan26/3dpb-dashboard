@@ -29,6 +29,7 @@ export interface ProdukInternalData {
   hargaShopeeAktual: number | null
   kalkulasiStatus: string | null   // KalkulasiStatus value e.g. "AMAN"
   kalkulasiNama: string | null     // .nama from the linked KalkulasiHarga
+  kalkulasiBatch: number | null    // batch count from the primary kalkulasi
   plates: PlateInfo[]              // plates from the primary kalkulasi
   shopeeLinks: { id: string; shopeeItemId: string }[]
   historyStats: HistoryStats | null

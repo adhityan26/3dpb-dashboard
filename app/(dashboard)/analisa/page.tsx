@@ -5,16 +5,16 @@ import { AnalyticsKpiBar } from "@/components/analytics/AnalyticsKpiBar"
 import { SalesTrendChart } from "@/components/analytics/SalesTrendChart"
 import { TopProductsChart } from "@/components/analytics/TopProductsChart"
 import { ProfitCard } from "@/components/analytics/ProfitCard"
-import { AdsRangeSelector } from "@/components/ads/AdsRangeSelector"
+import { DateRangeSelector } from "@/components/ui/DateRangeSelector"
 import { RefreshIndicator } from "@/components/layout/RefreshIndicator"
 import { useAnalytics } from "@/lib/hooks/use-analytics"
 import { useRefreshConfig } from "@/lib/use-refresh-config"
 import { Button } from "@/components/ui/button"
 import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
-import type { AnalyticsRange } from "@/lib/analytics/service"
+import type { FlexRange } from "@/lib/dateRange"
 
 export default function AnalisaPage() {
-  const [range, setRange] = useState<AnalyticsRange>("7d")
+  const [range, setRange] = useState<FlexRange>("7d")
   const { intervalMs } = useRefreshConfig()
   const { data, isLoading, isError, error, refetch, dataUpdatedAt } =
     useAnalytics(range)
@@ -62,12 +62,7 @@ export default function AnalisaPage() {
         />
       </GlassPageHeader>
 
-      <div className="flex items-center justify-between">
-        <AdsRangeSelector value={range} onChange={setRange} />
-        <div className="text-xs text-gray-500">
-          {data.range.startDate} – {data.range.endDate}
-        </div>
-      </div>
+      <DateRangeSelector value={range} onChange={setRange} />
 
       <AnalyticsKpiBar kpi={data.kpi} />
 

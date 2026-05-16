@@ -2,18 +2,18 @@
 
 import { useState } from "react"
 import { AdsKpiBar } from "@/components/ads/AdsKpiBar"
-import { AdsRangeSelector } from "@/components/ads/AdsRangeSelector"
 import { AdsTable } from "@/components/ads/AdsTable"
 import { AdRecommendationList } from "@/components/ads/AdRecommendationList"
 import { RefreshIndicator } from "@/components/layout/RefreshIndicator"
+import { DateRangeSelector } from "@/components/ui/DateRangeSelector"
 import { useAds } from "@/lib/hooks/use-ads"
 import { useRefreshConfig } from "@/lib/use-refresh-config"
 import { Button } from "@/components/ui/button"
 import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
-import type { AdsRange } from "@/lib/ads/service"
+import type { FlexRange } from "@/lib/dateRange"
 
 export default function IklanPage() {
-  const [range, setRange] = useState<AdsRange>("7d")
+  const [range, setRange] = useState<FlexRange>("7d")
   const { intervalMs } = useRefreshConfig()
   const { data, isLoading, isError, error, refetch, dataUpdatedAt } =
     useAds(range)
@@ -61,12 +61,7 @@ export default function IklanPage() {
         />
       </GlassPageHeader>
 
-      <div className="flex items-center justify-between">
-        <AdsRangeSelector value={range} onChange={setRange} />
-        <div className="text-xs text-gray-500">
-          {data.range.startDate} – {data.range.endDate}
-        </div>
-      </div>
+      <DateRangeSelector value={range} onChange={setRange} />
 
       <AdsKpiBar kpi={data.kpi} />
 

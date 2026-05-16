@@ -272,12 +272,17 @@ export function KatalogCard({ produk, onEdit }: Props) {
                   </span>
                 )}
               </div>
+              {produk.kalkulasiBatch && produk.kalkulasiBatch > 1 && (
+                <div className="text-[10px] mb-1" style={{ color: "rgba(251,191,36,0.6)" }}>
+                  Batch: {produk.kalkulasiBatch} unit · nilai per-unit = total ÷ {produk.kalkulasiBatch}
+                </div>
+              )}
               <div className="rounded-[10px] overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
                 {/* Table header */}
                 <div
                   className="grid text-[9px] font-semibold uppercase tracking-wider px-3 py-2"
                   style={{
-                    gridTemplateColumns: "1fr 60px 140px 70px 70px",
+                    gridTemplateColumns: "1fr 60px 140px 90px 90px",
                     background: "rgba(255,255,255,0.03)",
                     color: "rgba(165,180,252,0.5)",
                     borderBottom: "1px solid rgba(255,255,255,0.05)",
@@ -289,31 +294,43 @@ export function KatalogCard({ produk, onEdit }: Props) {
                   <span>Gramasi</span>
                   <span>Durasi</span>
                 </div>
-                {produk.plates.map((plate, i) => (
-                  <div
-                    key={i}
-                    className="grid px-3 py-2 text-xs items-center"
-                    style={{
-                      gridTemplateColumns: "1fr 60px 140px 70px 70px",
-                      borderBottom: i < produk.plates.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
-                    }}
-                  >
-                    <span style={{ color: plate.namaPart ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.25)" }}>
-                      {plate.namaPart ?? "—"}
-                    </span>
-                    <span
-                      className="font-semibold"
-                      style={{ color: plate.tipe === "SLA" ? "#fb923c" : "#6ee7b7" }}
+                {produk.plates.map((plate, i) => {
+                  const batch = produk.kalkulasiBatch ?? 1
+                  const gramasiPerUnit = plate.gramasi / batch
+                  const durasiPerUnit = plate.durasiJam / batch
+                  return (
+                    <div
+                      key={i}
+                      className="grid px-3 py-2 text-xs items-start"
+                      style={{
+                        gridTemplateColumns: "1fr 60px 140px 90px 90px",
+                        borderBottom: i < produk.plates.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                      }}
                     >
-                      {plate.tipe}
-                    </span>
-                    <span style={{ color: plate.printer ? "rgba(165,180,252,0.7)" : "rgba(255,255,255,0.2)" }}>
-                      {plate.printer ?? "—"}
-                    </span>
-                    <span style={{ color: "rgba(255,255,255,0.6)" }}>{plate.gramasi.toFixed(1)}g</span>
-                    <span style={{ color: "rgba(255,255,255,0.6)" }}>{fmtDurasi(plate.durasiJam)}</span>
-                  </div>
-                ))}
+                      <span style={{ color: plate.namaPart ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.25)" }}>
+                        {plate.namaPart ?? "—"}
+                      </span>
+                      <span className="font-semibold" style={{ color: plate.tipe === "SLA" ? "#fb923c" : "#6ee7b7" }}>
+                        {plate.tipe}
+                      </span>
+                      <span style={{ color: plate.printer ? "rgba(165,180,252,0.7)" : "rgba(255,255,255,0.2)" }}>
+                        {plate.printer ?? "—"}
+                      </span>
+                      <div>
+                        {batch > 1 && (
+                          <div className="font-semibold" style={{ color: "rgba(255,255,255,0.75)" }}>{gramasiPerUnit.toFixed(1)}g/unit</div>
+                        )}
+                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>{plate.gramasi.toFixed(1)}g total</div>
+                      </div>
+                      <div>
+                        {batch > 1 && (
+                          <div className="font-semibold" style={{ color: "rgba(255,255,255,0.75)" }}>{fmtDurasi(durasiPerUnit)}/unit</div>
+                        )}
+                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>{fmtDurasi(plate.durasiJam)} total</div>
+                      </div>
+                    </div>
+                  )
+                })}
               </div>
             </div>
           )}

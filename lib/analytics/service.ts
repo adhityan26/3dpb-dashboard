@@ -3,15 +3,9 @@ import { getAllAdsDailyPerformance } from "@/lib/shopee/ads"
 import { prisma } from "@/lib/db"
 import { generateMockAnalytics } from "./mock"
 import type { AnalyticsData, DailyPoint, TopProduct } from "./types"
+import { resolveRange, type FlexRange } from "@/lib/dateRange"
 
-export type AnalyticsRange = "7d" | "30d"
-
-function formatShopeeDate(d: Date): string {
-  const day = String(d.getDate()).padStart(2, "0")
-  const month = String(d.getMonth() + 1).padStart(2, "0")
-  const year = d.getFullYear()
-  return `${day}-${month}-${year}`
-}
+export type AnalyticsRange = FlexRange  // backwards-compatible alias
 
 interface DateRangeParts {
   from: Date
@@ -23,16 +17,19 @@ interface DateRangeParts {
 }
 
 function getDateRange(range: AnalyticsRange): DateRangeParts {
-  const to = new Date()
-  const days = range === "7d" ? 7 : 30
-  const from = new Date(to.getTime() - (days - 1) * 24 * 60 * 60 * 1000)
+  const { startDate: shopeeStart, endDate: shopeeEnd } = resolveRange(range)
+  // Convert DD-MM-YYYY → YYYY-MM-DD for internal use
+  const fromYMD = shopeeStart.split("-").reverse().join("-")
+  const toYMD   = shopeeEnd.split("-").reverse().join("-")
+  const from = new Date(fromYMD)
+  const to   = new Date(toYMD)
   return {
     from,
     to,
-    startDate: from.toISOString().slice(0, 10),
-    endDate: to.toISOString().slice(0, 10),
-    shopeeStartDate: formatShopeeDate(from),
-    shopeeEndDate: formatShopeeDate(to),
+    startDate: fromYMD,
+    endDate: toYMD,
+    shopeeStartDate: shopeeStart,
+    shopeeEndDate: toYMD.split("-").reverse().join("-"),
   }
 }
 

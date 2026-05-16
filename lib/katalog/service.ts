@@ -41,6 +41,7 @@ function toProdukInternalData(raw: any): ProdukInternalData {
     hargaShopeeAktual: k ? (k.hargaShopeeAktual ?? null) : null,
     kalkulasiStatus: k ? (k.status ?? null) : null,
     kalkulasiNama: k ? (k.nama ?? null) : null,
+    kalkulasiBatch: k ? (k.batch ?? null) : null,
     plates: (k?.plates ?? []).map((p: any) => ({
       namaPart: p.namaPart ?? null,
       tipe: p.tipe,
