@@ -6,6 +6,7 @@ import { FilamenTab } from "@/components/filamen/FilamenTab"
 import { KalkulasiTab } from "@/components/kalkulator/KalkulasiTab"
 import { KatalogTab } from "@/components/katalog/KatalogTab"
 import { InvoiceClientPage } from "@/components/invoice/InvoiceClientPage"
+import { POTab } from "@/components/po/POTab"
 import { ProductsKpiBar } from "@/components/products/ProductsKpiBar"
 import { ProductFilter } from "@/components/products/ProductFilter"
 import { ProductList } from "@/components/products/ProductList"
@@ -34,7 +35,7 @@ function ProdukPageInner() {
   const uploadImage = useUploadProductImage()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const VALID_TABS = ["katalog", "invoice", "produk", "kalkulator", "filamen"] as const
+  const VALID_TABS = ["katalog", "po", "invoice", "produk", "kalkulator", "filamen"] as const
   type ProdukTab = typeof VALID_TABS[number]
   const rawTab = searchParams.get("tab") ?? "katalog"
   const produkTab: ProdukTab = (VALID_TABS as readonly string[]).includes(rawTab) ? rawTab as ProdukTab : "katalog"
@@ -110,6 +111,7 @@ function ProdukPageInner() {
       <div className="flex border-b border-gray-200 flex-wrap">
         {([
           ["katalog",   "📦 Katalog",    "indigo"],
+          ["po",        "📋 PO",         "indigo"],
           ["invoice",   "📄 Invoice",    "indigo"],
           ["produk",    "🛍️ Shopee",    "shopee"],
           ["kalkulator","🧮 Kalkulator", "indigo"],
@@ -131,7 +133,9 @@ function ProdukPageInner() {
         ))}
       </div>
 
-      {produkTab === "katalog" ? (
+      {produkTab === "po" ? (
+        <POTab />
+      ) : produkTab === "katalog" ? (
         <KatalogTab />
       ) : produkTab === "invoice" ? (
         <InvoiceClientPage />

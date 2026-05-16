@@ -87,6 +87,7 @@ docker run -d \
   -e AUTHENTIK_CLIENT_ID="$AUTHENTIK_CLIENT_ID" \
   -e AUTHENTIK_CLIENT_SECRET="$AUTHENTIK_CLIENT_SECRET" \
   -e AUTHENTIK_ISSUER="$AUTHENTIK_ISSUER" \
+  -e GEMINI_API_KEY="${GEMINI_API_KEY:-}" \
   "$DEPLOY_IMAGE"
 
 # ── Health check ───────────────────────────────────────────────────────────────
