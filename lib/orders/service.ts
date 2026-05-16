@@ -83,36 +83,35 @@ export async function getReadyToShipOrders(): Promise<OrderListResult> {
   const now = Math.floor(Date.now() / 1000)
   const from = now - FIFTEEN_DAYS_SEC
 
+  // Fetch both unshipped statuses in parallel
+  const statuses = ["READY_TO_SHIP", "PROCESSED"] as const
   const allSns: string[] = []
-  let cursor: string | undefined
-  let hasMore = true
-  let safetyCounter = 0
 
-  while (hasMore && safetyCounter < 20) {
-    const page = await getOrderList({
-      timeFrom: from,
-      timeTo: now,
-      status: "READY_TO_SHIP",
-      pageSize: 50,
-      cursor,
-    })
-    for (const entry of page.order_list) {
-      allSns.push(entry.order_sn)
+  await Promise.all(statuses.map(async (status) => {
+    let cursor: string | undefined
+    let hasMore = true
+    let safety = 0
+    while (hasMore && safety < 20) {
+      const page = await getOrderList({ timeFrom: from, timeTo: now, status, pageSize: 50, cursor })
+      for (const entry of page.order_list) allSns.push(entry.order_sn)
+      hasMore = page.more
+      cursor = page.next_cursor
+      safety++
     }
-    hasMore = page.more
-    cursor = page.next_cursor
-    safetyCounter++
-  }
+  }))
+
+  // Deduplicate
+  const uniqueSns = Array.from(new Set(allSns))
 
   const allDetails: ShopeeOrderDetail[] = []
-  for (let i = 0; i < allSns.length; i += 50) {
-    const batch = allSns.slice(i, i + 50)
+  for (let i = 0; i < uniqueSns.length; i += 50) {
+    const batch = uniqueSns.slice(i, i + 50)
     const details = await getOrderDetail(batch)
     allDetails.push(...details)
   }
 
   const labelStatuses = await prisma.labelStatus.findMany({
-    where: { orderId: { in: allSns } },
+    where: { orderId: { in: uniqueSns } },
   })
   const labelBySn = new Map(labelStatuses.map((l) => [l.orderId, l]))
 
@@ -158,33 +157,32 @@ export async function countBelumCetak(): Promise<number> {
   const now = Math.floor(Date.now() / 1000)
   const from = now - FIFTEEN_DAYS_SEC
 
+  // Fetch both unshipped statuses in parallel
+  const statuses = ["READY_TO_SHIP", "PROCESSED"] as const
   const allSns: string[] = []
-  let cursor: string | undefined
-  let hasMore = true
-  let safetyCounter = 0
 
-  while (hasMore && safetyCounter < 20) {
-    const page = await getOrderList({
-      timeFrom: from,
-      timeTo: now,
-      status: "READY_TO_SHIP",
-      pageSize: 100,
-      cursor,
-    })
-    for (const entry of page.order_list) {
-      allSns.push(entry.order_sn)
+  await Promise.all(statuses.map(async (status) => {
+    let cursor: string | undefined
+    let hasMore = true
+    let safety = 0
+    while (hasMore && safety < 20) {
+      const page = await getOrderList({ timeFrom: from, timeTo: now, status, pageSize: 100, cursor })
+      for (const entry of page.order_list) allSns.push(entry.order_sn)
+      hasMore = page.more
+      cursor = page.next_cursor
+      safety++
     }
-    hasMore = page.more
-    cursor = page.next_cursor
-    safetyCounter++
-  }
+  }))
 
-  if (allSns.length === 0) return 0
+  // Deduplicate
+  const uniqueSns = Array.from(new Set(allSns))
+
+  if (uniqueSns.length === 0) return 0
 
   const printed = await prisma.labelStatus.count({
-    where: { orderId: { in: allSns }, printed: true },
+    where: { orderId: { in: uniqueSns }, printed: true },
   })
-  return allSns.length - printed
+  return uniqueSns.length - printed
 }
 
 export async function setLabelPrinted(

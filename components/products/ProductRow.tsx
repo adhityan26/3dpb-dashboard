@@ -186,7 +186,14 @@ export function ProductRow({
               </div>
               <div className="mt-1 text-xs flex gap-3 flex-wrap items-center" style={{ color: "rgba(255,255,255,0.45)" }}>
                 <span>Stok: {fmtNum(product.stockTotal)}</span>
-                <span>Harga: {priceLabel}</span>
+                <span>
+                  Harga: {priceLabel}
+                  {product.originalPriceMin != null && (
+                    <span className="ml-1 line-through text-[10px]" style={{ color: "#f87171" }}>
+                      {fmt(product.originalPriceMin)}
+                    </span>
+                  )}
+                </span>
                 <span>
                   30d: {fmtNum(product.qtySold30d)} pcs ·{" "}
                   {fmt(product.omzet30d)}
@@ -216,6 +223,16 @@ export function ProductRow({
                   <span className="text-xs text-gray-400">HPP: —</span>
                 )}
               </div>
+              {(product.weight != null || product.dimensionCm != null) && (
+                <div className="mt-0.5 text-[10px] flex gap-2 flex-wrap" style={{ color: "rgba(255,255,255,0.3)" }}>
+                  {product.weight != null && (
+                    <span>⚖️ {product.weight >= 1 ? product.weight.toFixed(2) + " kg" : (product.weight * 1000).toFixed(0) + " g"}</span>
+                  )}
+                  {product.dimensionCm != null && (
+                    <span>📦 {product.dimensionCm.l}×{product.dimensionCm.w}×{product.dimensionCm.h} cm</span>
+                  )}
+                </div>
+              )}
             </div>
           </button>
         </div>
@@ -247,7 +264,14 @@ export function ProductRow({
                       <div className="font-semibold" style={{ color: isLow ? "#f87171" : "rgba(255,255,255,0.7)" }}>
                         {v.stock} pcs
                       </div>
-                      <div style={{ color: "rgba(255,255,255,0.5)" }}>{fmt(v.price)}</div>
+                      <div style={{ color: "rgba(255,255,255,0.5)" }}>
+                        {fmt(v.price)}
+                        {v.originalPrice != null && (
+                          <span className="ml-1 line-through text-[10px]" style={{ color: "#f87171" }}>
+                            {fmt(v.originalPrice)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                 )
