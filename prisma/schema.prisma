@@ -330,3 +330,33 @@ model QuotationItem {
   channelHarga     String      @default("marketplace") // "offline"|"marketplace"
   catatan          String?
 }
+
+model PurchaseOrder {
+  id         String              @id @default(cuid())
+  nomor      String?             // vendor invoice number
+  vendorNama String
+  tanggal    DateTime            @default(now())
+  status     String              @default("DRAFT") // DRAFT|ORDERED|RECEIVED|CANCELLED
+  catatan    String?
+  items      PurchaseOrderItem[]
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+}
+
+model PurchaseOrderItem {
+  id                String        @id @default(cuid())
+  poId              String
+  po                PurchaseOrder @relation(fields: [poId], references: [id], onDelete: Cascade)
+  namaProduct       String
+  kode              String?
+  qty               Float
+  uom               String        @default("EA")
+  harga             Float
+  diskon            Float         @default(0)
+  total             Float
+  isFilament        Boolean       @default(false)
+  brand             String?
+  material          String?
+  colorName         String?
+  filamentCatalogId String?
+}
