@@ -22,17 +22,32 @@ export function hitungKalkulasi(
 ): HasilKalkulasi {
   const safeBatch = Math.max(1, batch)
 
-  const totalHppBatch = plates.reduce((sum, p) => {
-    const hppRate = p.tipe === 'SLA' ? rates.slaHppPerGram : rates.fdmHppPerGram
-    return sum + p.gramasi * hppRate + p.durasiJam * rates.mesinPerJam
-  }, 0)
-  const hppProduksi = totalHppBatch / safeBatch
+  // Calculate HPP and jual cost for one plate
+  function plateCost(p: PlateInput): { hpp: number; jual: number } {
+    const mesin = p.durasiJam * rates.mesinPerJam
+    if (p.materials && p.materials.length > 0) {
+      // Multi-material: each entry has its own cost per gram
+      const filamentHpp = p.materials.reduce((s, m) => {
+        const harga = m.hargaPerGram ?? rates.fdmHppPerGram  // default to FDM rate
+        return s + m.gramasi * harga
+      }, 0)
+      // Jual: use same ratio as hpp (jual/hpp ratio from FDM rates)
+      const ratio = rates.fdmJualPerGram / rates.fdmHppPerGram
+      return { hpp: filamentHpp + mesin, jual: filamentHpp * ratio + mesin }
+    }
+    // Legacy single-material
+    const g = p.gramasi ?? 0
+    const isSLA = p.tipe === 'SLA'
+    return {
+      hpp:  g * (isSLA ? rates.slaHppPerGram  : rates.fdmHppPerGram)  + mesin,
+      jual: g * (isSLA ? rates.slaJualPerGram : rates.fdmJualPerGram) + mesin,
+    }
+  }
 
-  const totalJualBatch = plates.reduce((sum, p) => {
-    const jualRate = p.tipe === 'SLA' ? rates.slaJualPerGram : rates.fdmJualPerGram
-    return sum + p.gramasi * jualRate + p.durasiJam * rates.mesinPerJam
-  }, 0)
-  const jualBase = totalJualBatch / safeBatch
+  const totalHppBatch  = plates.reduce((s, p) => s + plateCost(p).hpp,  0)
+  const totalJualBatch = plates.reduce((s, p) => s + plateCost(p).jual, 0)
+  const hppProduksi = totalHppBatch  / safeBatch
+  const jualBase    = totalJualBatch / safeBatch
 
   const hppKomponen =
     (aksesori.packingType ? (rates.packing[aksesori.packingType] ?? 0) : 0) +

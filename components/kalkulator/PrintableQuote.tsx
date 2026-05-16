@@ -3,12 +3,15 @@
 import { useRef, useState } from "react"
 import type { HasilKalkulasi, MarginTier } from "@/lib/kalkulator/types"
 
+import type { FilamentEntry } from "@/lib/kalkulator/types"
+
 interface PlateRow {
   key: string
   namaPart?: string
-  tipe: "FDM" | "SLA"
+  tipe?: "FDM" | "SLA"
   printer?: string
-  gramasi: number
+  gramasi?: number
+  materials?: FilamentEntry[]
   durasiJam: number
 }
 
@@ -60,7 +63,10 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
   const effectiveShopee   = hargaShopeeAktual  > 0 ? hargaShopeeAktual  : roundUp5000(computedShopee)
 
   // Plates store total-batch values; divide by batch to get per-unit
-  const totalGramasiPerUnit = plates.reduce((s, p) => s + p.gramasi, 0) / Math.max(1, batch)
+  const totalGramasiPerUnit = plates.reduce((s, p) => {
+    const g = p.materials?.reduce((ms, m) => ms + m.gramasi, 0) ?? (p.gramasi ?? 0)
+    return s + g
+  }, 0) / Math.max(1, batch)
   const totalDurasiPerUnit  = plates.reduce((s, p) => s + p.durasiJam, 0) / Math.max(1, batch)
   const today = new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
 
@@ -280,7 +286,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
               <hr style={{ border: "none", borderTop: "2px solid #111", marginBottom: 14 }} />
 
               {/* Parts table — no Printer column */}
-              {plates.filter(p => p.gramasi > 0).length > 0 && (
+              {plates.filter(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0)).length > 0 && (
                 <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
                   <thead>
                     <tr>
@@ -294,22 +300,29 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
                     </tr>
                   </thead>
                   <tbody>
-                    {plates.filter(p => p.gramasi > 0).map((plate, i) => (
+                    {plates.filter(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0)).map((plate, i) => {
+                      // Multi-material: show material list; single: show tipe
+                      const totalG = plate.materials?.reduce((s, m) => s + m.gramasi, 0) ?? (plate.gramasi ?? 0)
+                      const matLabel = plate.materials && plate.materials.length > 0
+                        ? plate.materials.map(m => `${m.brand} ${m.material} ${m.gramasi}g`).join(", ")
+                        : plate.tipe ?? "FDM"
+                      return (
                       <tr key={plate.key}>
                         <td style={{ padding: "7px 0", borderBottom: "1px solid #f3f4f6", fontSize: 12, color: plate.namaPart ? "#111" : "#999" }}>
                           {plate.namaPart || `Part ${i + 1}`}
                         </td>
-                        <td style={{ padding: "7px 0", borderBottom: "1px solid #f3f4f6", fontSize: 12, fontWeight: 600, color: plate.tipe === "SLA" ? "#ea580c" : "#059669" }}>
-                          {plate.tipe}
+                        <td style={{ padding: "7px 0", borderBottom: "1px solid #f3f4f6", fontSize: 11, color: "#555" }}>
+                          {matLabel}
                         </td>
                         <td style={{ padding: "7px 0", borderBottom: "1px solid #f3f4f6", fontSize: 12, textAlign: "right" }}>
-                          {(plate.gramasi / Math.max(1, batch)).toFixed(1)}g
+                          {(totalG / Math.max(1, batch)).toFixed(1)}g
                         </td>
                         <td style={{ padding: "7px 0", borderBottom: "1px solid #f3f4f6", fontSize: 12, textAlign: "right" }}>
                           {fmtDurasi(plate.durasiJam / Math.max(1, batch))}
                         </td>
                       </tr>
-                    ))}
+                    )})}
+
                     <tr>
                       <td colSpan={2} style={{ padding: "9px 0 0", fontSize: 12, fontWeight: 700, borderTop: "2px solid #e5e7eb" }}>TOTAL</td>
                       <td style={{ padding: "9px 0 0", fontSize: 12, fontWeight: 700, textAlign: "right", borderTop: "2px solid #e5e7eb" }}>{totalGramasiPerUnit.toFixed(1)}g/unit</td>

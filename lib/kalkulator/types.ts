@@ -3,11 +3,23 @@ export type MarginTier = 'A' | 'B' | 'C'
 export type KalkulasiStatus = 'AMAN' | 'BAWAH_REKM' | 'RUGI' | 'TIDAK_DISET'
 export type PackingType = 'S' | 'M' | 'L' | 'XL'
 
+/** One filament entry in a multi-material plate */
+export interface FilamentEntry {
+  brand: string            // e.g. "Bambu", "eSUN"
+  material: string         // e.g. "PLA+", "TPU"
+  color: string            // e.g. "Red", "Beige"
+  gramasi: number
+  isSupport?: boolean      // true = support material
+  hargaPerGram?: number    // override cost, else use FilamentHarga catalog or default rate
+  filamentId?: string      // optional link to FilamentHarga catalog
+}
+
 export interface PlateInput {
   namaPart?: string
-  tipe: PrintTipe
+  tipe?: PrintTipe          // legacy single-material
   printer?: string
-  gramasi: number
+  gramasi?: number          // legacy single-material gramasi
+  materials?: FilamentEntry[] // multi-material (replaces tipe+gramasi when set)
   durasiJam: number
 }
 

@@ -217,15 +217,16 @@ model KalkulasiHarga {
 }
 
 model KalkulasiPlate {
-  id          String         @id @default(cuid())
-  kalkulasiId String
-  kalkulasi   KalkulasiHarga @relation(fields: [kalkulasiId], references: [id], onDelete: Cascade)
-  urutan      Int
-  namaPart    String?
-  tipe        String         @default("FDM")
-  printer     String?
-  gramasi     Float
-  durasiJam   Float
+  id            String         @id @default(cuid())
+  kalkulasiId   String
+  kalkulasi     KalkulasiHarga @relation(fields: [kalkulasiId], references: [id], onDelete: Cascade)
+  urutan        Int
+  namaPart      String?
+  tipe          String         @default("FDM")  // legacy single-material
+  printer       String?
+  gramasi       Float                            // legacy single-material gramasi
+  materialsJson String?                          // JSON: FilamentEntry[] for multi-material
+  durasiJam     Float
 }
 
 model KomponenKustom {
