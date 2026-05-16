@@ -9,6 +9,7 @@ import { UserManagementCard } from "@/components/settings/UserManagementCard"
 import { NotificationRunnerCard } from "@/components/settings/NotificationRunnerCard"
 import { FilamenCatalogCard } from "@/components/settings/FilamenCatalogCard"
 import { StickerSizeCard } from "@/components/settings/StickerSizeCard"
+import { KalkulatorSettingsCard } from "@/components/settings/KalkulatorSettingsCard"
 import { useSettings } from "@/lib/hooks/use-settings"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
@@ -74,6 +75,8 @@ export default function SettingsPage() {
         <FilamenCatalogCard lastCatalogSync={filamenSettings?.lastCatalogSync ?? null} />
         <StickerSizeCard initialSize={filamenSettings?.stickerSize ?? "40x30"} canEdit={session?.user?.role === "OWNER"} />
       </div>
+
+      <KalkulatorSettingsCard />
     </div>
   )
 }

@@ -44,6 +44,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
   const computedOffline = marginTier === "B" ? hasil.offlineB : marginTier === "C" ? hasil.offlineC : hasil.offlineA
   const computedShopee  = marginTier === "B" ? hasil.shopeeB  : marginTier === "C" ? hasil.shopeeC  : hasil.shopeeA
 
+  const [title, setTitle] = useState(nama)
   const [qty, setQty] = useState(batch)
   const [includeOngkir, setIncludeOngkir] = useState(false)
   const [offlineStr, setOfflineStr] = useState("")
@@ -74,7 +75,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
         backgroundColor: "#ffffff",
       })
       const link = document.createElement("a")
-      const safeName = (buyerName || nama).replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 40)
+      const safeName = (buyerName || title || nama).replace(/[^a-zA-Z0-9_-]/g, "-").slice(0, 40)
       link.download = `quote-${safeName}.jpg`
       link.href = canvas.toDataURL("image/jpeg", 0.92)
       link.click()
@@ -172,6 +173,15 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
                style={{ borderRight: "1px solid rgba(255,255,255,0.07)" }}>
 
             <div>
+              <div className={ctrlLabel} style={ctrlColor}>Judul Quote</div>
+              <input
+                type="text" value={title}
+                onChange={e => setTitle(e.target.value)}
+                className="glass-input w-full h-9 rounded-[8px] px-3 text-sm"
+              />
+            </div>
+
+            <div>
               <div className={ctrlLabel} style={ctrlColor}>Nama Buyer</div>
               <input
                 type="text" value={buyerName}
@@ -256,7 +266,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
               {/* Header */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>
                 <div>
-                  <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{nama}</h1>
+                  <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 4 }}>{title || nama}</h1>
                   <div style={{ fontSize: 12, color: "#666" }}>Estimasi produksi · {today}</div>
                 </div>
                 {(buyerName || buyerContact) && (

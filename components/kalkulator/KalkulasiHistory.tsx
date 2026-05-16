@@ -131,7 +131,7 @@ export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
             </div>
 
             {/* Actions */}
-            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+            <div className="flex gap-1 flex-wrap">
               <button onClick={() => onEdit(k)}
                 className="h-7 px-2 rounded-[6px] text-[9px] font-medium"
                 style={{ background: "rgba(99,102,241,0.15)", color: "#a5b4fc" }}>
