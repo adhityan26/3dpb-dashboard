@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { useAddShopeeLink, useRemoveShopeeLink, useSetVariantKalkulasi } from "@/lib/hooks/use-katalog"
 import { useKalkulasiList } from "@/lib/hooks/use-kalkulator"
+import type { KalkulasiData } from "@/lib/kalkulator/types"
 import { useProducts } from "@/lib/hooks/use-products"
 
 function fmt(n: number) { return `Rp ${Math.round(n).toLocaleString("id-ID")}` }
@@ -36,9 +37,11 @@ export function ShopeeLinksSection({ produkId, links }: Props) {
   const setVariantKalk = useSetVariantKalkulasi()
 
   const { data: productsData } = useProducts()
-  const { data: kalkulasiData } = useKalkulasiList()
+  const { data: kalkulasiListResult } = useKalkulasiList()
   const allProducts = productsData?.products ?? []
-  const allKalkulasi = (kalkulasiData as { items?: unknown[] } | null)?.items ?? [] as { id: string; nama: string; hppTotal: number; floorPrice: number }[]
+  const allKalkulasi: KalkulasiData[] = Array.isArray(kalkulasiListResult)
+    ? kalkulasiListResult
+    : (kalkulasiListResult as { items?: KalkulasiData[] } | null)?.items ?? []
 
   const linkedIds = new Set(links.map(l => l.shopeeItemId))
 
