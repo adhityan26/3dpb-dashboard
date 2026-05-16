@@ -58,8 +58,9 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
   const effectiveOffline  = hargaOfflineAktual > 0 ? hargaOfflineAktual : roundUp5000(computedOffline)
   const effectiveShopee   = hargaShopeeAktual  > 0 ? hargaShopeeAktual  : roundUp5000(computedShopee)
 
-  const totalGramasi = plates.reduce((s, p) => s + p.gramasi, 0)
-  const totalDurasi  = plates.reduce((s, p) => s + p.durasiJam, 0)
+  // Plates store total-batch values; divide by batch to get per-unit
+  const totalGramasiPerUnit = plates.reduce((s, p) => s + p.gramasi, 0) / Math.max(1, batch)
+  const totalDurasiPerUnit  = plates.reduce((s, p) => s + p.durasiJam, 0) / Math.max(1, batch)
   const today = new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
 
   async function handleExportJpeg() {
@@ -292,17 +293,17 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
                           {plate.tipe}
                         </td>
                         <td style={{ padding: "7px 0", borderBottom: "1px solid #f3f4f6", fontSize: 12, textAlign: "right" }}>
-                          {plate.gramasi.toFixed(1)}g
+                          {(plate.gramasi / Math.max(1, batch)).toFixed(1)}g
                         </td>
                         <td style={{ padding: "7px 0", borderBottom: "1px solid #f3f4f6", fontSize: 12, textAlign: "right" }}>
-                          {fmtDurasi(plate.durasiJam)}
+                          {fmtDurasi(plate.durasiJam / Math.max(1, batch))}
                         </td>
                       </tr>
                     ))}
                     <tr>
                       <td colSpan={2} style={{ padding: "9px 0 0", fontSize: 12, fontWeight: 700, borderTop: "2px solid #e5e7eb" }}>TOTAL</td>
-                      <td style={{ padding: "9px 0 0", fontSize: 12, fontWeight: 700, textAlign: "right", borderTop: "2px solid #e5e7eb" }}>{totalGramasi.toFixed(1)}g</td>
-                      <td style={{ padding: "9px 0 0", fontSize: 12, fontWeight: 700, textAlign: "right", borderTop: "2px solid #e5e7eb" }}>{fmtDurasi(totalDurasi)}</td>
+                      <td style={{ padding: "9px 0 0", fontSize: 12, fontWeight: 700, textAlign: "right", borderTop: "2px solid #e5e7eb" }}>{totalGramasiPerUnit.toFixed(1)}g/unit</td>
+                      <td style={{ padding: "9px 0 0", fontSize: 12, fontWeight: 700, textAlign: "right", borderTop: "2px solid #e5e7eb" }}>{fmtDurasi(totalDurasiPerUnit)}/unit</td>
                     </tr>
                   </tbody>
                 </table>
@@ -318,11 +319,11 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
                 </div>
                 <div>
                   <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "#666" }}>Total Gramasi</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>{(totalGramasi * qty).toFixed(1)}g</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>{(totalGramasiPerUnit * qty).toFixed(1)}g</div>
                 </div>
                 <div>
                   <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "#666" }}>Waktu / unit</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>{fmtDurasi(totalDurasi)}</div>
+                  <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>{fmtDurasi(totalDurasiPerUnit)}</div>
                 </div>
               </div>
 

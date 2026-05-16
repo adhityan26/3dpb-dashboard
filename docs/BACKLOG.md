@@ -99,3 +99,20 @@
 - DB: tambah `filamentId String?` ke KalkulasiPlate (FK ke FilamentHarga)
 - UI: tambah dropdown filamen di PlateTable per row (setelah printer selector)
 - Formula: update `hitungKalkulasi()` agar terima `hargaPerGram` per plate
+
+---
+## Shopee Product Cache (Local DB)
+
+### Problem
+- Setiap load halaman Shopee → fetch ke Shopee API (lambat, heavy)
+- Sering timeout, tidak bisa di-load
+
+### Solution
+- Cache di SQLite: `ProductCache { productId, name, status, priceMin, priceMax, stockTotal, variants JSON, cachedAt }`
+- Serve dari cache dulu, reload manual dari Shopee
+- UI di tab Shopee: 3 tombol reload:
+  - 🔄 Full Reload — semua metadata dari Shopee
+  - 💰 Reload Harga — price_info only
+  - 📦 Reload Stok — stock_info only
+- Cache invalidation: manual only (untuk hemat quota Shopee API)
+- Show "last updated X ago" timestamp

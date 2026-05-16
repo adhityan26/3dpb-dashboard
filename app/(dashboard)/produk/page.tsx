@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { FilamenTab } from "@/components/filamen/FilamenTab"
 import { KalkulasiTab } from "@/components/kalkulator/KalkulasiTab"
 import { KatalogTab } from "@/components/katalog/KatalogTab"
+import { InvoiceClientPage } from "@/components/invoice/InvoiceClientPage"
 import { ProductsKpiBar } from "@/components/products/ProductsKpiBar"
 import { ProductFilter } from "@/components/products/ProductFilter"
 import { ProductList } from "@/components/products/ProductList"
@@ -33,10 +34,10 @@ function ProdukPageInner() {
   const uploadImage = useUploadProductImage()
   const router = useRouter()
   const searchParams = useSearchParams()
-  const VALID_TABS = ["katalog", "produk", "kalkulator", "filamen"] as const
+  const VALID_TABS = ["katalog", "invoice", "produk", "kalkulator", "filamen"] as const
   type ProdukTab = typeof VALID_TABS[number]
-  const rawTab = searchParams.get("tab") ?? "produk"
-  const produkTab: ProdukTab = (VALID_TABS as readonly string[]).includes(rawTab) ? rawTab as ProdukTab : "produk"
+  const rawTab = searchParams.get("tab") ?? "katalog"
+  const produkTab: ProdukTab = (VALID_TABS as readonly string[]).includes(rawTab) ? rawTab as ProdukTab : "katalog"
   function setProdukTab(tab: ProdukTab) {
     const params = new URLSearchParams(searchParams.toString())
     params.set("tab", tab)
@@ -105,52 +106,35 @@ function ProdukPageInner() {
 
   return (
     <div className="space-y-4">
-      {/* Sub-tab nav: Katalog / Shopee / Kalkulator / Filamen */}
-      <div className="flex border-b border-gray-200">
-        <button
-          onClick={() => setProdukTab("katalog")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            produkTab === "katalog"
-              ? "border-indigo-500 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400"
-              : "border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
-          }`}
-        >
-          📦 Katalog
-        </button>
-        <button
-          onClick={() => setProdukTab("produk")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            produkTab === "produk"
-              ? "border-[#EE4D2D] text-[#EE4D2D]"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          🛍️ Shopee
-        </button>
-        <button
-          onClick={() => setProdukTab("kalkulator")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            produkTab === "kalkulator"
-              ? "border-indigo-500 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400"
-              : "border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
-          }`}
-        >
-          🧮 Kalkulator
-        </button>
-        <button
-          onClick={() => setProdukTab("filamen")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-            produkTab === "filamen"
-              ? "border-[#EE4D2D] text-[#EE4D2D]"
-              : "border-transparent text-gray-500 hover:text-gray-700"
-          }`}
-        >
-          🧵 Filamen
-        </button>
+      {/* Sub-tab nav */}
+      <div className="flex border-b border-gray-200 flex-wrap">
+        {([
+          ["katalog",   "📦 Katalog",    "indigo"],
+          ["invoice",   "📄 Invoice",    "indigo"],
+          ["produk",    "🛍️ Shopee",    "shopee"],
+          ["kalkulator","🧮 Kalkulator", "indigo"],
+          ["filamen",   "🧵 Filamen",   "shopee"],
+        ] as [ProdukTab, string, string][]).map(([key, label, color]) => (
+          <button
+            key={key}
+            onClick={() => setProdukTab(key)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+              produkTab === key
+                ? color === "shopee"
+                  ? "border-[#EE4D2D] text-[#EE4D2D]"
+                  : "border-indigo-500 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400"
+                : "border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
       </div>
 
       {produkTab === "katalog" ? (
         <KatalogTab />
+      ) : produkTab === "invoice" ? (
+        <InvoiceClientPage />
       ) : produkTab === "kalkulator" ? (
         <KalkulasiTab />
       ) : produkTab === "filamen" ? (
