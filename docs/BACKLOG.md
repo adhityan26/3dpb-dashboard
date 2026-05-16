@@ -230,3 +230,37 @@ model PurchaseOrderReceiveItem {
 - PO Detail: items + receive history + total
 - "Receive" button → form qty per item
 - Auto-suggest untuk matching catalog
+
+---
+## Homelab Assistant Setup (Sesi Terpisah)
+
+### Goal
+Claude Code berjalan di homelab sebagai asisten yang persistent dan bisa diakses dari mana saja.
+
+### Stack
+- **Claude Code CLI** di homelab server (via tmux, persistent session)
+- **Discord Bot** sebagai interface utama (akses dari HP, laptop, mana saja)
+- **Ollama + vision model** (llava/llama3.2-vision) untuk OCR lokal gratis
+- SSH + tmux attach untuk sesi coding
+
+### Flow
+```
+Discord message → Bot → Claude Code on homelab → response ke Discord
+```
+
+### Fitur yang diinginkan
+- Chat via Discord → Claude merespons dan bisa akses codebase
+- Bisa trigger build/deploy dari Discord
+- OCR invoice via Discord (foto → parse → PO draft)
+- Session coding persistent, tidak putus kalau laptop ganti
+
+### Setup yang perlu dilakukan (di sesi terpisah)
+1. Install Ollama + llava di homelab
+2. Ganti endpoint OCR di 3PB dashboard dari Gemini → Ollama
+3. Setup Claude Code di homelab (tmux persistent)
+4. Buat Discord Bot + connect ke Claude Code
+5. Integrasikan Discord bot dengan dashboard 3PB (trigger actions)
+
+### Notes
+- Buat sesi Claude Code baru yang dedicated untuk setup ini
+- Sesi 3PB Dashboard tetap terpisah
