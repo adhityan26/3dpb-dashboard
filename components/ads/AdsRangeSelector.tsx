@@ -1,14 +1,14 @@
 "use client"
 
 import { Button } from "@/components/ui/button"
-import type { AdsRange } from "@/lib/ads/service"
+import type { FlexRange } from "@/lib/dateRange"
 
 interface Props {
-  value: AdsRange
-  onChange: (value: AdsRange) => void
+  value: FlexRange
+  onChange: (value: FlexRange) => void
 }
 
-const OPTIONS: Array<{ key: AdsRange; label: string }> = [
+const OPTIONS: Array<{ key: string; label: string }> = [
   { key: "7d", label: "7 Hari" },
   { key: "30d", label: "30 Hari" },
 ]
@@ -24,7 +24,7 @@ export function AdsRangeSelector({ value, onChange }: Props) {
             key={opt.key}
             variant={isActive ? "default" : "ghost"}
             size="sm"
-            onClick={() => onChange(opt.key)}
+            onClick={() => onChange(opt.key as FlexRange)}
             className={
               isActive
                 ? "bg-indigo-600 hover:bg-indigo-700 text-white h-8"

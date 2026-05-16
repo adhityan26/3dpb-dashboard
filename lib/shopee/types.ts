@@ -160,6 +160,12 @@ export interface ShopeeItemBaseInfo {
     image_url_list?: string[]
     image_id_list?: string[]
   }
+  weight?: number        // in kg
+  dimension?: {
+    package_length?: number  // cm
+    package_width?: number   // cm
+    package_height?: number  // cm
+  }
 }
 
 export interface ShopeeItemBaseInfoResponse {

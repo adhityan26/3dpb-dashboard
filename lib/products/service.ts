@@ -86,14 +86,19 @@ export async function getProducts(): Promise<ProductsListResult> {
       }),
     )
     for (const { itemId, models } of results) {
-      const variants: VariantSummary[] = models.map((m) => ({
-        variantId: String(m.model_id),
-        variantName: m.model_name ?? `Varian ${m.model_id}`,
-        sku: m.model_sku ?? null,
-        stock: m.stock_info_v2?.summary_info?.total_available_stock ?? 0,
-        price: m.price_info?.[0]?.current_price ?? 0,
-        hpp: null,
-      }))
+      const variants: VariantSummary[] = models.map((m) => {
+        const current = m.price_info?.[0]?.current_price ?? 0
+        const original = m.price_info?.[0]?.original_price ?? 0
+        return {
+          variantId: String(m.model_id),
+          variantName: m.model_name ?? `Varian ${m.model_id}`,
+          sku: m.model_sku ?? null,
+          stock: m.stock_info_v2?.summary_info?.total_available_stock ?? 0,
+          price: current,
+          originalPrice: original > 0 && original > current ? original : null,
+          hpp: null,
+        }
+      })
       variantsByItem.set(itemId, variants)
     }
   }
@@ -146,6 +151,19 @@ export async function getProducts(): Promise<ProductsListResult> {
     const priceMin = prices.length > 0 ? Math.min(...prices) : 0
     const priceMax = prices.length > 0 ? Math.max(...prices) : 0
 
+    // Original price for strikethrough (only when there's a discount)
+    const origPrices = hasVariants
+      ? variants.map((v) => v.originalPrice).filter((p): p is number => p !== null && p > 0)
+      : (() => { const op = b.price_info?.[0]?.original_price ?? 0; return op > priceMin ? [op] : [] })()
+    const originalPriceMin = origPrices.length > 0 ? Math.min(...origPrices) : null
+
+    // Weight and dimensions
+    const weight = b.weight ?? null
+    const dim = b.dimension
+    const dimensionCm = (dim?.package_length && dim?.package_width && dim?.package_height)
+      ? { l: dim.package_length, w: dim.package_width, h: dim.package_height }
+      : null
+
     const stats = soldStats.get(productIdStr) ?? { qty: 0, omzet: 0 }
     const katalog = katalogByItemId.get(productIdStr) ?? null
     const productHpp = katalog?.hppTotal ?? null
@@ -172,6 +190,9 @@ export async function getProducts(): Promise<ProductsListResult> {
       stockTotal,
       priceMin,
       priceMax,
+      originalPriceMin,
+      weight,
+      dimensionCm,
       hpp: productHpp,
       katalog,
       variants,

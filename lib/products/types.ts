@@ -11,6 +11,7 @@ export interface VariantSummary {
   sku: string | null
   stock: number
   price: number
+  originalPrice: number | null  // null = no discount active
   hpp: number | null
 }
 
@@ -32,6 +33,9 @@ export interface ProductSummary {
   stockTotal: number
   priceMin: number
   priceMax: number
+  originalPriceMin: number | null  // for strikethrough display
+  weight: number | null            // kg
+  dimensionCm: { l: number; w: number; h: number } | null
   /** HPP sourced from linked ProdukInternal.primaryKalkulasi.hppTotal. Null if no katalog link. */
   hpp: number | null
   /** Full katalog record if this Shopee item has a ProdukInternal link. */
