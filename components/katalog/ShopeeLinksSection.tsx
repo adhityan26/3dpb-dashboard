@@ -1,12 +1,23 @@
 "use client"
 
 import { useState } from "react"
-import { useAddShopeeLink, useRemoveShopeeLink } from "@/lib/hooks/use-katalog"
+import { useAddShopeeLink, useRemoveShopeeLink, useSetVariantKalkulasi } from "@/lib/hooks/use-katalog"
+import { useKalkulasiList } from "@/lib/hooks/use-kalkulator"
 import { useProducts } from "@/lib/hooks/use-products"
+
+function fmt(n: number) { return `Rp ${Math.round(n).toLocaleString("id-ID")}` }
 
 interface LinkItem {
   id: string
   shopeeItemId: string
+  shopeeModelId: string | null
+  namaProduk: string | null
+  kalkulasiId: string | null
+  kalkulasiNama: string | null
+  hppTotal: number | null
+  floorPrice: number | null
+  shopeeA: number | null
+  offlineA: number | null
 }
 
 interface Props {
@@ -17,22 +28,25 @@ interface Props {
 export function ShopeeLinksSection({ produkId, links }: Props) {
   const [search, setSearch] = useState("")
   const [showSearch, setShowSearch] = useState(false)
+  const [expandedLink, setExpandedLink] = useState<string | null>(null)
+  const [kalkSearch, setKalkSearch] = useState("")
 
   const addLink = useAddShopeeLink()
   const removeLink = useRemoveShopeeLink()
+  const setVariantKalk = useSetVariantKalkulasi()
 
   const { data: productsData } = useProducts()
+  const { data: kalkulasiList } = useKalkulasiList()
   const allProducts = productsData?.products ?? []
+  const allKalkulasi = kalkulasiList ?? []
 
   const linkedIds = new Set(links.map(l => l.shopeeItemId))
 
   const searchResults = search.trim()
-    ? allProducts
-        .filter(p =>
-          p.name.toLowerCase().includes(search.toLowerCase()) ||
-          p.productId.toLowerCase().includes(search.toLowerCase())
-        )
-        .slice(0, 6)
+    ? allProducts.filter(p =>
+        p.name.toLowerCase().includes(search.toLowerCase()) ||
+        p.productId.toLowerCase().includes(search.toLowerCase())
+      ).slice(0, 6)
     : allProducts.slice(0, 6)
 
   async function handleAdd(shopeeItemId: string) {
@@ -41,117 +55,173 @@ export function ShopeeLinksSection({ produkId, links }: Props) {
     setSearch("")
   }
 
-  async function handleRemove(shopeeItemId: string) {
+  async function handleRemove(linkId: string, shopeeItemId: string) {
     await removeLink.mutateAsync({ katalogId: produkId, shopeeItemId })
   }
 
+  async function handleSetKalkulasi(linkId: string, kalkulasiId: string | null) {
+    await setVariantKalk.mutateAsync({ katalogId: produkId, linkId, kalkulasiId })
+    setExpandedLink(null)
+  }
+
+  const filteredKalk = kalkSearch.trim()
+    ? allKalkulasi.filter(k => k.nama.toLowerCase().includes(kalkSearch.toLowerCase()))
+    : allKalkulasi
+
   return (
     <div className="space-y-3">
-      <div
-        className="text-[10px] font-semibold uppercase tracking-wider"
-        style={{ color: "rgba(165,180,252,0.6)" }}
-      >
+      <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "rgba(165,180,252,0.6)" }}>
         Link Shopee
       </div>
 
-      {/* Current chips */}
-      <div className="flex flex-wrap gap-2">
-        {links.map(link => (
-          <span
-            key={link.id}
-            className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full"
-            style={{
-              background: "rgba(99,102,241,0.12)",
-              border: "1px solid rgba(99,102,241,0.25)",
-              color: "#a5b4fc",
-            }}
-          >
-            {link.shopeeItemId}
-            <button
-              onClick={() => handleRemove(link.shopeeItemId)}
-              disabled={removeLink.isPending}
-              className="ml-0.5 text-[9px] font-bold transition-all"
-              style={{ color: "rgba(165,180,252,0.5)" }}
-              onMouseEnter={e => (e.currentTarget.style.color = "#f87171")}
-              onMouseLeave={e => (e.currentTarget.style.color = "rgba(165,180,252,0.5)")}
-            >
-              ✕
-            </button>
-          </span>
-        ))}
+      {/* Current links */}
+      <div className="space-y-1.5">
+        {links.map(link => {
+          const product = allProducts.find(p => p.productId === link.shopeeItemId)
+          const isExpanded = expandedLink === link.id
+          const hasVariantKalk = link.kalkulasiId != null
 
-        <button
-          onClick={() => setShowSearch(v => !v)}
-          className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full transition-all"
-          style={{
-            background: "rgba(255,255,255,0.04)",
-            border: "1px dashed rgba(255,255,255,0.15)",
-            color: "rgba(255,255,255,0.45)",
-          }}
-          onMouseEnter={e => {
-            e.currentTarget.style.borderColor = "rgba(99,102,241,0.4)"
-            e.currentTarget.style.color = "#a5b4fc"
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"
-            e.currentTarget.style.color = "rgba(255,255,255,0.45)"
-          }}
-        >
-          + Link Shopee
-        </button>
+          return (
+            <div key={link.id} className="rounded-[8px] overflow-hidden"
+                 style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${hasVariantKalk ? "rgba(99,102,241,0.3)" : "rgba(255,255,255,0.07)"}` }}>
+              <div className="flex items-center gap-2 px-3 py-2">
+                <div className="flex-1 min-w-0">
+                  <div className="text-[11px] font-medium truncate" style={{ color: "rgba(255,255,255,0.8)" }}>
+                    {link.namaProduk ?? product?.name ?? link.shopeeItemId}
+                  </div>
+                  <div className="text-[9px] flex gap-2 mt-0.5">
+                    <span style={{ color: "rgba(255,255,255,0.3)" }}>{link.shopeeItemId}</span>
+                    {link.shopeeModelId && (
+                      <span style={{ color: "rgba(165,180,252,0.5)" }}>model: {link.shopeeModelId}</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Variant kalkulasi badge */}
+                {hasVariantKalk ? (
+                  <div className="text-right flex-shrink-0">
+                    <div className="text-[9px] font-semibold" style={{ color: "#a5b4fc" }}>
+                      🧮 {link.kalkulasiNama ?? "—"}
+                    </div>
+                    {link.hppTotal && (
+                      <div className="text-[9px]" style={{ color: "rgba(52,211,153,0.7)" }}>
+                        HPP: {fmt(link.hppTotal)}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-[9px]" style={{ color: "rgba(255,255,255,0.2)" }}>pakai HPP produk</span>
+                )}
+
+                {/* Actions */}
+                <button
+                  onClick={() => setExpandedLink(isExpanded ? null : link.id)}
+                  className="h-6 px-2 rounded-[5px] text-[9px] transition-all flex-shrink-0"
+                  style={{ background: isExpanded ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.05)", color: isExpanded ? "#a5b4fc" : "rgba(255,255,255,0.4)" }}
+                >
+                  🧮 Kalkulasi
+                </button>
+                <button
+                  onClick={() => handleRemove(link.id, link.shopeeItemId)}
+                  disabled={removeLink.isPending}
+                  className="text-[10px] w-5 h-5 flex items-center justify-center rounded transition-all flex-shrink-0"
+                  style={{ color: "rgba(239,68,68,0.5)" }}
+                  onMouseEnter={e => (e.currentTarget.style.color = "#f87171")}
+                  onMouseLeave={e => (e.currentTarget.style.color = "rgba(239,68,68,0.5)")}
+                >✕</button>
+              </div>
+
+              {/* Kalkulasi picker for this variant */}
+              {isExpanded && (
+                <div className="px-3 pb-3 pt-1 space-y-2"
+                     style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "rgba(165,180,252,0.5)" }}>
+                    Pilih kalkulasi untuk variant ini
+                  </div>
+                  <input
+                    type="text" value={kalkSearch} onChange={e => setKalkSearch(e.target.value)}
+                    placeholder="Cari kalkulasi..."
+                    className="glass-input w-full h-7 rounded-[6px] px-2 text-[10px]"
+                    autoFocus
+                  />
+                  {hasVariantKalk && (
+                    <button
+                      onClick={() => handleSetKalkulasi(link.id, null)}
+                      disabled={setVariantKalk.isPending}
+                      className="w-full h-7 rounded-[6px] text-[10px] transition-all"
+                      style={{ background: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.15)" }}
+                    >
+                      Lepas kalkulasi variant → pakai HPP produk
+                    </button>
+                  )}
+                  <div className="space-y-1 max-h-36 overflow-y-auto">
+                    {filteredKalk.map(k => (
+                      <div
+                        key={k.id}
+                        onClick={() => handleSetKalkulasi(link.id, k.id)}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-[6px] cursor-pointer transition-all"
+                        style={{ background: link.kalkulasiId === k.id ? "rgba(99,102,241,0.15)" : "rgba(255,255,255,0.03)", border: `1px solid ${link.kalkulasiId === k.id ? "rgba(99,102,241,0.35)" : "rgba(255,255,255,0.05)"}` }}
+                      >
+                        <div className="flex-1 min-w-0">
+                          <div className="text-[10px] font-medium truncate" style={{ color: "rgba(255,255,255,0.8)" }}>{k.nama}</div>
+                          <div className="text-[9px]" style={{ color: "rgba(255,255,255,0.3)" }}>
+                            HPP: {fmt(k.hppTotal)} · Floor: {fmt(k.floorPrice)}
+                          </div>
+                        </div>
+                        {link.kalkulasiId === k.id && (
+                          <span className="text-[9px]" style={{ color: "#a5b4fc" }}>✓ Aktif</span>
+                        )}
+                      </div>
+                    ))}
+                    {filteredKalk.length === 0 && (
+                      <div className="text-[10px] text-center py-2" style={{ color: "rgba(255,255,255,0.25)" }}>
+                        Tidak ada kalkulasi ditemukan
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })}
       </div>
 
-      {/* Search panel */}
+      {/* Add new link button */}
+      <button
+        onClick={() => setShowSearch(v => !v)}
+        className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full transition-all"
+        style={{ background: "rgba(255,255,255,0.04)", border: "1px dashed rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.45)" }}
+        onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(99,102,241,0.4)"; e.currentTarget.style.color = "#a5b4fc" }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.color = "rgba(255,255,255,0.45)" }}
+      >
+        + Link Shopee
+      </button>
+
       {showSearch && (
-        <div
-          className="rounded-[12px] p-3 space-y-2"
-          style={{
-            background: "rgba(0,0,0,0.25)",
-            border: "1px solid rgba(255,255,255,0.07)",
-          }}
-        >
-          <input
-            type="text"
-            placeholder="Cari produk Shopee..."
-            value={search}
+        <div className="rounded-[10px] p-3 space-y-2"
+             style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
+          <input type="text" placeholder="Cari produk Shopee..." value={search}
             onChange={e => setSearch(e.target.value)}
-            className="glass-input w-full h-8 rounded-[8px] px-3 text-[11px]"
-            autoFocus
-          />
+            className="glass-input w-full h-8 rounded-[8px] px-3 text-[11px]" autoFocus />
           <div className="space-y-1">
             {searchResults.map(p => {
-              const isLinked = linkedIds.has(p.productId)
+              const linked = linkedIds.has(p.productId)
               return (
-                <div
-                  key={p.productId}
-                  className="flex items-center gap-2 px-2.5 py-2 rounded-[8px] transition-all"
-                  style={{
-                    background: isLinked ? "rgba(99,102,241,0.1)" : "rgba(255,255,255,0.03)",
-                    border: `1px solid ${isLinked ? "rgba(99,102,241,0.25)" : "rgba(255,255,255,0.05)"}`,
-                    cursor: isLinked ? "default" : "pointer",
-                  }}
-                  onClick={() => !isLinked && handleAdd(p.productId)}
-                >
+                <div key={p.productId}
+                     className="flex items-center gap-2 px-2.5 py-2 rounded-[8px] transition-all"
+                     style={{ background: linked ? "rgba(99,102,241,0.1)" : "rgba(255,255,255,0.03)", border: `1px solid ${linked ? "rgba(99,102,241,0.25)" : "rgba(255,255,255,0.05)"}`, cursor: linked ? "default" : "pointer" }}
+                     onClick={() => !linked && handleAdd(p.productId)}>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[11px] font-medium truncate" style={{ color: "rgba(255,255,255,0.8)" }}>
-                      {p.name}
-                    </div>
-                    <div className="text-[9px]" style={{ color: "rgba(255,255,255,0.3)" }}>
-                      {p.productId}
-                    </div>
+                    <div className="text-[11px] font-medium truncate" style={{ color: "rgba(255,255,255,0.8)" }}>{p.name}</div>
+                    <div className="text-[9px]" style={{ color: "rgba(255,255,255,0.3)" }}>{p.productId}</div>
                   </div>
-                  {isLinked
-                    ? <span className="text-[10px] flex-shrink-0" style={{ color: "#a5b4fc" }}>✓</span>
-                    : <span className="text-[10px] flex-shrink-0" style={{ color: "rgba(99,102,241,0.6)" }}>+ Link</span>
+                  {linked
+                    ? <span className="text-[10px]" style={{ color: "#a5b4fc" }}>✓</span>
+                    : <span className="text-[10px]" style={{ color: "rgba(99,102,241,0.6)" }}>+ Link</span>
                   }
                 </div>
               )
             })}
-            {searchResults.length === 0 && (
-              <div className="text-[10px] text-center py-3" style={{ color: "rgba(255,255,255,0.25)" }}>
-                Tidak ada produk Shopee ditemukan
-              </div>
-            )}
           </div>
         </div>
       )}

@@ -211,8 +211,9 @@ model KalkulasiHarga {
   status            String   @default("TIDAK_DISET")
   plates               KalkulasiPlate[]
   komponenKustom       KomponenKustom[]
-  produkLinks          KalkulasiProduk[]
-  produkInternalLinks  ProdukInternal[]
+  produkLinks              KalkulasiProduk[]
+  produkInternalLinks      ProdukInternal[]
+  produkInternalShopeeLinks ProdukInternalShopeeLink[]
 }
 
 model KalkulasiPlate {
@@ -289,12 +290,16 @@ model ProdukHistory {
 }
 
 model ProdukInternalShopeeLink {
-  id               String         @id @default(cuid())
+  id               String          @id @default(cuid())
   produkInternalId String
-  produkInternal   ProdukInternal @relation(fields: [produkInternalId], references: [id], onDelete: Cascade)
+  produkInternal   ProdukInternal  @relation(fields: [produkInternalId], references: [id], onDelete: Cascade)
   shopeeItemId     String
+  shopeeModelId    String?         // Shopee variant/model ID — null means product-level link
+  kalkulasiId      String?         // Override kalkulasi for this specific variant
+  kalkulasi        KalkulasiHarga? @relation(fields: [kalkulasiId], references: [id], onDelete: SetNull)
+  namaProduk       String?         // Display name for this variant (e.g. "Flexi Shark S - Blue")
 
-  @@unique([produkInternalId, shopeeItemId])
+  @@unique([produkInternalId, shopeeItemId, shopeeModelId])
 }
 
 model Quotation {

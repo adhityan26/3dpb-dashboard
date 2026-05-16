@@ -7,7 +7,10 @@ const INCLUDE_ALL = {
       plates: { orderBy: { urutan: 'asc' as const } },
     },
   },
-  shopeeLinks: true,
+  shopeeLinks: {
+    include: { kalkulasi: true },
+    orderBy: { id: 'asc' as const },
+  },
   history: {
     select: { qty: true, tanggal: true },
     orderBy: { tanggal: 'desc' as const },
@@ -49,10 +52,21 @@ function toProdukInternalData(raw: any): ProdukInternalData {
       gramasi: p.gramasi,
       durasiJam: p.durasiJam,
     })),
-    shopeeLinks: (raw.shopeeLinks ?? []).map((l: any) => ({
-      id: l.id,
-      shopeeItemId: l.shopeeItemId,
-    })),
+    shopeeLinks: (raw.shopeeLinks ?? []).map((l: any) => {
+      const vk = l.kalkulasi ?? null
+      return {
+        id: l.id,
+        shopeeItemId: l.shopeeItemId,
+        shopeeModelId: l.shopeeModelId ?? null,
+        namaProduk: l.namaProduk ?? null,
+        kalkulasiId: l.kalkulasiId ?? null,
+        kalkulasiNama: vk?.nama ?? null,
+        hppTotal: vk?.hppTotal ?? null,
+        floorPrice: vk?.floorPrice ?? null,
+        shopeeA: vk?.shopeeA ?? null,
+        offlineA: vk?.offlineA ?? null,
+      }
+    }),
     historyStats,
     createdAt: raw.createdAt.toISOString(),
     updatedAt: raw.updatedAt.toISOString(),
@@ -123,24 +137,45 @@ export async function deleteKatalog(id: string): Promise<void> {
 export async function addShopeeLink(
   produkInternalId: string,
   shopeeItemId: string,
+  shopeeModelId?: string | null,
+  namaProduk?: string | null,
 ): Promise<void> {
-  await prisma.produkInternalShopeeLink.upsert({
-    where: {
-      produkInternalId_shopeeItemId: { produkInternalId, shopeeItemId },
-    },
-    create: { produkInternalId, shopeeItemId },
-    update: {},
+  const modelId = shopeeModelId ?? null
+  // Use deleteMany+create (upsert doesn't work well with nullable composite keys)
+  const existing = await prisma.produkInternalShopeeLink.findFirst({
+    where: { produkInternalId, shopeeItemId, shopeeModelId: modelId },
   })
+  if (!existing) {
+    await prisma.produkInternalShopeeLink.create({
+      data: { produkInternalId, shopeeItemId, shopeeModelId: modelId, namaProduk: namaProduk ?? null },
+    })
+  } else if (namaProduk !== undefined) {
+    await prisma.produkInternalShopeeLink.update({
+      where: { id: existing.id },
+      data: { namaProduk: namaProduk ?? null },
+    })
+  }
 }
 
 export async function removeShopeeLink(
   produkInternalId: string,
   shopeeItemId: string,
+  shopeeModelId?: string | null,
 ): Promise<void> {
-  await prisma.produkInternalShopeeLink.delete({
-    where: {
-      produkInternalId_shopeeItemId: { produkInternalId, shopeeItemId },
-    },
+  const modelId = shopeeModelId ?? null
+  await prisma.produkInternalShopeeLink.deleteMany({
+    where: { produkInternalId, shopeeItemId, shopeeModelId: modelId },
+  })
+}
+
+/** Link or unlink a kalkulasi to a specific Shopee variant */
+export async function setVariantKalkulasi(
+  linkId: string,
+  kalkulasiId: string | null,
+): Promise<void> {
+  await prisma.produkInternalShopeeLink.update({
+    where: { id: linkId },
+    data: { kalkulasiId },
   })
 }
 

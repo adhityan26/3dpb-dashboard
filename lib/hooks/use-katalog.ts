@@ -78,6 +78,24 @@ export function useRemoveShopeeLink() {
   })
 }
 
+/** Set or clear kalkulasi for a specific Shopee variant link */
+export function useSetVariantKalkulasi() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ katalogId, linkId, kalkulasiId }: { katalogId: string; linkId: string; kalkulasiId: string | null }) =>
+      apiFetch<void>(`/api/katalog/${katalogId}/shopee-links/${linkId}/kalkulasi`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kalkulasiId }),
+      }),
+    onSuccess: (_, { katalogId }) => {
+      qc.invalidateQueries({ queryKey: KATALOG_KEY })
+      qc.invalidateQueries({ queryKey: [...KATALOG_KEY, katalogId] })
+      qc.invalidateQueries({ queryKey: ['products'] })
+    },
+  })
+}
+
 export function useSetKatalogKalkulasi() {
   const qc = useQueryClient()
   return useMutation({
