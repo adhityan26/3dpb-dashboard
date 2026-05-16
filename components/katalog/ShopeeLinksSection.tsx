@@ -36,9 +36,9 @@ export function ShopeeLinksSection({ produkId, links }: Props) {
   const setVariantKalk = useSetVariantKalkulasi()
 
   const { data: productsData } = useProducts()
-  const { data: kalkulasiList } = useKalkulasiList()
+  const { data: kalkulasiData } = useKalkulasiList()
   const allProducts = productsData?.products ?? []
-  const allKalkulasi = kalkulasiList ?? []
+  const allKalkulasi = (kalkulasiData as { items?: unknown[] } | null)?.items ?? [] as { id: string; nama: string; hppTotal: number; floorPrice: number }[]
 
   const linkedIds = new Set(links.map(l => l.shopeeItemId))
 
