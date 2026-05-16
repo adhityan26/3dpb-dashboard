@@ -15,9 +15,10 @@ import { PrintableQuote } from "./PrintableQuote"
 interface PlateRow {
   key: string
   namaPart?: string
-  tipe: "FDM" | "SLA"
+  tipe?: "FDM" | "SLA"
   printer?: string
-  gramasi: number
+  gramasi?: number
+  materials?: import("@/lib/kalkulator/types").FilamentEntry[]
   durasiJam: number
 }
 
@@ -71,7 +72,8 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
       namaPart: p.namaPart ?? undefined,
       tipe: p.tipe as "FDM" | "SLA",
       printer: p.printer ?? undefined,
-      gramasi: p.gramasi,
+      gramasi: p.gramasi ?? 0,
+      materials: p.materials,
       durasiJam: p.durasiJam,
     })) ?? [DEFAULT_PLATE]
   )
@@ -95,7 +97,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   // Real-time calculation — no API call
   const hasil: HasilKalkulasi | null = useMemo(() => {
     if (!ratesData) return null
-    const validPlates = plates.filter(p => p.gramasi > 0 && p.durasiJam > 0)
+    const validPlates = plates.filter(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0) && p.durasiJam > 0)
     if (validPlates.length === 0) return null
     try {
       return hitungKalkulasi(
@@ -119,7 +121,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   const isEditing = !!initial
 
   async function handleSave() {
-    if (!nama.trim() || plates.filter(p => p.gramasi > 0).length === 0) return
+    if (!nama.trim() || plates.filter(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0)).length === 0) return
     const input: KalkulasiInput = {
       nama: nama.trim(),
       batch: Math.max(1, batch),
@@ -130,11 +132,12 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
       gantunganType: aksesori.gantunganType,
       switchQty: aksesori.switchQty,
       hasLabel: aksesori.hasLabel,
-      plates: plates.filter(p => p.gramasi > 0).map(p => ({
+      plates: plates.filter(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0)).map(p => ({
         namaPart: p.namaPart,
         tipe: p.tipe,
         printer: p.printer,
-        gramasi: p.gramasi,
+        gramasi: p.gramasi ?? 0,
+        materials: p.materials,
         durasiJam: p.durasiJam,
       })),
       komponenKustom: aksesori.komponenKustom
@@ -156,7 +159,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   }
 
   const isSaving = createMut.isPending || updateMut.isPending
-  const hasValidInput = nama.trim().length > 0 && plates.some(p => p.gramasi > 0)
+  const hasValidInput = nama.trim().length > 0 && plates.some(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0))
   const [showPrint, setShowPrint] = useState(false)
 
   // Fallback rates for AksesoriSection while ratesData is loading
@@ -385,7 +388,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
       <PrintableQuote
         nama={nama || "Kalkulasi"}
         batch={Math.max(1, batch)}
-        plates={plates.filter(p => p.gramasi > 0)}
+        plates={plates.filter(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0))}
         hasil={hasil}
         marginTier={marginTier}
         initialHargaShopee={shopeeIsLocked ? (linkedShopeePrice ?? undefined) : (hargaShopee && hargaShopee > 0 ? hargaShopee : undefined)}
