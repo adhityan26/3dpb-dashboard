@@ -50,6 +50,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
   const [title, setTitle] = useState(nama)
   const [qty, setQty] = useState(batch)
   const [includeOngkir, setIncludeOngkir] = useState(false)
+  const [showDetail, setShowDetail] = useState(false)  // default OFF for customer
   const [offlineStr, setOfflineStr] = useState("")
   const [shopeeStr, setShopeeStr] = useState(initialHargaShopee ? String(initialHargaShopee) : "")
   const [buyerName, setBuyerName] = useState("")
@@ -246,6 +247,20 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
             </div>
 
             <div>
+              <div className={ctrlLabel} style={ctrlColor}>Tampilan</div>
+              <label className="flex items-center gap-2 cursor-pointer py-2 px-3 rounded-[8px] transition-all"
+                     style={{ background: showDetail ? "rgba(99,102,241,0.1)" : "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+                <input type="checkbox" checked={showDetail} onChange={e => setShowDetail(e.target.checked)} className="w-4 h-4 accent-indigo-500" />
+                <span className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>
+                  Tampilkan detail teknis
+                </span>
+              </label>
+              <div className="text-[10px] mt-1" style={{ color: "rgba(255,255,255,0.25)" }}>
+                (gramasi, waktu, part list)
+              </div>
+            </div>
+
+            <div>
               <div className={ctrlLabel} style={ctrlColor}>Ongkir</div>
               <label className="flex items-center gap-2 cursor-pointer py-2 px-3 rounded-[8px] transition-all"
                      style={{ background: includeOngkir ? "rgba(99,102,241,0.1)" : "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
@@ -285,8 +300,8 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
 
               <hr style={{ border: "none", borderTop: "2px solid #111", marginBottom: 14 }} />
 
-              {/* Parts table — no Printer column */}
-              {plates.filter(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0)).length > 0 && (
+              {/* Parts table + Summary — only when showDetail */}
+              {showDetail && plates.filter(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0)).length > 0 && (
                 <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: 14 }}>
                   <thead>
                     <tr>
@@ -332,23 +347,25 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
                 </table>
               )}
 
-              <hr style={{ border: "none", borderTop: "1px solid #e5e7eb", margin: "14px 0" }} />
-
-              {/* Summary */}
-              <div style={{ display: "flex", gap: 24, marginBottom: 4 }}>
-                <div>
-                  <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "#666" }}>Qty</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>{qty} pcs</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "#666" }}>Total Gramasi</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>{(totalGramasiPerUnit * qty).toFixed(1)}g</div>
-                </div>
-                <div>
-                  <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "#666" }}>Waktu / unit</div>
-                  <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>{fmtDurasi(totalDurasiPerUnit)}</div>
-                </div>
-              </div>
+              {showDetail && (
+                <>
+                  <hr style={{ border: "none", borderTop: "1px solid #e5e7eb", margin: "14px 0" }} />
+                  <div style={{ display: "flex", gap: 24, marginBottom: 4 }}>
+                    <div>
+                      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "#666" }}>Qty</div>
+                      <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>{qty} pcs</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "#666" }}>Total Gramasi</div>
+                      <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>{(totalGramasiPerUnit * qty).toFixed(1)}g</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.05em", color: "#666" }}>Waktu / unit</div>
+                      <div style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>{fmtDurasi(totalDurasiPerUnit)}</div>
+                    </div>
+                  </div>
+                </>
+              )}
 
               <hr style={{ border: "none", borderTop: "1px solid #e5e7eb", margin: "14px 0" }} />
 
