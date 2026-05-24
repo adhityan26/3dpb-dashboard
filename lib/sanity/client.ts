@@ -1,6 +1,8 @@
 import { createClient } from '@sanity/client'
 
-const projectId = process.env.SANITY_PROJECT_ID!
+// Fallback 'placeholder' prevents build-time crash when env var is not injected during `docker build`.
+// At runtime the real value is always present (passed via docker run -e).
+const projectId = process.env.SANITY_PROJECT_ID || 'placeholder'
 const dataset = process.env.SANITY_DATASET ?? 'production'
 const apiVersion = process.env.SANITY_API_VERSION ?? '2024-10-01'
 
