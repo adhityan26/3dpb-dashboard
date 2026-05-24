@@ -58,7 +58,7 @@ export function SiteSettingsEditor() {
         {(["whatsapp", "instagram", "email"] as const).map((field) => (
           <div key={field}>
             <label className="block text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: "rgba(165,180,252,0.6)" }}>{field}</label>
-            <input className={inputClass} value={(form.contact as Record<string, string>)[field] ?? ""} onChange={(e) => setContact(field, e.target.value)} />
+            <input className={inputClass} value={(form.contact[field] as string) ?? ""} onChange={(e) => setContact(field, e.target.value)} />
           </div>
         ))}
         <LocalizedField label="Alamat" value={form.contact.address ?? EMPTY_LOC} onChange={(v) => setContact("address", v)} multiline />

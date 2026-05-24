@@ -8,7 +8,7 @@ import { ImageUpload } from "./shared/ImageUpload"
 import type { GalleryItem, LocalizedValue } from "@/lib/sanity/types"
 
 const EMPTY_LOC: LocalizedValue = { id: "", en: "" }
-const EMPTY_FORM = { title: EMPTY_LOC, imageUrl: null as string | null, imageRef: null as string | null, alt: "", category: "custom" as const, caption: EMPTY_LOC, order: 0 }
+const EMPTY_FORM: { title: LocalizedValue; imageUrl: string | null; imageRef: string | null; alt: string; category: GalleryItem["category"]; caption: LocalizedValue; order: number } = { title: EMPTY_LOC, imageUrl: null, imageRef: null, alt: "", category: "custom", caption: EMPTY_LOC, order: 0 }
 
 export function GalleryManager() {
   const { data: items = [], isLoading } = useGallery()
