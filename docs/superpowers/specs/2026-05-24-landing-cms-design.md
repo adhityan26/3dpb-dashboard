@@ -25,9 +25,9 @@ Build a custom CMS interface inside `/landing` that lets operators manage all co
 ### Collections (list + CRUD)
 | Type | Sanity `_type` | Operations |
 |------|----------------|------------|
-| Galeri | `galleryItem` | Create, Read, Update, Delete, reorder |
-| Testimoni | `testimonial` | Create, Read, Update, Delete, reorder |
-| FAQ | `faq` | Create, Read, Update, Delete, reorder |
+| Galeri | `galleryItem` | Create, Read, Update, Delete, drag-to-reorder |
+| Testimoni | `testimonial` | Create, Read, Update, Delete, drag-to-reorder |
+| FAQ | `faq` | Create, Read, Update, Delete, drag-to-reorder |
 | Strava Orders | `stravaMapOrder` | Read, update status only (new/in-progress/done/cancelled) |
 | Waitlist | `waitlistEntry` | Read-only |
 
@@ -151,6 +151,7 @@ components/cms/
     LocalizedField.tsx     Side-by-side 🇮🇩 id / 🇬🇧 en text inputs
     ImageUpload.tsx        Drag-drop or click upload → /api/cms/assets/upload
     CollectionList.tsx     Reusable table: columns, actions, empty state
+    SortableList.tsx       Drag-to-reorder wrapper (dnd-kit) — used by Gallery, Testimoni, FAQ
 
 lib/hooks/
   use-cms.ts               React Query hooks:
@@ -174,6 +175,22 @@ Sanity stores bilingual content as:
 ```
 
 `LocalizedField` component renders two side-by-side inputs (🇮🇩 / 🇬🇧). On save, the API route reconstructs the array format before sending to Sanity. API routes accept flat objects like `{ id: "...", en: "..." }` and convert internally.
+
+---
+
+## Drag-to-Reorder
+
+Applies to: Gallery, Testimoni, FAQ (all have an `order` integer field in Sanity).
+
+**Library:** `@dnd-kit/core` + `@dnd-kit/sortable` (tree-shakeable, no heavy deps).
+
+**Flow:**
+1. User drags item to new position in list
+2. Client recomputes `order` values for all affected items (increments of 10 to leave gaps)
+3. Single `PATCH /api/cms/[type]/reorder` call — body: `[{ id, order }]` array
+4. API route runs Sanity transaction (batch patch) to update all `order` fields atomically
+
+`SortableList` wraps any list with drag handles (⠿ icon on left of each row). Disabled for Strava Orders and Waitlist.
 
 ---
 
@@ -202,7 +219,6 @@ Sanity stores bilingual content as:
 
 ## Out of Scope
 
-- Drag-to-reorder within collections (order field exists in Sanity but reorder UI is deferred)
 - Product management (separate discussion)
 - Global sidebar layout for the whole app (separate session)
 - Preview of the live landing page within the dashboard
