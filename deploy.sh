@@ -88,6 +88,12 @@ docker run -d \
   -e AUTHENTIK_CLIENT_SECRET="$AUTHENTIK_CLIENT_SECRET" \
   -e AUTHENTIK_ISSUER="$AUTHENTIK_ISSUER" \
   -e GEMINI_API_KEY="${GEMINI_API_KEY:-}" \
+  -e HOMELAB_OCR_URL="${HOMELAB_OCR_URL:-}" \
+  -e HOMELAB_OCR_SECRET="${HOMELAB_OCR_SECRET:-}" \
+  -e SANITY_PROJECT_ID="${SANITY_PROJECT_ID:-}" \
+  -e SANITY_DATASET="${SANITY_DATASET:-production}" \
+  -e SANITY_API_VERSION="${SANITY_API_VERSION:-2024-10-01}" \
+  -e SANITY_WRITE_TOKEN="${SANITY_WRITE_TOKEN:-}" \
   "$DEPLOY_IMAGE"
 
 # ── Health check ───────────────────────────────────────────────────────────────
@@ -100,3 +106,10 @@ else
   echo "⚠️   Container jalan tapi belum terdeteksi Ready. Cek logs:"
   docker logs "$CONTAINER" --tail 10
 fi
+
+# ── Cleanup dangling images & build cache ──────────────────────────────────────
+echo "🧹  Membersihkan dangling images & build cache..."
+docker image prune -f       2>/dev/null | grep -E "reclaimed|deleted" || true
+docker builder prune -f     2>/dev/null | grep "reclaimed" || true
+DISK_AFTER=$(docker system df 2>/dev/null | awk '/Images/{print $4}' | head -1)
+echo "    Disk Docker: ${DISK_AFTER:-unknown}"
