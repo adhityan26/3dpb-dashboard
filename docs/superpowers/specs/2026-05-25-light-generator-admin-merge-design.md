@@ -31,11 +31,11 @@ orders/{orderId}/additional.png    — floor insert image (optional)
 - MinIO integration: upload/replace images, download STL
 - STL service integration: trigger generation, preview
 - One-time data migration from `lightgenerator` DB
+- Sanity intake flow: read `lightGeneratorOrder` docs from Sanity, confirm → copy to local DB + MinIO
 - Discord notification channel (add alongside existing Pushover + Telegram)
 - Notification settings: per-channel toggle (Pushover / Telegram / Discord) for all notifications
 
 ### Out of scope (future)
-- Sanity order intake flow (waiting for Sanity schema from user)
 - Customer order form (belongs in 3DPB App)
 - BullMQ / Redis queue (generation is synchronous)
 
@@ -55,6 +55,7 @@ app/api/light-generator/
     route.ts                    — GET list (query: status, limit, offset)
     [id]/
       route.ts                  — GET detail; PATCH status / notesOperator / configJsonOperator
+      confirm/route.ts          — POST → copy Sanity order to local DB + MinIO + notify
       generate/route.ts         — POST → call STL service → save to MinIO → update stlPath
       preview/route.ts          — POST → call STL service preview → return PNG
       silhouette/route.ts       — PUT multipart upload → MinIO → update imagePath
@@ -77,19 +78,19 @@ scripts/
 
 ```prisma
 model LightGeneratorOrder {
-  id                  String   @id
+  id                  String   @id   // "LG-YYYYMMDD-XXXX"
   status              String   @default("submitted")
   customerName        String
   customerContact     String
   notesCustomer       String?
-  size                String
-  shape               String
+  // All generator config fields (size, shape, shapeRatio, shadowDiameter, etc.)
+  // stored as a single JSON blob for simplicity and forward compatibility.
   configJson          String
-  imagePath           String
-  configJsonOperator  String?
-  stlPath             String?
+  imagePath           String   // MinIO key: orders/{id}/input.{ext}
+  configJsonOperator  String?  // operator override — null means use configJson
+  stlPath             String?  // MinIO key: orders/{id}/casing.stl
   notesOperator       String?
-  additionalImagePath String?
+  additionalImagePath String?  // MinIO key: orders/{id}/additional.png
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
@@ -97,6 +98,20 @@ model LightGeneratorOrder {
   @@index([createdAt])
 }
 ```
+
+`configJson` shape (from Sanity schema):
+```json
+{
+  "size": "M",
+  "shape": "circle",
+  "shapeRatio": null,
+  "shadowDiameter": 30,
+  "shadowOffsetX": 0,
+  "shadowOffsetY": 0,
+  "supportStems": true
+}
+```
+`shapeRatio` is `{ width, height }` for `rect`/`oval`, `null` otherwise.
 
 ---
 
@@ -161,6 +176,51 @@ Generates MinIO presigned URL (1 hour), redirects to it.
 - **Images card:** silhouette image (with zoom modal) + upload/replace button; floor insert image (optional, same). Uses existing `ImageZoomModal`.
 - **STL card:** Generate button (triggers `/generate`), shows last generated info, Download button (hits `/stl` redirect). Generate button disabled while `status === "generating"`.
 - **Operator notes:** textarea, save on blur or explicit save button.
+
+---
+
+## Sanity Intake Flow
+
+Orders arrive in Sanity (submitted by customer via 3DPB App). Admin reviews them and confirms payment → order is copied to local DB.
+
+### Sanity Document Type: `lightGeneratorOrder`
+```
+orderId         string   — "LG-YYYYMMDD-XXXX"
+status          string   — 'submitted' | 'paid' | ...
+customerName    string
+customerContact string
+customerNotes   string?
+size            string   — 'S' | 'M' | 'L'
+shape           string   — 'circle' | 'square' | 'triangle' | 'rect' | 'oval'
+shapeRatio      object?  — { width, height } for rect/oval only
+shadowDiameter  number   — cm
+shadowOffsetX   number   — mm
+shadowOffsetY   number   — mm
+supportStems    boolean
+silhouetteImage sanity.imageAsset  — required
+floorInsertImage sanity.imageAsset — optional
+submittedAt     datetime
+```
+
+### New API Route: `POST /api/light-generator/orders/[id]/confirm`
+
+Triggered by admin when order is confirmed/paid. Steps:
+1. Fetch order from Sanity by `orderId`
+2. Download `silhouetteImage` from Sanity CDN → upload to MinIO `orders/{id}/input.png`
+3. Download `floorInsertImage` (if present) → upload to MinIO `orders/{id}/additional.png`
+4. Serialize config fields → `configJson`
+5. `prisma.lightGeneratorOrder.create(...)` with all fields
+6. Send notification (Pushover + Discord + Telegram if enabled): "New LG order confirmed: {id}"
+7. Update Sanity document `status` → `'paid'`
+
+### New UI: "Pending from Sanity" panel on `/light-generator`
+
+Above the main order table, show a collapsible panel of Sanity orders that are NOT yet in local DB (status `submitted`). Columns: orderId, customer name, size, shape, submitted date. Each row has a "Confirm" button that calls the confirm endpoint.
+
+Sanity orders are fetched via existing `sanityRead` client using GROQ:
+```groq
+*[_type == "lightGeneratorOrder" && status == "submitted"] | order(submittedAt desc)
+```
 
 ---
 
