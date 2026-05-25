@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { fetchSanityOrderById, sanityAssetRefToUrl, patchSanityOrderStatus } from "@/lib/light-generator/sanity-helpers"
@@ -64,19 +65,26 @@ export async function POST(
   })
 
   // 5. Create in local DB
-  await prisma.lightGeneratorOrder.create({
-    data: {
-      id,
-      sanityDocId: sanityOrder._id,
-      status: "paid",
-      customerName: sanityOrder.customerName,
-      customerContact: sanityOrder.customerContact,
-      notesCustomer: sanityOrder.customerNotes ?? null,
-      configJson,
-      imagePath,
-      additionalImagePath,
-    },
-  })
+  try {
+    await prisma.lightGeneratorOrder.create({
+      data: {
+        id,
+        sanityDocId: sanityOrder._id,
+        status: "paid",
+        customerName: sanityOrder.customerName,
+        customerContact: sanityOrder.customerContact,
+        notesCustomer: sanityOrder.customerNotes ?? null,
+        configJson,
+        imagePath,
+        additionalImagePath,
+      },
+    })
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return NextResponse.json({ error: "Order already confirmed" }, { status: 409 })
+    }
+    throw err
+  }
 
   // 6. Send notification
   await sendNotification(`✅ New LG order confirmed: ${id} (${sanityOrder.customerName})`)
