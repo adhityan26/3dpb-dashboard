@@ -141,10 +141,15 @@ export async function sendAlert(event: AlertEvent): Promise<{
   anySent: boolean
   results: SendResult[]
 }> {
-  const results = await Promise.all([
+  const settled = await Promise.allSettled([
     sendToTelegram(event),
     sendToPushover(event),
     sendToDiscord(event),
   ])
+  const results: SendResult[] = settled.map((r, i) => {
+    if (r.status === "fulfilled") return r.value
+    const channels = ["telegram", "pushover", "discord"] as const
+    return { ok: false, channel: channels[i], error: String(r.reason) }
+  })
   return { anySent: results.some((r) => r.ok), results }
 }

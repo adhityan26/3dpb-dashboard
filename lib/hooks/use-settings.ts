@@ -53,11 +53,12 @@ export function useUpdateSettings() {
 }
 
 interface TestNotificationVars {
-  channel: "telegram" | "pushover"
+  channel: "telegram" | "pushover" | "discord"
   telegramBotToken?: string
   telegramChatId?: string
   pushoverUserKey?: string
   pushoverAppToken?: string
+  discordWebhookUrl?: string
 }
 
 async function testNotification(
