@@ -9,6 +9,7 @@ export async function GET() {
 
   // Fetch Sanity orders with status "submitted"
   const sanityOrders = await fetchSanityPendingOrders()
+  if (sanityOrders.length === 0) return NextResponse.json([])
 
   // Filter out orders already in local DB
   const localIds = await prisma.lightGeneratorOrder.findMany({
