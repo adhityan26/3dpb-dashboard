@@ -71,7 +71,7 @@ docker run -d \
   --name "$CONTAINER" \
   --restart unless-stopped \
   --network homelab \
-  -p 3000:3000 \
+  -p 3100:3000 \
   -v "$DATA_VOLUME:/app/data" \
   -e DATABASE_URL="$DATABASE_URL" \
   -e NEXTAUTH_URL="$NEXTAUTH_URL" \
