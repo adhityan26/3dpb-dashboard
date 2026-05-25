@@ -2,7 +2,7 @@
 
 ## Goal
 
-Port the admin/order-management functionality from the `light-generator` project into this dashboard (shopee-dashboard). The Python STL service stays as a Docker container; we only add HTTP client calls. Existing data is migrated from the `lightgenerator` PostgreSQL DB. Discord is added as a third notification channel alongside Pushover and Telegram.
+Port the admin/order-management functionality from the `light-generator` project into this dashboard (shopee-dashboard). The Python STL service stays as a Docker container; we only add HTTP client calls. Existing data is migrated from the `lightgenerator` PostgreSQL DB. Discord is added as a third notification channel alongside Pushover and Telegram. Two proxy endpoints (`/api/island-check`, `/api/shadow-preview`) are exposed for the 3dpb-app landing page to call via shared secret.
 
 ## Architecture
 
@@ -56,6 +56,8 @@ app/api/light-generator/
     [id]/
       route.ts                  — GET detail; PATCH status / notesOperator / configJsonOperator
       confirm/route.ts          — POST → copy Sanity order to local DB + MinIO + notify
+  island-check/route.ts         — POST (public + OPS_API_SECRET) → proxy to STL service /check-islands
+  shadow-preview/route.ts       — POST (public + OPS_API_SECRET) → proxy to STL service /preview
       generate/route.ts         — POST → call STL service → save to MinIO → update stlPath
       preview/route.ts          — POST → call STL service preview → return PNG
       silhouette/route.ts       — PUT multipart upload → MinIO → update imagePath
@@ -81,6 +83,7 @@ model LightGeneratorOrder {
   id                  String   @id   // "LG-YYYYMMDD-XXXX"
   sanityDocId         String?         // Sanity _id — stored at confirm time for fast write-back
   status              String   @default("submitted")
+  statusNote          String?         // operator note → synced back to Sanity for customer tracking
   customerName        String
   customerContact     String
   notesCustomer       String?
@@ -137,12 +140,12 @@ Returns: `{ orders: LightGeneratorOrder[], total: number }`
 Returns full order object.
 
 ### `PATCH /api/light-generator/orders/[id]`
-Body: `{ status?, notesOperator?, configJsonOperator? }`
+Body: `{ status?, statusNote?, notesOperator?, configJsonOperator? }`
 1. Update local DB
-2. If `status` changed → update Sanity document `status` field via `sanityWrite.patch(sanityDocId).set({ status }).commit()`
+2. If `status` or `statusNote` changed → patch Sanity document via `sanityWrite.patch(sanityDocId).set({ status, statusNote }).commit()`
 Returns updated order.
 
-> `sanityDocId` is stored on the local record at confirm time — no GROQ lookup needed on each status update. Falls back to GROQ lookup if `sanityDocId` is null (migrated legacy orders).
+> `sanityDocId` is stored on the local record at confirm time — no GROQ lookup needed on each status update. Falls back to GROQ lookup (`*[_type == "lightGeneratorOrder" && orderId == $id][0]._id`) if `sanityDocId` is null (migrated legacy orders).
 
 ### `POST /api/light-generator/orders/[id]/generate`
 1. Read `imagePath` → download from MinIO
@@ -166,6 +169,33 @@ Generates MinIO presigned URL (1 hour), redirects to it.
 
 ---
 
+### `POST /api/island-check` *(public, no dashboard auth)*
+Called by 3dpb-app landing page. Auth via `Authorization: Bearer OPS_API_SECRET`.
+
+Input: `{ imageAssetId: string, config: ShadowConfig }` where `config` follows the 3dpb-app JSON structure:
+```json
+{ "size": "M", "shape": "circle", "shapeRatio": null, "shadow": { "diameter": 15, "offsetX": 0, "offsetY": 0 }, "supportStems": false }
+```
+Flow:
+1. Validate `Authorization` header against `OPS_API_SECRET`
+2. Download image from Sanity CDN by `imageAssetId`
+3. POST multipart to STL service `/check-islands` (image + config_json)
+4. Return `{ hasFloatingIslands: boolean }` or `{ fallback: true }` on error
+
+### `POST /api/shadow-preview` *(public, no dashboard auth)*
+Called by 3dpb-app landing page. Auth via `Authorization: Bearer OPS_API_SECRET`.
+
+Input: `{ imageAssetId: string, config: ShadowConfig }`
+
+Flow:
+1. Validate `Authorization` header against `OPS_API_SECRET`
+2. Download image from Sanity CDN by `imageAssetId`
+3. POST multipart to STL service `/preview` (image + config_json)
+4. Return PNG bytes as `image/png` response (landing page displays inline)
+5. On timeout / error → return `500` (landing page falls back to canvas only)
+
+---
+
 ## UI Pages
 
 ### `/light-generator` — Order List
@@ -180,7 +210,8 @@ Generates MinIO presigned URL (1 hour), redirects to it.
 - **Config card:** shows current effective config (operator override if set, else customer). Edit button opens JSON editor. Save stores to `configJsonOperator`.
 - **Images card:** silhouette image (with zoom modal) + upload/replace button; floor insert image (optional, same). Uses existing `ImageZoomModal`.
 - **STL card:** Generate button (triggers `/generate`), shows last generated info, Download button (hits `/stl` redirect). Generate button disabled while `status === "generating"`.
-- **Operator notes:** textarea, save on blur or explicit save button.
+- **Status note (customer-visible):** textarea labeled "Pesan ke Customer" — synced to Sanity `statusNote`. Displayed on customer order tracking page.
+- **Operator notes (internal):** textarea, internal only, not synced to Sanity.
 
 ---
 
@@ -213,7 +244,7 @@ Triggered by admin when order is confirmed/paid. Steps:
 1. Fetch order from Sanity by `orderId`
 2. Download `silhouetteImage` from Sanity CDN → upload to MinIO `orders/{id}/input.png`
 3. Download `floorInsertImage` (if present) → upload to MinIO `orders/{id}/additional.png`
-4. Serialize config fields → `configJson`
+4. Map Sanity `config` field (JSON string) → local `configJson` (same value, different field name)
 5. `prisma.lightGeneratorOrder.create(...)` with all fields
 6. Send notification (Pushover + Discord + Telegram if enabled): "New LG order confirmed: {id}"
 7. Update Sanity document `status` → `'paid'`
@@ -282,6 +313,9 @@ STL_SERVICE_TOKEN=<from light-generator env>
 
 # Discord
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/1508309106262544615/NfafWldfERGvv0q3sfqm8FdpfdAF5bgy87czruBvjARlWpevpizFclyRp4VzUk7cawNd
+
+# Shared secret for 3dpb-app → dashboard proxy calls (island-check, shadow-preview)
+OPS_API_SECRET=<generate: openssl rand -hex 32>
 ```
 
 ---
