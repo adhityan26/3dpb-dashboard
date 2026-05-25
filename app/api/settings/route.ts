@@ -37,6 +37,8 @@ export async function PATCH(req: NextRequest) {
     if (body.notification && typeof body.notification === "object") {
       const n = body.notification as Record<string, unknown>
       await updateNotificationConfig({
+        telegramEnabled:
+          typeof n.telegramEnabled === "boolean" ? n.telegramEnabled : undefined,
         telegramBotToken:
           typeof n.telegramBotToken === "string" || n.telegramBotToken === null
             ? (n.telegramBotToken as string | null)
@@ -45,6 +47,8 @@ export async function PATCH(req: NextRequest) {
           typeof n.telegramChatId === "string" || n.telegramChatId === null
             ? (n.telegramChatId as string | null)
             : undefined,
+        pushoverEnabled:
+          typeof n.pushoverEnabled === "boolean" ? n.pushoverEnabled : undefined,
         pushoverUserKey:
           typeof n.pushoverUserKey === "string" || n.pushoverUserKey === null
             ? (n.pushoverUserKey as string | null)
@@ -53,6 +57,12 @@ export async function PATCH(req: NextRequest) {
           typeof n.pushoverAppToken === "string" ||
           n.pushoverAppToken === null
             ? (n.pushoverAppToken as string | null)
+            : undefined,
+        discordEnabled:
+          typeof n.discordEnabled === "boolean" ? n.discordEnabled : undefined,
+        discordWebhookUrl:
+          typeof n.discordWebhookUrl === "string" || n.discordWebhookUrl === null
+            ? (n.discordWebhookUrl as string | null)
             : undefined,
       })
     }
