@@ -5,6 +5,7 @@ import { useCmsCounts } from "@/lib/hooks/use-cms"
 type CmsSection =
   | "site-settings" | "gallery" | "testimonials" | "faq"
   | "strava-orders" | "waitlist" | "generator" | "faceshell"
+  | "lg-orders"
 
 interface NavItem {
   section: CmsSection
@@ -39,6 +40,13 @@ const NAV_ITEMS: NavItem[] = [
   },
   { section: "generator", icon: "🎨", label: "Generator" },
   { section: "faceshell", icon: "🕷️", label: "Faceshell" },
+  {
+    section: "lg-orders",
+    icon: "🔦",
+    label: "LG Orders",
+    badge: (c) => c?.lgOrdersPending ?? null,
+    badgeVariant: "alert",
+  },
 ]
 
 interface CMSSidebarProps {

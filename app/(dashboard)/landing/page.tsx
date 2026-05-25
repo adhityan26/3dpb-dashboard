@@ -11,10 +11,12 @@ import { StravaOrdersManager } from "@/components/cms/StravaOrdersManager"
 import { WaitlistViewer } from "@/components/cms/WaitlistViewer"
 import { GeneratorEditor } from "@/components/cms/GeneratorEditor"
 import { FaceshellEditor } from "@/components/cms/FaceshellEditor"
+import { LgOrdersManager } from "@/components/cms/LgOrdersManager"
 
 type CmsSection =
   | "site-settings" | "gallery" | "testimonials" | "faq"
   | "strava-orders" | "waitlist" | "generator" | "faceshell"
+  | "lg-orders"
 
 export default function LandingPage() {
   return (
@@ -28,7 +30,7 @@ function LandingPageInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const rawSection = searchParams.get("section") ?? "site-settings"
-  const validSections: CmsSection[] = ["site-settings", "gallery", "testimonials", "faq", "strava-orders", "waitlist", "generator", "faceshell"]
+  const validSections: CmsSection[] = ["site-settings", "gallery", "testimonials", "faq", "strava-orders", "waitlist", "generator", "faceshell", "lg-orders"]
   const activeSection: CmsSection = validSections.includes(rawSection as CmsSection) ? (rawSection as CmsSection) : "site-settings"
 
   function setSection(section: CmsSection) {
@@ -49,6 +51,7 @@ function LandingPageInner() {
         {activeSection === "waitlist"        && <WaitlistViewer />}
         {activeSection === "generator"       && <GeneratorEditor />}
         {activeSection === "faceshell"       && <FaceshellEditor />}
+        {activeSection === "lg-orders"       && <LgOrdersManager />}
       </div>
     </div>
   )
