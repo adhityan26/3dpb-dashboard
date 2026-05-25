@@ -98,11 +98,11 @@ export interface SiteSettings {
   marketplaceLinks: {
     shopee: string
     tokopedia: string
-    tiktok: string
+    tiktokShop: string
   }
   seo: {
-    title: LocalizedValue
-    description: LocalizedValue
+    defaultTitle: LocalizedValue
+    defaultDescription: LocalizedValue
   }
 }
 
@@ -139,4 +139,5 @@ export interface CmsCounts {
   faq: number
   stravaOrdersNew: number
   waitlist: number
+  lgOrdersPending: number
 }
