@@ -172,27 +172,42 @@ Generates MinIO presigned URL (1 hour), redirects to it.
 ### `POST /api/island-check` *(public, no dashboard auth)*
 Called by 3dpb-app landing page. Auth via `Authorization: Bearer OPS_API_SECRET`.
 
-Input: `{ imageAssetId: string, config: ShadowConfig }` where `config` follows the 3dpb-app JSON structure:
-```json
-{ "size": "M", "shape": "circle", "shapeRatio": null, "shadow": { "diameter": 15, "offsetX": 0, "offsetY": 0 }, "supportStems": false }
+**Request:** `{ imageAssetId: string }`
+
+`imageAssetId` = Sanity asset `_id`. Download image from Sanity CDN:
 ```
+https://cdn.sanity.io/images/<SANITY_PROJECT_ID>/<SANITY_DATASET>/<id_tanpa_prefix_"image-">
+```
+Example: `image-abc123-800x600-png` → `https://cdn.sanity.io/images/.../abc123-800x600.png`
+
 Flow:
-1. Validate `Authorization` header against `OPS_API_SECRET`
+1. Validate `Authorization: Bearer OPS_API_SECRET`
 2. Download image from Sanity CDN by `imageAssetId`
-3. POST multipart to STL service `/check-islands` (image + config_json)
-4. Return `{ hasFloatingIslands: boolean }` or `{ fallback: true }` on error
+3. POST multipart to STL service `/check-islands` (image + config_json `{}`)
+4. Always return `200`:
+   - Success → `{ hasFloatingIslands: boolean }`
+   - Any error → `{ hasFloatingIslands: null, fallback: true }`
 
 ### `POST /api/shadow-preview` *(public, no dashboard auth)*
 Called by 3dpb-app landing page. Auth via `Authorization: Bearer OPS_API_SECRET`.
 
-Input: `{ imageAssetId: string, config: ShadowConfig }`
+**Request:**
+```json
+{
+  "imageAssetId": "image-abc123defg",
+  "config": { "diameter": 15, "offsetX": 0, "offsetY": 0 }
+}
+```
+Note: `config` here is shadow-only (flat, in cm/mm) — not the full order config.
 
 Flow:
-1. Validate `Authorization` header against `OPS_API_SECRET`
+1. Validate `Authorization: Bearer OPS_API_SECRET`
 2. Download image from Sanity CDN by `imageAssetId`
-3. POST multipart to STL service `/preview` (image + config_json)
-4. Return PNG bytes as `image/png` response (landing page displays inline)
-5. On timeout / error → return `500` (landing page falls back to canvas only)
+3. POST multipart to STL service `/preview` (image + config_json containing shadow params)
+4. Upload resulting PNG → MinIO `preview/{hash}.png`
+5. Generate presigned URL (15 min TTL)
+6. Return `200 { previewUrl: string }`
+7. On any error → return `200 { fallback: true }` (landing page timeout is 15s)
 
 ---
 
@@ -315,7 +330,9 @@ STL_SERVICE_TOKEN=<from light-generator env>
 DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/1508309106262544615/NfafWldfERGvv0q3sfqm8FdpfdAF5bgy87czruBvjARlWpevpizFclyRp4VzUk7cawNd
 
 # Shared secret for 3dpb-app → dashboard proxy calls (island-check, shadow-preview)
+# Same value must be set in 3dpb-app as OPS_API_SECRET
 OPS_API_SECRET=<generate: openssl rand -hex 32>
+# Already present: SANITY_PROJECT_ID, SANITY_DATASET — used for Sanity CDN image download
 ```
 
 ---
