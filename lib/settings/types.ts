@@ -1,8 +1,15 @@
 export interface NotificationConfig {
+  // Telegram
+  telegramEnabled: boolean
   telegramBotToken: string | null
   telegramChatId: string | null
+  // Pushover
+  pushoverEnabled: boolean
   pushoverUserKey: string | null
   pushoverAppToken: string | null
+  // Discord
+  discordEnabled: boolean
+  discordWebhookUrl: string | null
 }
 
 export interface AlertThresholds {
@@ -32,10 +39,14 @@ export const DEFAULT_THRESHOLDS: AlertThresholds = {
 }
 
 export const CONFIG_KEYS = {
+  TELEGRAM_ENABLED: "telegram_enabled",
   TELEGRAM_BOT_TOKEN: "telegram_bot_token",
   TELEGRAM_CHAT_ID: "telegram_chat_id",
+  PUSHOVER_ENABLED: "pushover_enabled",
   PUSHOVER_USER_KEY: "pushover_user_key",
   PUSHOVER_APP_TOKEN: "pushover_app_token",
+  DISCORD_ENABLED: "discord_enabled",
+  DISCORD_WEBHOOK_URL: "discord_webhook_url",
   ALERT_STOCK_MIN: "alert_stock_min",
   ALERT_ROAS_MIN: "alert_roas_min",
   ALERT_ORDER_PILEUP_COUNT: "alert_order_pileup_count",

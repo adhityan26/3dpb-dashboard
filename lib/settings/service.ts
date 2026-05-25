@@ -35,17 +35,29 @@ function parseNumber(s: string | null, fallback: number): number {
 }
 
 export async function getNotificationConfig(): Promise<NotificationConfig> {
-  const [botToken, chatId, userKey, appToken] = await Promise.all([
+  const [
+    tgEnabled, botToken, chatId,
+    poEnabled, userKey, appToken,
+    discordEnabled, discordUrl,
+  ] = await Promise.all([
+    getConfigValue(CONFIG_KEYS.TELEGRAM_ENABLED),
     getConfigValue(CONFIG_KEYS.TELEGRAM_BOT_TOKEN),
     getConfigValue(CONFIG_KEYS.TELEGRAM_CHAT_ID),
+    getConfigValue(CONFIG_KEYS.PUSHOVER_ENABLED),
     getConfigValue(CONFIG_KEYS.PUSHOVER_USER_KEY),
     getConfigValue(CONFIG_KEYS.PUSHOVER_APP_TOKEN),
+    getConfigValue(CONFIG_KEYS.DISCORD_ENABLED),
+    getConfigValue(CONFIG_KEYS.DISCORD_WEBHOOK_URL),
   ])
   return {
+    telegramEnabled: tgEnabled === "true",
     telegramBotToken: botToken,
     telegramChatId: chatId,
+    pushoverEnabled: poEnabled === "true",
     pushoverUserKey: userKey,
     pushoverAppToken: appToken,
+    discordEnabled: discordEnabled === "true",
+    discordWebhookUrl: discordUrl,
   }
 }
 
@@ -99,26 +111,22 @@ export async function updateNotificationConfig(
   config: Partial<NotificationConfig>,
 ): Promise<void> {
   const updates: Array<Promise<void>> = []
-  if (config.telegramBotToken !== undefined) {
-    updates.push(
-      setConfigValue(CONFIG_KEYS.TELEGRAM_BOT_TOKEN, config.telegramBotToken),
-    )
-  }
-  if (config.telegramChatId !== undefined) {
-    updates.push(
-      setConfigValue(CONFIG_KEYS.TELEGRAM_CHAT_ID, config.telegramChatId),
-    )
-  }
-  if (config.pushoverUserKey !== undefined) {
-    updates.push(
-      setConfigValue(CONFIG_KEYS.PUSHOVER_USER_KEY, config.pushoverUserKey),
-    )
-  }
-  if (config.pushoverAppToken !== undefined) {
-    updates.push(
-      setConfigValue(CONFIG_KEYS.PUSHOVER_APP_TOKEN, config.pushoverAppToken),
-    )
-  }
+  if (config.telegramEnabled !== undefined)
+    updates.push(setConfigValue(CONFIG_KEYS.TELEGRAM_ENABLED, String(config.telegramEnabled)))
+  if (config.telegramBotToken !== undefined)
+    updates.push(setConfigValue(CONFIG_KEYS.TELEGRAM_BOT_TOKEN, config.telegramBotToken))
+  if (config.telegramChatId !== undefined)
+    updates.push(setConfigValue(CONFIG_KEYS.TELEGRAM_CHAT_ID, config.telegramChatId))
+  if (config.pushoverEnabled !== undefined)
+    updates.push(setConfigValue(CONFIG_KEYS.PUSHOVER_ENABLED, String(config.pushoverEnabled)))
+  if (config.pushoverUserKey !== undefined)
+    updates.push(setConfigValue(CONFIG_KEYS.PUSHOVER_USER_KEY, config.pushoverUserKey))
+  if (config.pushoverAppToken !== undefined)
+    updates.push(setConfigValue(CONFIG_KEYS.PUSHOVER_APP_TOKEN, config.pushoverAppToken))
+  if (config.discordEnabled !== undefined)
+    updates.push(setConfigValue(CONFIG_KEYS.DISCORD_ENABLED, String(config.discordEnabled)))
+  if (config.discordWebhookUrl !== undefined)
+    updates.push(setConfigValue(CONFIG_KEYS.DISCORD_WEBHOOK_URL, config.discordWebhookUrl))
   await Promise.all(updates)
 }
 
@@ -209,5 +217,21 @@ export async function sendTestPushover(
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Network error"
     return { ok: false, error: msg }
+  }
+}
+
+export async function sendTestDiscord(
+  webhookUrl: string,
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: "✅ Test notifikasi dari Shopee Dashboard berhasil!" }),
+    })
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` }
+    return { ok: true }
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Network error" }
   }
 }

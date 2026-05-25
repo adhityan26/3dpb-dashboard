@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth"
-import { sendTestTelegram, sendTestPushover } from "@/lib/settings/service"
+import { sendTestTelegram, sendTestPushover, sendTestDiscord } from "@/lib/settings/service"
 import { NextRequest, NextResponse } from "next/server"
 
 export async function POST(req: NextRequest) {
@@ -14,6 +14,7 @@ export async function POST(req: NextRequest) {
     telegramChatId?: unknown
     pushoverUserKey?: unknown
     pushoverAppToken?: unknown
+    discordWebhookUrl?: unknown
   }
   try {
     body = await req.json()
@@ -55,8 +56,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result, { status: result.ok ? 200 : 400 })
   }
 
+  if (body.channel === "discord") {
+    if (typeof body.discordWebhookUrl !== "string") {
+      return NextResponse.json(
+        { error: "discordWebhookUrl is required" },
+        { status: 400 },
+      )
+    }
+    const result = await sendTestDiscord(body.discordWebhookUrl)
+    return NextResponse.json(result, { status: result.ok ? 200 : 400 })
+  }
+
   return NextResponse.json(
-    { error: "channel must be 'telegram' or 'pushover'" },
+    { error: "channel must be 'telegram', 'pushover', or 'discord'" },
     { status: 400 },
   )
 }
