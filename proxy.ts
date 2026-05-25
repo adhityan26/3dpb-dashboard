@@ -5,8 +5,8 @@ const PUBLIC_PATHS = ["/login"]
 
 // Akses per role
 const ROLE_ACCESS: Record<string, string[]> = {
-  OWNER: ["/order", "/iklan", "/analisa", "/produk", "/settings"],
-  ADMIN: ["/order", "/produk"],
+  OWNER: ["/order", "/iklan", "/analisa", "/produk", "/finance", "/landing", "/settings", "/light-generator"],
+  ADMIN: ["/order", "/produk", "/finance"],
   TEST_USER: ["/order", "/iklan", "/analisa", "/produk"],
 }
 
@@ -21,9 +21,11 @@ export default auth((req) => {
     return NextResponse.next()
   }
 
-  // Belum login → redirect ke /login
+  // Belum login → redirect ke /login dengan callbackUrl agar bisa balik ke halaman asal
   if (!session?.user) {
-    return NextResponse.redirect(new URL("/login", req.url))
+    const loginUrl = new URL("/login", req.url)
+    loginUrl.searchParams.set("callbackUrl", path)
+    return NextResponse.redirect(loginUrl)
   }
 
   const role = session.user.role
