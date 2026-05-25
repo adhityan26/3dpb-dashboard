@@ -114,16 +114,17 @@ function deriveStatus(totalPaid: number, total: number, currentStatus: string): 
 export async function listQuotations(): Promise<QuotationListItem[]> {
   const rows = await prisma.quotation.findMany({
     include: {
-      items: { select: { qty: true, hargaPerUnit: true } },
+      items: { select: { qty: true, hargaPerUnit: true, diskon: true } },
       payments: { select: { jumlah: true } },
     },
     orderBy: { createdAt: 'desc' },
   })
   return rows.map(raw => {
     const r = raw as any
-    const subtotalProduk = (r.items ?? []).reduce((s: number, i: any) => s + i.qty * i.hargaPerUnit, 0)
+    const subtotalProduk = (r.items ?? []).reduce((s: number, i: any) => s + (i.qty * i.hargaPerUnit - (i.diskon ?? 0)), 0)
     const ongkir = r.ongkir ?? 0
-    const total = subtotalProduk + ongkir
+    const diskonGlobal = r.diskonGlobal ?? 0
+    const total = subtotalProduk - diskonGlobal + ongkir
     const totalPaid = (r.payments ?? []).reduce((s: number, p: any) => s + p.jumlah, 0)
     return {
       id: r.id,
@@ -164,6 +165,8 @@ export async function createQuotation(input: QuotationInput): Promise<QuotationD
       tanggal: input.tanggal ? new Date(input.tanggal) : new Date(),
       dueDate: input.dueDate ? new Date(input.dueDate) : null,
       ongkir: input.ongkir ?? 0,
+      diskonGlobal: input.diskonGlobal ?? 0,
+      diskonGlobalPct: input.diskonGlobalPct ?? null,
       shopeeOrderSn: input.shopeeOrderSn?.trim() ?? null,
       items: {
         create: input.items.map(item => ({
@@ -173,6 +176,8 @@ export async function createQuotation(input: QuotationInput): Promise<QuotationD
           hargaPerUnit: item.hargaPerUnit,
           channelHarga: item.channelHarga,
           catatan: item.catatan?.trim() ?? null,
+          diskon: item.diskon ?? 0,
+          diskonPct: item.diskonPct ?? null,
         })),
       },
     },
@@ -188,6 +193,8 @@ export async function updateQuotation(id: string, input: UpdateQuotationInput): 
   if (input.catatan !== undefined) updateData.catatan = input.catatan?.trim() ?? null
   if (input.dueDate !== undefined) updateData.dueDate = input.dueDate ? new Date(input.dueDate) : null
   if (input.ongkir !== undefined) updateData.ongkir = input.ongkir
+  if (input.diskonGlobal !== undefined) updateData.diskonGlobal = input.diskonGlobal
+  if (input.diskonGlobalPct !== undefined) updateData.diskonGlobalPct = input.diskonGlobalPct
   if (input.status !== undefined) updateData.status = input.status
   if (input.shopeeOrderSn !== undefined) updateData.shopeeOrderSn = input.shopeeOrderSn
 
@@ -202,6 +209,8 @@ export async function updateQuotation(id: string, input: UpdateQuotationInput): 
         hargaPerUnit: item.hargaPerUnit,
         channelHarga: item.channelHarga,
         catatan: item.catatan?.trim() ?? null,
+        diskon: item.diskon ?? 0,
+        diskonPct: item.diskonPct ?? null,
       })),
     }
   }
