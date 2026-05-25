@@ -612,20 +612,20 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
             {/* Diskon breakdown — only show if there's any diskon */}
             {(invoice.diskonGlobal > 0 || invoice.items.some(i => i.diskon > 0)) && (
               <>
-                <div className="flex justify-between text-sm">
-                  <span className="g-t3">Subtotal produk</span>
-                  <span className="g-t2">{fmt(invoice.subtotalProduk + invoice.items.reduce((s, i) => s + (i.diskon ?? 0), 0))}</span>
+                <div style={{ fontSize: 12, color: "#555", marginBottom: 4, display: "flex", justifyContent: "space-between" }}>
+                  <span>Subtotal produk</span>
+                  <span>{fmt(invoice.subtotalProduk + invoice.items.reduce((s, i) => s + (i.diskon ?? 0), 0))}</span>
                 </div>
                 {invoice.items.some(i => i.diskon > 0) && (
-                  <div className="flex justify-between text-sm">
-                    <span className="g-t4">- Diskon item</span>
-                    <span style={{ color: "#f87171" }}>-{fmt(invoice.items.reduce((s, i) => s + (i.diskon ?? 0), 0))}</span>
+                  <div style={{ fontSize: 12, color: "#dc2626", marginBottom: 4, display: "flex", justifyContent: "space-between" }}>
+                    <span>- Diskon item</span>
+                    <span>-{fmt(invoice.items.reduce((s, i) => s + (i.diskon ?? 0), 0))}</span>
                   </div>
                 )}
                 {invoice.diskonGlobal > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <span className="g-t4">- Diskon global{invoice.diskonGlobalPct != null ? ` (${invoice.diskonGlobalPct}%)` : ""}</span>
-                    <span style={{ color: "#f87171" }}>-{fmt(invoice.diskonGlobal)}</span>
+                  <div style={{ fontSize: 12, color: "#dc2626", marginBottom: 8, display: "flex", justifyContent: "space-between" }}>
+                    <span>- Diskon global{invoice.diskonGlobalPct != null ? ` (${invoice.diskonGlobalPct}%)` : ""}</span>
+                    <span>-{fmt(invoice.diskonGlobal)}</span>
                   </div>
                 )}
               </>
