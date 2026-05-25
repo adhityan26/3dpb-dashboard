@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
 }
 
 model User {
@@ -96,6 +96,7 @@ model Spool {
   barcode         String           @unique @default(cuid())
   nfcTagId        String?          @unique
   notes           String           @default("")
+  hargaBeli       Float?           // effective purchase price per roll (from PO, incl. ongkir share)
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
   amsSlots        AmsSlot[]
@@ -217,16 +218,18 @@ model KalkulasiHarga {
 }
 
 model KalkulasiPlate {
-  id            String         @id @default(cuid())
-  kalkulasiId   String
-  kalkulasi     KalkulasiHarga @relation(fields: [kalkulasiId], references: [id], onDelete: Cascade)
-  urutan        Int
-  namaPart      String?
-  tipe          String         @default("FDM")  // legacy single-material
-  printer       String?
-  gramasi       Float                            // legacy single-material gramasi
-  materialsJson String?                          // JSON: FilamentEntry[] for multi-material
-  durasiJam     Float
+  id                   String         @id @default(cuid())
+  kalkulasiId          String
+  kalkulasi            KalkulasiHarga @relation(fields: [kalkulasiId], references: [id], onDelete: Cascade)
+  urutan               Int
+  namaPart             String?
+  tipe                 String         @default("FDM")  // legacy single-material
+  printer              String?
+  gramasi              Float                            // legacy single-material gramasi
+  materialsJson        String?                          // JSON: FilamentEntry[] for multi-material
+  durasiJam            Float
+  filamentHargaId      String?                          // FK to FilamentHarga (single-material override)
+  filamentHargaPerGram Float?                           // cached rate at time of save
 }
 
 model KomponenKustom {
@@ -304,19 +307,33 @@ model ProdukInternalShopeeLink {
 }
 
 model Quotation {
-  id            String          @id @default(cuid())
-  nomor         String          @unique // e.g. INV-20260514-001
+  id            String           @id @default(cuid())
+  nomor         String           @unique // e.g. INV-20260514-001
   buyerNama     String
   buyerContact  String?
   catatan       String?
-  status        String          @default("DRAFT") // DRAFT|SENT|PAID|PARTIAL|CANCELLED
-  tanggal       DateTime        @default(now())
+  status        String           @default("DRAFT") // DRAFT|SENT|PAID|PARTIAL|CANCELLED
+  tanggal       DateTime         @default(now())
   dueDate       DateTime?
-  dpAmount      Float?
-  dpTanggal     DateTime?
+  ongkir        Float            @default(0)
+  shopeeOrderSn String?          // linked Shopee order
   items         QuotationItem[]
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  payments      InvoicePayment[]
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+}
+
+model InvoicePayment {
+  id          String    @id @default(cuid())
+  quotationId String
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  tanggal     DateTime  @default(now())
+  jumlah      Float
+  metode      String    @default("Transfer")
+  catatan     String?
+  createdAt   DateTime  @default(now())
+
+  @@index([quotationId])
 }
 
 model QuotationItem {
@@ -338,6 +355,7 @@ model PurchaseOrder {
   tanggal    DateTime            @default(now())
   status     String              @default("DRAFT") // DRAFT|ORDERED|RECEIVED|CANCELLED
   catatan    String?
+  ongkir     Float               @default(0)
   items      PurchaseOrderItem[]
   createdAt  DateTime            @default(now())
   updatedAt  DateTime            @updatedAt
@@ -359,4 +377,25 @@ model PurchaseOrderItem {
   material          String?
   colorName         String?
   filamentCatalogId String?
+}
+
+model LightGeneratorOrder {
+  id                  String   @id   // "LG-YYYYMMDD-XXXX"
+  sanityDocId         String?         // Sanity _id stored at confirm time
+  status              String   @default("submitted")
+  statusNote          String?         // operator note, synced to Sanity
+  customerName        String
+  customerContact     String
+  notesCustomer       String?
+  configJson          String          // JSON blob: { size, shape, shapeRatio, shadowDiameter, shadowOffsetX, shadowOffsetY, supportStems }
+  imagePath           String          // MinIO key: orders/{id}/input.{ext}
+  configJsonOperator  String?         // operator override — null means use configJson
+  stlPath             String?         // MinIO key: orders/{id}/casing.stl
+  notesOperator       String?
+  additionalImagePath String?         // MinIO key: orders/{id}/additional.png
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
 }
