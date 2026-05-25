@@ -47,9 +47,9 @@ export async function patchSanityOrderStatus(
   status: string,
   statusNote?: string | null,
 ): Promise<void> {
-  const patch = sanityWrite.patch(sanityDocId).set({ status })
+  let patch = sanityWrite.patch(sanityDocId).set({ status })
   if (statusNote !== undefined) {
-    patch.set({ statusNote: statusNote ?? "" })
+    patch = patch.set({ statusNote: statusNote ?? "" })
   }
   await patch.commit()
 }
