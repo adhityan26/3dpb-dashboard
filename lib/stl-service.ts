@@ -28,7 +28,7 @@ function buildFormData(
   configJson: object,
 ): FormData {
   const form = new FormData()
-  const blob = new Blob([imageBuffer])
+  const blob = new Blob([new Uint8Array(imageBuffer)])
   form.append("image", blob, imageFilename)
   form.append("config_json", JSON.stringify(configJson))
   return form

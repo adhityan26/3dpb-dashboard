@@ -121,6 +121,7 @@ export async function sendToDiscord(event: AlertEvent): Promise<SendResult> {
  */
 export async function sendNotification(message: string): Promise<void> {
   const event: AlertEvent = {
+    kind: "order_pileup",
     alertKey: `lg-notify-${Date.now()}`,
     title: "Light Generator",
     body: message,
