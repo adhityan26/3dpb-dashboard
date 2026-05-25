@@ -204,10 +204,10 @@ Flow:
 1. Validate `Authorization: Bearer OPS_API_SECRET`
 2. Download image from Sanity CDN by `imageAssetId`
 3. POST multipart to STL service `/preview` (image + config_json containing shadow params)
-4. Upload resulting PNG → MinIO `preview/{hash}.png`
-5. Generate presigned URL (15 min TTL)
-6. Return `200 { previewUrl: string }`
-7. On any error → return `200 { fallback: true }` (landing page timeout is 15s)
+4. Stream PNG bytes directly as `Content-Type: image/png` response
+5. On any error → return `500` (landing page proxy catches this and returns `{ fallback: true }` to browser)
+
+MinIO is NOT involved — internal only, not publicly accessible. Landing page proxy forwards the raw bytes; browser creates a blob URL to display the image.
 
 ---
 
