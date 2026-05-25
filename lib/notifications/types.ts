@@ -5,6 +5,7 @@ export type AlertKind =
   | "roas_drop"
   | "product_delist"
   | "spool_low"
+  | "lg_order"
 
 export interface NotificationAlert {
   alertKey: string
