@@ -29,7 +29,12 @@ function PendingSanityPanel() {
   const [confirming, setConfirming] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<Record<string, string>>({})
 
-  if (isLoading || !pending?.length) return null
+  if (isLoading) {
+    return (
+      <div className="mb-6 text-sm text-muted-foreground">⏳ Mengecek order pending dari Sanity...</div>
+    )
+  }
+  if (!pending?.length) return null
 
   function handleConfirm(order: SanityLgOrder) {
     setConfirming(order.orderId)
@@ -143,8 +148,7 @@ function OrderTable({ orders }: { orders: LgOrder[] }) {
 
 function LightGeneratorPageInner() {
   const [activeStatus, setActiveStatus] = useState<LgStatus | "all">("all")
-  const { data, isLoading } = useLgOrders(activeStatus === "all" ? undefined : activeStatus)
-  const { data: allData } = useLgOrders()
+  const { data: allData, isLoading } = useLgOrders() // always fetch all
 
   // Count per status
   const counts: Record<string, number> = {}
@@ -153,6 +157,11 @@ function LightGeneratorPageInner() {
       counts[o.status] = (counts[o.status] ?? 0) + 1
     }
   }
+
+  // Filter client-side
+  const filteredOrders = activeStatus === "all"
+    ? (allData?.orders ?? [])
+    : (allData?.orders ?? []).filter((o) => o.status === activeStatus)
 
   return (
     <div className="space-y-4">
@@ -185,7 +194,7 @@ function LightGeneratorPageInner() {
       ) : (
         <Card>
           <CardContent className="p-0">
-            <OrderTable orders={data?.orders ?? []} />
+            <OrderTable orders={filteredOrders} />
           </CardContent>
         </Card>
       )}
