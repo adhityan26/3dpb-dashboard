@@ -53,3 +53,5 @@ export interface SanityLgOrder {
   floorInsertImage?: { asset: { _ref: string } } | null
   submittedAt: string
 }
+
+export type SanityLgOrderWithConfirmed = SanityLgOrder & { isConfirmed: boolean }

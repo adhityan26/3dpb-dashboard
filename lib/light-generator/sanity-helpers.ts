@@ -27,6 +27,35 @@ export async function fetchSanityPendingOrders(): Promise<SanityLgOrder[]> {
   )
 }
 
+/** Fetch ALL Sanity LG orders regardless of status */
+export async function fetchAllSanityLgOrders(): Promise<SanityLgOrder[]> {
+  return sanityRead.fetch<SanityLgOrder[]>(
+    `*[_type == "lightGeneratorOrder"] | order(submittedAt desc) {
+      _id, orderId, status, customerName, customerContact, customerNotes,
+      size, shape, shapeRatio, shadowDiameter, shadowOffsetX, shadowOffsetY, supportStems,
+      silhouetteImage { asset { _ref } },
+      floorInsertImage { asset { _ref } },
+      submittedAt
+    }`,
+  )
+}
+
+/**
+ * Count Sanity LG orders that have NOT yet been confirmed (copied to local DB).
+ * Used for the badge count in /api/cms/counts.
+ */
+export async function countUnconfirmedSanityLgOrders(): Promise<number> {
+  const { prisma } = await import("@/lib/db")
+  const sanityOrders = await sanityRead.fetch<Array<{ orderId: string }>>(
+    `*[_type == "lightGeneratorOrder"]{ orderId }`,
+  )
+  if (sanityOrders.length === 0) return 0
+  const confirmed = await prisma.lightGeneratorOrder.count({
+    where: { id: { in: sanityOrders.map((o) => o.orderId) } },
+  })
+  return sanityOrders.length - confirmed
+}
+
 /** Fetch a single Sanity LG order by orderId */
 export async function fetchSanityOrderById(orderId: string): Promise<SanityLgOrder | null> {
   return sanityRead.fetch<SanityLgOrder | null>(
