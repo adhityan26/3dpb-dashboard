@@ -79,6 +79,7 @@ scripts/
 ```prisma
 model LightGeneratorOrder {
   id                  String   @id   // "LG-YYYYMMDD-XXXX"
+  sanityDocId         String?         // Sanity _id — stored at confirm time for fast write-back
   status              String   @default("submitted")
   customerName        String
   customerContact     String
@@ -137,7 +138,11 @@ Returns full order object.
 
 ### `PATCH /api/light-generator/orders/[id]`
 Body: `{ status?, notesOperator?, configJsonOperator? }`
+1. Update local DB
+2. If `status` changed → update Sanity document `status` field via `sanityWrite.patch(sanityDocId).set({ status }).commit()`
 Returns updated order.
+
+> `sanityDocId` is stored on the local record at confirm time — no GROQ lookup needed on each status update. Falls back to GROQ lookup if `sanityDocId` is null (migrated legacy orders).
 
 ### `POST /api/light-generator/orders/[id]/generate`
 1. Read `imagePath` → download from MinIO
