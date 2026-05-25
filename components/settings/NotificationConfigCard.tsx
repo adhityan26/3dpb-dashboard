@@ -73,6 +73,9 @@ export function NotificationConfigCard({ config }: Props) {
         onSuccess: (result) => {
           setFeedback(result.ok ? `✅ ${channel} test berhasil` : `❌ ${result.error}`)
         },
+        onError: (err: Error) => {
+          setFeedback(`❌ ${err.message}`)
+        },
       },
     )
   }
