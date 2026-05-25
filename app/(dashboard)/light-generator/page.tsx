@@ -2,7 +2,7 @@
 
 import { Suspense, useState } from "react"
 import { useRouter } from "next/navigation"
-import { useLgOrders, useSanityPending, useConfirmLgOrder } from "@/lib/hooks/use-light-generator"
+import { useLgOrders, useSanityOrders, useConfirmLgOrder } from "@/lib/hooks/use-light-generator"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import type { LgOrder, SanityLgOrder, LgStatus } from "@/lib/light-generator/types"
@@ -24,7 +24,7 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function PendingSanityPanel() {
-  const { data: pending, isLoading } = useSanityPending()
+  const { data: pending, isLoading } = useSanityOrders()
   const confirm = useConfirmLgOrder()
   const [confirming, setConfirming] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<Record<string, string>>({})

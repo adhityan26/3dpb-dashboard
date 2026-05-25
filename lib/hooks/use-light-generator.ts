@@ -1,13 +1,13 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { LgOrder, SanityLgOrder } from "@/lib/light-generator/types"
+import type { LgOrder, SanityLgOrder, SanityLgOrderWithConfirmed } from "@/lib/light-generator/types"
 
 // ── Keys ────────────────────────────────────────────────────────────────────
 
 const LG_ORDERS_KEY = (status?: string) => ["lg-orders", status ?? "all"] as const
 const LG_ORDER_KEY = (id: string) => ["lg-order", id] as const
-const LG_PENDING_SANITY_KEY = ["lg-sanity-pending"] as const
+const LG_SANITY_ORDERS_KEY = ["lg-sanity-orders"] as const
 
 // ── Fetchers ─────────────────────────────────────────────────────────────────
 
@@ -25,8 +25,8 @@ async function fetchOrder(id: string): Promise<LgOrder> {
   return res.json()
 }
 
-async function fetchSanityPending(): Promise<SanityLgOrder[]> {
-  const res = await fetch("/api/light-generator/sanity-pending")
+async function fetchSanityOrders(): Promise<SanityLgOrderWithConfirmed[]> {
+  const res = await fetch("/api/light-generator/sanity-orders")
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()
 }
@@ -47,10 +47,10 @@ export function useLgOrder(id: string) {
   })
 }
 
-export function useSanityPending() {
+export function useSanityOrders() {
   return useQuery({
-    queryKey: LG_PENDING_SANITY_KEY,
-    queryFn: fetchSanityPending,
+    queryKey: LG_SANITY_ORDERS_KEY,
+    queryFn: fetchSanityOrders,
   })
 }
 
@@ -94,7 +94,7 @@ export function useConfirmLgOrder() {
       return res.json()
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: LG_PENDING_SANITY_KEY })
+      qc.invalidateQueries({ queryKey: LG_SANITY_ORDERS_KEY })
       qc.invalidateQueries({ queryKey: ["lg-orders"] })
     },
   })
