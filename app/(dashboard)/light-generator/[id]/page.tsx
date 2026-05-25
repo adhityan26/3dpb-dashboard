@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useState } from "react"
+import { use, useRef, useState } from "react"
 import { useLgOrder, useUpdateLgOrder, useGenerateLgStl, useUploadLgFile } from "@/lib/hooks/use-light-generator"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -42,6 +42,9 @@ export default function LgOrderDetailPage({
   const uploadSilhouette = useUploadLgFile(id, "silhouette")
   const uploadAdditional = useUploadLgFile(id, "additional")
 
+  const silhouetteInputRef = useRef<HTMLInputElement>(null)
+  const additionalInputRef = useRef<HTMLInputElement>(null)
+
   const [statusDraft, setStatusDraft] = useState<string | null>(null)
   const [statusNote, setStatusNote] = useState<string | null>(null)
   const [notesOperator, setNotesOperator] = useState<string | null>(null)
@@ -56,7 +59,12 @@ export default function LgOrderDetailPage({
   const effectiveStatusNote = statusNote ?? order.statusNote ?? ""
   const effectiveNotesOperator = notesOperator ?? order.notesOperator ?? ""
   const effectiveConfig = configOverride ?? order.configJsonOperator ?? order.configJson
-  const parsedConfig: LgConfigJson = JSON.parse(order.configJsonOperator ?? order.configJson)
+  let parsedConfig: LgConfigJson | null = null
+  try {
+    parsedConfig = JSON.parse(order.configJsonOperator ?? order.configJson)
+  } catch {
+    // malformed JSON — show error in config card
+  }
 
   function handleSaveStatus() {
     setFeedback(null)
@@ -64,6 +72,7 @@ export default function LgOrderDetailPage({
     if (statusDraft !== null) data.status = statusDraft
     if (statusNote !== null) data.statusNote = statusNote
     if (notesOperator !== null) data.notesOperator = notesOperator
+    if (Object.keys(data).length === 0) return
     updateOrder.mutate(data, {
       onSuccess: () => {
         setFeedback("✅ Tersimpan")
@@ -96,7 +105,11 @@ export default function LgOrderDetailPage({
   function handleGenerate() {
     setFeedback(null)
     generateStl.mutate(undefined, {
-      onSuccess: (r) => setFeedback(`✅ STL generated (${(r.stlSize / 1024).toFixed(1)} KB)`),
+      onSuccess: (r) => setFeedback(
+        r.stlSize != null
+          ? `✅ STL generated (${(r.stlSize / 1024).toFixed(1)} KB)`
+          : "✅ STL generated"
+      ),
       onError: (err) => setFeedback(`❌ ${err.message}`),
     })
   }
@@ -155,18 +168,22 @@ export default function LgOrderDetailPage({
             </div>
           ) : (
             <div className="text-sm space-y-1">
-              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-                <span className="text-muted-foreground">Ukuran</span><span>{parsedConfig.size}</span>
-                <span className="text-muted-foreground">Shape</span><span>{parsedConfig.shape}</span>
-                {parsedConfig.shapeRatio && <>
-                  <span className="text-muted-foreground">Ratio</span>
-                  <span>{parsedConfig.shapeRatio.width}:{parsedConfig.shapeRatio.height}</span>
-                </>}
-                <span className="text-muted-foreground">Shadow Ø</span><span>{parsedConfig.shadowDiameter} cm</span>
-                <span className="text-muted-foreground">Offset</span>
-                <span>X:{parsedConfig.shadowOffsetX} Y:{parsedConfig.shadowOffsetY} mm</span>
-                <span className="text-muted-foreground">Support Stems</span><span>{parsedConfig.supportStems ? "Ya" : "Tidak"}</span>
-              </div>
+              {parsedConfig === null ? (
+                <div className="text-xs text-red-500">⚠️ Config tidak valid (JSON malformed)</div>
+              ) : (
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm">
+                  <span className="text-muted-foreground">Ukuran</span><span>{parsedConfig.size ?? "—"}</span>
+                  <span className="text-muted-foreground">Shape</span><span>{parsedConfig.shape ?? "—"}</span>
+                  {parsedConfig.shapeRatio && <>
+                    <span className="text-muted-foreground">Ratio</span>
+                    <span>{parsedConfig.shapeRatio.width}:{parsedConfig.shapeRatio.height}</span>
+                  </>}
+                  <span className="text-muted-foreground">Shadow Ø</span><span>{parsedConfig.shadowDiameter != null ? `${parsedConfig.shadowDiameter} cm` : "—"}</span>
+                  <span className="text-muted-foreground">Offset</span>
+                  <span>{parsedConfig.shadowOffsetX != null ? `X:${parsedConfig.shadowOffsetX} Y:${parsedConfig.shadowOffsetY} mm` : "—"}</span>
+                  <span className="text-muted-foreground">Support Stems</span><span>{parsedConfig.supportStems ? "Ya" : "Tidak"}</span>
+                </div>
+              )}
             </div>
           )}
         </CardContent>
@@ -179,24 +196,42 @@ export default function LgOrderDetailPage({
           <div>
             <div className="text-xs font-medium mb-1">Silhouette ({order.imagePath.split("/").pop()})</div>
             <div className="flex items-center gap-2">
-              <label className="cursor-pointer inline-flex items-center">
-                <Button variant="outline" size="sm" type="button" onClick={() => {}}>
-                  {uploadSilhouette.isPending ? "Uploading..." : "Upload / Replace"}
-                </Button>
-                <input type="file" accept="image/*" className="absolute opacity-0 pointer-events-none w-px h-px"
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFileUpload("silhouette", e)} />
-              </label>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => silhouetteInputRef.current?.click()}
+                disabled={uploadSilhouette.isPending}
+              >
+                {uploadSilhouette.isPending ? "Uploading..." : "Upload / Replace"}
+              </Button>
+              <input
+                ref={silhouetteInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleFileUpload("silhouette", e)}
+              />
             </div>
           </div>
           <div>
             <div className="text-xs font-medium mb-1">Floor Insert {order.additionalImagePath ? `(${order.additionalImagePath.split("/").pop()})` : "(belum ada)"}</div>
-            <label className="cursor-pointer inline-flex items-center">
-              <Button variant="outline" size="sm" type="button" onClick={() => {}}>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => additionalInputRef.current?.click()}
+                disabled={uploadAdditional.isPending}
+              >
                 {uploadAdditional.isPending ? "Uploading..." : "Upload / Replace"}
               </Button>
-              <input type="file" accept="image/*" className="absolute opacity-0 pointer-events-none w-px h-px"
-                onChange={(e: React.ChangeEvent<HTMLInputElement>) => handleFileUpload("additional", e)} />
-            </label>
+              <input
+                ref={additionalInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => handleFileUpload("additional", e)}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
