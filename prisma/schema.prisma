@@ -316,6 +316,8 @@ model Quotation {
   tanggal       DateTime         @default(now())
   dueDate       DateTime?
   ongkir        Float            @default(0)
+  diskonGlobal    Float   @default(0)
+  diskonGlobalPct Float?
   shopeeOrderSn String?          // linked Shopee order
   items         QuotationItem[]
   payments      InvoicePayment[]
@@ -346,6 +348,8 @@ model QuotationItem {
   hargaPerUnit     Float
   channelHarga     String      @default("marketplace") // "offline"|"marketplace"
   catatan          String?
+  diskon    Float   @default(0)
+  diskonPct Float?
 }
 
 model PurchaseOrder {
