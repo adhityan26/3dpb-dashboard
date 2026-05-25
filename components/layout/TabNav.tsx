@@ -18,7 +18,10 @@ const TABS: Tab[] = [
   { href: "/iklan",    label: "Iklan",    icon: "📊", roles: ["OWNER", "TEST_USER"] },
   { href: "/analisa",  label: "Analisa",  icon: "📈", roles: ["OWNER", "TEST_USER"] },
   { href: "/produk",   label: "Produk",   icon: "🏷️", roles: ["OWNER", "ADMIN", "TEST_USER"] },
-  { href: "/settings", label: "Settings", icon: "⚙️", roles: ["OWNER"] },
+  { href: "/finance",  label: "Finance",  icon: "💰", roles: ["OWNER", "ADMIN"] },
+  { href: "/landing",        label: "Landing",   icon: "🌐", roles: ["OWNER"] },
+  { href: "/light-generator", label: "Light Gen", icon: "💡", roles: ["OWNER"] },
+  { href: "/settings",        label: "Settings",  icon: "⚙️", roles: ["OWNER"] },
 ]
 
 interface TabNavProps {
