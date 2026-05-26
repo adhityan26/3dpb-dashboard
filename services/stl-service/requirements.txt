@@ -1,0 +1,14 @@
+numpy
+opencv-python-headless
+scikit-image
+shapely
+scipy
+trimesh[easy]
+matplotlib
+mapbox-earcut
+streamlit>=1.35
+
+# STL microservice (Plan 02)
+fastapi>=0.110
+uvicorn[standard]>=0.27
+python-multipart>=0.0.9
