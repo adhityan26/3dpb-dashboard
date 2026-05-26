@@ -1,7 +1,8 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { useKalkulatorRates, useUpdateRates } from "@/lib/hooks/use-kalkulator"
+import { useKalkulatorRates, useUpdateRates, useFilamentHarga, useUpsertFilamentHarga, useDeleteFilamentHarga, useRecomputeFilamentHarga } from "@/lib/hooks/use-kalkulator"
+import type { FilamentHargaData } from "@/lib/kalkulator/types"
 
 interface RateField {
   key: string
@@ -27,6 +28,15 @@ const GANTUNGAN_TYPES = ["kew_kew", "ring", "rantai", "tali"]
 export function KalkulatorSettingsCard() {
   const { data: rates, isLoading } = useKalkulatorRates()
   const updateMut = useUpdateRates()
+
+  const { data: filamentHargaList } = useFilamentHarga()
+  const upsertFilamentHarga = useUpsertFilamentHarga()
+  const deleteFilamentHarga = useDeleteFilamentHarga()
+  const recompute = useRecomputeFilamentHarga()
+  const [fhBrand, setFhBrand] = useState('')
+  const [fhMaterial, setFhMaterial] = useState('')
+  const [fhHarga, setFhHarga] = useState('')
+  const [recomputeMsg, setRecomputeMsg] = useState<string | null>(null)
 
   const [values, setValues] = useState<Record<string, string>>({})
   const [saved, setSaved] = useState(false)
@@ -56,21 +66,17 @@ export function KalkulatorSettingsCard() {
     setTimeout(() => setSaved(false), 2000)
   }
 
-  const fieldLabel = "block text-xs font-medium mb-1"
-  const fieldColor = { color: "rgba(255,255,255,0.6)" }
-
   if (isLoading) return (
-    <div className="text-sm text-center py-8" style={{ color: "rgba(255,255,255,0.3)" }}>Memuat rates...</div>
+    <div className="text-sm text-center py-8 g-t4">Memuat rates...</div>
   )
 
   return (
-    <div className="rounded-[16px] p-5 space-y-5"
-         style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+    <div className="rounded-[16px] p-5 space-y-5 g-card">
       <div className="flex items-center justify-between">
         <div>
-          <div className="text-sm font-semibold" style={{ color: "rgba(255,255,255,0.85)" }}>⚙️ Parameter Kalkulator Harga</div>
-          <div className="text-xs mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-            Biaya produksi & aksesori yang digunakan dalam kalkulasi HPP
+          <div className="text-sm font-semibold g-t1">⚙️ Parameter Kalkulator Harga</div>
+          <div className="text-xs mt-0.5 g-t4">
+            Biaya produksi &amp; aksesori yang digunakan dalam kalkulasi HPP
           </div>
         </div>
         <button
@@ -85,13 +91,13 @@ export function KalkulatorSettingsCard() {
 
       {/* Main rates */}
       <div>
-        <div className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "rgba(165,180,252,0.6)" }}>
+        <div className="text-xs font-semibold uppercase tracking-wider mb-3 g-accent">
           Biaya Produksi
         </div>
         <div className="grid grid-cols-2 gap-3">
           {MAIN_RATES.map(f => (
             <div key={f.key}>
-              <label className={fieldLabel} style={fieldColor}>{f.label}</label>
+              <label className="block text-xs font-medium mb-1 g-label">{f.label}</label>
               <div className="flex items-center gap-1.5">
                 <input
                   type="number"
@@ -101,10 +107,10 @@ export function KalkulatorSettingsCard() {
                   onChange={e => setValues(v => ({ ...v, [f.key]: e.target.value }))}
                   className="glass-input flex-1 h-9 rounded-[8px] px-3 text-sm"
                 />
-                <span className="text-xs flex-shrink-0" style={{ color: "rgba(255,255,255,0.3)" }}>{f.suffix}</span>
+                <span className="text-xs flex-shrink-0 g-t4">{f.suffix}</span>
               </div>
               {f.description && (
-                <div className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.2)" }}>{f.description}</div>
+                <div className="text-[10px] mt-0.5 g-t5">{f.description}</div>
               )}
             </div>
           ))}
@@ -113,13 +119,13 @@ export function KalkulatorSettingsCard() {
 
       {/* Packing rates */}
       <div>
-        <div className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "rgba(165,180,252,0.6)" }}>
+        <div className="text-xs font-semibold uppercase tracking-wider mb-3 g-accent">
           Harga Packing Box
         </div>
         <div className="grid grid-cols-4 gap-2">
           {PACKING_SIZES.map(s => (
             <div key={s}>
-              <label className={fieldLabel} style={fieldColor}>Box {s}</label>
+              <label className="block text-xs font-medium mb-1 g-label">Box {s}</label>
               <input
                 type="number" min="0" step="100"
                 value={values[`kalk.packing.${s}`] ?? ""}
@@ -133,13 +139,13 @@ export function KalkulatorSettingsCard() {
 
       {/* Gantungan rates */}
       <div>
-        <div className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: "rgba(165,180,252,0.6)" }}>
+        <div className="text-xs font-semibold uppercase tracking-wider mb-3 g-accent">
           Harga Gantungan
         </div>
         <div className="grid grid-cols-2 gap-2">
           {GANTUNGAN_TYPES.map(g => (
             <div key={g}>
-              <label className={fieldLabel} style={fieldColor}>{g.replace(/_/g, " ")}</label>
+              <label className="block text-xs font-medium mb-1 g-label">{g.replace(/_/g, " ")}</label>
               <input
                 type="number" min="0" step="50"
                 value={values[`kalk.gantungan.${g}`] ?? ""}
@@ -148,6 +154,89 @@ export function KalkulatorSettingsCard() {
               />
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* ── FilamentHarga Catalog ── */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="text-xs font-semibold g-t2">🧵 Harga Filamen per Gram</div>
+          <button
+            onClick={async () => {
+              setRecomputeMsg(null)
+              const res = await recompute.mutateAsync()
+              setRecomputeMsg(`✓ ${res.updated} rate diperbarui dari spool`)
+              setTimeout(() => setRecomputeMsg(null), 4000)
+            }}
+            disabled={recompute.isPending}
+            className="text-xs px-2.5 py-1 rounded-md transition-colors"
+            style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.3)", color: "#a5b4fc" }}
+          >
+            {recompute.isPending ? "Menghitung..." : "🔄 Hitung ulang dari PO"}
+          </button>
+        </div>
+        {recomputeMsg && <div className="text-xs text-green-400">{recomputeMsg}</div>}
+        <p className="text-xs g-t4">
+          Rate ini dipakai di kalkulator HPP per plate. Auto-update saat PO diterima (moving average dari harga beli spool).
+        </p>
+
+        {/* Table */}
+        <div className="space-y-1">
+          {(filamentHargaList ?? []).map((f: FilamentHargaData) => (
+            <div key={f.id} className="flex items-center gap-2 px-2 py-1.5 rounded-[6px]"
+                 style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)" }}>
+              <span className="text-xs g-t2 flex-1">{f.brand} · {f.material}</span>
+              <span className="text-xs font-mono g-t1">Rp {f.hargaPerGram}/g</span>
+              {f.spoolCount > 0 ? (
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+                      style={{ background: "rgba(99,102,241,0.2)", color: "#a5b4fc" }}>
+                  ⚡ {f.spoolCount} spool
+                </span>
+              ) : (
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full g-t5"
+                      style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)" }}>
+                  ✏️ manual
+                </span>
+              )}
+              <button
+                onClick={() => deleteFilamentHarga.mutate(f.id)}
+                className="text-[10px] g-t4 hover:text-red-400 transition-colors px-1"
+              >✕</button>
+            </div>
+          ))}
+          {(filamentHargaList ?? []).length === 0 && (
+            <div className="text-xs g-t5 text-center py-2">Belum ada data. Receive PO atau tambah manual.</div>
+          )}
+        </div>
+
+        {/* Form tambah manual */}
+        <div className="flex gap-2 flex-wrap items-end pt-1">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] g-t4 uppercase tracking-wide">Brand</label>
+            <input value={fhBrand} onChange={e => setFhBrand(e.target.value)}
+              placeholder="eSUN" className="glass-input text-xs px-2 py-1.5 rounded-md w-24" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] g-t4 uppercase tracking-wide">Material</label>
+            <input value={fhMaterial} onChange={e => setFhMaterial(e.target.value)}
+              placeholder="PLA+" className="glass-input text-xs px-2 py-1.5 rounded-md w-24" />
+          </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] g-t4 uppercase tracking-wide">Rp/gram</label>
+            <input type="number" value={fhHarga} onChange={e => setFhHarga(e.target.value)}
+              placeholder="280" className="glass-input text-xs px-2 py-1.5 rounded-md w-20" />
+          </div>
+          <button
+            onClick={async () => {
+              if (!fhBrand.trim() || !fhMaterial.trim() || !fhHarga) return
+              await upsertFilamentHarga.mutateAsync({ brand: fhBrand.trim(), material: fhMaterial.trim(), hargaPerGram: parseFloat(fhHarga) })
+              setFhBrand(''); setFhMaterial(''); setFhHarga('')
+            }}
+            disabled={upsertFilamentHarga.isPending || !fhBrand || !fhMaterial || !fhHarga}
+            className="text-xs px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white disabled:opacity-50 transition-colors"
+          >
+            + Tambah
+          </button>
         </div>
       </div>
     </div>
