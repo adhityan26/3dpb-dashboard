@@ -17,6 +17,9 @@ CONTAINER="shopee-dashboard"
 LOCAL_IMAGE="shopee-dashboard:latest"
 GHCR_IMAGE="ghcr.io/adhityan26/3dpb-dashboard:latest"
 DATA_VOLUME="/opt/stacks/shopee-dashboard/data"
+STL_CONTAINER="stl-service"
+STL_LOCAL_IMAGE="stl-service:latest"
+STL_BUILD_CONTEXT="$(dirname "$0")/services/stl-service"
 
 export DOCKER_HOST
 
@@ -53,15 +56,33 @@ if [ "$MODE" = "pull" ]; then
   docker pull "$GHCR_IMAGE"
   DEPLOY_IMAGE="$GHCR_IMAGE"
 elif [ "$MODE" = "build" ]; then
-  echo "🔨  Building image di $DOCKER_HOST..."
+  echo "🔨  Building shopee-dashboard image di $DOCKER_HOST..."
   docker build -t "$LOCAL_IMAGE" "$(dirname "$0")"
   DEPLOY_IMAGE="$LOCAL_IMAGE"
+
+  echo "🔨  Building stl-service image di $DOCKER_HOST..."
+  docker build -t "$STL_LOCAL_IMAGE" "$STL_BUILD_CONTEXT"
 else
   echo "❌  Mode tidak dikenal: '$MODE'. Gunakan 'build' atau 'pull'."
   exit 1
 fi
 
-# ── Deploy ─────────────────────────────────────────────────────────────────────
+# ── Deploy stl-service ─────────────────────────────────────────────────────────
+echo "🚀  Deploying $STL_LOCAL_IMAGE → $STL_CONTAINER..."
+
+docker stop "$STL_CONTAINER" 2>/dev/null && echo "   stopped $STL_CONTAINER" || true
+docker rm   "$STL_CONTAINER" 2>/dev/null && echo "   removed $STL_CONTAINER" || true
+
+docker run -d \
+  --name "$STL_CONTAINER" \
+  --restart unless-stopped \
+  --network homelab \
+  -e STL_SERVICE_TOKEN="${STL_SERVICE_TOKEN:-}" \
+  "$STL_LOCAL_IMAGE"
+
+echo "✅  stl-service deployed."
+
+# ── Deploy shopee-dashboard ────────────────────────────────────────────────────
 echo "🚀  Deploying $DEPLOY_IMAGE ke $DOCKER_HOST..."
 
 docker stop "$CONTAINER" 2>/dev/null && echo "   stopped $CONTAINER" || true
@@ -94,6 +115,14 @@ docker run -d \
   -e SANITY_DATASET="${SANITY_DATASET:-production}" \
   -e SANITY_API_VERSION="${SANITY_API_VERSION:-2024-10-01}" \
   -e SANITY_WRITE_TOKEN="${SANITY_WRITE_TOKEN:-}" \
+  -e MINIO_ENDPOINT="${MINIO_ENDPOINT:-}" \
+  -e MINIO_ACCESS_KEY="${MINIO_ACCESS_KEY:-}" \
+  -e MINIO_SECRET_KEY="${MINIO_SECRET_KEY:-}" \
+  -e MINIO_BUCKET="${MINIO_BUCKET:-lamp-orders}" \
+  -e STL_SERVICE_URL="${STL_SERVICE_URL:-}" \
+  -e STL_SERVICE_TOKEN="${STL_SERVICE_TOKEN:-}" \
+  -e DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-}" \
+  -e OPS_API_SECRET="${OPS_API_SECRET:-}" \
   "$DEPLOY_IMAGE"
 
 # ── Health check ───────────────────────────────────────────────────────────────
