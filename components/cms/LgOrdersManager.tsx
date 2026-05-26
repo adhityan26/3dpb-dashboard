@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useState } from "react"
-import { RefreshCw, X } from "lucide-react"
+import { RefreshCw, X, Braces } from "lucide-react"
 import { useSanityOrders, useConfirmLgOrder, useSyncSanityOrder } from "@/lib/hooks/use-light-generator"
 import { CollectionList } from "./shared/CollectionList"
 import type { SanityLgOrderWithConfirmed } from "@/lib/light-generator/types"
@@ -36,6 +36,37 @@ function ImageZoomModal({ src, orderId, onClose }: { src: string; orderId: strin
         <p className="text-center text-[11px] mt-2 font-mono" style={{ color: "rgba(255,255,255,0.4)" }}>
           {orderId}
         </p>
+      </div>
+    </div>
+  )
+}
+
+function JsonModal({ orderId, json, onClose }: { orderId: string; json: string; onClose: () => void }) {
+  let pretty = json
+  try { pretty = JSON.stringify(JSON.parse(json), null, 2) } catch { /* keep raw */ }
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.82)" }}
+      onClick={onClose}
+    >
+      <div
+        className="rounded-xl w-full max-w-lg flex flex-col"
+        style={{ background: "rgba(20,18,50,0.99)", border: "1px solid rgba(99,102,241,0.25)", maxHeight: "80vh" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+          <div>
+            <span className="text-[11px] font-semibold" style={{ color: "#a5b4fc" }}>configJsonRaw</span>
+            <span className="text-[10px] ml-2 font-mono" style={{ color: "rgba(255,255,255,0.35)" }}>{orderId}</span>
+          </div>
+          <button onClick={onClose} className="flex items-center justify-center w-6 h-6 rounded transition-opacity hover:opacity-70" style={{ color: "rgba(255,255,255,0.4)" }}>
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        <pre className="overflow-auto p-4 text-[11px] leading-relaxed font-mono flex-1" style={{ color: "rgba(165,180,252,0.85)" }}>
+          {pretty}
+        </pre>
       </div>
     </div>
   )
@@ -107,6 +138,7 @@ export function LgOrdersManager() {
   const [reloadTarget, setReloadTarget] = useState<string | null>(null)
   const [feedback, setFeedback] = useState<Record<string, string>>({})
   const [zoomImage, setZoomImage] = useState<{ src: string; orderId: string } | null>(null)
+  const [jsonModal, setJsonModal] = useState<{ orderId: string; json: string } | null>(null)
 
   if (isLoading) return <div className="p-6 text-white/40 text-sm">Memuat...</div>
 
@@ -156,6 +188,14 @@ export function LgOrdersManager() {
           src={zoomImage.src}
           orderId={zoomImage.orderId}
           onClose={() => setZoomImage(null)}
+        />
+      )}
+
+      {jsonModal && (
+        <JsonModal
+          orderId={jsonModal.orderId}
+          json={jsonModal.json}
+          onClose={() => setJsonModal(null)}
         />
       )}
 
@@ -251,8 +291,21 @@ export function LgOrdersManager() {
                   : null
                 return (
                   <div className="space-y-0.5">
-                    <div className="text-[11px] font-medium" style={{ color: "rgba(255,255,255,0.65)" }}>
-                      {item.size} · {shapeLabel}
+                    <div className="flex items-center gap-1.5">
+                      <div className="text-[11px] font-medium" style={{ color: "rgba(255,255,255,0.65)" }}>
+                        {item.size} · {shapeLabel}
+                      </div>
+                      {item.configJsonRaw && (
+                        <button
+                          type="button"
+                          onClick={() => setJsonModal({ orderId: item.orderId, json: item.configJsonRaw! })}
+                          title="Lihat configJsonRaw"
+                          className="flex items-center justify-center w-4 h-4 rounded transition-opacity hover:opacity-80 focus:outline-none"
+                          style={{ color: "rgba(165,180,252,0.5)" }}
+                        >
+                          <Braces className="w-3 h-3" />
+                        </button>
+                      )}
                     </div>
                     {diameter && (
                       <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.35)" }}>
