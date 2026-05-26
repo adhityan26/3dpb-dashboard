@@ -117,6 +117,27 @@ export function useGenerateLgStl(id: string) {
   })
 }
 
+export function useSyncSanityOrder() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (orderId: string) => {
+      const res = await fetch(`/api/light-generator/orders/${orderId}/sync-sanity`, {
+        method: "POST",
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({})) as { error?: string }
+        throw new Error(j.error ?? `HTTP ${res.status}`)
+      }
+      return res.json() as Promise<LgOrder>
+    },
+    onSuccess: (updated: LgOrder) => {
+      qc.setQueryData(LG_ORDER_KEY(updated.id), updated)
+      qc.invalidateQueries({ queryKey: LG_SANITY_ORDERS_KEY })
+      qc.invalidateQueries({ queryKey: ["lg-orders"] })
+    },
+  })
+}
+
 export function useUploadLgFile(id: string, field: "silhouette" | "additional") {
   const qc = useQueryClient()
   return useMutation({
