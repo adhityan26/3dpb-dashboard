@@ -240,11 +240,33 @@ export function LgOrdersManager() {
             {
               key: "config",
               label: "Config",
-              render: (item: SanityLgOrderWithConfirmed) => (
-                <div className="text-[11px]" style={{ color: "rgba(255,255,255,0.5)" }}>
-                  {item.size} · {item.shape}
-                </div>
-              ),
+              render: (item: SanityLgOrderWithConfirmed) => {
+                const shapeLabel = (() => {
+                  if (!item.shapeRatio) return item.shape
+                  return `${item.shape} ${item.shapeRatio.width}:${item.shapeRatio.height}`
+                })()
+                const diameter = item.shadowDiameter ? `⌀${item.shadowDiameter}cm` : null
+                const offset = (item.shadowOffsetX || item.shadowOffsetY)
+                  ? `offset ${item.shadowOffsetX},${item.shadowOffsetY}`
+                  : null
+                return (
+                  <div className="space-y-0.5">
+                    <div className="text-[11px] font-medium" style={{ color: "rgba(255,255,255,0.65)" }}>
+                      {item.size} · {shapeLabel}
+                    </div>
+                    {diameter && (
+                      <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.35)" }}>
+                        {diameter}{offset ? ` · ${offset}` : ""}
+                      </div>
+                    )}
+                    {item.supportStems && (
+                      <div className="text-[10px]" style={{ color: "rgba(251,191,36,0.7)" }}>
+                        support stems
+                      </div>
+                    )}
+                  </div>
+                )
+              },
             },
             {
               key: "date",
