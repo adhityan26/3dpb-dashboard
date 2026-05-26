@@ -20,6 +20,8 @@ function toKalkulasiData(raw: any): KalkulasiData {
     plates: (raw.plates ?? []).map((p: any) => ({
       ...p,
       materials: p.materialsJson ? JSON.parse(p.materialsJson) : undefined,
+      filamentHargaId: p.filamentHargaId ?? undefined,
+      hargaPerGram: p.filamentHargaPerGram ?? undefined,
     })),
     komponenKustom: raw.komponenKustom ?? [],
     produkLinks: raw.produkLinks ?? [],
@@ -71,7 +73,7 @@ export async function createKalkulasi(input: KalkulasiInput): Promise<KalkulasiD
       switchQty: input.switchQty,
       hasLabel: input.hasLabel,
       ...hasil,
-      plates: { create: input.plates.map((p, i) => ({ urutan: i + 1, namaPart: p.namaPart, tipe: p.tipe ?? 'FDM', printer: p.printer, gramasi: p.gramasi ?? 0, materialsJson: p.materials ? JSON.stringify(p.materials) : null, durasiJam: p.durasiJam })) },
+      plates: { create: input.plates.map((p, i) => ({ urutan: i + 1, namaPart: p.namaPart, tipe: p.tipe ?? 'FDM', printer: p.printer, gramasi: p.gramasi ?? 0, materialsJson: p.materials ? JSON.stringify(p.materials) : null, durasiJam: p.durasiJam, filamentHargaId: p.filamentHargaId ?? null, filamentHargaPerGram: p.hargaPerGram ?? null })) },
       komponenKustom: { create: input.komponenKustom.map(k => ({ nama: k.nama, harga: k.harga, qty: k.qty })) },
     },
     include: INCLUDE_ALL,
@@ -99,7 +101,7 @@ export async function updateKalkulasi(id: string, input: KalkulasiInput): Promis
       switchQty: input.switchQty,
       hasLabel: input.hasLabel,
       ...hasil,
-      plates: { create: input.plates.map((p, i) => ({ urutan: i + 1, namaPart: p.namaPart, tipe: p.tipe ?? 'FDM', printer: p.printer, gramasi: p.gramasi ?? 0, materialsJson: p.materials ? JSON.stringify(p.materials) : null, durasiJam: p.durasiJam })) },
+      plates: { create: input.plates.map((p, i) => ({ urutan: i + 1, namaPart: p.namaPart, tipe: p.tipe ?? 'FDM', printer: p.printer, gramasi: p.gramasi ?? 0, materialsJson: p.materials ? JSON.stringify(p.materials) : null, durasiJam: p.durasiJam, filamentHargaId: p.filamentHargaId ?? null, filamentHargaPerGram: p.hargaPerGram ?? null })) },
       komponenKustom: { create: input.komponenKustom.map(k => ({ nama: k.nama, harga: k.harga, qty: k.qty })) },
     },
     include: INCLUDE_ALL,
@@ -124,7 +126,7 @@ export async function duplicateKalkulasi(id: string, newNama: string, newBatch?:
     gantunganType: source.gantunganType ?? undefined,
     switchQty: source.switchQty,
     hasLabel: source.hasLabel,
-    plates: source.plates.map(p => ({ namaPart: p.namaPart ?? undefined, tipe: p.tipe as 'FDM' | 'SLA', printer: p.printer ?? undefined, gramasi: p.gramasi, materials: p.materials, durasiJam: p.durasiJam })),
+    plates: source.plates.map(p => ({ namaPart: p.namaPart ?? undefined, tipe: p.tipe as 'FDM' | 'SLA', printer: p.printer ?? undefined, gramasi: p.gramasi, materials: p.materials, durasiJam: p.durasiJam, filamentHargaId: p.filamentHargaId, hargaPerGram: p.hargaPerGram })),
     komponenKustom: source.komponenKustom.map(k => ({ nama: k.nama, harga: k.harga, qty: k.qty })),
   }
   return createKalkulasi(input)
@@ -153,11 +155,52 @@ export async function listFilamentHarga(): Promise<FilamentHargaData[]> {
 }
 
 export async function upsertFilamentHarga(brand: string, material: string, hargaPerGram: number): Promise<FilamentHargaData> {
-  return prisma.filamentHarga.upsert({ where: { brand_material: { brand, material } }, create: { brand, material, hargaPerGram }, update: { hargaPerGram } })
+  return prisma.filamentHarga.upsert({
+    where: { brand_material: { brand, material } },
+    create: { brand, material, hargaPerGram, spoolCount: 0 },
+    update: { hargaPerGram, spoolCount: 0 }, // manual edit resets spoolCount ke 0
+  })
 }
 
 export async function deleteFilamentHarga(id: string): Promise<void> {
   await prisma.filamentHarga.delete({ where: { id } })
+}
+
+export async function recomputeFilamentHarga(
+  pairs?: { brand: string; material: string }[]
+): Promise<number> {
+  const spools = await prisma.spool.findMany({
+    where: {
+      hargaBeli: { not: null },
+      ...(pairs && pairs.length > 0 && {
+        OR: pairs.map(p => ({ brand: p.brand, material: p.material }))
+      })
+    },
+    select: { brand: true, material: true, hargaBeli: true },
+  })
+
+  if (spools.length === 0) return 0
+
+  const groups = new Map<string, { total: number; count: number; brand: string; material: string }>()
+  for (const s of spools) {
+    const key = `${s.brand}||${s.material}`
+    const g = groups.get(key) ?? { total: 0, count: 0, brand: s.brand, material: s.material }
+    g.total += s.hargaBeli!
+    g.count++
+    groups.set(key, g)
+  }
+
+  let updated = 0
+  for (const g of groups.values()) {
+    const hargaPerGram = Math.round(g.total / g.count / 1000 * 10) / 10
+    await prisma.filamentHarga.upsert({
+      where: { brand_material: { brand: g.brand, material: g.material } },
+      update: { hargaPerGram, spoolCount: g.count },
+      create: { brand: g.brand, material: g.material, hargaPerGram, spoolCount: g.count },
+    })
+    updated++
+  }
+  return updated
 }
 
 export async function listResinHarga(): Promise<ResinHargaData[]> {

@@ -21,6 +21,8 @@ export interface PlateInput {
   gramasi?: number          // legacy single-material gramasi
   materials?: FilamentEntry[] // multi-material (replaces tipe+gramasi when set)
   durasiJam: number
+  filamentHargaId?: string  // link to FilamentHarga (single-material override)
+  hargaPerGram?: number     // cached rate from FilamentHarga
 }
 
 export interface PlateData extends PlateInput {
@@ -120,6 +122,7 @@ export interface FilamentHargaData {
   brand: string
   material: string
   hargaPerGram: number
+  spoolCount: number   // 0 = manual input, >0 = auto-computed dari spool
 }
 
 export interface ResinHargaData {
