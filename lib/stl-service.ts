@@ -1,12 +1,34 @@
 /**
  * HTTP client for the Python FastAPI STL service
- * (container: light-generator-stl-service-1, port 8001)
+ * (container: stl-service, port 8001)
  *
  * Endpoints used:
  *   POST /generate         — image + config_json → STL bytes
  *   POST /preview          — image + config_json → PNG bytes
  *   POST /check-islands    — image + config_json → { has_floating_islands: bool }
  */
+
+/**
+ * Customer-facing fields (camelCase) that live in configJson but are NOT part
+ * of GeneratorConfig on the Python side. The STL service uses extra="forbid",
+ * so these must be stripped before sending.
+ */
+const CUSTOMER_ONLY_FIELDS = new Set([
+  "size",
+  "shape",
+  "shapeRatio",
+  "shadowDiameter",
+  "shadowOffsetX",
+  "shadowOffsetY",
+  "supportStems",  // snake_case equivalent support_stems IS accepted; this camelCase one is not
+])
+
+/** Strip customer-facing fields so GeneratorConfig (extra="forbid") doesn't reject them. */
+function stripForStlService(config: object): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(config).filter(([key]) => !CUSTOMER_ONLY_FIELDS.has(key)),
+  )
+}
 
 function getServiceUrl(): string {
   return process.env.STL_SERVICE_URL ?? "http://localhost:8001"
@@ -30,7 +52,7 @@ function buildFormData(
   const form = new FormData()
   const blob = new Blob([new Uint8Array(imageBuffer)])
   form.append("image", blob, imageFilename)
-  form.append("config_json", JSON.stringify(configJson))
+  form.append("config_json", JSON.stringify(stripForStlService(configJson)))
   return form
 }
 
