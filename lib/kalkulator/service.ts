@@ -166,6 +166,14 @@ export async function deleteFilamentHarga(id: string): Promise<void> {
   await prisma.filamentHarga.delete({ where: { id } })
 }
 
+/**
+ * Recompute hargaPerGram di FilamentHarga dari moving average harga beli spool.
+ * Asumsi: 1 spool = 1000g (standard). hargaBeli dalam Rp per spool.
+ * Formula: AVG(hargaBeli) / 1000 = hargaPerGram
+ *
+ * @param pairs - opsional, filter brand+material tertentu. Jika kosong → recompute semua.
+ * @returns jumlah FilamentHarga yang di-upsert
+ */
 export async function recomputeFilamentHarga(
   pairs?: { brand: string; material: string }[]
 ): Promise<number> {
@@ -190,17 +198,20 @@ export async function recomputeFilamentHarga(
     groups.set(key, g)
   }
 
-  let updated = 0
+  // Upsert FilamentHarga per group - dalam transaction untuk atomicity
+  const upsertOps = []
   for (const g of groups.values()) {
     const hargaPerGram = Math.round(g.total / g.count / 1000 * 10) / 10
-    await prisma.filamentHarga.upsert({
-      where: { brand_material: { brand: g.brand, material: g.material } },
-      update: { hargaPerGram, spoolCount: g.count },
-      create: { brand: g.brand, material: g.material, hargaPerGram, spoolCount: g.count },
-    })
-    updated++
+    upsertOps.push(
+      prisma.filamentHarga.upsert({
+        where: { brand_material: { brand: g.brand, material: g.material } },
+        update: { hargaPerGram, spoolCount: g.count },
+        create: { brand: g.brand, material: g.material, hargaPerGram, spoolCount: g.count },
+      })
+    )
   }
-  return updated
+  await prisma.$transaction(upsertOps)
+  return upsertOps.length
 }
 
 export async function listResinHarga(): Promise<ResinHargaData[]> {
