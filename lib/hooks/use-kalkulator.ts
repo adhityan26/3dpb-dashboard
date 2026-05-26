@@ -124,6 +124,15 @@ export function useDeleteFilamentHarga() {
   })
 }
 
+export function useRecomputeFilamentHarga() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () =>
+      apiFetch<{ updated: number }>('/api/kalkulator/filament-harga/recompute', { method: 'POST' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: FILAMENT_KEY }),
+  })
+}
+
 export function useResinHarga() {
   return useQuery({ queryKey: RESIN_KEY, queryFn: () => apiFetch<ResinHargaData[]>('/api/kalkulator/resin-harga') })
 }
