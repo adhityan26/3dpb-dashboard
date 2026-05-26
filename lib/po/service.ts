@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import type { POData, POInput, UpdatePOInput, POListItem, POStatus } from './types'
+import { recomputeFilamentHarga } from '@/lib/kalkulator/service'
 
 function toItemData(raw: any) {
   return {
@@ -14,12 +15,13 @@ function toItemData(raw: any) {
 
 function toPOData(raw: any): POData {
   const items = (raw.items ?? []).map(toItemData)
+  const ongkir = raw.ongkir ?? 0
   return {
     id: raw.id, nomor: raw.nomor ?? null, vendorNama: raw.vendorNama,
     tanggal: raw.tanggal instanceof Date ? raw.tanggal.toISOString() : String(raw.tanggal),
-    status: raw.status as POStatus, catatan: raw.catatan ?? null, items,
-    grandTotal: items.reduce((s: number, i: any) => s + i.total, 0),
-    filamentItemCount: items.filter((i: any) => i.isFilament).length,
+    status: raw.status as POStatus, catatan: raw.catatan ?? null, ongkir, items,
+    grandTotal: items.reduce((s: number, i: any) => s + i.total, 0) + ongkir,
+    filamentItemCount: items.filter((i: any) => i.isFilament).reduce((s: number, i: any) => s + Math.floor(i.qty), 0),
     createdAt: raw.createdAt instanceof Date ? raw.createdAt.toISOString() : String(raw.createdAt),
   }
 }
@@ -29,15 +31,19 @@ export async function listPO(): Promise<POListItem[]> {
     include: { items: { select: { total: true, isFilament: true } } },
     orderBy: { createdAt: 'desc' },
   })
-  return rows.map(raw => ({
-    id: raw.id, nomor: raw.nomor ?? null, vendorNama: raw.vendorNama,
-    tanggal: raw.tanggal instanceof Date ? raw.tanggal.toISOString() : String(raw.tanggal),
-    status: raw.status as POStatus,
-    itemCount: raw.items.length,
-    grandTotal: raw.items.reduce((s, i) => s + i.total, 0),
-    filamentItemCount: raw.items.filter(i => i.isFilament).length,
-    createdAt: raw.createdAt instanceof Date ? raw.createdAt.toISOString() : String(raw.createdAt),
-  }))
+  return rows.map((raw: any) => {
+    const ongkir = raw.ongkir ?? 0
+    return {
+      id: raw.id, nomor: raw.nomor ?? null, vendorNama: raw.vendorNama,
+      tanggal: raw.tanggal instanceof Date ? raw.tanggal.toISOString() : String(raw.tanggal),
+      status: raw.status as POStatus,
+      itemCount: raw.items.length,
+      ongkir,
+      grandTotal: raw.items.reduce((s: number, i: any) => s + i.total, 0) + ongkir,
+      filamentItemCount: raw.items.filter((i: any) => i.isFilament).reduce((s: number, i: any) => s + Math.floor(i.qty), 0),
+      createdAt: raw.createdAt instanceof Date ? raw.createdAt.toISOString() : String(raw.createdAt),
+    }
+  })
 }
 
 export async function getPO(id: string): Promise<POData | null> {
@@ -50,12 +56,13 @@ export async function getPO(id: string): Promise<POData | null> {
 }
 
 export async function createPO(input: POInput): Promise<POData> {
-  const raw = await prisma.purchaseOrder.create({
+  const raw = await (prisma.purchaseOrder.create as any)({
     data: {
       nomor: input.nomor ?? null,
       vendorNama: input.vendorNama,
       tanggal: input.tanggal ? new Date(input.tanggal) : new Date(),
       catatan: input.catatan ?? null,
+      ongkir: input.ongkir ?? 0,
       items: {
         create: input.items.map(item => ({
           namaProduct: item.namaProduct,
@@ -81,6 +88,7 @@ export async function updatePO(id: string, input: UpdatePOInput): Promise<POData
   if (input.tanggal !== undefined) data.tanggal = new Date(input.tanggal)
   if (input.catatan !== undefined) data.catatan = input.catatan
   if (input.status !== undefined) data.status = input.status
+  if (input.ongkir !== undefined) data.ongkir = input.ongkir
 
   if (input.items !== undefined) {
     await prisma.purchaseOrderItem.deleteMany({ where: { poId: id } })
@@ -116,19 +124,28 @@ export async function receivePO(id: string): Promise<void> {
   if (!po) throw new Error('PO not found')
   if (po.status === 'RECEIVED') throw new Error('Already received')
 
+  // Compute ongkir share per item (proportional to item.total / all items subtotal)
+  const allItemsTotal = po.items.reduce((s, i) => s + i.total, 0)
+
   // Create Spool records for filament items
   const spoolsToCreate = []
   for (const item of po.items.filter(i => i.isFilament && i.brand && i.material)) {
     const qty = Math.floor(item.qty) // whole rolls only
+    // Effective price per roll = (item.total + ongkir share) / qty
+    const ongkirShare = allItemsTotal > 0 ? po.ongkir * (item.total / allItemsTotal) : 0
+    const effectiveTotal = item.total + ongkirShare
+    const hargaBeli = qty > 0 ? Math.round(effectiveTotal / qty) : null
+
     for (let i = 0; i < qty; i++) {
       spoolsToCreate.push({
         brand: item.brand!,
         material: item.material!,
         colorName: item.colorName ?? 'Unknown',
-        colorHex: '#808080',  // default gray — can be updated later
+        colorHex: '#808080',
         status: 'new',
         notes: `PO: ${po.nomor ?? po.id} - ${item.namaProduct}`,
         catalogId: item.filamentCatalogId ?? null,
+        hargaBeli,
       })
     }
   }
@@ -140,4 +157,12 @@ export async function receivePO(id: string): Promise<void> {
       data: { status: 'RECEIVED' },
     }),
   ])
+
+  // Recompute FilamentHarga moving average untuk brand+material yang baru diterima
+  const affectedPairs = po.items
+    .filter(i => i.isFilament && i.brand && i.material)
+    .map(i => ({ brand: i.brand!, material: i.material! }))
+  if (affectedPairs.length > 0) {
+    await recomputeFilamentHarga(affectedPairs)
+  }
 }
