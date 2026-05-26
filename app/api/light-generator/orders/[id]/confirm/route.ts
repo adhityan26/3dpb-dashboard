@@ -53,7 +53,7 @@ export async function POST(
     }
   }
 
-  // 4. Build configJson from Sanity fields
+  // 4. Build configJson from Sanity fields (customer-facing)
   const configJson = JSON.stringify({
     size: sanityOrder.size,
     shape: sanityOrder.shape,
@@ -63,6 +63,9 @@ export async function POST(
     shadowOffsetY: sanityOrder.shadowOffsetY,
     supportStems: sanityOrder.supportStems,
   })
+
+  // Pre-populate configJsonOperator from the raw technical config stored in Sanity (if any)
+  const configJsonOperator = sanityOrder.configJsonRaw ?? null
 
   // 5. Create in local DB
   try {
@@ -75,6 +78,7 @@ export async function POST(
         customerContact: sanityOrder.customerContact,
         notesCustomer: sanityOrder.customerNotes ?? null,
         configJson,
+        configJsonOperator,
         imagePath,
         additionalImagePath,
       },

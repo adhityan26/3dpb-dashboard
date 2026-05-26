@@ -71,7 +71,12 @@ export async function POST(
     supportStems: sanityOrder.supportStems,
   })
 
-  // 5. Update local DB — preserve: status, configJsonOperator, stlPath, notesOperator
+  // 5. Update local DB — preserve: status, stlPath, notesOperator
+  // configJsonOperator: keep existing if set; otherwise seed from configJsonRaw
+  const configJsonOperator = existing.configJsonOperator
+    ?? sanityOrder.configJsonRaw
+    ?? null
+
   const updated = await prisma.lightGeneratorOrder.update({
     where: { id },
     data: {
@@ -79,6 +84,7 @@ export async function POST(
       customerContact: sanityOrder.customerContact,
       notesCustomer: sanityOrder.customerNotes ?? null,
       configJson,
+      configJsonOperator,
       imagePath,
       additionalImagePath,
     },

@@ -20,6 +20,7 @@ export async function fetchSanityPendingOrders(): Promise<SanityLgOrder[]> {
     `*[_type == "lightGeneratorOrder" && status == "submitted"] | order(submittedAt desc) {
       _id, orderId, status, customerName, customerContact, customerNotes,
       size, shape, shapeRatio, shadowDiameter, shadowOffsetX, shadowOffsetY, supportStems,
+      configJsonRaw,
       silhouetteImage { asset { _ref } },
       floorInsertImage { asset { _ref } },
       submittedAt
@@ -33,6 +34,7 @@ export async function fetchAllSanityLgOrders(): Promise<SanityLgOrder[]> {
     `*[_type == "lightGeneratorOrder"] | order(submittedAt desc) {
       _id, orderId, status, customerName, customerContact, customerNotes,
       size, shape, shapeRatio, shadowDiameter, shadowOffsetX, shadowOffsetY, supportStems,
+      configJsonRaw,
       silhouetteImage { asset { _ref } },
       floorInsertImage { asset { _ref } },
       submittedAt
@@ -62,6 +64,7 @@ export async function fetchSanityOrderById(orderId: string): Promise<SanityLgOrd
     `*[_type == "lightGeneratorOrder" && orderId == $orderId][0] {
       _id, orderId, status, customerName, customerContact, customerNotes,
       size, shape, shapeRatio, shadowDiameter, shadowOffsetX, shadowOffsetY, supportStems,
+      configJsonRaw,
       silhouetteImage { asset { _ref } },
       floorInsertImage { asset { _ref } },
       submittedAt

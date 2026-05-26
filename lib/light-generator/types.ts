@@ -49,6 +49,8 @@ export interface SanityLgOrder {
   shadowOffsetX: number
   shadowOffsetY: number
   supportStems: boolean
+  /** Raw technical config JSON string from original LG order (operator starting point) */
+  configJsonRaw?: string | null
   silhouetteImage: { asset: { _ref: string } }
   floorInsertImage?: { asset: { _ref: string } } | null
   submittedAt: string
