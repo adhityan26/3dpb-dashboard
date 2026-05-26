@@ -255,6 +255,7 @@ model FilamentHarga {
   brand        String
   material     String
   hargaPerGram Float
+  spoolCount   Int    @default(0)
   @@unique([brand, material])
 }
 
