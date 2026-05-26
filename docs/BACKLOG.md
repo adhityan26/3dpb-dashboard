@@ -81,6 +81,16 @@
 ---
 ## Analitik & Finance
 
+### Net Profit Dashboard (Profit Bersih Setelah Cancel/Return)
+- Breakdown order berdasarkan status: Completed, Cancelled, Return/Refund, COD Gagal, Belum Selesai
+- Net Revenue = order completed only (bukan GMV kotor)
+- Profit bersih = Net Revenue - HPP - biaya platform
+- Upload data pesanan (CSV export Shopee) atau sync via API
+- Tampil di Analisa page sebagai card tambahan: "Profit Bersih" vs "Omzet"
+
+---
+## Analitik & Finance (lanjutan)
+
 ### Escrow Amount (Pendapatan Bersih Seller)
 - Omzet saat ini = total_amount (GMV, belum dikurangi fee Shopee)
 - Perlu tambah escrow_amount dari Shopee Finance API
