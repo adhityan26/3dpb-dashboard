@@ -98,7 +98,8 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   const hasil: HasilKalkulasi | null = useMemo(() => {
     if (!ratesData) return null
     const validPlates = plates.filter(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0) && p.durasiJam > 0)
-    if (validPlates.length === 0) return null
+    const hasKomponen = aksesori.komponenKustom.some(k => k.harga > 0)
+    if (validPlates.length === 0 && !hasKomponen) return null
     try {
       return hitungKalkulasi(
         validPlates,
@@ -118,10 +119,19 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
     } catch { return null }
   }, [plates, aksesori, batch, marginTier, hargaShopee, shopeeIsLocked, linkedShopeePrice, ratesData])
 
+  // Round up to nearest 5000 for placeholder suggestions
+  function roundUp5000(n: number): number {
+    return Math.ceil(n / 5000) * 5000
+  }
+  const placeholderShopee = hasil ? `Rp ${roundUp5000(hasil.shopeeA).toLocaleString("id-ID")}` : "Rp 35.000"
+  const placeholderOffline = hasil ? `Rp ${roundUp5000(hasil.offlineA).toLocaleString("id-ID")}` : "Rp 30.000"
+
   const isEditing = !!initial
 
   async function handleSave() {
-    if (!nama.trim() || plates.filter(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0)).length === 0) return
+    const hasPlates = plates.some(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0))
+    const hasKomponenVal = aksesori.komponenKustom.some(k => k.harga > 0)
+    if (!nama.trim() || (!hasPlates && !hasKomponenVal)) return
     const input: KalkulasiInput = {
       nama: nama.trim(),
       batch: Math.max(1, batch),
@@ -159,7 +169,10 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   }
 
   const isSaving = createMut.isPending || updateMut.isPending
-  const hasValidInput = nama.trim().length > 0 && plates.some(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0))
+  const hasValidInput = nama.trim().length > 0 && (
+    plates.some(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0)) ||
+    aksesori.komponenKustom.some(k => k.harga > 0)
+  )
   const [showPrint, setShowPrint] = useState(false)
 
   // Fallback rates for AksesoriSection while ratesData is loading
@@ -180,10 +193,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
         {/* Nama + Batch + Margin */}
         <div className="space-y-3">
           <div>
-            <div
-              className="text-xs font-semibold uppercase tracking-wider mb-1.5"
-              style={{ color: "rgba(165,180,252,0.6)" }}
-            >
+            <div className="text-xs font-semibold uppercase tracking-wider mb-1.5 g-accent">
               Nama Kalkulasi
             </div>
             <input
@@ -197,10 +207,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <div
-                className="text-xs font-semibold uppercase tracking-wider mb-1.5"
-                style={{ color: "rgba(165,180,252,0.6)" }}
-              >
+              <div className="text-xs font-semibold uppercase tracking-wider mb-1.5 g-accent">
                 Batch (unit)
               </div>
               <input
@@ -212,10 +219,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
               />
             </div>
             <div>
-              <div
-                className="text-xs font-semibold uppercase tracking-wider mb-1.5"
-                style={{ color: "rgba(165,180,252,0.6)" }}
-              >
+              <div className="text-xs font-semibold uppercase tracking-wider mb-1.5 g-accent">
                 Margin
               </div>
               <div className="flex gap-2">
@@ -232,9 +236,9 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
                             color: "#c7d2fe",
                           }
                         : {
-                            background: "rgba(255,255,255,0.04)",
-                            border: "1px solid rgba(255,255,255,0.08)",
-                            color: "rgba(255,255,255,0.4)",
+                            background: "var(--g-inner)",
+                            border: "1px solid var(--g-inner-border)",
+                            color: "var(--g-t3)",
                           }
                     }
                   >
@@ -248,10 +252,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
 
         {/* Plate Table */}
         <div>
-          <div
-            className="text-xs font-semibold uppercase tracking-wider mb-2"
-            style={{ color: "rgba(165,180,252,0.6)" }}
-          >
+          <div className="text-xs font-semibold uppercase tracking-wider mb-2 g-accent">
             Part / Plate
           </div>
           <PlateTable plates={plates} onChange={setPlates} />
@@ -263,10 +264,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
         {/* Harga Shopee */}
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <div
-              className="text-xs font-semibold uppercase tracking-wider"
-              style={{ color: "rgba(165,180,252,0.6)" }}
-            >
+            <div className="text-xs font-semibold uppercase tracking-wider g-accent">
               Harga Shopee Saat Ini
             </div>
             {shopeeIsLocked ? (
@@ -277,14 +275,14 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
                 🔗 Dari Shopee
               </span>
             ) : (
-              <span className="text-[10px] font-normal" style={{ color: "rgba(255,255,255,0.25)" }}>
+              <span className="text-[10px] font-normal g-t5">
                 (opsional)
               </span>
             )}
           </div>
           <input
             type="text"
-            placeholder="Rp 35.000"
+            placeholder={placeholderShopee}
             value={shopeeIsLocked ? `Rp ${linkedShopeePrice!.toLocaleString("id-ID")}` : hargaShopeeStr}
             disabled={shopeeIsLocked}
             onChange={shopeeIsLocked ? undefined : e => {
@@ -300,14 +298,14 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
         {/* Harga Offline Aktual */}
         <div>
           <div className="flex items-center gap-2 mb-1.5">
-            <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: "rgba(165,180,252,0.6)" }}>
+            <div className="text-xs font-semibold uppercase tracking-wider g-accent">
               Harga Offline Saat Ini
             </div>
-            <span className="text-[10px] font-normal" style={{ color: "rgba(255,255,255,0.25)" }}>(opsional)</span>
+            <span className="text-[10px] font-normal g-t5">(opsional)</span>
           </div>
           <input
             type="text"
-            placeholder="Rp 30.000"
+            placeholder={placeholderOffline}
             value={hargaOfflineStr}
             onChange={e => {
               setHargaOfflineStr(e.target.value)
@@ -324,12 +322,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           {hasil && hasValidInput && (
             <button
               onClick={() => setShowPrint(true)}
-              className="h-12 px-4 rounded-[12px] text-sm font-semibold transition-all flex-shrink-0"
-              style={{
-                background: "rgba(255,255,255,0.06)",
-                border: "1px solid rgba(255,255,255,0.12)",
-                color: "rgba(255,255,255,0.7)",
-              }}
+              className="h-12 px-4 rounded-[12px] text-sm font-semibold transition-all flex-shrink-0 g-btn-ghost"
               title="Buat quote untuk customer"
             >
               🖨️
@@ -360,16 +353,10 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
 
       {/* RIGHT: Results */}
       <div
-        className="rounded-[14px] p-4"
-        style={{
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(99,102,241,0.1)",
-        }}
+        className="g-card rounded-[14px] p-4"
+        style={{ border: "1px solid rgba(99,102,241,0.1)" }}
       >
-        <div
-          className="text-xs font-bold uppercase tracking-wider mb-4"
-          style={{ color: "rgba(165,180,252,0.6)" }}
-        >
+        <div className="text-xs font-bold uppercase tracking-wider mb-4 g-accent">
           Hasil Kalkulasi
         </div>
         <HasilPanel
