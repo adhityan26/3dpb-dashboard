@@ -23,24 +23,32 @@ export function hitungKalkulasi(
   const safeBatch = Math.max(1, batch)
 
   // Calculate HPP and jual cost for one plate
+  // HPP  = actual cost (katalog rate, fallback ke base config)
+  // Jual = floor price basis (MAX(base config, katalog) — tidak pernah di bawah base)
   function plateCost(p: PlateInput): { hpp: number; jual: number } {
     const mesin = p.durasiJam * rates.mesinPerJam
     if (p.materials && p.materials.length > 0) {
-      // Multi-material: each entry has its own cost per gram
-      const filamentHpp = p.materials.reduce((s, m) => {
-        const harga = m.hargaPerGram ?? rates.fdmHppPerGram  // default to FDM rate
-        return s + m.gramasi * harga
-      }, 0)
-      // Jual: use same ratio as hpp (jual/hpp ratio from FDM rates)
-      const ratio = rates.fdmJualPerGram / rates.fdmHppPerGram
-      return { hpp: filamentHpp + mesin, jual: filamentHpp * ratio + mesin }
+      // Multi-material: each entry has its own hpp/jual cost
+      const { totalHpp, totalJual } = p.materials.reduce((s, m) => {
+        const hppRate  = m.hargaPerGram ?? rates.fdmHppPerGram
+        const jualRate = Math.max(rates.fdmJualPerGram, m.hargaPerGram ?? rates.fdmJualPerGram)
+        return {
+          totalHpp:  s.totalHpp  + m.gramasi * hppRate,
+          totalJual: s.totalJual + m.gramasi * jualRate,
+        }
+      }, { totalHpp: 0, totalJual: 0 })
+      return { hpp: totalHpp + mesin, jual: totalJual + mesin }
     }
-    // Legacy single-material
+    // Single-material (legacy)
     const g = p.gramasi ?? 0
     const isSLA = p.tipe === 'SLA'
+    const baseHpp  = isSLA ? rates.slaHppPerGram  : rates.fdmHppPerGram
+    const baseJual = isSLA ? rates.slaJualPerGram : rates.fdmJualPerGram
+    const hppRate  = p.hargaPerGram ?? baseHpp
+    const jualRate = Math.max(baseJual, p.hargaPerGram ?? baseJual)
     return {
-      hpp:  g * (isSLA ? rates.slaHppPerGram  : rates.fdmHppPerGram)  + mesin,
-      jual: g * (isSLA ? rates.slaJualPerGram : rates.fdmJualPerGram) + mesin,
+      hpp:  g * hppRate  + mesin,
+      jual: g * jualRate + mesin,
     }
   }
 
@@ -69,7 +77,7 @@ export function hitungKalkulasi(
   const resellerBulk = floorPrice * 1.05
 
   const marginOfflineA = offlineA > 0 ? ((offlineA - hppTotal) / offlineA) * 100 : 0
-  const netShopeeA = shopeeA * 0.8
+  const netShopeeA = shopeeA / rates.adminEcommerce
   const marginShopeeA = netShopeeA > 0 ? ((netShopeeA - hppTotal) / netShopeeA) * 100 : 0
 
   let status: KalkulasiStatus = 'TIDAK_DISET'
