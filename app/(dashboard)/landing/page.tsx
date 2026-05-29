@@ -1,8 +1,9 @@
 "use client"
 
-import { Suspense } from "react"
+import { Suspense, useState } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { CMSSidebar } from "@/components/cms/CMSSidebar"
+import { SidebarDrawerShell } from "@/components/layout/SidebarDrawerShell"
 import { SiteSettingsEditor } from "@/components/cms/SiteSettingsEditor"
 import { GalleryManager } from "@/components/cms/GalleryManager"
 import { TestimonialsManager } from "@/components/cms/TestimonialsManager"
@@ -32,16 +33,24 @@ function LandingPageInner() {
   const rawSection = searchParams.get("section") ?? "site-settings"
   const validSections: CmsSection[] = ["site-settings", "gallery", "testimonials", "faq", "strava-orders", "waitlist", "generator", "faceshell", "lg-orders"]
   const activeSection: CmsSection = validSections.includes(rawSection as CmsSection) ? (rawSection as CmsSection) : "site-settings"
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   function setSection(section: CmsSection) {
     const params = new URLSearchParams(searchParams.toString())
     params.set("section", section)
     router.replace(`?${params.toString()}`, { scroll: false })
+    setSidebarOpen(false)
   }
 
   return (
     <div className="flex min-h-screen -mx-4 -mt-4 md:-mx-6 md:-mt-6">
-      <CMSSidebar active={activeSection} onChange={setSection} />
+      <SidebarDrawerShell
+        open={sidebarOpen}
+        onOpen={() => setSidebarOpen(true)}
+        onClose={() => setSidebarOpen(false)}
+      >
+        <CMSSidebar active={activeSection} onChange={setSection} />
+      </SidebarDrawerShell>
       <div className="flex-1 overflow-auto">
         {activeSection === "site-settings"  && <SiteSettingsEditor />}
         {activeSection === "gallery"         && <GalleryManager />}
