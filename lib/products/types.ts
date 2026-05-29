@@ -62,3 +62,11 @@ export interface ProductsListResult {
 
 export const STOCK_LOW_THRESHOLD = 5
 export const NO_SALES_DAYS_THRESHOLD = 7
+
+export interface ProductsPageResult {
+  products: ProductSummary[]
+  total: number
+  page: number
+  totalPages: number
+  fetchedAt: string
+}
