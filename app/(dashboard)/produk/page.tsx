@@ -13,6 +13,7 @@ import { ProdukSidebar } from "@/components/produk/ProdukSidebar"
 import type { ProdukTab } from "@/components/produk/ProdukSidebar"
 import {
   useProducts,
+  useRefreshProducts,
   useUploadProductImage,
 } from "@/lib/hooks/use-products"
 import { useRefreshConfig } from "@/lib/use-refresh-config"
@@ -32,7 +33,12 @@ function ProdukPageInner() {
   const { intervalMs } = useRefreshConfig()
   const { data, isLoading, isError, error, refetch, dataUpdatedAt } =
     useProducts()
+  const refreshProducts = useRefreshProducts()
   const uploadImage = useUploadProductImage()
+
+  async function handleRefresh() {
+    await refreshProducts.mutateAsync()
+  }
   const router = useRouter()
   const searchParams = useSearchParams()
 
@@ -138,11 +144,18 @@ function ProdukPageInner() {
             {data && (
               <>
                 <GlassPageHeader title="Produk" subtitle="Pantau produk aktif dan HPP">
-                  <RefreshIndicator
-                    lastUpdated={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
-                    intervalMs={intervalMs}
-                    onRefresh={() => refetch()}
-                  />
+                  <div className="flex items-center gap-2">
+                    {data.fetchedAt && (
+                      <span className="text-[10px] g-t5">
+                        Data Shopee: {new Date(data.fetchedAt).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                    )}
+                    <RefreshIndicator
+                      lastUpdated={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
+                      intervalMs={intervalMs}
+                      onRefresh={handleRefresh}
+                    />
+                  </div>
                 </GlassPageHeader>
                 <div className="space-y-4 mt-4">
                   <ProductsKpiBar kpi={data.kpi} />

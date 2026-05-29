@@ -20,8 +20,20 @@ export function useProducts() {
   return useQuery({
     queryKey: PRODUCTS_KEY,
     queryFn: fetchProducts,
+    staleTime: 4 * 60 * 1000, // 4 min — don't re-fetch if cached data is fresh
     refetchInterval: intervalMs > 0 ? intervalMs : false,
     refetchIntervalInBackground: false,
+  })
+}
+
+export function useRefreshProducts() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      // Invalidate server-side cache then refetch
+      await fetch("/api/products/refresh", { method: "POST" })
+      return qc.invalidateQueries({ queryKey: PRODUCTS_KEY })
+    },
   })
 }
 

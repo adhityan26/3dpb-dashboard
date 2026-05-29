@@ -15,6 +15,23 @@ import type {
 } from "./types"
 import { STOCK_LOW_THRESHOLD } from "./types"
 
+// ── In-process cache (stale-while-revalidate) ─────────────────────────────
+const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes: serve from cache, refresh in bg
+const STALE_TTL_MS = 30 * 60 * 1000 // 30 minutes: max age before forcing fresh
+
+interface CacheEntry {
+  data: ProductsListResult
+  cachedAt: number
+  refreshing: boolean
+}
+
+let _cache: CacheEntry | null = null
+
+/** Invalidate cache (call after stock/HPP mutations). */
+export function invalidateProductsCache() {
+  _cache = null
+}
+
 interface SoldStats {
   qty: number
   omzet: number
@@ -43,9 +60,9 @@ async function getSoldStatsPerItem(): Promise<Map<string, SoldStats>> {
 }
 
 /**
- * Get all products for the shop with stock, HPP, and performance.
+ * Fetch products fresh from Shopee API (no cache).
  */
-export async function getProducts(): Promise<ProductsListResult> {
+async function fetchProductsFresh(): Promise<ProductsListResult> {
   if (process.env.SHOPEE_MOCK_PRODUCTS === "true") {
     return generateMockProducts()
   }
@@ -226,6 +243,37 @@ export async function getProducts(): Promise<ProductsListResult> {
     },
     fetchedAt: new Date().toISOString(),
   }
+}
+
+/**
+ * Get all products — served from cache when fresh, background-refreshes when stale.
+ * First call (cold cache) fetches live and may be slow.
+ */
+export async function getProducts(): Promise<ProductsListResult> {
+  const now = Date.now()
+
+  if (_cache) {
+    const age = now - _cache.cachedAt
+    if (age < CACHE_TTL_MS) {
+      // Fresh — serve immediately
+      return _cache.data
+    }
+    if (age < STALE_TTL_MS) {
+      // Stale but usable — serve stale data and kick off background refresh
+      if (!_cache.refreshing) {
+        _cache.refreshing = true
+        fetchProductsFresh()
+          .then(data => { _cache = { data, cachedAt: Date.now(), refreshing: false } })
+          .catch(() => { if (_cache) _cache.refreshing = false })
+      }
+      return _cache.data
+    }
+  }
+
+  // No cache or too stale — fetch fresh and block
+  const data = await fetchProductsFresh()
+  _cache = { data, cachedAt: now, refreshing: false }
+  return data
 }
 
 /**
