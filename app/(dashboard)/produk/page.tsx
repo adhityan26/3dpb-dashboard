@@ -9,6 +9,7 @@ import { ProductsKpiBar } from "@/components/products/ProductsKpiBar"
 import { ProductFilter } from "@/components/products/ProductFilter"
 import { ProductList } from "@/components/products/ProductList"
 import { RefreshIndicator } from "@/components/layout/RefreshIndicator"
+import { SidebarDrawerShell } from "@/components/layout/SidebarDrawerShell"
 import { ProdukSidebar } from "@/components/produk/ProdukSidebar"
 import type { ProdukTab } from "@/components/produk/ProdukSidebar"
 import {
@@ -46,10 +47,13 @@ function ProdukPageInner() {
   const rawTab = searchParams.get("tab") ?? "katalog"
   const produkTab: ProdukTab = VALID_TABS.includes(rawTab as ProdukTab) ? rawTab as ProdukTab : "katalog"
 
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
   function setProdukTab(tab: ProdukTab) {
     const params = new URLSearchParams(searchParams.toString())
     params.set("tab", tab)
     router.replace(`?${params.toString()}`, { scroll: false })
+    setSidebarOpen(false)
   }
 
   const [filter, setFilter] = useState<ProductFilterValue>("perlu_perhatian")
@@ -101,7 +105,13 @@ function ProdukPageInner() {
 
   return (
     <div className="flex min-h-screen -mx-4 -mt-4 md:-mx-6 md:-mt-6">
-      <ProdukSidebar active={produkTab} onChange={setProdukTab} />
+      <SidebarDrawerShell
+        open={sidebarOpen}
+        onOpen={() => setSidebarOpen(true)}
+        onClose={() => setSidebarOpen(false)}
+      >
+        <ProdukSidebar active={produkTab} onChange={setProdukTab} />
+      </SidebarDrawerShell>
 
       <div className="flex-1 overflow-auto p-4 md:p-6">
         {produkTab === "katalog" ? (
