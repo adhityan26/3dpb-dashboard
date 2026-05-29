@@ -32,6 +32,236 @@ export function invalidateProductsCache() {
   _cache = null
 }
 
+/**
+ * Syncs the ShopeeProductIndex table with current items from Shopee API.
+ * Upserts all active items, deletes stale rows.
+ */
+export async function syncProductIndex(): Promise<{ synced: number; deleted: number }> {
+  const itemRefs = await getAllItems(["NORMAL", "UNLIST"])
+  if (itemRefs.length === 0) {
+    // Delete everything if Shopee returns empty (edge case — preserve if API error)
+    const deleted = await prisma.shopeeProductIndex.deleteMany()
+    return { synced: 0, deleted: deleted.count }
+  }
+
+  const itemIds = itemRefs.map((r) => r.item_id)
+  const baseInfos = await getItemBaseInfoBatch(itemIds)
+
+  // Upsert all in a transaction
+  await prisma.$transaction(
+    baseInfos.map((b) =>
+      prisma.shopeeProductIndex.upsert({
+        where: { itemId: String(b.item_id) },
+        update: {
+          name: b.item_name,
+          status: b.item_status,
+          imageUrl: b.image?.image_url_list?.[0] ?? null,
+        },
+        create: {
+          itemId: String(b.item_id),
+          name: b.item_name,
+          status: b.item_status,
+          imageUrl: b.image?.image_url_list?.[0] ?? null,
+        },
+      }),
+    ),
+  )
+
+  // Delete stale rows (items no longer returned by Shopee)
+  const activeIds = itemIds.map(String)
+  const deleted = await prisma.shopeeProductIndex.deleteMany({
+    where: { itemId: { notIn: activeIds } },
+  })
+
+  return { synced: baseInfos.length, deleted: deleted.count }
+}
+
+interface GetProductsPageOpts {
+  page: number
+  limit: number
+  q?: string
+  status?: string
+}
+
+/**
+ * Returns a paginated, optionally filtered list of products.
+ * Only fetches rich Shopee data (variants, stock, sold stats) for the current page.
+ */
+export async function getProductsPage(
+  opts: GetProductsPageOpts,
+): Promise<import("./types").ProductsPageResult> {
+  const { page, limit, q, status } = opts
+  const skip = (page - 1) * limit
+
+  type WhereInput = NonNullable<Parameters<typeof prisma.shopeeProductIndex.findMany>[0]>["where"]
+  const where: WhereInput = {}
+  if (q && q.trim() !== "") {
+    where.name = { contains: q.trim(), mode: "insensitive" }
+  }
+  if (status && status !== "all") {
+    where.status = status.toUpperCase()
+  }
+
+  const [total, indexRows] = await Promise.all([
+    prisma.shopeeProductIndex.count({ where }),
+    prisma.shopeeProductIndex.findMany({
+      where,
+      skip,
+      take: limit,
+      orderBy: { name: "asc" },
+    }),
+  ])
+
+  const totalPages = Math.ceil(total / limit)
+
+  if (indexRows.length === 0) {
+    return { products: [], total, page, totalPages, fetchedAt: new Date().toISOString() }
+  }
+
+  const pageItemIds = indexRows.map((r) => Number(r.itemId))
+  const baseInfos = await getItemBaseInfoBatch(pageItemIds)
+
+  // Fetch variant lists for items that have them (limit concurrency to 10)
+  const variantsByItem = new Map<number, VariantSummary[]>()
+  const itemsWithVariants = baseInfos.filter((b) => b.has_model)
+  const BATCH = 10
+
+  for (let i = 0; i < itemsWithVariants.length; i += BATCH) {
+    const chunk = itemsWithVariants.slice(i, i + BATCH)
+    const results = await Promise.all(
+      chunk.map(async (item) => {
+        try {
+          const res = await getModelList(item.item_id)
+          return { itemId: item.item_id, models: res.model }
+        } catch (err) {
+          console.warn(`getModelList failed for item ${item.item_id}:`, err)
+          return { itemId: item.item_id, models: [] }
+        }
+      }),
+    )
+    for (const { itemId, models } of results) {
+      const variants: VariantSummary[] = models.map((m) => {
+        const current = m.price_info?.[0]?.current_price ?? 0
+        const original = m.price_info?.[0]?.original_price ?? 0
+        return {
+          variantId: String(m.model_id),
+          variantName: m.model_name ?? `Varian ${m.model_id}`,
+          sku: m.model_sku ?? null,
+          stock: m.stock_info_v2?.summary_info?.total_available_stock ?? 0,
+          price: current,
+          originalPrice: original > 0 && original > current ? original : null,
+          hpp: null,
+        }
+      })
+      variantsByItem.set(itemId, variants)
+    }
+  }
+
+  const pageItemIdStrings = pageItemIds.map(String)
+
+  const [shopeeLinks, soldStats] = await Promise.all([
+    prisma.produkInternalShopeeLink.findMany({
+      where: { shopeeItemId: { in: pageItemIdStrings } },
+      include: {
+        produkInternal: {
+          include: { primaryKalkulasi: true },
+        },
+      },
+    }),
+    getSoldStatsPerItem(),
+  ])
+
+  const katalogByItemId = new Map<string, KatalogInfo>()
+  for (const link of shopeeLinks) {
+    const pi = link.produkInternal
+    const k = pi.primaryKalkulasi
+    if (k && k.hppTotal > 0) {
+      katalogByItemId.set(link.shopeeItemId, {
+        id: pi.id,
+        nama: pi.nama,
+        hppTotal: k.hppTotal,
+        floorPrice: k.floorPrice,
+        shopeeA: k.shopeeA,
+        kalkulasiStatus: k.status,
+      })
+    }
+  }
+
+  const products: ProductSummary[] = baseInfos.map((b) => {
+    const productIdStr = String(b.item_id)
+    const hasVariants = b.has_model
+    const variants = hasVariants ? (variantsByItem.get(b.item_id) ?? []) : []
+
+    const stockTotal = hasVariants
+      ? variants.reduce((s, v) => s + v.stock, 0)
+      : (b.stock_info_v2?.summary_info?.total_available_stock ?? 0)
+
+    const prices = hasVariants
+      ? variants.map((v) => v.price).filter((p) => p > 0)
+      : [b.price_info?.[0]?.current_price ?? 0]
+    const priceMin = prices.length > 0 ? Math.min(...prices) : 0
+    const priceMax = prices.length > 0 ? Math.max(...prices) : 0
+
+    const origPrices = hasVariants
+      ? variants.map((v) => v.originalPrice).filter((p): p is number => p !== null && p > 0)
+      : (() => { const op = b.price_info?.[0]?.original_price ?? 0; return op > priceMin ? [op] : [] })()
+    const originalPriceMin = origPrices.length > 0 ? Math.min(...origPrices) : null
+
+    const weight = b.weight ?? null
+    const dim = b.dimension
+    const dimensionCm =
+      dim?.package_length && dim?.package_width && dim?.package_height
+        ? { l: dim.package_length, w: dim.package_width, h: dim.package_height }
+        : null
+
+    const stats = soldStats.get(productIdStr) ?? { qty: 0, omzet: 0 }
+    const katalog = katalogByItemId.get(productIdStr) ?? null
+    const productHpp = katalog?.hppTotal ?? null
+
+    let grossMargin30d: number | null = null
+    if (productHpp !== null) {
+      grossMargin30d = stats.omzet - productHpp * stats.qty
+    }
+
+    const stockValues = hasVariants ? variants.map((v) => v.stock) : [stockTotal]
+    const lowestStock = stockValues.length > 0 ? Math.min(...stockValues) : 0
+    const isStockLow = lowestStock < STOCK_LOW_THRESHOLD
+    const noSalesRecent = stats.qty === 0
+    const perluPerhatian = isStockLow || noSalesRecent
+
+    return {
+      productId: productIdStr,
+      name: b.item_name,
+      status: b.item_status as ProductStatus,
+      imageUrl: b.image?.image_url_list?.[0] ?? null,
+      hasVariants,
+      stockTotal,
+      priceMin,
+      priceMax,
+      originalPriceMin,
+      weight,
+      dimensionCm,
+      hpp: productHpp,
+      katalog,
+      variants,
+      qtySold30d: stats.qty,
+      omzet30d: stats.omzet,
+      grossMargin30d,
+      isStockLow,
+      perluPerhatian,
+      lowestStock,
+    }
+  })
+
+  return {
+    products,
+    total,
+    page,
+    totalPages,
+    fetchedAt: new Date().toISOString(),
+  }
+}
+
 interface SoldStats {
   qty: number
   omzet: number
