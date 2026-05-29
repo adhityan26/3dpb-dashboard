@@ -1,7 +1,7 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import type { ProductsListResult } from "@/lib/products/types"
+import type { ProductsListResult, ProductsPageResult } from "@/lib/products/types"
 import { useRefreshConfig } from "@/lib/use-refresh-config"
 
 const PRODUCTS_KEY = ["products"] as const
@@ -157,6 +157,46 @@ export function useUploadProductImage() {
     mutationFn: uploadProductImage,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: PRODUCTS_KEY })
+    },
+  })
+}
+
+// ── Paginated product index ────────────────────────────────────────────────
+
+interface ProductsPageOpts {
+  page: number
+  limit: number
+  q: string
+  status?: string
+}
+
+export function useProductsPage(opts: ProductsPageOpts) {
+  return useQuery({
+    queryKey: ["products-page", opts],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        page: String(opts.page),
+        limit: String(opts.limit),
+        ...(opts.q ? { q: opts.q } : {}),
+        ...(opts.status ? { status: opts.status } : {}),
+      })
+      const res = await fetch(`/api/products/page?${params}`)
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        throw new Error((e as { error?: string }).error ?? `HTTP ${res.status}`)
+      }
+      return res.json() as Promise<ProductsPageResult>
+    },
+    staleTime: 4 * 60 * 1000,
+  })
+}
+
+export function useSyncProductIndex() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async () => {
+      await fetch("/api/products/sync-index", { method: "POST" })
+      return qc.invalidateQueries({ queryKey: ["products-page"] })
     },
   })
 }
