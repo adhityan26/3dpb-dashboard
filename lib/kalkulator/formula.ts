@@ -18,38 +18,48 @@ export function hitungKalkulasi(
   batch: number,
   rates: KalkulatorRates,
   marginTier: MarginTier,
-  hargaShopeeAktual?: number
+  hargaShopeeAktual?: number,
+  customRiskPct?: number,
 ): HasilKalkulasi {
   const safeBatch = Math.max(1, batch)
+  const failureRate = (customRiskPct ?? rates.failureRatePct) / 100
+  const spread = rates.failureSpreadPct / 100          // 0=owner, 1=customer
+  const testPct = rates.testLayerPct / 100
 
   // Calculate HPP and jual cost for one plate
-  // HPP  = actual cost (katalog rate, fallback ke base config)
-  // Jual = floor price basis (MAX(base config, katalog) — tidak pernah di bawah base)
+  // HPP  = actual cost (katalog rate, fallback ke base config) + failure buffer (owner portion) + test layer
+  // Jual = floor price basis (MAX(base config, katalog)) + failure buffer (customer portion)
   function plateCost(p: PlateInput): { hpp: number; jual: number } {
     const mesin = p.durasiJam * rates.mesinPerJam
+
+    let baseHpp: number, baseJual: number, matHpp: number, matJual: number
+
     if (p.materials && p.materials.length > 0) {
-      // Multi-material: each entry has its own hpp/jual cost
       const { totalHpp, totalJual } = p.materials.reduce((s, m) => {
         const hppRate  = m.hargaPerGram ?? rates.fdmHppPerGram
         const jualRate = Math.max(rates.fdmJualPerGram, m.hargaPerGram ?? rates.fdmJualPerGram)
-        return {
-          totalHpp:  s.totalHpp  + m.gramasi * hppRate,
-          totalJual: s.totalJual + m.gramasi * jualRate,
-        }
+        return { totalHpp: s.totalHpp + m.gramasi * hppRate, totalJual: s.totalJual + m.gramasi * jualRate }
       }, { totalHpp: 0, totalJual: 0 })
-      return { hpp: totalHpp + mesin, jual: totalJual + mesin }
+      matHpp = totalHpp; matJual = totalJual
+    } else {
+      const isSLA = p.tipe === 'SLA'
+      baseHpp  = isSLA ? rates.slaHppPerGram  : rates.fdmHppPerGram
+      baseJual = isSLA ? rates.slaJualPerGram : rates.fdmJualPerGram
+      const hppRate  = p.hargaPerGram ?? baseHpp
+      const jualRate = Math.max(baseJual, p.hargaPerGram ?? baseJual)
+      matHpp = (p.gramasi ?? 0) * hppRate
+      matJual = (p.gramasi ?? 0) * jualRate
     }
-    // Single-material (legacy)
-    const g = p.gramasi ?? 0
-    const isSLA = p.tipe === 'SLA'
-    const baseHpp  = isSLA ? rates.slaHppPerGram  : rates.fdmHppPerGram
-    const baseJual = isSLA ? rates.slaJualPerGram : rates.fdmJualPerGram
-    const hppRate  = p.hargaPerGram ?? baseHpp
-    const jualRate = Math.max(baseJual, p.hargaPerGram ?? baseJual)
-    return {
-      hpp:  g * hppRate  + mesin,
-      jual: g * jualRate + mesin,
-    }
+
+    // Failure cost — base = hppRate (real cost)
+    const failureCost = (matHpp + mesin) * failureRate
+    // Test layer cost — HPP only (owner's QC cost), material only
+    const testCost = matHpp * testPct
+
+    const hpp  = matHpp  + mesin + failureCost * (1 - spread) + testCost
+    const jual = matJual + mesin + failureCost * spread * (matJual > 0 ? matHpp > 0 ? matJual / matHpp : 1 : 1)
+
+    return { hpp, jual }
   }
 
   const totalHppBatch  = plates.reduce((s, p) => s + plateCost(p).hpp,  0)

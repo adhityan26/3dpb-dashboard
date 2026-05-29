@@ -52,6 +52,9 @@ export function KalkulatorSettingsCard() {
       "kalk.adminEcommerce":  String(rates.adminEcommerce),
       "kalk.switch.perPcs":   String(rates.switchPerPcs),
       "kalk.label.perLembar": String(rates.labelPerLembar),
+      "kalk.failureRate.pct":   String(rates.failureRatePct),
+      "kalk.failureSpread.pct": String(rates.failureSpreadPct),
+      "kalk.testLayer.pct":     String(rates.testLayerPct),
       ...Object.fromEntries(PACKING_SIZES.map(s => [`kalk.packing.${s}`, String(rates.packing[s] ?? "")])),
       ...Object.fromEntries(GANTUNGAN_TYPES.map(g => [`kalk.gantungan.${g}`, String(rates.gantungan[g] ?? "")])),
     })
@@ -154,6 +157,64 @@ export function KalkulatorSettingsCard() {
               />
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Failure Rate & Risk params */}
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wider mb-3 g-accent">
+          Failure Rate &amp; Risiko
+        </div>
+        <div className="space-y-4">
+          {/* Failure Rate */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium g-label">Failure Rate</label>
+              <span className="text-xs font-mono g-t1">{values["kalk.failureRate.pct"] ?? "12"}%</span>
+            </div>
+            <input
+              type="range" min="0" max="50" step="1"
+              value={values["kalk.failureRate.pct"] ?? "12"}
+              onChange={e => setValues(v => ({ ...v, "kalk.failureRate.pct": e.target.value }))}
+              className="w-full accent-indigo-500"
+            />
+            <div className="text-[10px] mt-0.5 g-t5">Persentase kemungkinan print gagal (default 12%)</div>
+          </div>
+
+          {/* Failure Spread */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium g-label">Failure Spread — siapa yang menanggung?</label>
+              <span className="text-xs font-mono g-t1">
+                {values["kalk.failureSpread.pct"] ?? "50"}% customer
+              </span>
+            </div>
+            <input
+              type="range" min="0" max="100" step="5"
+              value={values["kalk.failureSpread.pct"] ?? "50"}
+              onChange={e => setValues(v => ({ ...v, "kalk.failureSpread.pct": e.target.value }))}
+              className="w-full accent-indigo-500"
+            />
+            <div className="flex justify-between text-[10px] g-t5">
+              <span>0% = owner menanggung semua</span>
+              <span>100% = customer menanggung semua</span>
+            </div>
+          </div>
+
+          {/* Test Layer */}
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-xs font-medium g-label">Test Layer / Prototype</label>
+              <span className="text-xs font-mono g-t1">{values["kalk.testLayer.pct"] ?? "5"}% gramasi</span>
+            </div>
+            <input
+              type="range" min="0" max="20" step="1"
+              value={values["kalk.testLayer.pct"] ?? "5"}
+              onChange={e => setValues(v => ({ ...v, "kalk.testLayer.pct": e.target.value }))}
+              className="w-full accent-indigo-500"
+            />
+            <div className="text-[10px] mt-0.5 g-t5">Biaya cetak prototype/test layer masuk HPP owner (default 5%)</div>
+          </div>
         </div>
       </div>
 

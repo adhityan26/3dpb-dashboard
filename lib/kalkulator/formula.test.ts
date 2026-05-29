@@ -13,6 +13,9 @@ const DEFAULT_RATES: KalkulatorRates = {
   gantungan: { kew_kew: 900, ring: 800, rantai: 350, tali: 400 },
   switchPerPcs: 2500,
   labelPerLembar: 750,
+  failureRatePct: 0,
+  failureSpreadPct: 50,
+  testLayerPct: 0,
 }
 
 describe('hitungKalkulasi', () => {

@@ -41,7 +41,8 @@ function buildHasil(input: KalkulasiInput, rates: any) {
     input.batch,
     rates,
     input.marginTier as MarginTier,
-    input.hargaShopeeAktual
+    input.hargaShopeeAktual,
+    input.customRiskPct
   )
 }
 

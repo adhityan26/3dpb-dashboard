@@ -53,6 +53,9 @@ export interface KalkulatorRates {
   gantungan: Record<string, number>
   switchPerPcs: number
   labelPerLembar: number
+  failureRatePct: number   // % kemungkinan print gagal, default 12
+  failureSpreadPct: number // % failure cost yang dibebankan ke floor price (0=owner tanggung, 100=customer tanggung), default 50
+  testLayerPct: number     // % gramasi terbuang untuk prototype/test layers, default 5
 }
 
 export interface HasilKalkulasi {
@@ -85,6 +88,7 @@ export interface KalkulasiInput {
   hasLabel: boolean
   plates: PlateInput[]
   komponenKustom: KomponenKustomInput[]
+  customRiskPct?: number  // override failure rate per job (high-risk jobs)
 }
 
 export interface KalkulasiData extends HasilKalkulasi {

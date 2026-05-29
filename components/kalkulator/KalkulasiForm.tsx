@@ -77,6 +77,9 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
       durasiJam: p.durasiJam,
     })) ?? [DEFAULT_PLATE]
   )
+  const [customRiskEnabled, setCustomRiskEnabled] = useState(false)
+  const [customRiskPct, setCustomRiskPct] = useState<number>(12)
+
   const [aksesori, setAksesori] = useState<AksesoriState>(
     initial
       ? {
@@ -114,10 +117,11 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
         ratesData,
         marginTier,
         // Use actual Shopee price from linked product if available, otherwise manual input
-        (shopeeIsLocked ? linkedShopeePrice : hargaShopee) ?? undefined
+        (shopeeIsLocked ? linkedShopeePrice : hargaShopee) ?? undefined,
+        customRiskEnabled ? customRiskPct : undefined
       )
     } catch { return null }
-  }, [plates, aksesori, batch, marginTier, hargaShopee, shopeeIsLocked, linkedShopeePrice, ratesData])
+  }, [plates, aksesori, batch, marginTier, hargaShopee, shopeeIsLocked, linkedShopeePrice, ratesData, customRiskEnabled, customRiskPct])
 
   // Round up to nearest 5000 for placeholder suggestions
   function roundUp5000(n: number): number {
@@ -157,6 +161,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           harga: k.harga,
           qty: k.qty,
         })),
+      customRiskPct: customRiskEnabled ? customRiskPct : undefined,
     }
 
     let saved: KalkulasiData
@@ -314,6 +319,44 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
             }}
             className="glass-input w-full h-10 rounded-[10px] px-3 text-sm"
           />
+        </div>
+
+        {/* Custom Risk % */}
+        <div className="rounded-[10px] px-3 py-2.5 space-y-2" style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)" }}>
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-xs font-medium g-t2">⚠️ Custom Failure Rate</span>
+              <span className="text-[10px] g-t5 ml-2">(override global setting)</span>
+            </div>
+            <button
+              onClick={() => setCustomRiskEnabled(v => !v)}
+              className="text-[10px] px-2.5 py-1 rounded-md transition-colors font-medium"
+              style={customRiskEnabled
+                ? { background: "rgba(239,68,68,0.2)", border: "1px solid rgba(239,68,68,0.4)", color: "#fca5a5" }
+                : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t4)" }}
+            >
+              {customRiskEnabled ? "✓ Aktif" : "Nonaktif"}
+            </button>
+          </div>
+          {customRiskEnabled && (
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[10px] g-t4">Failure rate untuk job ini</span>
+                <span className="text-xs font-mono" style={{ color: "#fca5a5" }}>{customRiskPct}%</span>
+              </div>
+              <input
+                type="range" min="0" max="50" step="1"
+                value={customRiskPct}
+                onChange={e => setCustomRiskPct(Number(e.target.value))}
+                className="w-full"
+                style={{ accentColor: "#f87171" }}
+              />
+              <div className="flex justify-between text-[10px] g-t5 mt-0.5">
+                <span>0% = tidak ada risiko gagal</span>
+                <span>50% = high risk</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Buttons row */}
