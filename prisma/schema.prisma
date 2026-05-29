@@ -404,3 +404,11 @@ model LightGeneratorOrder {
   @@index([status])
   @@index([createdAt])
 }
+
+model ShopeeProductIndex {
+  itemId       String   @id
+  name         String
+  status       String   // "NORMAL" | "UNLIST"
+  imageUrl     String?
+  lastSyncedAt DateTime @default(now()) @updatedAt
+}

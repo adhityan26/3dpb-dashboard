@@ -1,0 +1,1 @@
+ALTER TABLE "Spool" ADD COLUMN "hargaBeli" REAL;
