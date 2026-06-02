@@ -165,7 +165,7 @@ export function LinkProdukModal({ kalkulasi, onClose }: Props) {
         <div className="flex-shrink-0 px-5 py-4 space-y-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           {!showCreate ? (
             <button
-              onClick={() => { setShowCreate(true); setNewNama("") }}
+              onClick={() => { setShowCreate(true); setNewNama(kalkulasi.nama) }}
               className="w-full h-9 rounded-[10px] text-[11px] font-medium transition-all flex items-center justify-center gap-1.5"
               style={{
                 background: "rgba(255,255,255,0.04)",
