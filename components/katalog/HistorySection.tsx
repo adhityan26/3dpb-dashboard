@@ -41,8 +41,7 @@ export function HistorySection({ produkId }: Props) {
     <div className="space-y-3">
       {/* Section header */}
       <div className="flex items-center justify-between">
-        <div className="text-[10px] font-semibold uppercase tracking-wider"
-             style={{ color: "rgba(165,180,252,0.6)" }}>
+        <div className="text-[10px] font-semibold uppercase tracking-wider g-accent">
           Riwayat Cetak
         </div>
         <button
@@ -58,17 +57,17 @@ export function HistorySection({ produkId }: Props) {
       {stats && stats.totalRuns > 0 && (
         <div className="flex gap-5">
           <div>
-            <div className="text-[9px] uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.3)" }}>Total Cetak</div>
+            <div className="text-[9px] uppercase tracking-wider g-t4">Total Cetak</div>
             <div className="text-sm font-bold mt-0.5" style={{ color: "#34d399" }}>{stats.totalQty} pcs</div>
           </div>
           <div>
-            <div className="text-[9px] uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.3)" }}>Jumlah Run</div>
-            <div className="text-sm font-bold mt-0.5" style={{ color: "rgba(255,255,255,0.7)" }}>{stats.totalRuns}×</div>
+            <div className="text-[9px] uppercase tracking-wider g-t4">Jumlah Run</div>
+            <div className="text-sm font-bold mt-0.5 g-t2">{stats.totalRuns}×</div>
           </div>
           {stats.lastPrintedAt && (
             <div>
-              <div className="text-[9px] uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.3)" }}>Terakhir Cetak</div>
-              <div className="text-sm font-bold mt-0.5" style={{ color: "rgba(255,255,255,0.7)" }}>{formatDate(stats.lastPrintedAt)}</div>
+              <div className="text-[9px] uppercase tracking-wider g-t4">Terakhir Cetak</div>
+              <div className="text-sm font-bold mt-0.5 g-t2">{formatDate(stats.lastPrintedAt)}</div>
             </div>
           )}
         </div>
@@ -80,8 +79,7 @@ export function HistorySection({ produkId }: Props) {
              style={{ background: "rgba(99,102,241,0.07)", border: "1px solid rgba(99,102,241,0.15)" }}>
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <div className="text-[9px] font-semibold uppercase tracking-wider mb-1"
-                   style={{ color: "rgba(165,180,252,0.5)" }}>Qty (pcs)</div>
+              <div className="text-[9px] font-semibold uppercase tracking-wider mb-1 g-accent">Qty (pcs)</div>
               <input
                 type="number" min="1" value={qty}
                 onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
@@ -89,8 +87,7 @@ export function HistorySection({ produkId }: Props) {
               />
             </div>
             <div>
-              <div className="text-[9px] font-semibold uppercase tracking-wider mb-1"
-                   style={{ color: "rgba(165,180,252,0.5)" }}>Tanggal</div>
+              <div className="text-[9px] font-semibold uppercase tracking-wider mb-1 g-accent">Tanggal</div>
               <input
                 type="date" value={tanggal}
                 onChange={e => setTanggal(e.target.value)}
@@ -99,8 +96,7 @@ export function HistorySection({ produkId }: Props) {
             </div>
           </div>
           <div>
-            <div className="text-[9px] font-semibold uppercase tracking-wider mb-1"
-                 style={{ color: "rgba(165,180,252,0.5)" }}>Catatan (opsional)</div>
+            <div className="text-[9px] font-semibold uppercase tracking-wider mb-1 g-accent">Catatan (opsional)</div>
             <input
               type="text" value={catatan} placeholder="Batch pertama, warna biru..."
               onChange={e => setCatatan(e.target.value)}
@@ -121,25 +117,24 @@ export function HistorySection({ produkId }: Props) {
 
       {/* History list */}
       {isLoading && (
-        <div className="text-[11px] text-center py-3" style={{ color: "rgba(255,255,255,0.25)" }}>Memuat...</div>
+        <div className="text-[11px] text-center py-3 g-t5">Memuat...</div>
       )}
       {!isLoading && items.length === 0 && !showForm && (
-        <div className="text-[11px] text-center py-3" style={{ color: "rgba(255,255,255,0.25)" }}>Belum ada riwayat cetak</div>
+        <div className="text-[11px] text-center py-3 g-t5">Belum ada riwayat cetak</div>
       )}
       <div className="space-y-1.5">
         {items.map(item => (
           <div key={item.id}
-               className="flex items-center gap-3 px-3 py-2 rounded-[8px] group"
-               style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.05)" }}>
+               className="g-card flex items-center gap-3 px-3 py-2 rounded-[8px] group">
             <div className="flex-shrink-0 text-sm font-bold" style={{ color: "#34d399", minWidth: 48 }}>
               {item.qty} pcs
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-[11px]" style={{ color: "rgba(255,255,255,0.6)" }}>
+              <div className="text-[11px] g-t2">
                 {formatDate(item.tanggal)}
               </div>
               {item.catatan && (
-                <div className="text-[10px] truncate" style={{ color: "rgba(255,255,255,0.35)" }}>
+                <div className="text-[10px] truncate g-t3">
                   {item.catatan}
                 </div>
               )}

@@ -11,6 +11,7 @@ export interface SpoolData {
   barcode: string
   nfcTagId: string | null
   notes: string
+  hargaBeli: number | null  // effective purchase price per roll (incl. ongkir share)
   createdAt: string
   updatedAt: string
   /** How many AMS slots this spool is assigned to */

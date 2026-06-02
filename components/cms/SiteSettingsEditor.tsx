@@ -67,7 +67,7 @@ export function SiteSettingsEditor() {
 
       <div className={sectionClass}>
         <h3 className="text-[12px] font-semibold uppercase tracking-wider" style={{ color: "rgba(165,180,252,0.7)" }}>Marketplace Links</h3>
-        {(["shopee", "tokopedia", "tiktok"] as const).map((field) => (
+        {(["shopee", "tokopedia", "tiktokShop"] as const).map((field) => (
           <div key={field}>
             <label className="block text-[11px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: "rgba(165,180,252,0.6)" }}>{field}</label>
             <input className={inputClass} value={(form.marketplaceLinks as Record<string, string>)[field] ?? ""} onChange={(e) => setMarketplace(field, e.target.value)} placeholder="https://" />
@@ -77,8 +77,8 @@ export function SiteSettingsEditor() {
 
       <div className={sectionClass}>
         <h3 className="text-[12px] font-semibold uppercase tracking-wider" style={{ color: "rgba(165,180,252,0.7)" }}>SEO</h3>
-        <LocalizedField label="Title" value={form.seo?.title ?? EMPTY_LOC} onChange={(v) => setSeo("title", v)} />
-        <LocalizedField label="Description" value={form.seo?.description ?? EMPTY_LOC} onChange={(v) => setSeo("description", v)} multiline />
+        <LocalizedField label="Title" value={form.seo?.defaultTitle ?? EMPTY_LOC} onChange={(v) => setSeo("defaultTitle", v)} />
+        <LocalizedField label="Description" value={form.seo?.defaultDescription ?? EMPTY_LOC} onChange={(v) => setSeo("defaultDescription", v)} multiline />
       </div>
 
       <div className="flex items-center gap-3">

@@ -25,15 +25,25 @@ async function migrate() {
   await srcClient.connect()
   console.log("🚀 Starting lightgenerator → shopee_dashboard migration\n")
 
-  // Read all orders from source DB
+  // Read all orders from source DB (snake_case columns aliased to camelCase)
   const { rows } = await srcClient.query(`
     SELECT
-      id, status, "statusNote", "customerName", "customerContact",
-      "notesCustomer", "configJson", "imagePath", "configJsonOperator",
-      "stlPath", "notesOperator", "additionalImagePath",
-      "createdAt", "updatedAt"
-    FROM "LightGeneratorOrder"
-    ORDER BY "createdAt" ASC
+      id,
+      status,
+      NULL                  AS "statusNote",
+      customer_name         AS "customerName",
+      customer_contact      AS "customerContact",
+      notes_customer        AS "notesCustomer",
+      config_json           AS "configJson",
+      image_path            AS "imagePath",
+      config_json_operator  AS "configJsonOperator",
+      stl_path              AS "stlPath",
+      notes_operator        AS "notesOperator",
+      additional_image_path AS "additionalImagePath",
+      created_at            AS "createdAt",
+      updated_at            AS "updatedAt"
+    FROM orders
+    ORDER BY created_at ASC
   `)
 
   console.log(`Found ${rows.length} orders to migrate`)

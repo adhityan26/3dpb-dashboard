@@ -43,21 +43,16 @@ export function KatalogTab() {
       </GlassPageHeader>
 
       {isLoading && (
-        <div className="text-[11px] text-center py-12" style={{ color: "rgba(255,255,255,0.25)" }}>
+        <div className="text-[11px] text-center py-12 g-t4">
           Memuat katalog...
         </div>
       )}
 
       {!isLoading && items.length === 0 && (
-        <div
-          className="flex flex-col items-center justify-center py-16 rounded-[16px] gap-4"
-          style={{
-            background: "rgba(255,255,255,0.02)",
-            border: "1px dashed rgba(255,255,255,0.1)",
-          }}
-        >
+        <div className="flex flex-col items-center justify-center py-16 rounded-[16px] gap-4 g-card"
+             style={{ borderStyle: "dashed" }}>
           <div className="text-4xl">📦</div>
-          <div className="text-[13px] font-medium text-center" style={{ color: "rgba(255,255,255,0.35)" }}>
+          <div className="text-[13px] font-medium text-center g-t4">
             Belum ada produk di katalog.
           </div>
           <button
@@ -78,10 +73,10 @@ export function KatalogTab() {
             style={{ display: "grid", gridTemplateColumns: "52px 1fr 140px 140px 160px 96px" }}
           >
             <div />
-            <div className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.25)" }}>Produk</div>
-            <div className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.25)" }}>Offline</div>
-            <div className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.25)" }}>Rekm Shopee</div>
-            <div className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.25)" }}>Harga Shopee</div>
+            <div className="text-[9px] font-semibold uppercase tracking-wider g-t5">Produk</div>
+            <div className="text-[9px] font-semibold uppercase tracking-wider g-t5">Offline</div>
+            <div className="text-[9px] font-semibold uppercase tracking-wider g-t5">Rekm Shopee</div>
+            <div className="text-[9px] font-semibold uppercase tracking-wider g-t5">Harga Shopee</div>
             <div />
           </div>
           {items.map(p => (

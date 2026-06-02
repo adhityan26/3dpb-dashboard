@@ -1,7 +1,32 @@
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { uploadToMinio } from "@/lib/lg-storage"
+import { uploadToMinio, getPresignedUrl } from "@/lib/lg-storage"
 import { NextRequest, NextResponse } from "next/server"
+
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const session = await auth()
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  const { id } = await params
+  const order = await prisma.lightGeneratorOrder.findUnique({ where: { id } })
+  if (!order?.imagePath) return NextResponse.json({ error: "Not found" }, { status: 404 })
+
+  // Proxy through Next.js so the internal MinIO IP is never exposed to the browser
+  const url = await getPresignedUrl(order.imagePath)
+  const upstream = await fetch(url)
+  if (!upstream.ok) return NextResponse.json({ error: "Image not found" }, { status: 404 })
+
+  const ext = order.imagePath.endsWith(".jpg") ? "image/jpeg" : "image/png"
+  return new NextResponse(upstream.body, {
+    headers: {
+      "Content-Type": upstream.headers.get("content-type") ?? ext,
+      "Cache-Control": "private, max-age=3600",
+    },
+  })
+}
 
 export async function PUT(
   req: NextRequest,

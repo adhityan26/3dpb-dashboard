@@ -5,14 +5,22 @@ import { AuthError } from "next-auth"
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string }>
+  searchParams: Promise<{ error?: string; callbackUrl?: string }>
 }) {
   const session = await auth()
+  const params = await searchParams
+
+  // Validate callbackUrl — must be a relative path to prevent open redirects
+  const rawCallback = params.callbackUrl ?? ""
+  const callbackUrl =
+    rawCallback.startsWith("/") && !rawCallback.startsWith("//")
+      ? rawCallback
+      : "/order"
+
   if (session?.user && !("error" in session)) {
-    redirect("/order")
+    redirect(callbackUrl)
   }
 
-  const params = await searchParams
   const loginError = params.error
 
   return (
@@ -71,7 +79,7 @@ export default async function LoginPage({
         </div>
 
         {/* SSO button */}
-        <a href="/api/auth/sso" className="sso-btn mb-5">
+        <a href={`/api/auth/sso?callbackUrl=${encodeURIComponent(callbackUrl)}`} className="sso-btn mb-5">
           <span className="mr-2 text-[16px]">🔐</span>
           Masuk dengan SSO
         </a>
@@ -93,7 +101,7 @@ export default async function LoginPage({
               await signIn("credentials", {
                 email: formData.get("email"),
                 password: formData.get("password"),
-                redirectTo: "/order",
+                redirectTo: formData.get("callbackUrl") as string || "/order",
               })
             } catch (error) {
               if (error instanceof AuthError) {
@@ -104,6 +112,7 @@ export default async function LoginPage({
           }}
           className="space-y-3"
         >
+          <input type="hidden" name="callbackUrl" value={callbackUrl} />
           <div className="space-y-1.5">
             <label
               htmlFor="email"

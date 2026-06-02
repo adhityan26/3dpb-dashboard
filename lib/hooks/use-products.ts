@@ -161,6 +161,20 @@ export function useUploadProductImage() {
   })
 }
 
+// ── KPI from DB index (fast, no Shopee API) ───────────────────────────────
+
+export function useProductsKpi() {
+  return useQuery({
+    queryKey: ["products-kpi"],
+    queryFn: async () => {
+      const res = await fetch("/api/products/kpi")
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return res.json() as Promise<{ totalProducts: number; stokKritis: number; perluPerhatian: number; totalStockItems: number }>
+    },
+    staleTime: 5 * 60 * 1000,
+  })
+}
+
 // ── Paginated product index ────────────────────────────────────────────────
 
 interface ProductsPageOpts {

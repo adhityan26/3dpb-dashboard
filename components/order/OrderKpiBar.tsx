@@ -4,13 +4,14 @@ import { Card, CardContent } from "@/components/ui/card"
 
 interface OrderKpiBarProps {
   total: number
-  belumCetak: number
-  sudahCetak: number
+  orderBaru: number
+  perluCetak: number
+  sudahDiproses: number
 }
 
-export function OrderKpiBar({ total, belumCetak, sudahCetak }: OrderKpiBarProps) {
+export function OrderKpiBar({ total, orderBaru, perluCetak, sudahDiproses }: OrderKpiBarProps) {
   return (
-    <div className="grid grid-cols-3 gap-3">
+    <div className="grid grid-cols-4 gap-3">
       <Card>
         <CardContent className="p-4">
           <div className="text-xs text-muted-foreground">Total Order</div>
@@ -19,14 +20,20 @@ export function OrderKpiBar({ total, belumCetak, sudahCetak }: OrderKpiBarProps)
       </Card>
       <Card>
         <CardContent className="p-4">
-          <div className="text-xs text-muted-foreground">Belum Cetak</div>
-          <div className="text-2xl font-bold text-amber-600">{belumCetak}</div>
+          <div className="text-xs text-muted-foreground">Order Baru</div>
+          <div className="text-2xl font-bold text-amber-500">{orderBaru}</div>
         </CardContent>
       </Card>
       <Card>
         <CardContent className="p-4">
-          <div className="text-xs text-muted-foreground">Sudah Cetak</div>
-          <div className="text-2xl font-bold text-green-600">{sudahCetak}</div>
+          <div className="text-xs text-muted-foreground">Perlu Cetak Label</div>
+          <div className="text-2xl font-bold text-yellow-400">{perluCetak}</div>
+        </CardContent>
+      </Card>
+      <Card>
+        <CardContent className="p-4">
+          <div className="text-xs text-muted-foreground">Processed</div>
+          <div className="text-2xl font-bold text-green-600">{sudahDiproses}</div>
         </CardContent>
       </Card>
     </div>

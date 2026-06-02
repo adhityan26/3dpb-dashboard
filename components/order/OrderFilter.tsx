@@ -2,18 +2,19 @@
 
 import { Button } from "@/components/ui/button"
 
-export type OrderFilterValue = "all" | "belum" | "sudah"
+export type OrderFilterValue = "all" | "baru" | "perlu_cetak" | "diproses"
 
 interface OrderFilterProps {
   value: OrderFilterValue
   onChange: (value: OrderFilterValue) => void
-  counts: { all: number; belum: number; sudah: number }
+  counts: { all: number; baru: number; perlu_cetak: number; diproses: number }
 }
 
 const OPTIONS: Array<{ key: OrderFilterValue; label: string }> = [
   { key: "all", label: "Semua" },
-  { key: "belum", label: "Belum Cetak" },
-  { key: "sudah", label: "Sudah Cetak" },
+  { key: "baru", label: "Order Baru" },
+  { key: "perlu_cetak", label: "Perlu Cetak Label" },
+  { key: "diproses", label: "Processed" },
 ]
 
 export function OrderFilter({ value, onChange, counts }: OrderFilterProps) {

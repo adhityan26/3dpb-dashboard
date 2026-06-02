@@ -73,7 +73,7 @@ export function ShopeeLinksSection({ produkId, links }: Props) {
 
   return (
     <div className="space-y-3">
-      <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "rgba(165,180,252,0.6)" }}>
+      <div className="text-[10px] font-semibold uppercase tracking-wider g-accent">
         Link Shopee
       </div>
 
@@ -86,16 +86,16 @@ export function ShopeeLinksSection({ produkId, links }: Props) {
 
           return (
             <div key={link.id} className="rounded-[8px] overflow-hidden"
-                 style={{ background: "rgba(255,255,255,0.03)", border: `1px solid ${hasVariantKalk ? "rgba(99,102,241,0.3)" : "rgba(255,255,255,0.07)"}` }}>
+                 style={{ background: "var(--g-card)", border: `1px solid ${hasVariantKalk ? "rgba(99,102,241,0.3)" : "var(--g-card-border)"}` }}>
               <div className="flex items-center gap-2 px-3 py-2">
                 <div className="flex-1 min-w-0">
-                  <div className="text-[11px] font-medium truncate" style={{ color: "rgba(255,255,255,0.8)" }}>
+                  <div className="text-[11px] font-medium truncate g-t1">
                     {link.namaProduk ?? product?.name ?? link.shopeeItemId}
                   </div>
                   <div className="text-[9px] flex gap-2 mt-0.5">
-                    <span style={{ color: "rgba(255,255,255,0.3)" }}>{link.shopeeItemId}</span>
+                    <span className="g-t4">{link.shopeeItemId}</span>
                     {link.shopeeModelId && (
-                      <span style={{ color: "rgba(165,180,252,0.5)" }}>model: {link.shopeeModelId}</span>
+                      <span className="g-accent">model: {link.shopeeModelId}</span>
                     )}
                   </div>
                 </div>
@@ -113,14 +113,14 @@ export function ShopeeLinksSection({ produkId, links }: Props) {
                     )}
                   </div>
                 ) : (
-                  <span className="text-[9px]" style={{ color: "rgba(255,255,255,0.2)" }}>pakai HPP produk</span>
+                  <span className="text-[9px] g-t5">pakai HPP produk</span>
                 )}
 
                 {/* Actions */}
                 <button
                   onClick={() => setExpandedLink(isExpanded ? null : link.id)}
                   className="h-6 px-2 rounded-[5px] text-[9px] transition-all flex-shrink-0"
-                  style={{ background: isExpanded ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.05)", color: isExpanded ? "#a5b4fc" : "rgba(255,255,255,0.4)" }}
+                  style={{ background: isExpanded ? "rgba(99,102,241,0.2)" : "var(--g-inner)", color: isExpanded ? "#a5b4fc" : "var(--g-t3)" }}
                 >
                   🧮 Kalkulasi
                 </button>
@@ -137,8 +137,8 @@ export function ShopeeLinksSection({ produkId, links }: Props) {
               {/* Kalkulasi picker for this variant */}
               {isExpanded && (
                 <div className="px-3 pb-3 pt-1 space-y-2"
-                     style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                  <div className="text-[9px] font-semibold uppercase tracking-wider" style={{ color: "rgba(165,180,252,0.5)" }}>
+                     style={{ borderTop: "1px solid var(--g-inner-border)" }}>
+                  <div className="text-[9px] font-semibold uppercase tracking-wider g-accent">
                     Pilih kalkulasi untuk variant ini
                   </div>
                   <input
@@ -163,11 +163,11 @@ export function ShopeeLinksSection({ produkId, links }: Props) {
                         key={k.id}
                         onClick={() => handleSetKalkulasi(link.id, k.id)}
                         className="flex items-center gap-2 px-2 py-1.5 rounded-[6px] cursor-pointer transition-all"
-                        style={{ background: link.kalkulasiId === k.id ? "rgba(99,102,241,0.15)" : "rgba(255,255,255,0.03)", border: `1px solid ${link.kalkulasiId === k.id ? "rgba(99,102,241,0.35)" : "rgba(255,255,255,0.05)"}` }}
+                        style={{ background: link.kalkulasiId === k.id ? "rgba(99,102,241,0.15)" : "var(--g-card)", border: `1px solid ${link.kalkulasiId === k.id ? "rgba(99,102,241,0.35)" : "var(--g-card-border)"}` }}
                       >
                         <div className="flex-1 min-w-0">
-                          <div className="text-[10px] font-medium truncate" style={{ color: "rgba(255,255,255,0.8)" }}>{k.nama}</div>
-                          <div className="text-[9px]" style={{ color: "rgba(255,255,255,0.3)" }}>
+                          <div className="text-[10px] font-medium truncate g-t1">{k.nama}</div>
+                          <div className="text-[9px] g-t4">
                             HPP: {fmt(k.hppTotal)} · Floor: {fmt(k.floorPrice)}
                           </div>
                         </div>
@@ -177,7 +177,7 @@ export function ShopeeLinksSection({ produkId, links }: Props) {
                       </div>
                     ))}
                     {filteredKalk.length === 0 && (
-                      <div className="text-[10px] text-center py-2" style={{ color: "rgba(255,255,255,0.25)" }}>
+                      <div className="text-[10px] text-center py-2 g-t5">
                         Tidak ada kalkulasi ditemukan
                       </div>
                     )}
@@ -192,17 +192,17 @@ export function ShopeeLinksSection({ produkId, links }: Props) {
       {/* Add new link button */}
       <button
         onClick={() => setShowSearch(v => !v)}
-        className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full transition-all"
-        style={{ background: "rgba(255,255,255,0.04)", border: "1px dashed rgba(255,255,255,0.15)", color: "rgba(255,255,255,0.45)" }}
+        className="flex items-center gap-1 text-[10px] px-2.5 py-1 rounded-full transition-all g-t3"
+        style={{ background: "var(--g-card)", border: "1px dashed var(--g-dashed)" }}
         onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(99,102,241,0.4)"; e.currentTarget.style.color = "#a5b4fc" }}
-        onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"; e.currentTarget.style.color = "rgba(255,255,255,0.45)" }}
+        onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--g-dashed)"; e.currentTarget.style.color = "var(--g-t3)" }}
       >
         + Link Shopee
       </button>
 
       {showSearch && (
         <div className="rounded-[10px] p-3 space-y-2"
-             style={{ background: "rgba(0,0,0,0.2)", border: "1px solid rgba(255,255,255,0.06)" }}>
+             style={{ background: "rgba(0,0,0,0.2)", border: "1px solid var(--g-inner-border)" }}>
           <input type="text" placeholder="Cari produk Shopee..." value={search}
             onChange={e => setSearch(e.target.value)}
             className="glass-input w-full h-8 rounded-[8px] px-3 text-[11px]" autoFocus />
@@ -212,11 +212,11 @@ export function ShopeeLinksSection({ produkId, links }: Props) {
               return (
                 <div key={p.productId}
                      className="flex items-center gap-2 px-2.5 py-2 rounded-[8px] transition-all"
-                     style={{ background: linked ? "rgba(99,102,241,0.1)" : "rgba(255,255,255,0.03)", border: `1px solid ${linked ? "rgba(99,102,241,0.25)" : "rgba(255,255,255,0.05)"}`, cursor: linked ? "default" : "pointer" }}
+                     style={{ background: linked ? "rgba(99,102,241,0.1)" : "var(--g-card)", border: `1px solid ${linked ? "rgba(99,102,241,0.25)" : "var(--g-card-border)"}`, cursor: linked ? "default" : "pointer" }}
                      onClick={() => !linked && handleAdd(p.productId)}>
                   <div className="flex-1 min-w-0">
-                    <div className="text-[11px] font-medium truncate" style={{ color: "rgba(255,255,255,0.8)" }}>{p.name}</div>
-                    <div className="text-[9px]" style={{ color: "rgba(255,255,255,0.3)" }}>{p.productId}</div>
+                    <div className="text-[11px] font-medium truncate g-t1">{p.name}</div>
+                    <div className="text-[9px] g-t4">{p.productId}</div>
                   </div>
                   {linked
                     ? <span className="text-[10px]" style={{ color: "#a5b4fc" }}>✓</span>

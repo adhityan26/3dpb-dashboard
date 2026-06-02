@@ -34,11 +34,11 @@ export async function PATCH(req: NextRequest) {
     const m = body.marketplaceLinks
     if (m.shopee !== undefined) patch["marketplaceLinks.shopee"] = m.shopee
     if (m.tokopedia !== undefined) patch["marketplaceLinks.tokopedia"] = m.tokopedia
-    if (m.tiktok !== undefined) patch["marketplaceLinks.tiktok"] = m.tiktok
+    if (m.tiktokShop !== undefined) patch["marketplaceLinks.tiktokShop"] = m.tiktokShop
   }
   if (body.seo !== undefined) {
-    if (body.seo.title !== undefined) patch["seo.title"] = toLocalized(body.seo.title)
-    if (body.seo.description !== undefined) patch["seo.description"] = toLocalized(body.seo.description)
+    if (body.seo.defaultTitle !== undefined) patch["seo.defaultTitle"] = toLocalized(body.seo.defaultTitle)
+    if (body.seo.defaultDescription !== undefined) patch["seo.defaultDescription"] = toLocalized(body.seo.defaultDescription)
   }
 
   await sanityWrite.patch(doc._id).set(patch).commit()

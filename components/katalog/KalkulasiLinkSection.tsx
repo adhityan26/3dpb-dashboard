@@ -46,8 +46,7 @@ export function KalkulasiLinkSection({
   return (
     <div className="space-y-3">
       <div
-        className="text-[10px] font-semibold uppercase tracking-wider"
-        style={{ color: "rgba(165,180,252,0.6)" }}
+        className="text-[10px] font-semibold uppercase tracking-wider g-accent"
       >
         Sumber HPP (Kalkulasi)
       </div>
@@ -90,7 +89,7 @@ export function KalkulasiLinkSection({
         </div>
       ) : (
         <div className="flex items-center gap-2">
-          <span className="text-[11px]" style={{ color: "rgba(255,255,255,0.3)" }}>
+          <span className="text-[11px] g-t4">
             Belum ada kalkulasi terhubung
           </span>
           <button
@@ -112,7 +111,7 @@ export function KalkulasiLinkSection({
           className="rounded-[12px] p-3 space-y-2"
           style={{
             background: "rgba(0,0,0,0.25)",
-            border: "1px solid rgba(255,255,255,0.07)",
+            border: "1px solid var(--g-card-border)",
           }}
         >
           <input
@@ -131,17 +130,17 @@ export function KalkulasiLinkSection({
                   key={k.id}
                   className="flex items-center gap-2 px-2.5 py-2 rounded-[8px] transition-all"
                   style={{
-                    background: isCurrent ? "rgba(99,102,241,0.15)" : "rgba(255,255,255,0.03)",
-                    border: `1px solid ${isCurrent ? "rgba(99,102,241,0.35)" : "rgba(255,255,255,0.05)"}`,
+                    background: isCurrent ? "rgba(99,102,241,0.15)" : "var(--g-card)",
+                    border: `1px solid ${isCurrent ? "rgba(99,102,241,0.35)" : "var(--g-card-border)"}`,
                     cursor: isCurrent ? "default" : "pointer",
                   }}
                   onClick={() => !isCurrent && handleSelect(k.id)}
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="text-[11px] font-medium truncate" style={{ color: "rgba(255,255,255,0.82)" }}>
+                    <div className="text-[11px] font-medium truncate g-t1">
                       {k.nama}
                     </div>
-                    <div className="text-[9px]" style={{ color: "rgba(255,255,255,0.3)" }}>
+                    <div className="text-[9px] g-t4">
                       HPP: {fmt(k.hppTotal)} · Floor: {fmt(k.floorPrice)}
                     </div>
                   </div>
@@ -160,7 +159,7 @@ export function KalkulasiLinkSection({
               )
             })}
             {filtered.length === 0 && (
-              <div className="text-[10px] text-center py-3" style={{ color: "rgba(255,255,255,0.25)" }}>
+              <div className="text-[10px] text-center py-3 g-t5">
                 Tidak ada kalkulasi ditemukan
               </div>
             )}

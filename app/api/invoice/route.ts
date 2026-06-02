@@ -16,6 +16,11 @@ export async function POST(req: NextRequest) {
   const body: QuotationInput = await req.json()
   if (!body.buyerNama?.trim()) return NextResponse.json({ error: 'buyerNama required' }, { status: 400 })
   if (!body.items?.length) return NextResponse.json({ error: 'items required' }, { status: 400 })
-  const result = await createQuotation(body)
+  // Pass tanggal for backdating and ongkir for shipping cost
+  const result = await createQuotation({
+    ...body,
+    tanggal: body.tanggal ?? null,
+    ongkir: typeof body.ongkir === 'number' ? body.ongkir : 0,
+  })
   return NextResponse.json(result, { status: 201 })
 }

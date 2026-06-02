@@ -4,6 +4,7 @@ export interface OrderItemSummary {
   sku: string | null
   qty: number
   unitPrice: number
+  imageUrl: string | null
 }
 
 export interface OrderSummary {
@@ -18,14 +19,17 @@ export interface OrderSummary {
   labelPrinted: boolean
   labelPrintedAt: string | null
   labelPrintedBy: string | null
+  isPreOrder: boolean
+  shipByDate: number | null
 }
 
 export interface OrderListResult {
   orders: OrderSummary[]
   kpi: {
     total: number
-    belumCetak: number
-    sudahCetak: number
+    orderBaru: number
+    perluCetak: number
+    sudahDiproses: number
   }
   fetchedAt: string
 }

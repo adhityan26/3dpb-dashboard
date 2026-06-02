@@ -15,9 +15,9 @@ import {
 import { UserFormModal, type UserFormData } from "./UserFormModal"
 
 const ROLE_COLOR: Record<string, string> = {
-  OWNER: "bg-purple-100 text-purple-800",
-  ADMIN: "bg-blue-100 text-blue-800",
-  TEST_USER: "bg-gray-100 text-gray-700",
+  OWNER: "bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300",
+  ADMIN: "bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300",
+  TEST_USER: "bg-gray-100 text-gray-700 dark:bg-white/10 dark:text-white/60",
 }
 
 export function UserManagementCard() {
@@ -95,7 +95,7 @@ export function UserManagementCard() {
                 return (
                   <div
                     key={u.id}
-                    className="flex items-center justify-between p-2 bg-gray-50 rounded gap-2"
+                    className="flex items-center justify-between p-2 bg-gray-50 dark:bg-white/5 border border-transparent dark:border-white/8 rounded gap-2"
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">

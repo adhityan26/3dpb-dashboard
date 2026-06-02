@@ -53,28 +53,55 @@ export function POForm({ ocrDraft, onClose, onSaved }: Props) {
     ocrDraft?.tanggal ?? new Date().toISOString().slice(0, 10)
   )
   const [catatan, setCatatan] = useState("")
+  const [ongkir, setOngkir] = useState("")
+
+  // Process OCR items: extract ongkir, distribute platform discounts proportionally
   const [items, setItems] = useState<ItemWithKey[]>(() => {
-    if (ocrDraft?.items?.length) {
-      return ocrDraft.items.map((item, i) => {
-        const detected = detectFilament(item.namaProduct)
-        return {
-          key: `ocr-${i}`,
-          namaProduct: item.namaProduct,
-          kode: item.kode ?? null,
-          qty: item.qty,
-          uom: item.uom ?? 'EA',
-          harga: item.harga,
-          diskon: item.diskon ?? 0,
-          total: item.total,
-          isFilament: item.isFilament ?? detected.isFilament,
-          brand: item.brand ?? detected.brand ?? null,
-          material: item.material ?? detected.material ?? null,
-          colorName: item.colorName ?? detected.colorName ?? null,
-          filamentCatalogId: null,
-        }
-      })
-    }
-    return []
+    if (!ocrDraft?.items?.length) return []
+
+    const shippingKeywords = ['ongkir', 'ongkos kirim', 'shipping', 'kurir', 'pengiriman']
+    const isShipping = (name: string) => shippingKeywords.some(k => name.toLowerCase().includes(k))
+
+    // Separate: shipping (positive, extract to ongkir), discount (negative), regular
+    const regularItems = ocrDraft.items.filter(i => !isShipping(i.namaProduct) || i.total < 0)
+    const shippingTotal = ocrDraft.items
+      .filter(i => isShipping(i.namaProduct) && i.total > 0)
+      .reduce((s, i) => s + i.total, 0)
+
+    // Set ongkir from shipping items (will be overridden by setOngkir below via effect)
+    if (shippingTotal > 0) setTimeout(() => setOngkir(String(shippingTotal)), 0)
+
+    const positiveItems = regularItems.filter(i => i.total >= 0)
+    const discountTotal = Math.abs(regularItems.filter(i => i.total < 0).reduce((s, i) => s + i.total, 0))
+    const subtotal = positiveItems.reduce((s, i) => s + i.total, 0)
+
+    // Distribute discount proportionally across positive items
+    let remainingDiscount = discountTotal
+    return positiveItems.map((item, idx) => {
+      const isLast = idx === positiveItems.length - 1
+      const discountShare = isLast
+        ? remainingDiscount
+        : (subtotal > 0 ? Math.round(discountTotal * (item.total / subtotal)) : 0)
+      remainingDiscount -= discountShare
+      const effectiveTotal = Math.max(0, item.total - discountShare)
+
+      const detected = detectFilament(item.namaProduct)
+      return {
+        key: `ocr-${idx}`,
+        namaProduct: item.namaProduct,
+        kode: item.kode ?? null,
+        qty: item.qty,
+        uom: item.uom ?? 'EA',
+        harga: effectiveTotal > 0 && item.qty > 0 ? Math.round(effectiveTotal / item.qty) : item.harga,
+        diskon: 0,  // discount already distributed into price
+        total: effectiveTotal,
+        isFilament: item.isFilament ?? detected.isFilament,
+        brand: item.brand ?? detected.brand ?? null,
+        material: item.material ?? detected.material ?? null,
+        colorName: item.colorName ?? detected.colorName ?? null,
+        filamentCatalogId: null,
+      }
+    })
   })
   const [error, setError] = useState<string | null>(null)
 
@@ -127,6 +154,7 @@ export function POForm({ ocrDraft, onClose, onSaved }: Props) {
         nomor: nomor.trim() || null,
         tanggal: tanggal || undefined,
         catatan: catatan.trim() || null,
+        ongkir: parseInt(ongkir.replace(/\D/g, "")) || 0,
         items: items.map(({ key: _k, ...rest }) => rest),
       })
       onSaved(result.id)
@@ -136,40 +164,42 @@ export function POForm({ ocrDraft, onClose, onSaved }: Props) {
   }
 
   const fl = "text-[10px] font-semibold uppercase tracking-wider mb-1"
-  const fc = { color: "rgba(165,180,252,0.6)" }
 
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <button onClick={onClose} className="h-8 px-3 rounded-[8px] text-xs font-medium"
-                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}>
+        <button onClick={onClose} className="g-btn-ghost h-8 px-3 rounded-[8px] text-xs font-medium">
           ← Kembali
         </button>
-        <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.85)" }}>
+        <div className="text-sm font-bold g-t1">
           {ocrDraft ? "📷 Review Hasil Scan" : "Buat Purchase Order"}
         </div>
       </div>
 
       {/* PO Header */}
-      <div className="grid grid-cols-2 gap-4 p-4 rounded-[12px]"
-           style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
+      <div className="g-card grid grid-cols-2 gap-4 p-4 rounded-[12px]">
         <div className="col-span-2 md:col-span-1">
-          <div className={fl} style={fc}>Vendor / Supplier *</div>
+          <div className={`${fl} g-accent`}>Vendor / Supplier *</div>
           <input type="text" value={vendorNama} onChange={e => setVendorNama(e.target.value)}
             placeholder="Indo Cart, Tokopedia..." className="glass-input w-full h-10 rounded-[10px] px-3 text-sm" autoFocus />
         </div>
         <div>
-          <div className={fl} style={fc}>Nomor Invoice</div>
+          <div className={`${fl} g-accent`}>Nomor Invoice</div>
           <input type="text" value={nomor} onChange={e => setNomor(e.target.value)}
             placeholder="RGB.2603897" className="glass-input w-full h-10 rounded-[10px] px-3 text-sm" />
         </div>
         <div>
-          <div className={fl} style={fc}>Tanggal</div>
+          <div className={`${fl} g-accent`}>Tanggal</div>
           <input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)}
             className="glass-input w-full h-10 rounded-[10px] px-3 text-sm" />
         </div>
-        <div className="col-span-2">
-          <div className={fl} style={fc}>Catatan (opsional)</div>
+        <div>
+          <div className={`${fl} g-accent`}>Ongkos Kirim (opsional)</div>
+          <input type="number" min="0" value={ongkir} onChange={e => setOngkir(e.target.value)}
+            placeholder="0" className="glass-input w-full h-10 rounded-[10px] px-3 text-sm" />
+        </div>
+        <div>
+          <div className={`${fl} g-accent`}>Catatan (opsional)</div>
           <input type="text" value={catatan} onChange={e => setCatatan(e.target.value)}
             placeholder="..." className="glass-input w-full h-9 rounded-[10px] px-3 text-sm" />
         </div>
@@ -178,7 +208,7 @@ export function POForm({ ocrDraft, onClose, onSaved }: Props) {
       {/* Items */}
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <div className="text-xs font-semibold uppercase tracking-wider flex-1" style={{ color: "rgba(165,180,252,0.6)" }}>
+          <div className="text-xs font-semibold uppercase tracking-wider flex-1 g-accent">
             Item ({items.length})
           </div>
           <button onClick={addItem} className="text-xs font-medium transition-colors"
@@ -191,7 +221,7 @@ export function POForm({ ocrDraft, onClose, onSaved }: Props) {
 
         {items.map(item => (
           <div key={item.key} className="rounded-[10px] p-3 space-y-2"
-               style={{ background: item.isFilament ? "rgba(99,102,241,0.05)" : "rgba(255,255,255,0.03)", border: `1px solid ${item.isFilament ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.07)"}` }}>
+               style={{ background: item.isFilament ? "rgba(99,102,241,0.05)" : "var(--g-card)", border: `1px solid ${item.isFilament ? "rgba(99,102,241,0.2)" : "var(--g-card-border)"}` }}>
             <div className="flex items-start gap-2">
               <div className="flex-1">
                 <input type="text" value={item.namaProduct}
@@ -210,31 +240,31 @@ export function POForm({ ocrDraft, onClose, onSaved }: Props) {
 
             <div className="grid gap-2" style={{ gridTemplateColumns: "60px 80px 80px 60px 100px" }}>
               <div>
-                <div className="text-[9px] mb-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Qty</div>
+                <div className="text-[9px] mb-0.5 g-t4">Qty</div>
                 <input type="number" min="0.1" step="0.1" value={item.qty}
                   onChange={e => updateItem(item.key, 'qty', parseFloat(e.target.value) || 0)}
                   className="glass-input w-full h-8 rounded-[6px] px-2 text-xs" />
               </div>
               <div>
-                <div className="text-[9px] mb-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Harga/unit</div>
+                <div className="text-[9px] mb-0.5 g-t4">Harga/unit</div>
                 <input type="number" min="0" value={item.harga}
                   onChange={e => updateItem(item.key, 'harga', parseFloat(e.target.value) || 0)}
                   className="glass-input w-full h-8 rounded-[6px] px-2 text-xs" />
               </div>
               <div>
-                <div className="text-[9px] mb-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Diskon%</div>
+                <div className="text-[9px] mb-0.5 g-t4">Diskon%</div>
                 <input type="number" min="0" max="100" value={item.diskon}
                   onChange={e => updateItem(item.key, 'diskon', parseFloat(e.target.value) || 0)}
                   className="glass-input w-full h-8 rounded-[6px] px-2 text-xs" />
               </div>
               <div>
-                <div className="text-[9px] mb-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>UOM</div>
+                <div className="text-[9px] mb-0.5 g-t4">UOM</div>
                 <input type="text" value={item.uom}
                   onChange={e => updateItem(item.key, 'uom', e.target.value)}
                   className="glass-input w-full h-8 rounded-[6px] px-2 text-xs" />
               </div>
               <div>
-                <div className="text-[9px] mb-0.5" style={{ color: "rgba(255,255,255,0.3)" }}>Total</div>
+                <div className="text-[9px] mb-0.5 g-t4">Total</div>
                 <div className="h-8 flex items-center text-xs font-bold" style={{ color: "#a5b4fc" }}>
                   {fmt(item.total)}
                 </div>
@@ -247,7 +277,7 @@ export function POForm({ ocrDraft, onClose, onSaved }: Props) {
                 <input type="checkbox" checked={item.isFilament ?? false}
                   onChange={e => updateItem(item.key, 'isFilament', e.target.checked)}
                   className="w-3.5 h-3.5 accent-indigo-500" />
-                <span className="text-[10px]" style={{ color: item.isFilament ? "#a5b4fc" : "rgba(255,255,255,0.4)" }}>
+                <span className="text-[10px]" style={{ color: item.isFilament ? "#a5b4fc" : "var(--g-t3)" }}>
                   🧵 Filament
                 </span>
               </label>
@@ -289,8 +319,7 @@ export function POForm({ ocrDraft, onClose, onSaved }: Props) {
       )}
 
       <div className="flex gap-2">
-        <button onClick={onClose} className="flex-1 h-10 rounded-[10px] text-sm font-medium"
-                style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}>
+        <button onClick={onClose} className="g-btn-ghost flex-1 h-10 rounded-[10px] text-sm font-medium">
           Batal
         </button>
         <button onClick={handleSave} disabled={createMut.isPending}

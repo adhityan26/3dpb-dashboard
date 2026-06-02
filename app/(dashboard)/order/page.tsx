@@ -10,36 +10,70 @@ import { OrderList } from "@/components/order/OrderList"
 import { RefreshIndicator } from "@/components/layout/RefreshIndicator"
 import { useOrders, useMarkLabel } from "@/lib/hooks/use-orders"
 import { useRefreshConfig } from "@/lib/use-refresh-config"
+import { useInvoiceList } from "@/lib/hooks/use-invoice"
 import { Button } from "@/components/ui/button"
 import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
+import { InvoiceForm } from "@/components/invoice/InvoiceForm"
+import type { OrderSummary } from "@/lib/orders/types"
+import type { OrderPrefill } from "@/lib/invoice/types"
 
 export default function OrderPage() {
   const { intervalMs } = useRefreshConfig()
   const { data, isLoading, isError, error, refetch, dataUpdatedAt } =
     useOrders()
   const markLabel = useMarkLabel()
-  const [filter, setFilter] = useState<OrderFilterValue>("belum")
+  const { data: invoiceItems } = useInvoiceList()
+  const [filter, setFilter] = useState<OrderFilterValue>("baru")
+  const [showInvoiceForm, setShowInvoiceForm] = useState(false)
+  const [invoicePrefill, setInvoicePrefill] = useState<OrderPrefill | null>(null)
 
   const filteredOrders = useMemo(() => {
     if (!data) return []
     switch (filter) {
-      case "belum":
-        return data.orders.filter((o) => !o.labelPrinted)
-      case "sudah":
-        return data.orders.filter((o) => o.labelPrinted)
+      case "baru":
+        return data.orders.filter((o) => o.shopeeStatus === "READY_TO_SHIP")
+      case "perlu_cetak":
+        return data.orders.filter((o) => o.shopeeStatus === "PROCESSED" && !o.labelPrinted)
+      case "diproses":
+        return data.orders.filter((o) => o.shopeeStatus === "PROCESSED" && o.labelPrinted)
       default:
         return data.orders
     }
   }, [data, filter])
 
   const counts = useMemo(() => {
-    if (!data) return { all: 0, belum: 0, sudah: 0 }
+    if (!data) return { all: 0, baru: 0, perlu_cetak: 0, diproses: 0 }
     return {
       all: data.kpi.total,
-      belum: data.kpi.belumCetak,
-      sudah: data.kpi.sudahCetak,
+      baru: data.kpi.orderBaru,
+      perlu_cetak: data.kpi.perluCetak,
+      diproses: data.kpi.sudahDiproses,
     }
   }, [data])
+
+  const invoiceMap = useMemo(() => {
+    const m = new Map<string, { id: string; nomor: string; status: string }>()
+    ;(invoiceItems ?? []).forEach(inv => {
+      if (inv.shopeeOrderSn) {
+        m.set(inv.shopeeOrderSn, { id: inv.id, nomor: inv.nomor, status: inv.status })
+      }
+    })
+    return m
+  }, [invoiceItems])
+
+  function handleCreateInvoice(order: OrderSummary) {
+    setInvoicePrefill({
+      shopeeOrderSn: order.orderSn,
+      buyerUsername: order.buyerUsername ?? order.orderSn,
+      items: order.items.map(i => ({
+        namaProduk: i.variantName ? `${i.productName} - ${i.variantName}` : i.productName,
+        qty: i.qty,
+        hargaPerUnit: i.unitPrice,
+      })),
+      totalAmount: order.totalAmount,
+    })
+    setShowInvoiceForm(true)
+  }
 
   if (isLoading && !data) {
     return (
@@ -88,8 +122,9 @@ export default function OrderPage() {
 
       <OrderKpiBar
         total={data.kpi.total}
-        belumCetak={data.kpi.belumCetak}
-        sudahCetak={data.kpi.sudahCetak}
+        orderBaru={data.kpi.orderBaru}
+        perluCetak={data.kpi.perluCetak}
+        sudahDiproses={data.kpi.sudahDiproses}
       />
 
       <div className="flex items-center justify-between">
@@ -102,7 +137,17 @@ export default function OrderPage() {
           markLabel.mutate({ orderSn, printed })
         }
         pendingOrderSn={pendingSn}
+        invoiceMap={invoiceMap}
+        onCreateInvoice={handleCreateInvoice}
       />
+
+      {showInvoiceForm && invoicePrefill && (
+        <InvoiceForm
+          orderPrefill={invoicePrefill}
+          onClose={() => { setShowInvoiceForm(false); setInvoicePrefill(null) }}
+          onCreated={() => { setShowInvoiceForm(false); setInvoicePrefill(null) }}
+        />
+      )}
     </div>
   )
 }

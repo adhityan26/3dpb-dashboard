@@ -38,6 +38,7 @@ export interface ShopeeOrderItemDetail {
   model_quantity_purchased: number
   model_original_price: number
   model_discounted_price: number
+  image_info?: { image_url: string }
 }
 
 export interface ShopeeOrderDetail {
@@ -60,6 +61,8 @@ export interface ShopeeOrderDetail {
     full_address?: string
   }
   item_list: ShopeeOrderItemDetail[]
+  days_to_ship?: number
+  ship_by_date?: number
 }
 
 export interface ShopeeOrderDetailResponse {

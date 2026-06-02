@@ -26,6 +26,14 @@ export async function PATCH(req: NextRequest) {
   if (body.estimatedLaunch !== undefined) patch.estimatedLaunch = body.estimatedLaunch
   if (body.orderUrl !== undefined) patch.orderUrl = body.orderUrl
   if (body.orderLabel !== undefined) patch.orderLabel = toLocalized(body.orderLabel)
+  if (body.devScreenshots !== undefined) {
+    patch.devScreenshots = (body.devScreenshots as { imageRef: string; alt: string }[]).map((s) => ({
+      _type: "image",
+      _key: crypto.randomUUID(),
+      asset: { _type: "reference", _ref: s.imageRef },
+      alt: s.alt,
+    }))
+  }
 
   await sanityWrite.patch(doc._id).set(patch).commit()
   return NextResponse.json({ ok: true })

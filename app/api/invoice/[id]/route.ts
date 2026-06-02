@@ -17,6 +17,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   const body: UpdateQuotationInput = await req.json()
+  // Strip any legacy dpAmount/dpTanggal keys (no-op — not in type)
   const result = await updateQuotation(id, body)
   return NextResponse.json(result)
 }

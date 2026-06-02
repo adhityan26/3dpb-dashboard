@@ -13,7 +13,7 @@ import { SidebarDrawerShell } from "@/components/layout/SidebarDrawerShell"
 import { ProdukSidebar } from "@/components/produk/ProdukSidebar"
 import type { ProdukTab } from "@/components/produk/ProdukSidebar"
 import {
-  useProducts,
+  useProductsKpi,
   useRefreshProducts,
   useUploadProductImage,
   useProductsPage,
@@ -34,8 +34,9 @@ export default function ProdukPage() {
 
 function ProdukPageInner() {
   const { intervalMs } = useRefreshConfig()
-  const { data: kpiData, dataUpdatedAt } = useProducts()
+  const { data: kpiData } = useProductsKpi()
   const refreshProducts = useRefreshProducts()
+  const dataUpdatedAt = undefined
   const uploadImage = useUploadProductImage()
   const syncIndex = useSyncProductIndex()
 
@@ -104,22 +105,14 @@ function ProdukPageInner() {
     return pageData.products
   }, [pageData, filter])
 
-  // KPI counts from the KPI data (full list) — fall back to page counts
+  // KPI counts — fast from DB index
   const counts = useMemo(() => {
-    if (!kpiData) {
-      if (!pageData) return { all: 0, perlu_perhatian: 0, stok_kritis: 0, unlist: 0 }
-      return {
-        all: pageData.total,
-        perlu_perhatian: pageData.products.filter((p) => p.perluPerhatian).length,
-        stok_kritis: pageData.products.filter((p) => p.isStockLow).length,
-        unlist: pageData.products.filter((p) => p.status === "UNLIST").length,
-      }
-    }
+    const total = kpiData?.totalProducts ?? pageData?.total ?? 0
     return {
-      all: kpiData.products.length,
-      perlu_perhatian: kpiData.products.filter((p) => p.perluPerhatian).length,
-      stok_kritis: kpiData.products.filter((p) => p.isStockLow).length,
-      unlist: kpiData.products.filter((p) => p.status === "UNLIST").length,
+      all: total,
+      perlu_perhatian: kpiData?.perluPerhatian ?? 0,
+      stok_kritis: kpiData?.stokKritis ?? 0,
+      unlist: 0,
     }
   }, [kpiData, pageData])
 
@@ -205,7 +198,7 @@ function ProdukPageInner() {
             </GlassPageHeader>
 
             <div className="space-y-4 mt-4">
-              {kpiData && <ProductsKpiBar kpi={kpiData.kpi} />}
+              {kpiData && <ProductsKpiBar kpi={kpiData} />}
 
               {/* Search input */}
               <div className="relative">

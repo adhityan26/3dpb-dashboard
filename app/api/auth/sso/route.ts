@@ -1,19 +1,24 @@
 import { signIn } from "@/lib/auth"
 import { headers } from "next/headers"
 
-// GET /api/auth/sso → trigger Authentik OAuth flow
-// Pass the request headers so NextAuth reads the correct host
-export async function GET() {
-  // Read forwarded host from NPM proxy so NextAuth builds correct callback URL
+// GET /api/auth/sso?callbackUrl=/some/path → trigger Authentik OAuth flow
+export async function GET(req: Request) {
   const headersList = await headers()
   const forwardedHost = headersList.get("x-forwarded-host")
   const forwardedProto = headersList.get("x-forwarded-proto") ?? "http"
 
-  // If AUTH_TRUST_HOST is working, signIn picks up the host automatically.
-  // Explicitly set the redirect callback URL to ensure correct domain.
-  const callbackUrl = forwardedHost
-    ? `${forwardedProto}://${forwardedHost}/order`
-    : "/order"
+  // Read callbackUrl from query param — must be a relative path (security check)
+  const url = new URL(req.url)
+  const rawCallback = url.searchParams.get("callbackUrl") ?? ""
+  const relativePath =
+    rawCallback.startsWith("/") && !rawCallback.startsWith("//")
+      ? rawCallback
+      : "/order"
 
-  await signIn("authentik", { redirectTo: callbackUrl })
+  // Build absolute URL for Authentik callback (required by OAuth)
+  const redirectTo = forwardedHost
+    ? `${forwardedProto}://${forwardedHost}${relativePath}`
+    : relativePath
+
+  await signIn("authentik", { redirectTo })
 }

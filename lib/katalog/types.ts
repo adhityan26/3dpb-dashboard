@@ -24,8 +24,14 @@ export interface ProdukInternalData {
   // Denormalized from primaryKalkulasi for convenience in UI:
   hppTotal: number | null
   floorPrice: number | null
+  marginTier: "A" | "B" | "C" | null   // from primaryKalkulasi.marginTier
   offlineA: number | null
+  offlineB: number | null
+  offlineC: number | null
   shopeeA: number | null
+  shopeeB: number | null
+  shopeeC: number | null
+  hargaOfflineAktual: number | null
   hargaShopeeAktual: number | null
   kalkulasiStatus: string | null   // KalkulasiStatus value e.g. "AMAN"
   kalkulasiNama: string | null     // .nama from the linked KalkulasiHarga
@@ -54,6 +60,7 @@ export interface ProdukInternalInput {
   kategori?: string | null
   tags?: string[]
   sourceModel?: string | null
+  primaryKalkulasiId?: string | null
 }
 
 export interface ShopeeLinkVariantInput {

@@ -6,12 +6,13 @@ import type { ProdukInternalData } from "@/lib/katalog/types"
 
 interface Props {
   initial?: ProdukInternalData | null
+  prefill?: { nama: string; primaryKalkulasiId?: string }
   onClose: () => void
   onSaved?: (p: ProdukInternalData) => void
 }
 
-export function KatalogForm({ initial, onClose, onSaved }: Props) {
-  const [nama, setNama] = useState(initial?.nama ?? "")
+export function KatalogForm({ initial, prefill, onClose, onSaved }: Props) {
+  const [nama, setNama] = useState(initial?.nama ?? prefill?.nama ?? "")
   const [deskripsi, setDeskripsi] = useState(initial?.deskripsi ?? "")
   const [kategori, setKategori] = useState(initial?.kategori ?? "")
   const [sourceModel, setSourceModel] = useState(initial?.sourceModel ?? "")
@@ -77,6 +78,7 @@ export function KatalogForm({ initial, onClose, onSaved }: Props) {
         kategori: kategori.trim() || null,
         tags,
         sourceModel: sourceModel.trim() || null,
+        primaryKalkulasiId: prefill?.primaryKalkulasiId ?? null,
       }
       const saved = initial
         ? await updateMut.mutateAsync({ id: initial.id, input })
@@ -89,7 +91,6 @@ export function KatalogForm({ initial, onClose, onSaved }: Props) {
   }
 
   const fieldLabel = "block text-[10px] font-semibold uppercase tracking-wider mb-1.5"
-  const fieldColor = { color: "rgba(165,180,252,0.6)" }
 
   return (
     <div
@@ -105,13 +106,13 @@ export function KatalogForm({ initial, onClose, onSaved }: Props) {
         {/* Header */}
         <div className="px-6 py-4 flex items-center justify-between flex-shrink-0"
              style={{ borderBottom: "1px solid rgba(99,102,241,0.12)" }}>
-          <div className="text-[14px] font-bold" style={{ color: "rgba(255,255,255,0.9)" }}>
+          <div className="text-[14px] font-bold g-t1">
             {initial ? "Edit Produk" : "Tambah Produk Baru"}
           </div>
           <button onClick={onClose} className="w-7 h-7 flex items-center justify-center rounded-full text-base"
-                  style={{ color: "rgba(255,255,255,0.35)" }}
-                  onMouseEnter={e => (e.currentTarget.style.color = "rgba(255,255,255,0.8)")}
-                  onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.35)")}>
+                  style={{ color: "var(--g-t4)" }}
+                  onMouseEnter={e => (e.currentTarget.style.color = "var(--g-t1)")}
+                  onMouseLeave={e => (e.currentTarget.style.color = "var(--g-t4)")}>
             ✕
           </button>
         </div>
@@ -121,7 +122,7 @@ export function KatalogForm({ initial, onClose, onSaved }: Props) {
 
           {/* Nama */}
           <div>
-            <label className={fieldLabel} style={fieldColor}>Nama Produk *</label>
+            <label className={`${fieldLabel} g-accent`}>Nama Produk *</label>
             <input type="text" value={nama}
               onChange={e => { setNama(e.target.value); setError(null) }}
               onKeyDown={e => e.key === "Enter" && handleSubmit()}
@@ -131,7 +132,7 @@ export function KatalogForm({ initial, onClose, onSaved }: Props) {
 
           {/* Kategori — appendable dropdown */}
           <div ref={kategoriRef} className="relative">
-            <label className={fieldLabel} style={fieldColor}>Kategori (opsional)</label>
+            <label className={`${fieldLabel} g-accent`}>Kategori (opsional)</label>
             <input
               type="text"
               value={kategori}
@@ -151,8 +152,7 @@ export function KatalogForm({ initial, onClose, onSaved }: Props) {
                   .map(k => (
                     <button
                       key={k}
-                      className="w-full text-left px-3 py-2 text-sm transition-all"
-                      style={{ color: "rgba(255,255,255,0.7)" }}
+                      className="w-full text-left px-3 py-2 text-sm transition-all g-t2"
                       onMouseEnter={e => (e.currentTarget.style.background = "rgba(99,102,241,0.12)")}
                       onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
                       onClick={() => { setKategori(k); setShowKategoriDropdown(false) }}
@@ -166,23 +166,21 @@ export function KatalogForm({ initial, onClose, onSaved }: Props) {
 
           {/* Tags — chip input */}
           <div>
-            <label className={fieldLabel} style={fieldColor}>Tags (opsional)</label>
+            <label className={`${fieldLabel} g-accent`}>Tags (opsional)</label>
             {/* Current tags */}
             {tags.length > 0 && (
               <div className="flex flex-wrap gap-1.5 mb-2">
                 {tags.map(tag => (
                   <span
                     key={tag}
-                    className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full"
-                    style={{ background: "rgba(255,255,255,0.07)", border: "1px solid rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.7)" }}
+                    className="g-inner flex items-center gap-1 text-[11px] px-2.5 py-1 rounded-full g-t2"
                   >
                     {tag}
                     <button
                       onClick={() => removeTag(tag)}
-                      className="text-[9px] font-bold ml-0.5 transition-colors"
-                      style={{ color: "rgba(255,255,255,0.4)" }}
+                      className="text-[9px] font-bold ml-0.5 transition-colors g-t3"
                       onMouseEnter={e => (e.currentTarget.style.color = "#f87171")}
-                      onMouseLeave={e => (e.currentTarget.style.color = "rgba(255,255,255,0.4)")}
+                      onMouseLeave={e => (e.currentTarget.style.color = "var(--g-t3)")}
                     >✕</button>
                   </span>
                 ))}
@@ -210,10 +208,10 @@ export function KatalogForm({ initial, onClose, onSaved }: Props) {
                     <button
                       key={tag}
                       onClick={() => addTag(tag)}
-                      className="text-[10px] px-2 py-0.5 rounded-full transition-all"
-                      style={{ background: "rgba(255,255,255,0.04)", border: "1px dashed rgba(255,255,255,0.12)", color: "rgba(255,255,255,0.4)" }}
+                      className="text-[10px] px-2 py-0.5 rounded-full transition-all g-t3"
+                      style={{ background: "var(--g-card)", border: "1px dashed var(--g-dashed)" }}
                       onMouseEnter={e => { e.currentTarget.style.borderColor = "rgba(99,102,241,0.35)"; e.currentTarget.style.color = "#a5b4fc" }}
-                      onMouseLeave={e => { e.currentTarget.style.borderColor = "rgba(255,255,255,0.12)"; e.currentTarget.style.color = "rgba(255,255,255,0.4)" }}
+                      onMouseLeave={e => { e.currentTarget.style.borderColor = "var(--g-dashed)"; e.currentTarget.style.color = "var(--g-t3)" }}
                     >
                       + {tag}
                     </button>
@@ -225,7 +223,7 @@ export function KatalogForm({ initial, onClose, onSaved }: Props) {
 
           {/* Source Model */}
           <div>
-            <label className={fieldLabel} style={fieldColor}>Source / Model Referensi (opsional)</label>
+            <label className={`${fieldLabel} g-accent`}>Source / Model Referensi (opsional)</label>
             <input
               type="text"
               value={sourceModel}
@@ -233,14 +231,14 @@ export function KatalogForm({ initial, onClose, onSaved }: Props) {
               placeholder="URL, path folder, atau keterangan bebas..."
               className="glass-input w-full h-10 rounded-[10px] px-3 text-sm"
             />
-            <div className="text-[10px] mt-1" style={{ color: "rgba(255,255,255,0.25)" }}>
+            <div className="text-[10px] mt-1 g-t5">
               Cth: https://makerworld.com/... · /Designs/Flexi Shark/ · Dibuat dari scratch
             </div>
           </div>
 
           {/* Deskripsi */}
           <div>
-            <label className={fieldLabel} style={fieldColor}>Deskripsi (opsional)</label>
+            <label className={`${fieldLabel} g-accent`}>Deskripsi (opsional)</label>
             <textarea value={deskripsi} onChange={e => setDeskripsi(e.target.value)}
               placeholder="Catatan singkat tentang produk ini..."
               rows={3}
@@ -257,8 +255,7 @@ export function KatalogForm({ initial, onClose, onSaved }: Props) {
           )}
 
           <div className="flex gap-2 pt-1">
-            <button onClick={onClose} className="flex-1 h-10 rounded-[10px] text-[12px] font-medium transition-all"
-                    style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}>
+            <button onClick={onClose} className="g-btn-ghost flex-1 h-10 rounded-[10px] text-[12px] font-medium transition-all">
               Batal
             </button>
             <button onClick={handleSubmit} disabled={isPending || !nama.trim()}

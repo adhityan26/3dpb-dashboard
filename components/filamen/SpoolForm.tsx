@@ -1,7 +1,7 @@
 "use client"
 
-import { useState } from "react"
-import { useCatalog, useCreateSpool, useUpdateSpool, useDeleteSpool } from "@/lib/hooks/use-filamen"
+import { useState, useMemo } from "react"
+import { useCatalog, useCreateSpool, useUpdateSpool, useDeleteSpool, useSpools } from "@/lib/hooks/use-filamen"
 import type { SpoolData, SpoolStatus } from "@/lib/filamen/types"
 import { writeNfcTag } from "@/lib/filamen/nfc-writer"
 
@@ -15,6 +15,7 @@ interface SpoolFormProps {
 
 export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
   const { data: catalogData } = useCatalog()
+  const { data: spoolsData } = useSpools()
   const createSpool = useCreateSpool()
   const updateSpool = useUpdateSpool()
   const deleteSpool = useDeleteSpool()
@@ -30,14 +31,55 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
   const [nfcError, setNfcError] = useState<string | null>(null)
 
   const catalog = catalogData?.catalog ?? {}
-  const brands = Object.keys(catalog).sort()
-  const materials = brand ? Object.keys(catalog[brand] ?? {}).sort() : []
-  const colors = brand && material ? (catalog[brand]?.[material] ?? []) : []
+
+  // All unique brands: from catalog + from existing spools
+  const brands = useMemo(() => {
+    const fromCatalog = Object.keys(catalog)
+    const fromSpools = (spoolsData?.spools ?? []).map(s => s.brand)
+    return [...new Set([...fromCatalog, ...fromSpools])].sort()
+  }, [catalog, spoolsData])
+
+  // All unique materials for selected brand
+  const materials = useMemo(() => {
+    const fromCatalog = brand ? Object.keys(catalog[brand] ?? {}) : []
+    const fromSpools = brand
+      ? [...new Set((spoolsData?.spools ?? []).filter(s => s.brand === brand).map(s => s.material))]
+      : []
+    return [...new Set([...fromCatalog, ...fromSpools])].sort()
+  }, [brand, catalog, spoolsData])
+
+  // Colors: from existing spools first (in stock), then catalog extras
+  const colors = useMemo(() => {
+    if (!brand || !material) return [] as { colorName: string; colorHex: string; id?: string; inStock?: boolean }[]
+    const catalogColors = (catalog[brand]?.[material] ?? []).map(c => ({
+      colorName: c.colorName, colorHex: c.colorHex, id: c.id, inStock: false
+    }))
+    const spoolColors = [...new Map(
+      (spoolsData?.spools ?? [])
+        .filter(s => s.brand === brand && s.material === material)
+        .map(s => [s.colorName, { colorName: s.colorName, colorHex: s.colorHex, inStock: true }])
+    ).values()]
+    // Merge: spool colors first (in stock), then catalog-only extras
+    const spoolNames = new Set(spoolColors.map(c => c.colorName))
+    const catalogExtras = catalogColors.filter(c => !spoolNames.has(c.colorName))
+    return [...spoolColors, ...catalogExtras]
+  }, [brand, material, catalog, spoolsData])
 
   function handleColorSelect(name: string) {
     setColorName(name)
     const entry = colors.find((c) => c.colorName === name)
-    if (entry) setColorHex(entry.colorHex)
+    if (!entry) return
+    // Prefer catalog colorHex over spool's default gray
+    const isDefaultGray = !entry.colorHex || entry.colorHex === '#808080'
+    if (isDefaultGray) {
+      // Try to find proper hex from catalog
+      const catEntry = (catalog[brand]?.[entry.colorName] as { colorHex?: string } | undefined)
+        ?? Object.values(catalog).flatMap(m => Object.values(m)).flat()
+          .find((c: { colorName: string; colorHex: string }) => c.colorName === name)
+      setColorHex((catEntry as { colorHex?: string })?.colorHex || entry.colorHex)
+    } else {
+      setColorHex(entry.colorHex)
+    }
   }
 
   const isPending = createSpool.isPending || updateSpool.isPending || deleteSpool.isPending
@@ -47,15 +89,21 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
     setSubmitError(null)
     try {
       if (spool) {
-        await updateSpool.mutateAsync({ id: spool.id, status, notes })
+        await updateSpool.mutateAsync({
+          id: spool.id, status, notes,
+          brand: brand || undefined,
+          material: material || undefined,
+          colorName: colorName || undefined,
+          colorHex: colorHex || undefined,
+        })
       } else {
         const entry = colors.find((c) => c.colorName === colorName)
         await createSpool.mutateAsync({
           brand,
           material,
           colorName,
-          colorHex,
-          catalogId: entry?.id,
+          colorHex: colorHex || entry?.colorHex || '#808080',
+          catalogId: (entry as any)?.id ?? null,
           nfcTagId: prefillNfcTagId,
           notes,
         })
@@ -126,32 +174,100 @@ export function SpoolForm({ spool, prefillNfcTagId, onClose }: SpoolFormProps) {
               </div>
               <div>
                 <label htmlFor="spool-color" className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Warna</label>
-                <div className="flex gap-2">
+                <div className="flex gap-2 mb-1.5">
                   <select
                     id="spool-color"
-                    value={colorName}
-                    onChange={(e) => handleColorSelect(e.target.value)}
+                    value={colors.some(c => c.colorName === colorName) ? colorName : "__custom__"}
+                    onChange={(e) => { if (e.target.value !== "__custom__") handleColorSelect(e.target.value) }}
                     className="flex-1 border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
-                    required
                     disabled={!material}
                   >
-                    <option value="">Pilih warna...</option>
+                    <option value="__custom__">— Ketik sendiri —</option>
                     {colors.map((c) => (
-                      <option key={c.id} value={c.colorName}>{c.colorName}</option>
+                      <option key={`${c.inStock ? 's' : 'c'}-${c.colorName}`} value={c.colorName}>
+                        {c.inStock ? `● ${c.colorName}` : `○ ${c.colorName}`}
+                      </option>
                     ))}
                   </select>
-                  {colorHex && (
-                    <div
-                      className="w-8 h-8 rounded border border-gray-300 dark:border-slate-600 flex-shrink-0"
-                      style={{ backgroundColor: colorHex }}
-                    />
-                  )}
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <div className="w-8 h-8 rounded border border-gray-300 dark:border-slate-600" style={{ backgroundColor: colorHex || '#808080' }} />
+                    <input type="color" value={colorHex || '#808080'} onChange={e => setColorHex(e.target.value)}
+                      className="w-7 h-8 rounded cursor-pointer border-0 p-0" title="Pilih warna hex" />
+                  </div>
                 </div>
+                <input
+                  type="text"
+                  value={colorName}
+                  onChange={e => setColorName(e.target.value)}
+                  placeholder="Nama warna (e.g. Black, Pine Green)"
+                  className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
+                  required
+                  disabled={!material}
+                />
               </div>
             </>
           )}
 
-          {/* Edit mode: only status + notes */}
+          {/* Edit mode: brand / material / color (editable) */}
+          {spool && (
+            <>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Brand</label>
+                  <select value={brands.includes(brand) ? brand : "__custom__"}
+                    onChange={e => { if (e.target.value !== "__custom__") { setBrand(e.target.value); setMaterial(""); setColorName("") } }}
+                    className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 mb-1">
+                    <option value="__custom__">— Ketik sendiri —</option>
+                    {brands.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                  <input type="text" value={brand} onChange={e => { setBrand(e.target.value); setMaterial(""); setColorName("") }}
+                    placeholder="Nama brand" className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Material</label>
+                  <select value={materials.includes(material) ? material : "__custom__"}
+                    onChange={e => { if (e.target.value !== "__custom__") { setMaterial(e.target.value); setColorName("") } }}
+                    className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 mb-1"
+                    disabled={!brand}>
+                    <option value="__custom__">— Ketik sendiri —</option>
+                    {materials.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                  <input type="text" value={material} onChange={e => { setMaterial(e.target.value); setColorName("") }}
+                    placeholder="Nama material" disabled={!brand} className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 disabled:opacity-50" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Warna</label>
+                <div className="flex gap-2 mb-1.5">
+                  <select value={colors.some(c => c.colorName === colorName) ? colorName : "__custom__"}
+                    onChange={e => { if (e.target.value !== "__custom__") handleColorSelect(e.target.value) }}
+                    className="flex-1 border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100">
+                    <option value="__custom__">— Ketik sendiri —</option>
+                    {colors.map(c => (
+                      <option key={`e-${c.colorName}`} value={c.colorName}>
+                        {c.inStock ? `● ${c.colorName}` : `○ ${c.colorName}`}
+                      </option>
+                    ))}
+                  </select>
+                  {/* Color swatch + hex picker */}
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    <div className="w-8 h-8 rounded border border-gray-300 dark:border-slate-600" style={{ backgroundColor: colorHex || '#808080' }} />
+                    <input type="color" value={colorHex || '#808080'} onChange={e => setColorHex(e.target.value)}
+                      className="w-7 h-8 rounded cursor-pointer border-0 p-0" title="Pilih warna hex" />
+                  </div>
+                </div>
+                <input
+                  type="text"
+                  value={colorName}
+                  onChange={e => setColorName(e.target.value)}
+                  placeholder="Nama warna (e.g. Black)"
+                  className="w-full border border-gray-300 dark:border-slate-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100"
+                />
+              </div>
+            </>
+          )}
+
+          {/* Edit mode: status */}
           {spool && (
             <div>
               <label htmlFor="spool-status" className="text-xs text-gray-500 dark:text-slate-400 block mb-1">Status</label>

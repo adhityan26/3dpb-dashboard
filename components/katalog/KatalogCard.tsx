@@ -29,7 +29,7 @@ function PriceCol({ value, color }: { value: string | null; color: string }) {
   return value ? (
     <div className="text-sm font-bold" style={{ color }}>{value}</div>
   ) : (
-    <div className="text-sm font-bold" style={{ color: "rgba(255,255,255,0.18)" }}>—</div>
+    <div className="text-sm font-bold g-t5">—</div>
   )
 }
 
@@ -66,13 +66,7 @@ export function KatalogCard({ produk, onEdit }: Props) {
   const shopeeDisplayPrice = actualShopeePrice ?? (produk.hargaShopeeAktual && produk.hargaShopeeAktual > 0 ? produk.hargaShopeeAktual : null)
 
   return (
-    <div
-      className="rounded-[14px] overflow-hidden"
-      style={{
-        background: "rgba(255,255,255,0.03)",
-        border: "1px solid rgba(255,255,255,0.07)",
-      }}
-    >
+    <div className="rounded-[14px] overflow-hidden g-card">
       {/* Table-style main row */}
       <div
         className="items-center px-5 py-4 gap-3"
@@ -81,19 +75,16 @@ export function KatalogCard({ produk, onEdit }: Props) {
         {/* Col 1: Image thumbnail */}
         <div className="relative flex-shrink-0">
           <div
-            className="w-12 h-12 rounded-[8px] overflow-hidden flex items-center justify-center cursor-pointer"
-            style={{
-              background: produk.imageUrl ? "transparent" : "rgba(255,255,255,0.05)",
-              border: "1px solid rgba(255,255,255,0.1)",
-            }}
+            className="w-12 h-12 rounded-[8px] overflow-hidden flex items-center justify-center cursor-pointer g-inner"
             onClick={() => fileInputRef.current?.click()}
             title="Klik untuk upload gambar"
+            style={produk.imageUrl ? { background: "transparent", border: "none" } : undefined}
           >
             {produk.imageUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={produk.imageUrl} alt={produk.nama} className="w-full h-full object-cover" />
             ) : (
-              <span className="text-[18px]" style={{ opacity: 0.3 }}>
+              <span className="text-[18px] g-t5">
                 {uploadImage.isPending ? "⋯" : "📷"}
               </span>
             )}
@@ -115,9 +106,9 @@ export function KatalogCard({ produk, onEdit }: Props) {
           />
         </div>
 
-        {/* Col 2: Name + meta badges only */}
+        {/* Col 2: Name + meta badges */}
         <div className="min-w-0">
-          <div className="text-[15px] font-bold truncate" style={{ color: "rgba(255,255,255,0.9)" }}>
+          <div className="text-[15px] font-bold truncate g-t1">
             {produk.nama}
           </div>
 
@@ -134,7 +125,7 @@ export function KatalogCard({ produk, onEdit }: Props) {
               <span
                 key={tag}
                 className="text-[10px] px-2 py-0.5 rounded-full"
-                style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.45)", border: "1px solid rgba(255,255,255,0.1)" }}
+                style={{ background: "var(--g-inner)", color: "var(--g-t3)", border: "1px solid var(--g-inner-border)" }}
               >
                 {tag}
               </span>
@@ -174,7 +165,7 @@ export function KatalogCard({ produk, onEdit }: Props) {
               </span>
             )}
             {produk.floorPrice != null && (
-              <span className="text-[10px]" style={{ color: "rgba(251,191,36,0.45)" }}>
+              <span className="text-[10px]" style={{ color: "rgba(251,191,36,0.7)" }}>
                 Floor: {fmt(produk.floorPrice)}
               </span>
             )}
@@ -193,11 +184,10 @@ export function KatalogCard({ produk, onEdit }: Props) {
           <button
             onClick={() => setExpanded(v => !v)}
             className="h-8 px-2.5 rounded-[8px] text-[11px] font-medium transition-all"
-            style={{
-              background: expanded ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.05)",
-              border: expanded ? "1px solid rgba(99,102,241,0.35)" : "1px solid rgba(255,255,255,0.08)",
-              color: expanded ? "#a5b4fc" : "rgba(255,255,255,0.5)",
-            }}
+            style={expanded
+              ? { background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.35)", color: "#a5b4fc" }
+              : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t3)" }
+            }
           >
             {expanded ? "▲" : "▼"}
           </button>
@@ -223,12 +213,12 @@ export function KatalogCard({ produk, onEdit }: Props) {
       {expanded && (
         <div
           className="px-5 pb-5 space-y-4 pt-4"
-          style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
+          style={{ borderTop: "1px solid var(--g-row-border)" }}
         >
           {/* Source Model */}
           {produk.sourceModel && (
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: "rgba(165,180,252,0.5)" }}>
+              <div className="text-[10px] font-semibold uppercase tracking-wider mb-1 g-accent">
                 Source / Model Referensi
               </div>
               {/^https?:\/\//.test(produk.sourceModel) ? (
@@ -242,7 +232,7 @@ export function KatalogCard({ produk, onEdit }: Props) {
                   {produk.sourceModel}
                 </a>
               ) : (
-                <div className="text-sm" style={{ color: "rgba(255,255,255,0.6)" }}>
+                <div className="text-sm g-t2">
                   {produk.sourceModel}
                 </div>
               )}
@@ -252,10 +242,10 @@ export function KatalogCard({ produk, onEdit }: Props) {
           {/* Deskripsi */}
           {produk.deskripsi && (
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: "rgba(165,180,252,0.5)" }}>
+              <div className="text-[10px] font-semibold uppercase tracking-wider mb-1 g-accent">
                 Deskripsi
               </div>
-              <div className="text-sm" style={{ color: "rgba(255,255,255,0.6)", lineHeight: 1.6 }}>
+              <div className="text-sm g-t2" style={{ lineHeight: 1.6 }}>
                 {produk.deskripsi}
               </div>
             </div>
@@ -264,28 +254,26 @@ export function KatalogCard({ produk, onEdit }: Props) {
           {/* Plates dari kalkulasi primary */}
           {produk.plates.length > 0 && (
             <div>
-              <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: "rgba(165,180,252,0.5)" }}>
+              <div className="text-[10px] font-semibold uppercase tracking-wider mb-2 g-accent">
                 Part / Plate
                 {produk.kalkulasiNama && (
-                  <span className="ml-1 font-normal normal-case" style={{ color: "rgba(255,255,255,0.25)" }}>
+                  <span className="ml-1 font-normal normal-case g-t5">
                     (dari: {produk.kalkulasiNama})
                   </span>
                 )}
               </div>
               {produk.kalkulasiBatch && produk.kalkulasiBatch > 1 && (
-                <div className="text-[10px] mb-1" style={{ color: "rgba(251,191,36,0.6)" }}>
+                <div className="text-[10px] mb-1" style={{ color: "rgba(251,191,36,0.7)" }}>
                   Batch: {produk.kalkulasiBatch} unit · nilai per-unit = total ÷ {produk.kalkulasiBatch}
                 </div>
               )}
-              <div className="rounded-[10px] overflow-hidden" style={{ border: "1px solid rgba(255,255,255,0.06)" }}>
+              <div className="rounded-[10px] overflow-hidden g-inner">
                 {/* Table header */}
                 <div
-                  className="grid text-[9px] font-semibold uppercase tracking-wider px-3 py-2"
+                  className="grid text-[9px] font-semibold uppercase tracking-wider px-3 py-2 g-accent"
                   style={{
                     gridTemplateColumns: "1fr 60px 140px 90px 90px",
-                    background: "rgba(255,255,255,0.03)",
-                    color: "rgba(165,180,252,0.5)",
-                    borderBottom: "1px solid rgba(255,255,255,0.05)",
+                    borderBottom: "1px solid var(--g-row-border)",
                   }}
                 >
                   <span>Nama Part</span>
@@ -304,29 +292,29 @@ export function KatalogCard({ produk, onEdit }: Props) {
                       className="grid px-3 py-2 text-xs items-start"
                       style={{
                         gridTemplateColumns: "1fr 60px 140px 90px 90px",
-                        borderBottom: i < produk.plates.length - 1 ? "1px solid rgba(255,255,255,0.04)" : "none",
+                        borderBottom: i < produk.plates.length - 1 ? "1px solid var(--g-row-border)" : "none",
                       }}
                     >
-                      <span style={{ color: plate.namaPart ? "rgba(255,255,255,0.75)" : "rgba(255,255,255,0.25)" }}>
+                      <span style={{ color: plate.namaPart ? "var(--g-t1)" : "var(--g-t4)" }}>
                         {plate.namaPart ?? "—"}
                       </span>
                       <span className="font-semibold" style={{ color: plate.tipe === "SLA" ? "#fb923c" : "#6ee7b7" }}>
                         {plate.tipe}
                       </span>
-                      <span style={{ color: plate.printer ? "rgba(165,180,252,0.7)" : "rgba(255,255,255,0.2)" }}>
+                      <span style={{ color: plate.printer ? "#a5b4fc" : "var(--g-t5)" }}>
                         {plate.printer ?? "—"}
                       </span>
                       <div>
                         {batch > 1 && (
-                          <div className="font-semibold" style={{ color: "rgba(255,255,255,0.75)" }}>{gramasiPerUnit.toFixed(1)}g/unit</div>
+                          <div className="font-semibold g-t1">{gramasiPerUnit.toFixed(1)}g/unit</div>
                         )}
-                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>{plate.gramasi.toFixed(1)}g total</div>
+                        <div className="g-t4" style={{ fontSize: 10 }}>{plate.gramasi.toFixed(1)}g total</div>
                       </div>
                       <div>
                         {batch > 1 && (
-                          <div className="font-semibold" style={{ color: "rgba(255,255,255,0.75)" }}>{fmtDurasi(durasiPerUnit)}/unit</div>
+                          <div className="font-semibold g-t1">{fmtDurasi(durasiPerUnit)}/unit</div>
                         )}
-                        <div style={{ color: "rgba(255,255,255,0.4)", fontSize: 10 }}>{fmtDurasi(plate.durasiJam)} total</div>
+                        <div className="g-t4" style={{ fontSize: 10 }}>{fmtDurasi(plate.durasiJam)} total</div>
                       </div>
                     </div>
                   )
@@ -336,12 +324,12 @@ export function KatalogCard({ produk, onEdit }: Props) {
           )}
 
           {/* Shopee links */}
-          <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16 }}>
+          <div style={{ borderTop: "1px solid var(--g-row-border)", paddingTop: 16 }}>
             <ShopeeLinksSection produkId={produk.id} links={produk.shopeeLinks} />
           </div>
 
           {/* Kalkulasi link */}
-          <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16 }}>
+          <div style={{ borderTop: "1px solid var(--g-row-border)", paddingTop: 16 }}>
             <KalkulasiLinkSection
               produkId={produk.id}
               currentKalkulasiId={produk.primaryKalkulasiId ?? null}
@@ -351,7 +339,7 @@ export function KatalogCard({ produk, onEdit }: Props) {
           </div>
 
           {/* History */}
-          <div style={{ borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 16 }}>
+          <div style={{ borderTop: "1px solid var(--g-row-border)", paddingTop: 16 }}>
             <HistorySection produkId={produk.id} />
           </div>
         </div>

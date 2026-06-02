@@ -122,6 +122,7 @@ export async function getReadyToShipOrders(): Promise<OrderListResult> {
       sku: it.model_sku ?? it.item_sku ?? null,
       qty: it.model_quantity_purchased,
       unitPrice: it.model_discounted_price,
+      imageUrl: it.image_info?.image_url ?? null,
     }))
 
     const label = labelBySn.get(d.order_sn)
@@ -137,18 +138,21 @@ export async function getReadyToShipOrders(): Promise<OrderListResult> {
       labelPrinted: label?.printed ?? false,
       labelPrintedAt: label?.printedAt?.toISOString() ?? null,
       labelPrintedBy: label?.printedBy ?? null,
+      isPreOrder: (d.days_to_ship ?? 0) >= 7,
+      shipByDate: d.ship_by_date ?? null,
     }
   })
 
   orders.sort((a, b) => b.createTime - a.createTime)
 
   const total = orders.length
-  const sudahCetak = orders.filter((o) => o.labelPrinted).length
-  const belumCetak = total - sudahCetak
+  const orderBaru = orders.filter((o) => o.shopeeStatus === "READY_TO_SHIP").length
+  const perluCetak = orders.filter((o) => o.shopeeStatus === "PROCESSED" && !o.labelPrinted).length
+  const sudahDiproses = orders.filter((o) => o.shopeeStatus === "PROCESSED" && o.labelPrinted).length
 
   return {
     orders,
-    kpi: { total, belumCetak, sudahCetak },
+    kpi: { total, orderBaru, perluCetak, sudahDiproses },
     fetchedAt: new Date().toISOString(),
   }
 }
@@ -157,32 +161,20 @@ export async function countBelumCetak(): Promise<number> {
   const now = Math.floor(Date.now() / 1000)
   const from = now - FIFTEEN_DAYS_SEC
 
-  // Fetch both unshipped statuses in parallel
-  const statuses = ["READY_TO_SHIP", "PROCESSED"] as const
-  const allSns: string[] = []
+  // Count only READY_TO_SHIP — these are orders not yet processed/printed in Shopee
+  const sns: string[] = []
+  let cursor: string | undefined
+  let hasMore = true
+  let safety = 0
+  while (hasMore && safety < 20) {
+    const page = await getOrderList({ timeFrom: from, timeTo: now, status: "READY_TO_SHIP", pageSize: 100, cursor })
+    for (const entry of page.order_list) sns.push(entry.order_sn)
+    hasMore = page.more
+    cursor = page.next_cursor
+    safety++
+  }
 
-  await Promise.all(statuses.map(async (status) => {
-    let cursor: string | undefined
-    let hasMore = true
-    let safety = 0
-    while (hasMore && safety < 20) {
-      const page = await getOrderList({ timeFrom: from, timeTo: now, status, pageSize: 100, cursor })
-      for (const entry of page.order_list) allSns.push(entry.order_sn)
-      hasMore = page.more
-      cursor = page.next_cursor
-      safety++
-    }
-  }))
-
-  // Deduplicate
-  const uniqueSns = Array.from(new Set(allSns))
-
-  if (uniqueSns.length === 0) return 0
-
-  const printed = await prisma.labelStatus.count({
-    where: { orderId: { in: uniqueSns }, printed: true },
-  })
-  return uniqueSns.length - printed
+  return Array.from(new Set(sns)).length
 }
 
 export async function setLabelPrinted(

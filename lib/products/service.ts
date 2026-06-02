@@ -168,7 +168,7 @@ export async function getProductsPage(
         },
       },
     }),
-    getSoldStatsPerItem(),
+    getSoldStatsPerItem(pageItemIdStrings),  // scoped to page only
   ])
 
   const katalogByItemId = new Map<string, KatalogInfo>()
@@ -262,6 +262,23 @@ export async function getProductsPage(
   }
 }
 
+/**
+ * Fast KPI counts from DB index — no Shopee API call.
+ * stokKritis and perluPerhatian are approximated as 0 (stock data not in index).
+ */
+export async function getProductsKpi(): Promise<import("./types").ProductsListResult["kpi"]> {
+  const [total, unlist] = await Promise.all([
+    prisma.shopeeProductIndex.count(),
+    prisma.shopeeProductIndex.count({ where: { status: "UNLIST" } }),
+  ])
+  return {
+    totalProducts: total,
+    stokKritis: 0,
+    perluPerhatian: unlist,
+    totalStockItems: 0,
+  }
+}
+
 interface SoldStats {
   qty: number
   omzet: number
@@ -269,16 +286,19 @@ interface SoldStats {
 
 /**
  * Aggregate sold qty and omzet per item_id from the last 30 days of orders.
+ * Optionally scoped to a specific set of item IDs (much faster for paginated views).
  */
-async function getSoldStatsPerItem(): Promise<Map<string, SoldStats>> {
+async function getSoldStatsPerItem(itemIds?: string[]): Promise<Map<string, SoldStats>> {
   const now = Math.floor(Date.now() / 1000)
   const from = now - 30 * 24 * 60 * 60
   const orders = await getOrdersInRange({ timeFrom: from, timeTo: now })
+  const filterSet = itemIds ? new Set(itemIds) : null
 
   const map = new Map<string, SoldStats>()
   for (const order of orders) {
     for (const item of order.item_list) {
       const key = String(item.item_id)
+      if (filterSet && !filterSet.has(key)) continue
       const existing = map.get(key) ?? { qty: 0, omzet: 0 }
       existing.qty += item.model_quantity_purchased
       existing.omzet +=

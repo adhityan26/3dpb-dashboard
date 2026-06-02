@@ -1,8 +1,8 @@
 #!/bin/sh
 set -e
 
-echo "[entrypoint] Running Prisma migrations..."
-npx prisma migrate deploy 2>&1 || echo "[entrypoint] Migration skipped or failed (may be first run)"
+echo "[entrypoint] Pushing Prisma schema to database..."
+npx prisma db push --accept-data-loss 2>&1 || echo "[entrypoint] Schema push failed (may already be in sync)"
 
 echo "[entrypoint] Starting Next.js server..."
 exec node server.js

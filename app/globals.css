@@ -151,6 +151,108 @@
   }
 }
 
+/* ── GLASS UI: ADAPTIVE TOKENS (light → dark) ───────────────── */
+/*
+  These CSS custom properties flip automatically between light and dark.
+  Use them instead of hardcoded rgba(255,255,255,...) so components
+  look correct in BOTH themes.
+
+  Naming: --g-<role>
+  Surfaces: card, inner, row-border, dashed
+  Text:     t1 (high) → t5 (very muted)
+  Accent:   accent (indigo label), label (field label)
+  Button:   btn-ghost
+*/
+
+:root {
+  /* Surfaces */
+  --g-card:         rgba(0,0,0,0.025);
+  --g-card-border:  rgba(0,0,0,0.09);
+  --g-inner:        rgba(0,0,0,0.03);
+  --g-inner-border: rgba(0,0,0,0.07);
+  --g-row-border:   rgba(0,0,0,0.05);
+  --g-dashed:       rgba(0,0,0,0.1);
+  --g-hover:        rgba(99,102,241,0.06);
+
+  /* Text */
+  --g-t1:  rgba(0,0,0,0.87);
+  --g-t2:  rgba(0,0,0,0.65);
+  --g-t3:  rgba(0,0,0,0.45);
+  --g-t4:  rgba(0,0,0,0.35);
+  --g-t5:  rgba(0,0,0,0.25);
+
+  /* Accent / labels */
+  --g-accent: rgba(80,85,232,0.7);
+  --g-label:  rgba(0,0,0,0.55);
+
+  /* Ghost button */
+  --g-btn-ghost-bg:      rgba(0,0,0,0.04);
+  --g-btn-ghost-border:  rgba(0,0,0,0.1);
+  --g-btn-ghost-text:    rgba(0,0,0,0.6);
+}
+
+.dark {
+  /* Surfaces */
+  --g-card:         rgba(255,255,255,0.03);
+  --g-card-border:  rgba(255,255,255,0.07);
+  --g-inner:        rgba(255,255,255,0.025);
+  --g-inner-border: rgba(255,255,255,0.06);
+  --g-row-border:   rgba(255,255,255,0.04);
+  --g-dashed:       rgba(255,255,255,0.1);
+  --g-hover:        rgba(99,102,241,0.06);
+
+  /* Text */
+  --g-t1:  rgba(255,255,255,0.9);
+  --g-t2:  rgba(255,255,255,0.6);
+  --g-t3:  rgba(255,255,255,0.4);
+  --g-t4:  rgba(255,255,255,0.25);
+  --g-t5:  rgba(255,255,255,0.18);
+
+  /* Accent / labels */
+  --g-accent: rgba(165,180,252,0.6);
+  --g-label:  rgba(255,255,255,0.6);
+
+  /* Ghost button */
+  --g-btn-ghost-bg:      rgba(255,255,255,0.07);
+  --g-btn-ghost-border:  rgba(255,255,255,0.12);
+  --g-btn-ghost-text:    rgba(255,255,255,0.7);
+}
+
+/* Utility classes using the adaptive tokens */
+@layer utilities {
+  .g-card {
+    background: var(--g-card);
+    border: 1px solid var(--g-card-border);
+  }
+  .g-inner {
+    background: var(--g-inner);
+    border: 1px solid var(--g-inner-border);
+  }
+  .g-t1  { color: var(--g-t1); }
+  .g-t2  { color: var(--g-t2); }
+  .g-t3  { color: var(--g-t3); }
+  .g-t4  { color: var(--g-t4); }
+  .g-t5  { color: var(--g-t5); }
+  .g-accent { color: var(--g-accent); }
+  .g-label  { color: var(--g-label); }
+
+  /* Row item (used in list cards) */
+  .g-row {
+    background: var(--g-card);
+    border: 1px solid var(--g-card-border);
+  }
+  .g-row:hover {
+    background: var(--g-hover);
+  }
+
+  /* Ghost button */
+  .g-btn-ghost {
+    background: var(--g-btn-ghost-bg);
+    border: 1px solid var(--g-btn-ghost-border);
+    color: var(--g-btn-ghost-text);
+  }
+}
+
 /* ── GLASS UI THEME TOKENS ────────────────────────────────────── */
 
 /* Dark mode backgrounds */
@@ -299,17 +401,31 @@
   100% { opacity: 0; filter: blur(16px) brightness(1.15); transform: scale(1.03); }
 }
 
-/* ── GLASS UI: LOGIN PAGE ── */
+/* ── GLASS UI: INPUTS (both login page and dashboard forms) ── */
+/* Light mode */
 .glass-input {
+  background: rgba(0,0,0,0.04);
+  border: 1px solid rgba(0,0,0,0.12);
+  color: rgba(0,0,0,0.85);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  caret-color: #6366f1;
+}
+.glass-input::placeholder { color: rgba(0,0,0,0.3); }
+.glass-input:focus {
+  outline: none;
+  border-color: rgba(99,102,241,0.5);
+  box-shadow: 0 0 0 3px rgba(99,102,241,0.10);
+}
+
+/* Dark mode */
+.dark .glass-input {
   background: rgba(255,255,255,0.07);
   border: 1px solid rgba(255,255,255,0.1);
   color: white;
-  transition: border-color 0.2s, box-shadow 0.2s;
   caret-color: #a5b4fc;
 }
-.glass-input::placeholder { color: rgba(255,255,255,0.25); }
-.glass-input:focus {
-  outline: none;
+.dark .glass-input::placeholder { color: rgba(255,255,255,0.25); }
+.dark .glass-input:focus {
   border-color: rgba(99,102,241,0.5);
   box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
 }

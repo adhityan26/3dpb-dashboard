@@ -35,11 +35,14 @@ export function SpoolCard({ spool, onEdit, onPrint, onTap, selected, onSelect }:
         }`}
       onClick={() => onTap?.(spool)}
     >
-      {/* Selection checkbox */}
+      {/* Left color strip */}
+      <div className="w-1.5 flex-shrink-0" style={{ backgroundColor: spool.colorHex }} />
+
+      {/* Selection checkbox — inline column, no overlap */}
       {onSelect && (
         <button
           onClick={(e) => { e.stopPropagation(); onSelect(spool) }}
-          className={`absolute top-1.5 left-1.5 z-10 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
+          className={`flex-shrink-0 self-center mx-1.5 w-4 h-4 rounded border-2 flex items-center justify-center transition-colors ${
             selected
               ? "bg-[#EE4D2D] dark:bg-indigo-500 border-[#EE4D2D] dark:border-indigo-500"
               : "bg-white dark:bg-slate-700 border-gray-300 dark:border-slate-500 hover:border-[#EE4D2D] dark:hover:border-indigo-400"
@@ -49,9 +52,6 @@ export function SpoolCard({ spool, onEdit, onPrint, onTap, selected, onSelect }:
           {selected && <span className="text-white text-[9px] leading-none">✓</span>}
         </button>
       )}
-
-      {/* Left color strip */}
-      <div className="w-1.5 flex-shrink-0" style={{ backgroundColor: spool.colorHex }} />
 
       {/* Content */}
       <div className="flex-1 px-2.5 py-2 min-w-0">
@@ -64,6 +64,11 @@ export function SpoolCard({ spool, onEdit, onPrint, onTap, selected, onSelect }:
             <div className="text-[10px] text-gray-400 dark:text-slate-500 truncate">
               {spool.brand} · {spool.material}
             </div>
+            {spool.hargaBeli != null && (
+              <div className="text-[9px] mt-0.5" style={{ color: "#a5b4fc" }}>
+                Rp {Math.round(spool.hargaBeli).toLocaleString("id-ID")}/roll
+              </div>
+            )}
           </div>
           {/* Icon actions — stop propagation so they don't trigger onTap */}
           <div className="flex gap-1 flex-shrink-0 mt-0.5">

@@ -237,3 +237,43 @@ export function useSyncCatalog() {
     onSuccess: () => qc.invalidateQueries({ queryKey: CATALOG_KEY }),
   })
 }
+
+// ── Rename brand / material ───────────────────────────────────────────────────
+
+export function useRenameBrandOrMaterial() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (data: { field: 'brand' | 'material' | 'color'; from: string; to: string; brandScope?: string }) =>
+      fetch('/api/filamen/spools/rename', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      }).then((r) => r.json()),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['filamen'] }),
+  })
+}
+
+// ── Filament brand aliases ────────────────────────────────────────────────────
+
+export function useFilamentAliases() {
+  return useQuery({
+    queryKey: ['filament-aliases'],
+    queryFn: () =>
+      fetch('/api/settings/filament-aliases')
+        .then((r) => r.json())
+        .then((d: { aliases: Record<string, string> }) => d.aliases),
+  })
+}
+
+export function useUpdateFilamentAliases() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (aliases: Record<string, string>) =>
+      fetch('/api/settings/filament-aliases', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ aliases }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['filament-aliases'] }),
+  })
+}

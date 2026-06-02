@@ -37,8 +37,7 @@ export function KalkulasiTab() {
         {editingKalk && (
           <button
             onClick={handleNew}
-            className="h-8 px-3 rounded-[8px] text-[11px]"
-            style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}
+            className="h-8 px-3 rounded-[8px] text-[11px] g-btn-ghost"
           >
             + Kalkulasi Baru
           </button>
@@ -60,7 +59,7 @@ export function KalkulasiTab() {
           >
             🔗 Link Produk
           </button>
-          <button onClick={() => setSavedKalk(null)} style={{ color: "rgba(255,255,255,0.3)", fontSize: 14 }}>✕</button>
+          <button onClick={() => setSavedKalk(null)} className="g-t4" style={{ fontSize: 14 }}>✕</button>
         </div>
       )}
 

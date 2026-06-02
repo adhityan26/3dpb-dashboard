@@ -17,6 +17,7 @@ function toSpoolData(s: PrismaSpoolWithCount): SpoolData {
     barcode: s.barcode,
     nfcTagId: s.nfcTagId ?? null,
     notes: s.notes,
+    hargaBeli: (s as any).hargaBeli ?? null,
     createdAt: s.createdAt.toISOString(),
     updatedAt: s.updatedAt.toISOString(),
     assignedSlotCount: s._count?.amsSlots ?? 0,
@@ -92,6 +93,10 @@ export interface UpdateSpoolInput {
   status?: SpoolStatus
   nfcTagId?: string | null
   notes?: string
+  brand?: string
+  material?: string
+  colorName?: string
+  colorHex?: string
 }
 
 export async function updateSpool(id: string, input: UpdateSpoolInput): Promise<SpoolData> {
@@ -101,6 +106,10 @@ export async function updateSpool(id: string, input: UpdateSpoolInput): Promise<
       ...(input.status !== undefined && { status: input.status }),
       ...(input.nfcTagId !== undefined && { nfcTagId: input.nfcTagId }),
       ...(input.notes !== undefined && { notes: input.notes }),
+      ...(input.brand !== undefined && { brand: input.brand }),
+      ...(input.material !== undefined && { material: input.material }),
+      ...(input.colorName !== undefined && { colorName: input.colorName }),
+      ...(input.colorHex !== undefined && { colorHex: input.colorHex }),
     },
     include: { _count: { select: { amsSlots: true } } },
   })

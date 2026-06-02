@@ -2,8 +2,31 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
-  QuotationData, QuotationListItem, QuotationInput, UpdateQuotationInput
+  QuotationData, QuotationListItem, QuotationInput, UpdateQuotationInput, AddPaymentInput
 } from '@/lib/invoice/types'
+
+const METHODS_KEY = ['invoice', 'payment-methods'] as const
+
+export function usePaymentMethods() {
+  return useQuery({
+    queryKey: METHODS_KEY,
+    queryFn: () => apiFetch<{ methods: string[] }>('/api/settings/invoice-methods').then(r => r.methods),
+    staleTime: 60_000,
+  })
+}
+
+export function useUpdatePaymentMethods() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (methods: string[]) =>
+      apiFetch<{ methods: string[] }>('/api/settings/invoice-methods', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ methods }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: METHODS_KEY }),
+  })
+}
 
 const INVOICE_KEY = ['invoice'] as const
 
@@ -69,5 +92,33 @@ export function useDeleteInvoice() {
   return useMutation({
     mutationFn: (id: string) => apiFetch<void>(`/api/invoice/${id}`, { method: 'DELETE' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: INVOICE_KEY }),
+  })
+}
+
+export function useAddPayment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: AddPaymentInput }) =>
+      apiFetch<QuotationData>(`/api/invoice/${id}/payments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(input),
+      }),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: INVOICE_KEY })
+      qc.invalidateQueries({ queryKey: [...INVOICE_KEY, id] })
+    },
+  })
+}
+
+export function useDeletePayment() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, paymentId }: { id: string; paymentId: string }) =>
+      apiFetch<QuotationData>(`/api/invoice/${id}/payments/${paymentId}`, { method: 'DELETE' }),
+    onSuccess: (_, { id }) => {
+      qc.invalidateQueries({ queryKey: INVOICE_KEY })
+      qc.invalidateQueries({ queryKey: [...INVOICE_KEY, id] })
+    },
   })
 }

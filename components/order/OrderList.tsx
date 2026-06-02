@@ -7,12 +7,16 @@ interface OrderListProps {
   orders: OrderSummary[]
   onToggleLabel: (orderSn: string, printed: boolean) => void
   pendingOrderSn: string | null
+  invoiceMap?: Map<string, { id: string; nomor: string; status: string }>
+  onCreateInvoice?: (order: OrderSummary) => void
 }
 
 export function OrderList({
   orders,
   onToggleLabel,
   pendingOrderSn,
+  invoiceMap,
+  onCreateInvoice,
 }: OrderListProps) {
   if (orders.length === 0) {
     return (
@@ -30,6 +34,8 @@ export function OrderList({
           order={o}
           onToggleLabel={onToggleLabel}
           isPending={pendingOrderSn === o.orderSn}
+          linkedInvoice={invoiceMap?.get(o.orderSn) ?? null}
+          onCreateInvoice={onCreateInvoice}
         />
       ))}
     </div>

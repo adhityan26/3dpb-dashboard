@@ -49,6 +49,8 @@ export async function getOrderDetail(
     "order_status",
     "create_time",
     "update_time",
+    "ship_by_date",
+    "days_to_ship",
   ].join(",")
 
   const json = await shopeeRequest<ShopeeOrderDetailResponse>(

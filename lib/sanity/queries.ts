@@ -1,19 +1,31 @@
+// Helper macro: flatten internationalizedArrayString/Text to {id, en}
+// Usage: loc("fieldName") → inline GROQ projection
+const loc = (f: string) =>
+  `"${f}": {"id": coalesce(${f}[_key=="id"][0].value,""), "en": coalesce(${f}[_key=="en"][0].value,"")}`
+
 export const Q = {
   siteSettings: `*[_type == "siteSettings"][0]{
     brandName,
-    tagline,
-    contact{ whatsapp, instagram, email, address, operatingHours },
+    ${loc("tagline")},
+    "contact": contact{
+      whatsapp, instagram, email,
+      ${loc("address")},
+      ${loc("operatingHours")}
+    },
     marketplaceLinks,
-    seo
+    "seo": seo{
+      ${loc("defaultTitle")},
+      ${loc("defaultDescription")}
+    }
   }`,
 
   generator: `*[_type == "silhouetteGenerator"][0]{
-    headline,
-    description,
+    ${loc("headline")},
+    ${loc("description")},
     launchStatus,
     estimatedLaunch,
     orderUrl,
-    orderLabel,
+    ${loc("orderLabel")},
     "devScreenshots": devScreenshots[]{
       "imageUrl": asset->url,
       "imageRef": asset._ref,
@@ -22,29 +34,29 @@ export const Q = {
   }`,
 
   faceshell: `*[_type == "faceshellCollection"][0]{
-    headline,
-    description,
+    ${loc("headline")},
+    ${loc("description")},
     orderWhatsappMessage,
     externalMeasurementUrl,
-    externalMeasurementLabel,
+    ${loc("externalMeasurementLabel")},
     "items": items[]{
       _key,
       "imageUrl": image.asset->url,
       "imageRef": image.asset._ref,
       "alt": image.alt,
-      title,
-      caption
+      ${loc("title")},
+      ${loc("caption")}
     }
   }`,
 
   gallery: `*[_type == "galleryItem"] | order(order asc){
     _id,
-    title,
+    ${loc("title")},
     "imageUrl": image.asset->url,
     "imageRef": image.asset._ref,
     "alt": image.alt,
     category,
-    caption,
+    ${loc("caption")},
     order
   }`,
 
@@ -60,8 +72,8 @@ export const Q = {
 
   faq: `*[_type == "faq"] | order(order asc){
     _id,
-    question,
-    answer,
+    ${loc("question")},
+    ${loc("answer")},
     tags,
     order
   }`,

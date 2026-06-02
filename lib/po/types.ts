@@ -24,6 +24,7 @@ export interface POData {
   tanggal: string
   status: POStatus
   catatan: string | null
+  ongkir: number
   items: POItemData[]
   grandTotal: number
   filamentItemCount: number
@@ -38,6 +39,7 @@ export interface POListItem {
   status: POStatus
   itemCount: number
   grandTotal: number
+  ongkir: number
   filamentItemCount: number
   createdAt: string
 }
@@ -62,6 +64,7 @@ export interface POInput {
   vendorNama: string
   tanggal?: string
   catatan?: string | null
+  ongkir?: number
   items: POItemInput[]
 }
 
@@ -71,6 +74,7 @@ export interface UpdatePOInput {
   tanggal?: string
   catatan?: string | null
   status?: POStatus
+  ongkir?: number
   items?: POItemInput[]
 }
 
@@ -79,6 +83,7 @@ export interface OCRPOResult {
   nomor?: string
   vendorNama?: string
   tanggal?: string
+  ongkir?: number
   items: Array<{
     namaProduct: string
     kode?: string

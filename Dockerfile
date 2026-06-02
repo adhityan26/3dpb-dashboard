@@ -2,7 +2,7 @@
 FROM node:22-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install --legacy-peer-deps
 
 # ── Stage 2: Build the Next.js app ──────────────────────────────────────────
 FROM node:22-alpine AS builder
@@ -37,6 +37,9 @@ COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 # Copy full node_modules for runtime, prisma CLI, and seed script.
 # Standalone output handles Next.js deps; we need the rest for Prisma + tools.
 COPY --from=builder /app/node_modules ./node_modules
+
+# Copy migration scripts
+COPY --from=builder /app/scripts ./scripts
 
 # Copy entrypoint script (runs migrations before starting server)
 COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh

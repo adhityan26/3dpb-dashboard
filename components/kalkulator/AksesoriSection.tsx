@@ -1,6 +1,7 @@
 "use client"
 
-import { useRef } from "react"
+import { useRef, useState, useEffect } from "react"
+import { useKalkulasiList } from "@/lib/hooks/use-kalkulator"
 import type { PackingType, KalkulatorRates } from "@/lib/kalkulator/types"
 
 export interface AksesoriState {
@@ -19,6 +20,8 @@ interface Props {
 
 const PACKING_SIZES: (PackingType | "none")[] = ["none", "S", "M", "L", "XL"]
 
+function fmt(n: number) { return `Rp ${Math.round(n).toLocaleString("id-ID")}` }
+
 export function AksesoriSection({ value, onChange, rates }: Props) {
   const kkIdRef = useRef(0)
   function nextKkId() { return `kk-${++kkIdRef.current}` }
@@ -29,13 +32,51 @@ export function AksesoriSection({ value, onChange, rates }: Props) {
 
   const gantunganTypes = Object.keys(rates.gantungan)
 
+  // Kalkulasi picker for sub-component
+  const { data: kalkulasiResult } = useKalkulasiList()
+  const kalkulasiList = Array.isArray(kalkulasiResult)
+    ? kalkulasiResult
+    : (kalkulasiResult as { items?: { id: string; nama: string; floorPrice: number; hppTotal: number; packingType?: string | null }[] } | null)?.items ?? []
+  const [kalkPickerOpen, setKalkPickerOpen] = useState(false)
+  const [kalkSearch, setKalkSearch] = useState("")
+  const kalkPickerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!kalkPickerOpen) return
+    function onClickOutside(e: MouseEvent) {
+      if (kalkPickerRef.current && !kalkPickerRef.current.contains(e.target as Node)) {
+        setKalkPickerOpen(false)
+        setKalkSearch("")
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside)
+    return () => document.removeEventListener("mousedown", onClickOutside)
+  }, [kalkPickerOpen])
+
+  const filteredKalk = kalkSearch.trim()
+    ? kalkulasiList.filter(k => k.nama.toLowerCase().includes(kalkSearch.toLowerCase())).slice(0, 8)
+    : kalkulasiList.slice(0, 8)
+
+  function addFromKalkulasi(k: { id: string; nama: string; floorPrice: number; packingType?: string | null }) {
+    // Use floorPrice (includes jual markup) minus packing — master handles its own packing
+    const packingCost = k.packingType ? (rates.packing[k.packingType] ?? 0) : 0
+    const harga = Math.round(k.floorPrice - packingCost)
+    set({ komponenKustom: [...value.komponenKustom, {
+      id: nextKkId(),
+      nama: k.nama,
+      harga,
+      qty: 1,
+    }]})
+    setKalkPickerOpen(false)
+    setKalkSearch("")
+  }
+
   return (
     <div className="space-y-5">
 
       {/* Packing */}
       <div>
-        <div className="text-xs font-semibold uppercase tracking-wider mb-2"
-             style={{ color: "rgba(165,180,252,0.6)" }}>Packing</div>
+        <div className="text-xs font-semibold uppercase tracking-wider mb-2 g-accent">Packing</div>
         <div className="flex gap-2 flex-wrap">
           {PACKING_SIZES.map(size => {
             const isSelected = size === "none" ? !value.packingType : value.packingType === size
@@ -47,14 +88,14 @@ export function AksesoriSection({ value, onChange, rates }: Props) {
                 className="flex flex-col items-center rounded-[10px] px-4 py-2.5 transition-all"
                 style={isSelected
                   ? { background: "rgba(99,102,241,0.25)", border: "1px solid rgba(99,102,241,0.5)" }
-                  : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }
+                  : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)" }
                 }
               >
-                <span className="text-base font-bold" style={{ color: isSelected ? "#c7d2fe" : "rgba(255,255,255,0.5)" }}>
+                <span className="text-base font-bold" style={{ color: isSelected ? "#c7d2fe" : "var(--g-t2)" }}>
                   {size === "none" ? "—" : size}
                 </span>
                 {price != null && (
-                  <span className="text-[11px] mt-0.5" style={{ color: isSelected ? "rgba(165,180,252,0.7)" : "rgba(255,255,255,0.35)" }}>
+                  <span className="text-[11px] mt-0.5" style={{ color: isSelected ? "rgba(165,180,252,0.7)" : "var(--g-t4)" }}>
                     {(price / 1000).toFixed(1)}k
                   </span>
                 )}
@@ -66,15 +107,14 @@ export function AksesoriSection({ value, onChange, rates }: Props) {
 
       {/* Gantungan */}
       <div>
-        <div className="text-xs font-semibold uppercase tracking-wider mb-2"
-             style={{ color: "rgba(165,180,252,0.6)" }}>Gantungan</div>
+        <div className="text-xs font-semibold uppercase tracking-wider mb-2 g-accent">Gantungan</div>
         <div className="flex gap-2 flex-wrap">
           <button
             onClick={() => set({ gantunganType: undefined })}
             className="rounded-[10px] px-4 py-2.5 text-sm font-medium transition-all"
             style={!value.gantunganType
               ? { background: "rgba(99,102,241,0.25)", border: "1px solid rgba(99,102,241,0.5)", color: "#c7d2fe" }
-              : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.4)" }
+              : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t3)" }
             }
           >
             —
@@ -90,15 +130,15 @@ export function AksesoriSection({ value, onChange, rates }: Props) {
                 className="flex flex-col items-center rounded-[10px] px-4 py-2.5 transition-all"
                 style={isSelected
                   ? { background: "rgba(99,102,241,0.25)", border: "1px solid rgba(99,102,241,0.5)" }
-                  : { background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.08)" }
+                  : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)" }
                 }
               >
                 <span className="text-sm font-medium capitalize"
-                      style={{ color: isSelected ? "#c7d2fe" : "rgba(255,255,255,0.6)" }}>
+                      style={{ color: isSelected ? "#c7d2fe" : "var(--g-t2)" }}>
                   {label}
                 </span>
                 <span className="text-[11px] mt-0.5"
-                      style={{ color: isSelected ? "rgba(165,180,252,0.7)" : "rgba(255,255,255,0.35)" }}>
+                      style={{ color: isSelected ? "rgba(165,180,252,0.7)" : "var(--g-t4)" }}>
                   {(price / 1000).toFixed(1)}k
                 </span>
               </button>
@@ -109,19 +149,18 @@ export function AksesoriSection({ value, onChange, rates }: Props) {
 
       {/* Switch + Label */}
       <div className="space-y-2">
-        <div className="text-xs font-semibold uppercase tracking-wider mb-2"
-             style={{ color: "rgba(165,180,252,0.6)" }}>Aksesori Lain</div>
+        <div className="text-xs font-semibold uppercase tracking-wider mb-2 g-accent">Aksesori Lain</div>
 
         {/* Switch row */}
         <div className="flex items-center gap-3 py-3 px-4 rounded-[10px]"
-             style={{ background: value.switchQty > 0 ? "rgba(99,102,241,0.08)" : "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+             style={{ background: value.switchQty > 0 ? "rgba(99,102,241,0.08)" : "var(--g-card)", border: "1px solid var(--g-card-border)" }}>
           <input
             type="checkbox"
             checked={value.switchQty > 0}
             onChange={e => set({ switchQty: e.target.checked ? 1 : 0 })}
             className="w-4 h-4 accent-indigo-500"
           />
-          <span className="flex-1 text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>
+          <span className="flex-1 text-sm" style={{ color: "var(--g-t2)" }}>
             Switch (clicker)
           </span>
           {value.switchQty > 0 && (
@@ -139,7 +178,7 @@ export function AksesoriSection({ value, onChange, rates }: Props) {
               >+</button>
             </div>
           )}
-          <span className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+          <span className="text-xs" style={{ color: "var(--g-t3)" }}>
             {value.switchQty > 0
               ? `Rp ${(value.switchQty * rates.switchPerPcs).toLocaleString("id-ID")}`
               : `Rp ${rates.switchPerPcs.toLocaleString("id-ID")}/pcs`}
@@ -148,15 +187,15 @@ export function AksesoriSection({ value, onChange, rates }: Props) {
 
         {/* Label row */}
         <div className="flex items-center gap-3 py-3 px-4 rounded-[10px]"
-             style={{ background: value.hasLabel ? "rgba(99,102,241,0.08)" : "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.06)" }}>
+             style={{ background: value.hasLabel ? "rgba(99,102,241,0.08)" : "var(--g-card)", border: "1px solid var(--g-card-border)" }}>
           <input
             type="checkbox"
             checked={value.hasLabel}
             onChange={e => set({ hasLabel: e.target.checked })}
             className="w-4 h-4 accent-indigo-500"
           />
-          <span className="flex-1 text-sm" style={{ color: "rgba(255,255,255,0.7)" }}>Label / Sticker</span>
-          <span className="text-xs" style={{ color: "rgba(255,255,255,0.4)" }}>
+          <span className="flex-1 text-sm" style={{ color: "var(--g-t2)" }}>Label / Sticker</span>
+          <span className="text-xs" style={{ color: "var(--g-t3)" }}>
             Rp {rates.labelPerLembar.toLocaleString("id-ID")}
           </span>
         </div>
@@ -164,8 +203,7 @@ export function AksesoriSection({ value, onChange, rates }: Props) {
 
       {/* Komponen Kustom */}
       <div>
-        <div className="text-xs font-semibold uppercase tracking-wider mb-2"
-             style={{ color: "rgba(165,180,252,0.6)" }}>Komponen Elektronik / Custom</div>
+        <div className="text-xs font-semibold uppercase tracking-wider mb-2 g-accent">Komponen Elektronik / Custom</div>
 
         {value.komponenKustom.map(kk => (
           <div key={kk.id} className="grid gap-2 mb-2 items-center"
@@ -196,20 +234,90 @@ export function AksesoriSection({ value, onChange, rates }: Props) {
             <button
               onClick={() => set({ komponenKustom: value.komponenKustom.filter(k => k.id !== kk.id) })}
               className="h-9 w-8 rounded-[6px] flex items-center justify-center text-sm"
-              style={{ color: "rgba(255,255,255,0.25)", background: "rgba(255,255,255,0.03)" }}
+              style={{ color: "var(--g-t4)", background: "var(--g-inner)" }}
             >✕</button>
           </div>
         ))}
 
-        <button
-          onClick={() => set({ komponenKustom: [...value.komponenKustom, { id: nextKkId(), nama: "", harga: 0, qty: 1 }] })}
-          className="text-sm font-medium transition-colors"
-          style={{ color: "rgba(99,102,241,0.7)" }}
-          onMouseEnter={e => (e.currentTarget.style.color = "#a5b4fc")}
-          onMouseLeave={e => (e.currentTarget.style.color = "rgba(99,102,241,0.7)")}
-        >
-          + Tambah komponen
-        </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            onClick={() => set({ komponenKustom: [...value.komponenKustom, { id: nextKkId(), nama: "", harga: 0, qty: 1 }] })}
+            className="text-sm font-medium transition-colors"
+            style={{ color: "rgba(99,102,241,0.7)" }}
+            onMouseEnter={e => (e.currentTarget.style.color = "#a5b4fc")}
+            onMouseLeave={e => (e.currentTarget.style.color = "rgba(99,102,241,0.7)")}
+          >
+            + Tambah manual
+          </button>
+
+          {/* Kalkulasi sub-component picker */}
+          <div ref={kalkPickerRef} className="relative">
+            <button
+              onClick={() => setKalkPickerOpen(v => !v)}
+              className="text-sm font-medium transition-colors flex items-center gap-1"
+              style={{ color: "rgba(99,102,241,0.7)" }}
+              onMouseEnter={e => (e.currentTarget.style.color = "#a5b4fc")}
+              onMouseLeave={e => (e.currentTarget.style.color = "rgba(99,102,241,0.7)")}
+            >
+              📊 Dari kalkulasi
+            </button>
+
+            {kalkPickerOpen && (
+              <div className="absolute z-50 bottom-full mb-1 left-0 w-72 rounded-[10px] shadow-2xl overflow-hidden"
+                   style={{
+                     background: "rgba(10, 10, 30, 0.92)",
+                     backdropFilter: "blur(20px) saturate(1.8)",
+                     WebkitBackdropFilter: "blur(20px) saturate(1.8)",
+                     border: "1px solid rgba(99,102,241,0.25)",
+                     boxShadow: "0 8px 32px rgba(0,0,0,0.5)",
+                   }}>
+                <div className="p-2 border-b" style={{ borderColor: "rgba(99,102,241,0.2)" }}>
+                  <div className="text-[9px] font-semibold uppercase tracking-wider mb-1.5 g-accent">
+                    Pilih kalkulasi — Floor Price masuk, packing dikecualikan
+                  </div>
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Cari kalkulasi..."
+                    value={kalkSearch}
+                    onChange={e => setKalkSearch(e.target.value)}
+                    className="glass-input w-full h-8 rounded-[6px] px-2 text-xs"
+                  />
+                </div>
+                <div className="max-h-52 overflow-y-auto">
+                  {filteredKalk.length === 0 && (
+                    <div className="text-[10px] text-center py-3 g-t5">Tidak ditemukan</div>
+                  )}
+                  {filteredKalk.map(k => {
+                    const packingCost = k.packingType ? (rates.packing[k.packingType] ?? 0) : 0
+                    const hargaMasuk = Math.round(k.floorPrice - packingCost)
+                    return (
+                      <button
+                        key={k.id}
+                        onClick={() => addFromKalkulasi(k)}
+                        className="w-full text-left px-3 py-2.5 text-xs transition-all flex justify-between items-center gap-2"
+                        style={{ color: "var(--g-t1)" }}
+                        onMouseEnter={e => (e.currentTarget.style.background = "var(--g-hover)")}
+                        onMouseLeave={e => (e.currentTarget.style.background = "")}
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate">{k.nama}</div>
+                          <div className="text-[9px] g-t4">
+                            Floor {fmt(k.floorPrice ?? 0)}
+                            {packingCost > 0 && ` − packing ${fmt(packingCost)}`}
+                          </div>
+                        </div>
+                        <span className="flex-shrink-0 font-semibold" style={{ color: "#a5b4fc" }}>
+                          {fmt(hargaMasuk)}
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
     </div>

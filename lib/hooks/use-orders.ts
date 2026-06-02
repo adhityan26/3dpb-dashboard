@@ -60,11 +60,13 @@ export function useMarkLabel() {
             : o,
         )
         const total = nextOrders.length
-        const sudahCetak = nextOrders.filter((o) => o.labelPrinted).length
+        const orderBaru = nextOrders.filter((o) => o.shopeeStatus === "READY_TO_SHIP").length
+        const perluCetak = nextOrders.filter((o) => o.shopeeStatus === "PROCESSED" && !o.labelPrinted).length
+        const sudahDiproses = nextOrders.filter((o) => o.shopeeStatus === "PROCESSED" && o.labelPrinted).length
         const updated: OrderListResult = {
           ...previous,
           orders: nextOrders,
-          kpi: { total, belumCetak: total - sudahCetak, sudahCetak },
+          kpi: { total, orderBaru, perluCetak, sudahDiproses },
         }
         queryClient.setQueryData(ORDERS_KEY, updated)
       }

@@ -25,6 +25,15 @@ export async function PATCH(req: NextRequest) {
   if (body.orderWhatsappMessage !== undefined) patch.orderWhatsappMessage = body.orderWhatsappMessage
   if (body.externalMeasurementUrl !== undefined) patch.externalMeasurementUrl = body.externalMeasurementUrl
   if (body.externalMeasurementLabel !== undefined) patch.externalMeasurementLabel = toLocalized(body.externalMeasurementLabel)
+  if (body.items !== undefined) {
+    patch.items = (body.items as { imageRef: string; alt: string; title: { id: string; en: string }; caption: { id: string; en: string } }[]).map((item) => ({
+      _type: "collectionItem",
+      _key: crypto.randomUUID(),
+      image: { _type: "image", asset: { _type: "reference", _ref: item.imageRef }, alt: item.alt },
+      title: toLocalized(item.title),
+      caption: toLocalized(item.caption),
+    }))
+  }
 
   await sanityWrite.patch(doc._id).set(patch).commit()
   return NextResponse.json({ ok: true })
