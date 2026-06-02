@@ -214,3 +214,27 @@ export function useSyncProductIndex() {
     },
   })
 }
+
+export interface ProductVariant {
+  modelId: string
+  name: string
+  price: number
+  stock: number
+}
+
+export function useProductVariants(itemId: string | null) {
+  return useQuery({
+    queryKey: ["product-variants", itemId],
+    queryFn: async () => {
+      const res = await fetch(`/api/products/${itemId}/variants`)
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        throw new Error((e as { error?: string }).error ?? `HTTP ${res.status}`)
+      }
+      const data = await res.json() as { variants: ProductVariant[] }
+      return data.variants
+    },
+    enabled: itemId !== null,
+    staleTime: 5 * 60 * 1000,
+  })
+}
