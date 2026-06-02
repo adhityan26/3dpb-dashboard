@@ -9,10 +9,10 @@ export async function POST(
   const session = await auth()
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
-  const body: { shopeeItemId: string } = await req.json()
+  const body: { shopeeItemId: string; shopeeModelId?: string | null } = await req.json()
   if (!body.shopeeItemId?.trim()) {
     return NextResponse.json({ error: 'shopeeItemId is required' }, { status: 400 })
   }
-  await addShopeeLink(id, body.shopeeItemId.trim())
+  await addShopeeLink(id, body.shopeeItemId.trim(), body.shopeeModelId ?? null)
   return new NextResponse(null, { status: 204 })
 }

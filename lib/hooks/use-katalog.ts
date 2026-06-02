@@ -55,8 +55,16 @@ export function useDeleteKatalog() {
 export function useAddShopeeLink() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ katalogId, shopeeItemId }: { katalogId: string; shopeeItemId: string }) =>
-      apiFetch<void>(`/api/katalog/${katalogId}/shopee-links`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ shopeeItemId }) }),
+    mutationFn: ({ katalogId, shopeeItemId, shopeeModelId }: {
+      katalogId: string
+      shopeeItemId: string
+      shopeeModelId?: string | null
+    }) =>
+      apiFetch<void>(`/api/katalog/${katalogId}/shopee-links`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ shopeeItemId, shopeeModelId: shopeeModelId ?? null }),
+      }),
     onSuccess: (_, { katalogId }) => {
       qc.invalidateQueries({ queryKey: KATALOG_KEY })
       qc.invalidateQueries({ queryKey: [...KATALOG_KEY, katalogId] })
