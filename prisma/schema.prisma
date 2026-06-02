@@ -410,5 +410,9 @@ model ShopeeProductIndex {
   name         String
   status       String   // "NORMAL" | "UNLIST"
   imageUrl     String?
+  priceMin     Float    @default(0)
+  priceMax     Float    @default(0)
+  stockTotal   Int      @default(0)
+  hasVariants  Boolean  @default(false)
   lastSyncedAt DateTime @default(now()) @updatedAt
 }
