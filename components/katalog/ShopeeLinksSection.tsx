@@ -4,7 +4,7 @@ import { useState } from "react"
 import { useAddShopeeLink, useRemoveShopeeLink, useSetVariantKalkulasi } from "@/lib/hooks/use-katalog"
 import { useKalkulasiList } from "@/lib/hooks/use-kalkulator"
 import type { KalkulasiData } from "@/lib/kalkulator/types"
-import { useProducts } from "@/lib/hooks/use-products"
+import { useProducts, useProductVariants, type ProductVariant } from "@/lib/hooks/use-products"
 
 function fmt(n: number) { return `Rp ${Math.round(n).toLocaleString("id-ID")}` }
 
@@ -31,6 +31,7 @@ export function ShopeeLinksSection({ produkId, links }: Props) {
   const [showSearch, setShowSearch] = useState(false)
   const [expandedLink, setExpandedLink] = useState<string | null>(null)
   const [kalkSearch, setKalkSearch] = useState("")
+  const [pendingProductId, setPendingProductId] = useState<string | null>(null)
 
   const addLink = useAddShopeeLink()
   const removeLink = useRemoveShopeeLink()
@@ -45,6 +46,8 @@ export function ShopeeLinksSection({ produkId, links }: Props) {
 
   const linkedIds = new Set(links.map(l => l.shopeeItemId))
 
+  const { data: pendingVariants, isLoading: variantsLoading } = useProductVariants(pendingProductId)
+
   const searchResults = search.trim()
     ? allProducts.filter(p =>
         p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -52,10 +55,11 @@ export function ShopeeLinksSection({ produkId, links }: Props) {
       ).slice(0, 6)
     : allProducts.slice(0, 6)
 
-  async function handleAdd(shopeeItemId: string) {
-    if (linkedIds.has(shopeeItemId)) return
-    await addLink.mutateAsync({ katalogId: produkId, shopeeItemId })
+  async function handleAdd(shopeeItemId: string, shopeeModelId?: string | null) {
+    if (linkedIds.has(shopeeItemId) && shopeeModelId == null) return
+    await addLink.mutateAsync({ katalogId: produkId, shopeeItemId, shopeeModelId })
     setSearch("")
+    setPendingProductId(null)
   }
 
   async function handleRemove(linkId: string, shopeeItemId: string) {
@@ -209,19 +213,78 @@ export function ShopeeLinksSection({ produkId, links }: Props) {
           <div className="space-y-1">
             {searchResults.map(p => {
               const linked = linkedIds.has(p.productId)
+              const isPending = pendingProductId === p.productId
               return (
-                <div key={p.productId}
-                     className="flex items-center gap-2 px-2.5 py-2 rounded-[8px] transition-all"
-                     style={{ background: linked ? "rgba(99,102,241,0.1)" : "var(--g-card)", border: `1px solid ${linked ? "rgba(99,102,241,0.25)" : "var(--g-card-border)"}`, cursor: linked ? "default" : "pointer" }}
-                     onClick={() => !linked && handleAdd(p.productId)}>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-[11px] font-medium truncate g-t1">{p.name}</div>
-                    <div className="text-[9px] g-t4">{p.productId}</div>
+                <div key={p.productId}>
+                  <div
+                    className="flex items-center gap-2 px-2.5 py-2 rounded-[8px] transition-all"
+                    style={{
+                      background: linked ? "rgba(99,102,241,0.1)" : isPending ? "rgba(99,102,241,0.08)" : "var(--g-card)",
+                      border: `1px solid ${linked || isPending ? "rgba(99,102,241,0.25)" : "var(--g-card-border)"}`,
+                      cursor: linked ? "default" : "pointer",
+                    }}
+                    onClick={() => {
+                      if (linked) return
+                      if (p.hasVariants) {
+                        setPendingProductId(isPending ? null : p.productId)
+                      } else {
+                        handleAdd(p.productId)
+                      }
+                    }}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[11px] font-medium truncate g-t1">{p.name}</div>
+                      <div className="text-[9px] g-t4">
+                        {p.productId}
+                        {p.hasVariants && <span className="ml-1 g-accent">· punya variant</span>}
+                      </div>
+                    </div>
+                    {linked
+                      ? <span className="text-[10px]" style={{ color: "#a5b4fc" }}>✓</span>
+                      : p.hasVariants
+                      ? <span className="text-[10px]" style={{ color: "rgba(99,102,241,0.6)" }}>{isPending ? "▲" : "▼"}</span>
+                      : <span className="text-[10px]" style={{ color: "rgba(99,102,241,0.6)" }}>+ Link</span>
+                    }
                   </div>
-                  {linked
-                    ? <span className="text-[10px]" style={{ color: "#a5b4fc" }}>✓</span>
-                    : <span className="text-[10px]" style={{ color: "rgba(99,102,241,0.6)" }}>+ Link</span>
-                  }
+
+                  {/* Variant picker */}
+                  {isPending && (
+                    <div className="ml-2 mt-1 mb-1 rounded-[8px] overflow-hidden"
+                         style={{ border: "1px solid rgba(99,102,241,0.2)", background: "rgba(0,0,0,0.15)" }}>
+                      {variantsLoading && (
+                        <div className="text-[10px] g-t5 px-3 py-2">Memuat variant...</div>
+                      )}
+                      {!variantsLoading && (
+                        <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.05)" }}>
+                          <div
+                            className="flex items-center gap-2 px-3 py-2 cursor-pointer transition-all hover:bg-white/5"
+                            onClick={(e) => { e.stopPropagation(); handleAdd(p.productId, null) }}
+                          >
+                            <span className="text-[10px]">🔗</span>
+                            <span className="text-[10px] g-t2">Seluruh produk</span>
+                          </div>
+                          {(pendingVariants ?? []).map((v: ProductVariant) => (
+                            <div
+                              key={v.modelId}
+                              className="flex items-center gap-2 px-3 py-2 cursor-pointer transition-all hover:bg-white/5"
+                              onClick={(e) => { e.stopPropagation(); handleAdd(p.productId, v.modelId) }}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[10px] font-medium truncate g-t1">{v.name}</div>
+                                <div className="text-[9px] g-t4">
+                                  Rp {v.price.toLocaleString("id-ID")} · stok {v.stock}
+                                </div>
+                              </div>
+                              <span className="text-[10px]" style={{ color: "rgba(99,102,241,0.6)" }}>+ Link</span>
+                            </div>
+                          ))}
+                          {(pendingVariants ?? []).length === 0 && (
+                            <div className="text-[10px] g-t5 px-3 py-2">Tidak ada variant ditemukan.</div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               )
             })}
