@@ -5,6 +5,8 @@ import { useAddShopeeLink, useRemoveShopeeLink, useSetVariantKalkulasi } from "@
 import { useKalkulasiList } from "@/lib/hooks/use-kalkulator"
 import type { KalkulasiData } from "@/lib/kalkulator/types"
 import { useProducts, useProductVariants, type ProductVariant } from "@/lib/hooks/use-products"
+import { ShopeeCreateWizard } from "./shopee-create/ShopeeCreateWizard"
+import type { ProdukInternalData } from "@/lib/katalog/types"
 
 function fmt(n: number) { return `Rp ${Math.round(n).toLocaleString("id-ID")}` }
 
@@ -22,16 +24,19 @@ interface LinkItem {
 }
 
 interface Props {
-  produkId: string
-  links: LinkItem[]
+  produk: ProdukInternalData
 }
 
-export function ShopeeLinksSection({ produkId, links }: Props) {
+export function ShopeeLinksSection({ produk }: Props) {
+  const produkId = produk.id
+  const links = produk.shopeeLinks
   const [search, setSearch] = useState("")
   const [showSearch, setShowSearch] = useState(false)
   const [expandedLink, setExpandedLink] = useState<string | null>(null)
   const [kalkSearch, setKalkSearch] = useState("")
   const [pendingProductId, setPendingProductId] = useState<string | null>(null)
+  const [wizardOpen, setWizardOpen] = useState(false)
+  const [successResult, setSuccessResult] = useState<{ itemId: number; editUrl: string } | null>(null)
 
   const addLink = useAddShopeeLink()
   const removeLink = useRemoveShopeeLink()
@@ -290,6 +295,57 @@ export function ShopeeLinksSection({ produkId, links }: Props) {
             })}
           </div>
         </div>
+      )}
+
+      {/* Success banner */}
+      {successResult && (
+        <div
+          className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-[8px] mt-2"
+          style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}
+        >
+          <div>
+            <div className="text-[11px] font-semibold" style={{ color: "#4ade80" }}>
+              ✅ Produk berhasil dibuat (item #{successResult.itemId})
+            </div>
+            <div className="text-[10px] mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
+              Status: DRAFT — lengkapi atribut di Shopee
+            </div>
+          </div>
+          <a
+            href={successResult.editUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex-shrink-0 text-[10px] font-semibold px-2.5 py-1.5 rounded-[6px] transition-opacity hover:opacity-80"
+            style={{ background: "rgba(99,102,241,0.2)", color: "#a5b4fc", whiteSpace: "nowrap" }}
+          >
+            Edit di Shopee →
+          </a>
+        </div>
+      )}
+
+      {/* Create new button */}
+      <button
+        onClick={() => { setSuccessResult(null); setWizardOpen(true) }}
+        className="w-full mt-2 py-2 rounded-[8px] text-[11px] font-medium transition-all hover:opacity-80 flex items-center justify-center gap-1.5"
+        style={{
+          background: "rgba(99,102,241,0.06)",
+          border: "1px dashed rgba(99,102,241,0.3)",
+          color: "rgba(165,180,252,0.6)",
+        }}
+      >
+        + Buat Produk Baru di Shopee
+      </button>
+
+      {/* Wizard modal */}
+      {wizardOpen && (
+        <ShopeeCreateWizard
+          katalog={produk}
+          onClose={() => setWizardOpen(false)}
+          onSuccess={(itemId, editUrl) => {
+            setWizardOpen(false)
+            setSuccessResult({ itemId, editUrl })
+          }}
+        />
       )}
     </div>
   )

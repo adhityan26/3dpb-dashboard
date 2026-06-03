@@ -325,7 +325,7 @@ export function KatalogCard({ produk, onEdit }: Props) {
 
           {/* Shopee links */}
           <div style={{ borderTop: "1px solid var(--g-row-border)", paddingTop: 16 }}>
-            <ShopeeLinksSection produkId={produk.id} links={produk.shopeeLinks} />
+            <ShopeeLinksSection produk={produk} />
           </div>
 
           {/* Kalkulasi link */}
