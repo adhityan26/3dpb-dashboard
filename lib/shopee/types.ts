@@ -220,7 +220,7 @@ export interface ShopeeCategoryAttribute {
   attribute_id: number
   attribute_name: string
   is_mandatory: boolean
-  input_type: "TEXT_FILED" | "DROP_DOWN" | "MULTIPLE_SELECT" | "COMBO_BOX"
+  input_type: "TEXT_FIELD" | "DROP_DOWN" | "MULTIPLE_SELECT" | "COMBO_BOX"
   attribute_value_list: Array<{
     value_id: number
     original_value_name: string
