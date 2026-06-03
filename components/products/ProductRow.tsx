@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import type { ProductSummary } from "@/lib/products/types"
 import { STOCK_LOW_THRESHOLD } from "@/lib/products/types"
+import { useProductVariants } from "@/lib/hooks/use-products"
 
 interface Props {
   product: ProductSummary
@@ -115,6 +116,11 @@ export function ProductRow({
   const [zoomOpen, setZoomOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const isUploading = uploadingImageFor === product.productId
+
+  // Lazy-load variants on expand — only fetches when expanded
+  const { data: fetchedVariants, isLoading: variantsLoading } = useProductVariants(
+    expanded && product.hasVariants ? product.productId : null
+  )
 
   const bgClass = product.isStockLow
     ? ""   // handled via inline style below
@@ -238,45 +244,46 @@ export function ProductRow({
         </div>
 
         {expanded && product.hasVariants && (
-          <div className="mt-3 border-t pt-3">
-            <div className="text-xs font-semibold text-gray-500 mb-2">
-              Varian ({product.variants.length})
-            </div>
-            <div className="space-y-1.5">
-              {product.variants.map((v) => {
-                const isLow = v.stock < STOCK_LOW_THRESHOLD
-                return (
-                  <div
-                    key={v.variantId}
-                    className="flex justify-between items-center text-xs px-2 py-1.5 rounded"
-                    style={{
-                      background: isLow ? "rgba(239,68,68,0.1)" : "rgba(255,255,255,0.05)",
-                      border: `1px solid ${isLow ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.07)"}`,
-                    }}
-                  >
-                    <div>
-                      <div className="font-medium" style={{ color: "rgba(255,255,255,0.8)" }}>{v.variantName}</div>
-                      {v.sku && (
-                        <div style={{ color: "rgba(255,255,255,0.35)" }}>SKU: {v.sku}</div>
-                      )}
-                    </div>
-                    <div className="text-right space-y-0.5">
-                      <div className="font-semibold" style={{ color: isLow ? "#f87171" : "rgba(255,255,255,0.7)" }}>
-                        {v.stock} pcs
+          <div className="mt-3 border-t pt-3" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
+            {variantsLoading ? (
+              <div className="text-xs text-center py-2" style={{ color: "rgba(255,255,255,0.3)" }}>
+                Memuat variant...
+              </div>
+            ) : (
+              <>
+                <div className="text-xs font-semibold mb-2" style={{ color: "rgba(255,255,255,0.4)" }}>
+                  Varian ({fetchedVariants?.length ?? 0})
+                </div>
+                <div className="space-y-1.5">
+                  {(fetchedVariants ?? []).map((v) => {
+                    const isLow = v.stock < STOCK_LOW_THRESHOLD
+                    return (
+                      <div
+                        key={v.modelId}
+                        className="flex justify-between items-center text-xs px-2 py-1.5 rounded"
+                        style={{
+                          background: isLow ? "rgba(239,68,68,0.1)" : "rgba(255,255,255,0.05)",
+                          border: `1px solid ${isLow ? "rgba(239,68,68,0.2)" : "rgba(255,255,255,0.07)"}`,
+                        }}
+                      >
+                        <div className="font-medium" style={{ color: "rgba(255,255,255,0.8)" }}>{v.name}</div>
+                        <div className="text-right space-y-0.5">
+                          <div className="font-semibold" style={{ color: isLow ? "#f87171" : "rgba(255,255,255,0.7)" }}>
+                            {v.stock} pcs
+                          </div>
+                          <div style={{ color: "rgba(255,255,255,0.5)" }}>{fmt(v.price)}</div>
+                        </div>
                       </div>
-                      <div style={{ color: "rgba(255,255,255,0.5)" }}>
-                        {fmt(v.price)}
-                        {v.originalPrice != null && (
-                          <span className="ml-1 line-through text-[10px]" style={{ color: "#f87171" }}>
-                            {fmt(v.originalPrice)}
-                          </span>
-                        )}
-                      </div>
+                    )
+                  })}
+                  {fetchedVariants?.length === 0 && (
+                    <div className="text-xs text-center py-1" style={{ color: "rgba(255,255,255,0.25)" }}>
+                      Tidak ada variant
                     </div>
-                  </div>
-                )
-              })}
-            </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
       </CardContent>
