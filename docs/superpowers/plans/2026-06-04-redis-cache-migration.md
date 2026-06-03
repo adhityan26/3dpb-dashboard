@@ -310,7 +310,66 @@ git commit -m "feat(cache): migrate sold-stats cache to Redis"
 
 ---
 
-### Task 5: Deploy + verify Redis connection
+### Task 5: Cache getProductsPage results in Redis
+
+**Files:**
+- Modify: `lib/products/service.ts`
+
+Context: `getProductsPage` currently queries Postgres on every request. Cache per-page results with key `products:page:{page}:{limit}:{q}:{status}`, TTL 300s (5 min). Invalidate all `products:page:*` keys when `syncProductIndex` runs.
+
+- [ ] **Step 1: Add page cache to getProductsPage**
+
+Read `lib/products/service.ts`. Find `export async function getProductsPage`. At the start of the function body (after extracting `{ page, limit, q, status }` from opts), add:
+
+```typescript
+// Cache key based on query params
+const pageKey = `products:page:${page}:${limit}:${q ?? ""}:${status ?? ""}`
+const pageCached = await redisGet<import("./types").ProductsPageResult>(pageKey)
+if (pageCached) return pageCached
+```
+
+Then at the end of the function, before `return`, add:
+
+```typescript
+const result = { products, total, page, totalPages, fetchedAt: new Date().toISOString() }
+await redisSet(pageKey, result, 300)  // 5 min TTL
+return result
+```
+
+Remove the existing `return { products, total, page, totalPages, fetchedAt: ... }` line.
+
+- [ ] **Step 2: Invalidate page cache when syncing index**
+
+Find `export async function syncProductIndex`. At the start of its body, add:
+
+```typescript
+// Invalidate all cached pages — index data is about to change
+const pageKeys = await redis.keys("products:page:*")
+if (pageKeys.length > 0) await redis.del(...pageKeys)
+```
+
+Add `redis` to imports at top of service.ts if not already there:
+```typescript
+import { redisGet, redisSet, redisDel, redis } from "@/lib/redis"
+```
+
+- [ ] **Step 3: Verify TypeScript**
+
+```bash
+npx tsc --noEmit 2>&1
+```
+Expected: `TypeScript compilation completed`
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add lib/products/service.ts
+git commit -m "feat(cache): cache getProductsPage results in Redis, invalidate on sync"
+```
+
+---
+
+### Task 6: Deploy + verify Redis connection
 
 **Files:**
 - No code changes
@@ -337,12 +396,13 @@ Expected: no `[redis] connection error` lines.
 docker -H tcp://192.168.88.113:2375 exec light-generator-redis-1 redis-cli KEYS "products:*"
 ```
 
-Expected after browsing Produk page: `products:full` and/or `products:sold-stats` keys appear.
+Expected after browsing Produk page: `products:full`, `products:sold-stats`, dan `products:page:*` keys appear.
 
 - [ ] **Step 4: Verify TTL is set**
 
 ```bash
 docker -H tcp://192.168.88.113:2375 exec light-generator-redis-1 redis-cli TTL "products:sold-stats"
+docker -H tcp://192.168.88.113:2375 exec light-generator-redis-1 redis-cli TTL "products:page:1:20::"
 ```
 
-Expected: a number between 1 and 1800 (not -1 or -2).
+Expected: numbers between 1–1800 and 1–300 respectively (not -1 or -2).
