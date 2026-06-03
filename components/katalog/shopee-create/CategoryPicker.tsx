@@ -15,7 +15,7 @@ export function CategoryPicker({ selectedCategoryId, onSelect }: Props) {
   const [navPath, setNavPath] = useState<Array<{ id: number; name: string }>>([])
 
   const currentParentId = navPath.length > 0 ? navPath[navPath.length - 1].id : 0
-  const { data: categories, isLoading } = useShopeeCategories(currentParentId)
+  const { data: categories, isLoading, isError } = useShopeeCategories(currentParentId)
 
   function handleDrillDown(cat: ShopeeCategory) {
     if (!cat.has_children) {
@@ -45,6 +45,7 @@ export function CategoryPicker({ selectedCategoryId, onSelect }: Props) {
         {navPath.length > 0 && (
           <button
             onClick={handleBack}
+            aria-label="Kembali"
             className="flex items-center gap-1 hover:opacity-70 transition-opacity flex-shrink-0"
             style={{ color: "#a5b4fc" }}
           >
@@ -67,6 +68,11 @@ export function CategoryPicker({ selectedCategoryId, onSelect }: Props) {
 
       {/* Category list */}
       <div className="max-h-48 overflow-y-auto">
+        {isError && (
+          <div className="px-3 py-4 text-center text-[11px]" style={{ color: "#f87171" }}>
+            Gagal memuat kategori
+          </div>
+        )}
         {isLoading && (
           <div className="px-3 py-4 text-center text-[11px]" style={{ color: "rgba(255,255,255,0.3)" }}>
             Memuat kategori...
