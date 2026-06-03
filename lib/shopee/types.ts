@@ -206,3 +206,71 @@ export interface ShopeeModelListResponse {
   error?: string
   message?: string
 }
+
+// ===== Shopee Create Product types =====
+
+export interface ShopeeCategory {
+  category_id: number
+  parent_category_id: number
+  category_name: string
+  has_children: boolean
+}
+
+export interface ShopeeCategoryAttribute {
+  attribute_id: number
+  attribute_name: string
+  is_mandatory: boolean
+  input_type: "TEXT_FILED" | "DROP_DOWN" | "MULTIPLE_SELECT" | "COMBO_BOX"
+  attribute_value_list: Array<{
+    value_id: number
+    original_value_name: string
+  }>
+}
+
+export interface ShopeeLogisticChannel {
+  logistic_id: number          // mapped from logistics_channel_id
+  logistic_name: string        // mapped from logistics_channel_name
+  enabled: boolean
+}
+
+export interface ShopeeAddItemPayload {
+  item_name: string
+  description: string
+  original_price?: number
+  category_id: number
+  image: { image_id_list: string[] }
+  weight: number
+  condition: "NEW" | "USED"
+  item_status: "UNLIST"
+  logistic_info: Array<{
+    logistic_id: number
+    enabled: boolean
+    is_free: boolean
+  }>
+  stock_info_v2?: {
+    seller_stock: [{ stock: number }]
+  }
+  package_length?: number
+  package_width?: number
+  package_height?: number
+  attribute_list?: Array<{
+    attribute_id: number
+    attribute_value_list: Array<{
+      value_id?: number
+      original_value_name?: string
+    }>
+  }>
+  tier_variation?: Array<{
+    name: string
+    option_list: Array<{ option: string }>
+  }>
+  model?: Array<{
+    tier_index: number[]
+    original_price: number
+    stock_info_v2: { seller_stock: [{ stock: number }] }
+  }>
+}
+
+export interface ShopeeAddItemResult {
+  item_id: number
+}
