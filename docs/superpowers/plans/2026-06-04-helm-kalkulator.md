@@ -203,7 +203,7 @@ describe('hitungKalkulasi — helm finishing', () => {
     const helmRaw: import('./types').HelmOptions = {
       finishType: 'RAW',
       jamSanding: 2.5, jamPainting: 2.0, jamAssembly: 0.75,
-      flatFinishingCost: 45000,
+      flatFinishingCost: 55000,
       preparerRatePerJam: 35000,
       finisherRatePerJam: 75000,
     }
@@ -681,7 +681,7 @@ Temukan section aksesori/komponen di form. Tambah SEBELUM button submit, tapi se
               value={flatFinishingCost || ''}
               onChange={e => setFlatFinishingCost(Number(e.target.value))}
               className="glass-input w-full h-9 rounded-[10px] px-3 text-sm"
-              placeholder="45000"
+              placeholder="55000"
             />
           </div>
         </div>
@@ -755,7 +755,79 @@ git commit -m "feat(kalkulator): add helm produktType selector and finishing lab
 
 ---
 
-### Task 6: HasilPanel + Build + Deploy
+### Task 6: Settings UI — Helm Rates + Default Consumables
+
+**Files:**
+- Modify: `components/settings/KalkulatorSettingsCard.tsx`
+- Modify: `lib/kalkulator/rates.ts` (tambah `helmConsumablesDefault`)
+- Modify: `lib/kalkulator/types.ts` (tambah field ke `KalkulatorRates`)
+- Modify: `components/kalkulator/KalkulasiForm.tsx` (pre-fill dari rates)
+
+Context: Tambah 3 field baru ke Settings UI kalkulator: Preparer/jam, Finisher/jam, dan default consumables helm. Default consumables Rp55.000 dipakai sebagai pre-fill di form kalkulasi saat user switch ke HELM FINISHING.
+
+- [ ] **Step 1: Tambah `helmConsumablesDefault` ke `KalkulatorRates` di `lib/kalkulator/types.ts`**
+
+Di `KalkulatorRates` interface, tambah setelah `finisherRatePerJam`:
+```typescript
+  helmConsumablesDefault: number   // default flat consumables untuk helm finishing
+```
+
+- [ ] **Step 2: Update `loadRates()` di `lib/kalkulator/rates.ts`**
+
+Tambah setelah `finisherRatePerJam`:
+```typescript
+    helmConsumablesDefault: parseFloat(map['kalk.helm.consumables.default'] ?? '55000'),
+```
+
+- [ ] **Step 3: Tambah 3 field ke `KalkulatorSettingsCard.tsx`**
+
+Baca file dulu:
+```bash
+grep -n "FIELDS\|fields\|kalk\." /Users/adhityatangahu/Documents/shopee-analysis/shopee-dashboard/components/settings/KalkulatorSettingsCard.tsx | head -15
+```
+
+Tambah 3 entry baru ke array field (di bagian yang punya `kalk.mesin.perJam`, dll):
+```typescript
+{ key: "kalk.preparer.perJam",          label: "Preparer (Sanding+Assembly)/jam", suffix: "Rp/jam", default: 35000 },
+{ key: "kalk.finisher.perJam",          label: "Finisher (Painting)/jam",          suffix: "Rp/jam", default: 75000 },
+{ key: "kalk.helm.consumables.default", label: "Default consumables helm",          suffix: "Rp",     default: 55000 },
+```
+
+- [ ] **Step 4: Pre-fill `flatFinishingCost` dari rates di `KalkulasiForm.tsx`**
+
+Di `KalkulasiForm`, hook `useRates()` sudah ada (atau `useMemo` dari rates prop). Tambah logic: saat `produktType` berubah ke `'HELM'` dan `flatFinishingCost === 0`, set dari `rates.helmConsumablesDefault`.
+
+Temukan baris dimana `setProduktType` dipanggil di form, dan update handler:
+```typescript
+onClick={() => {
+  setProduktType(t)
+  if (t === 'SIMPLE') {
+    setFinishType('RAW')
+  } else if (t === 'HELM' && flatFinishingCost === 0) {
+    // Pre-fill default consumables dari rates
+    setFlatFinishingCost(rates?.helmConsumablesDefault ?? 55000)
+  }
+}}
+```
+
+Catatan: `rates` perlu tersedia di form — cek apakah sudah ada via hook `useRates()` atau prop. Kalau belum ada, import `useRates` dari existing hooks.
+
+- [ ] **Step 5: TypeScript check**
+
+```bash
+npx tsc --noEmit 2>&1 | grep -E "KalkulatorSettings|rates" || echo "no errors"
+```
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add components/settings/KalkulatorSettingsCard.tsx lib/kalkulator/rates.ts lib/kalkulator/types.ts components/kalkulator/KalkulasiForm.tsx
+git commit -m "feat(kalkulator): add helm rates + default consumables to Settings UI"
+```
+
+---
+
+### Task 7: HasilPanel + Build + Deploy
 
 **Files:**
 - Modify: `components/kalkulator/HasilPanel.tsx`
