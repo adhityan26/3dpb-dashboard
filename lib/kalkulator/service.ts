@@ -25,10 +25,28 @@ function toKalkulasiData(raw: any): KalkulasiData {
     })),
     komponenKustom: raw.komponenKustom ?? [],
     produkLinks: raw.produkLinks ?? [],
+    produktType: raw.produktType ?? 'SIMPLE',
+    finishType: raw.finishType ?? 'RAW',
+    jamSanding: raw.jamSanding ?? 0,
+    jamPainting: raw.jamPainting ?? 0,
+    jamAssembly: raw.jamAssembly ?? 0,
+    flatFinishingCost: raw.flatFinishingCost ?? 0,
   }
 }
 
 function buildHasil(input: KalkulasiInput, rates: any) {
+  const helmOptions = (input.produktType === 'HELM' && input.finishType === 'FINISHING')
+    ? {
+        finishType: input.finishType as import('./types').FinishType,
+        jamSanding: input.jamSanding ?? 0,
+        jamPainting: input.jamPainting ?? 0,
+        jamAssembly: input.jamAssembly ?? 0,
+        flatFinishingCost: input.flatFinishingCost ?? 0,
+        preparerRatePerJam: rates.preparerRatePerJam,
+        finisherRatePerJam: rates.finisherRatePerJam,
+      }
+    : undefined
+
   return hitungKalkulasi(
     input.plates,
     {
@@ -42,7 +60,8 @@ function buildHasil(input: KalkulasiInput, rates: any) {
     rates,
     input.marginTier as MarginTier,
     input.hargaShopeeAktual,
-    input.customRiskPct
+    input.customRiskPct,
+    helmOptions,
   )
 }
 
@@ -73,6 +92,12 @@ export async function createKalkulasi(input: KalkulasiInput): Promise<KalkulasiD
       gantunganType: input.gantunganType,
       switchQty: input.switchQty,
       hasLabel: input.hasLabel,
+      produktType: input.produktType ?? 'SIMPLE',
+      finishType: input.finishType ?? 'RAW',
+      jamSanding: input.jamSanding ?? 0,
+      jamPainting: input.jamPainting ?? 0,
+      jamAssembly: input.jamAssembly ?? 0,
+      flatFinishingCost: input.flatFinishingCost ?? 0,
       ...hasil,
       plates: { create: input.plates.map((p, i) => ({ urutan: i + 1, namaPart: p.namaPart, tipe: p.tipe ?? 'FDM', printer: p.printer, gramasi: p.gramasi ?? 0, materialsJson: p.materials ? JSON.stringify(p.materials) : null, durasiJam: p.durasiJam, filamentHargaId: p.filamentHargaId ?? null, filamentHargaPerGram: p.hargaPerGram ?? null })) },
       komponenKustom: { create: input.komponenKustom.map(k => ({ nama: k.nama, harga: k.harga, qty: k.qty })) },
@@ -101,6 +126,12 @@ export async function updateKalkulasi(id: string, input: KalkulasiInput): Promis
       gantunganType: input.gantunganType,
       switchQty: input.switchQty,
       hasLabel: input.hasLabel,
+      produktType: input.produktType ?? 'SIMPLE',
+      finishType: input.finishType ?? 'RAW',
+      jamSanding: input.jamSanding ?? 0,
+      jamPainting: input.jamPainting ?? 0,
+      jamAssembly: input.jamAssembly ?? 0,
+      flatFinishingCost: input.flatFinishingCost ?? 0,
       ...hasil,
       plates: { create: input.plates.map((p, i) => ({ urutan: i + 1, namaPart: p.namaPart, tipe: p.tipe ?? 'FDM', printer: p.printer, gramasi: p.gramasi ?? 0, materialsJson: p.materials ? JSON.stringify(p.materials) : null, durasiJam: p.durasiJam, filamentHargaId: p.filamentHargaId ?? null, filamentHargaPerGram: p.hargaPerGram ?? null })) },
       komponenKustom: { create: input.komponenKustom.map(k => ({ nama: k.nama, harga: k.harga, qty: k.qty })) },
@@ -129,6 +160,12 @@ export async function duplicateKalkulasi(id: string, newNama: string, newBatch?:
     hasLabel: source.hasLabel,
     plates: source.plates.map(p => ({ namaPart: p.namaPart ?? undefined, tipe: p.tipe as 'FDM' | 'SLA', printer: p.printer ?? undefined, gramasi: p.gramasi, materials: p.materials, durasiJam: p.durasiJam, filamentHargaId: p.filamentHargaId, hargaPerGram: p.hargaPerGram })),
     komponenKustom: source.komponenKustom.map(k => ({ nama: k.nama, harga: k.harga, qty: k.qty })),
+    produktType: source.produktType as import('./types').ProduktType,
+    finishType: source.finishType as import('./types').FinishType,
+    jamSanding: source.jamSanding,
+    jamPainting: source.jamPainting,
+    jamAssembly: source.jamAssembly,
+    flatFinishingCost: source.flatFinishingCost,
   }
   return createKalkulasi(input)
 }
