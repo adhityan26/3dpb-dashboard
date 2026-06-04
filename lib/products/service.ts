@@ -1,10 +1,12 @@
 import { prisma } from "@/lib/db"
+import { redis } from "@/lib/redis"
 import {
   getAllItems,
   getItemBaseInfoBatch,
   getModelList,
 } from "@/lib/shopee/products"
 import { getOrdersInRange } from "@/lib/orders/service"
+import { getEscrowDetail } from "@/lib/shopee/escrow"
 import { loadRates } from "@/lib/kalkulator/rates"
 import { generateMockProducts } from "./mock"
 import type {
@@ -16,21 +18,56 @@ import type {
 } from "./types"
 import { STOCK_LOW_THRESHOLD } from "./types"
 
-// ── In-process cache (stale-while-revalidate) ─────────────────────────────
-const CACHE_TTL_MS = 5 * 60 * 1000 // 5 minutes: serve from cache, refresh in bg
-const STALE_TTL_MS = 30 * 60 * 1000 // 30 minutes: max age before forcing fresh
+// ── Redis cache keys & TTLs ───────────────────────────────────────────────
+const REDIS_KEY_PRODUCTS_FULL = "products:full"
+const REDIS_KEY_SOLD_STATS = "products:sold-stats"
+const REDIS_PREFIX_PAGE = "products:page:"
 
-interface CacheEntry {
-  data: ProductsListResult
-  cachedAt: number
-  refreshing: boolean
+const CACHE_TTL_SEC = 5 * 60   // 5 minutes: serve from cache, refresh in bg
+const STALE_TTL_SEC = 30 * 60  // 30 minutes: max age before forcing fresh fetch
+const SOLD_STATS_TTL_SEC = 30 * 60
+
+// ── Redis helpers ─────────────────────────────────────────────────────────
+async function rGet<T>(key: string): Promise<{ data: T; cachedAt: number } | null> {
+  try {
+    const raw = await redis.get(key)
+    if (!raw) return null
+    return JSON.parse(raw) as { data: T; cachedAt: number }
+  } catch {
+    return null
+  }
 }
 
-let _cache: CacheEntry | null = null
+async function rSet<T>(key: string, data: T, ttlSec: number): Promise<void> {
+  try {
+    await redis.set(key, JSON.stringify({ data, cachedAt: Date.now() }), "EX", ttlSec)
+  } catch {
+    // Redis write failure is non-fatal
+  }
+}
+
+async function rDel(key: string): Promise<void> {
+  try { await redis.del(key) } catch { /* non-fatal */ }
+}
+
+/** Scan and delete all keys matching a pattern (uses SCAN, safe on large keyspaces). */
+async function rDelPattern(pattern: string): Promise<void> {
+  try {
+    let cursor = "0"
+    do {
+      const [next, keys] = await redis.scan(cursor, "MATCH", pattern, "COUNT", 100)
+      cursor = next
+      if (keys.length > 0) await redis.del(...keys)
+    } while (cursor !== "0")
+  } catch { /* non-fatal */ }
+}
+
+// ── In-process flag to prevent duplicate bg refreshes ────────────────────
+let _refreshing = false
 
 /** Invalidate cache (call after stock/HPP mutations). */
-export function invalidateProductsCache() {
-  _cache = null
+export async function invalidateProductsCache() {
+  await Promise.all([rDel(REDIS_KEY_PRODUCTS_FULL), rDel(REDIS_KEY_SOLD_STATS)])
 }
 
 /**
@@ -105,6 +142,9 @@ export async function syncProductIndex(): Promise<{ synced: number; deleted: num
     where: { itemId: { notIn: activeIds } },
   })
 
+  // Invalidate per-page Redis caches so stale paginated data is not served
+  await rDelPattern(`${REDIS_PREFIX_PAGE}*`)
+
   return { synced: baseInfos.length, deleted: deleted.count }
 }
 
@@ -123,6 +163,12 @@ export async function getProductsPage(
   opts: GetProductsPageOpts,
 ): Promise<import("./types").ProductsPageResult> {
   const { page, limit, q, status } = opts
+
+  // ── Per-page Redis cache ───────────────────────────────────────────────
+  const pageKey = `${REDIS_PREFIX_PAGE}${page}:${limit}:${q ?? ""}:${status ?? ""}`
+  const cached = await rGet<import("./types").ProductsPageResult>(pageKey)
+  if (cached) return cached.data
+
   const skip = (page - 1) * limit
 
   type WhereInput = NonNullable<Parameters<typeof prisma.shopeeProductIndex.findMany>[0]>["where"]
@@ -214,13 +260,15 @@ export async function getProductsPage(
     }
   })
 
-  return {
+  const result = {
     products,
     total,
     page,
     totalPages,
     fetchedAt: new Date().toISOString(),
   }
+  await rSet(pageKey, result, CACHE_TTL_SEC)
+  return result
 }
 
 /**
@@ -243,25 +291,26 @@ export async function getProductsKpi(): Promise<import("./types").ProductsListRe
 interface SoldStats {
   qty: number
   omzet: number
+  buyerPaid: number  // distributed dari buyer_payment_amount
+  received: number   // distributed dari escrow_amount
 }
 
-// ── Sold stats cache (30-min TTL, shared across page requests) ────────────
-let _soldStatsCache: { data: Map<string, SoldStats>; cachedAt: number } | null = null
-const SOLD_STATS_TTL = 30 * 60 * 1000
-
+// ── Sold stats cache (30-min TTL via Redis) ───────────────────────────────
 async function getCachedSoldStats(): Promise<Map<string, SoldStats>> {
-  const now = Date.now()
-  if (_soldStatsCache && now - _soldStatsCache.cachedAt < SOLD_STATS_TTL) {
-    return _soldStatsCache.data
-  }
+  const cached = await rGet<Record<string, SoldStats>>(REDIS_KEY_SOLD_STATS)
+  if (cached) return new Map(Object.entries(cached.data))
+
   const data = await getSoldStatsPerItem()
-  _soldStatsCache = { data, cachedAt: now }
+  // Serialize Map → plain object for JSON storage
+  const serialized: Record<string, SoldStats> = Object.fromEntries(data)
+  await rSet(REDIS_KEY_SOLD_STATS, serialized, SOLD_STATS_TTL_SEC)
   return data
 }
 
 /**
- * Aggregate sold qty and omzet per item_id from the last 30 days of orders.
- * Optionally scoped to a specific set of item IDs (much faster for paginated views).
+ * Aggregate sold qty, omzet, buyerPaid, and received per item_id from the last 30 days.
+ * Fetches escrow per order (cached 24h in Redis), distributes financials proportionally.
+ * Optionally scoped to a specific set of item IDs.
  */
 async function getSoldStatsPerItem(itemIds?: string[]): Promise<Map<string, SoldStats>> {
   const now = Math.floor(Date.now() / 1000)
@@ -269,15 +318,60 @@ async function getSoldStatsPerItem(itemIds?: string[]): Promise<Map<string, Sold
   const orders = await getOrdersInRange({ timeFrom: from, timeTo: now })
   const filterSet = itemIds ? new Set(itemIds) : null
 
+  // Fetch escrow for all orders concurrently (limit 10 at a time), cached per order_sn
+  type EscrowCacheEntry = {
+    buyerPaid: number
+    escrow: number
+    items: Array<{ item_id: number; model_id: number; discounted_price: number; qty: number }>
+  }
+  const CONCURRENCY = 10
+  const escrowByOrderSn = new Map<string, EscrowCacheEntry>()
+
+  const uniqueOrders = [...new Set(orders.map(o => o.order_sn))]
+  for (let i = 0; i < uniqueOrders.length; i += CONCURRENCY) {
+    const batch = uniqueOrders.slice(i, i + CONCURRENCY)
+    await Promise.all(batch.map(async (sn) => {
+      const cacheKey = `escrow:${sn}`
+      const cached = await rGet<EscrowCacheEntry>(cacheKey)
+      if (cached) {
+        escrowByOrderSn.set(sn, cached.data)
+        return
+      }
+      const detail = await getEscrowDetail(sn)
+      if (!detail) return
+      const items = (detail.order_income?.items ?? []).map(it => ({
+        item_id: it.item_id,
+        model_id: it.model_id,
+        discounted_price: it.discounted_price,
+        qty: it.quantity_purchased,
+      }))
+      const entry: EscrowCacheEntry = { buyerPaid: detail.buyer_payment_amount, escrow: detail.escrow_amount, items }
+      escrowByOrderSn.set(sn, entry)
+      await rSet(cacheKey, entry, 86400)  // 24h — escrow is immutable
+    }))
+  }
+
   const map = new Map<string, SoldStats>()
+
   for (const order of orders) {
     for (const item of order.item_list) {
       const key = String(item.item_id)
       if (filterSet && !filterSet.has(key)) continue
-      const existing = map.get(key) ?? { qty: 0, omzet: 0 }
+
+      const existing = map.get(key) ?? { qty: 0, omzet: 0, buyerPaid: 0, received: 0 }
       existing.qty += item.model_quantity_purchased
-      existing.omzet +=
-        item.model_discounted_price * item.model_quantity_purchased
+      existing.omzet += item.model_discounted_price * item.model_quantity_purchased
+
+      // Distribute escrow proportionally by item value
+      const escrowData = escrowByOrderSn.get(order.order_sn)
+      if (escrowData && escrowData.items.length > 0) {
+        const itemValue = item.model_discounted_price * item.model_quantity_purchased
+        const orderItemsTotal = escrowData.items.reduce((s, it) => s + it.discounted_price * it.qty, 0)
+        const ratio = orderItemsTotal > 0 ? itemValue / orderItemsTotal : 0
+        existing.buyerPaid += escrowData.buyerPaid * ratio
+        existing.received += escrowData.escrow * ratio
+      }
+
       map.set(key, existing)
     }
   }
@@ -473,33 +567,34 @@ async function fetchProductsFresh(): Promise<ProductsListResult> {
 }
 
 /**
- * Get all products — served from cache when fresh, background-refreshes when stale.
+ * Get all products — served from Redis cache when fresh, background-refreshes when stale.
  * First call (cold cache) fetches live and may be slow.
  */
 export async function getProducts(): Promise<ProductsListResult> {
-  const now = Date.now()
+  const cached = await rGet<ProductsListResult>(REDIS_KEY_PRODUCTS_FULL)
 
-  if (_cache) {
-    const age = now - _cache.cachedAt
-    if (age < CACHE_TTL_MS) {
+  if (cached) {
+    const ageSec = (Date.now() - cached.cachedAt) / 1000
+    if (ageSec < CACHE_TTL_SEC) {
       // Fresh — serve immediately
-      return _cache.data
+      return cached.data
     }
-    if (age < STALE_TTL_MS) {
+    if (ageSec < STALE_TTL_SEC) {
       // Stale but usable — serve stale data and kick off background refresh
-      if (!_cache.refreshing) {
-        _cache.refreshing = true
+      if (!_refreshing) {
+        _refreshing = true
         fetchProductsFresh()
-          .then(data => { _cache = { data, cachedAt: Date.now(), refreshing: false } })
-          .catch(() => { if (_cache) _cache.refreshing = false })
+          .then(data => rSet(REDIS_KEY_PRODUCTS_FULL, data, STALE_TTL_SEC))
+          .catch(() => { /* non-fatal */ })
+          .finally(() => { _refreshing = false })
       }
-      return _cache.data
+      return cached.data
     }
   }
 
   // No cache or too stale — fetch fresh and block
   const data = await fetchProductsFresh()
-  _cache = { data, cachedAt: now, refreshing: false }
+  await rSet(REDIS_KEY_PRODUCTS_FULL, data, STALE_TTL_SEC)
   return data
 }
 
