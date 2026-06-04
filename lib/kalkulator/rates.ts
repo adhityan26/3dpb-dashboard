@@ -29,6 +29,9 @@ export async function loadRates(): Promise<KalkulatorRates> {
     failureRatePct:   parseFloat(map['kalk.failureRate.pct']   ?? '12'),
     failureSpreadPct: parseFloat(map['kalk.failureSpread.pct'] ?? '50'),
     testLayerPct:     parseFloat(map['kalk.testLayer.pct']     ?? '5'),
+    preparerRatePerJam:     parseFloat(map['kalk.preparer.perJam']          ?? '35000'),
+    finisherRatePerJam:     parseFloat(map['kalk.finisher.perJam']          ?? '75000'),
+    helmConsumablesDefault: parseFloat(map['kalk.helm.consumables.default'] ?? '55000'),
   }
 }
 

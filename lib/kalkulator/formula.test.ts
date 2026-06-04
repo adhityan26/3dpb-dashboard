@@ -16,6 +16,9 @@ const DEFAULT_RATES: KalkulatorRates = {
   failureRatePct: 0,
   failureSpreadPct: 50,
   testLayerPct: 0,
+  preparerRatePerJam: 35000,
+  finisherRatePerJam: 75000,
+  helmConsumablesDefault: 55000,
 }
 
 describe('hitungKalkulasi', () => {

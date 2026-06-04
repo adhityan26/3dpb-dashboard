@@ -22,6 +22,12 @@ const MAIN_RATES: RateField[] = [
   { key: "kalk.label.perLembar", label: "Label/lembar",        suffix: "Rp",      description: "Harga stiker/label per lembar" },
 ]
 
+const HELM_RATES: RateField[] = [
+  { key: "kalk.preparer.perJam",          label: "Preparer (Sanding + Assembly)/jam", suffix: "Rp/jam", description: "Rate tenaga sanding, magnet install, dan assembly — bisa dioutsource" },
+  { key: "kalk.finisher.perJam",          label: "Finisher (Painting)/jam",           suffix: "Rp/jam", description: "Rate tenaga painting — craftsman, biasanya owner sendiri" },
+  { key: "kalk.helm.consumables.default", label: "Default consumables helm",           suffix: "Rp",     description: "Pre-fill biaya cat/primer/consumables per topeng (bisa di-override per kalkulasi)" },
+]
+
 const PACKING_SIZES = ["S", "M", "L", "XL"]
 const GANTUNGAN_TYPES = ["kew_kew", "ring", "rantai", "tali"]
 
@@ -55,6 +61,9 @@ export function KalkulatorSettingsCard() {
       "kalk.failureRate.pct":   String(rates.failureRatePct),
       "kalk.failureSpread.pct": String(rates.failureSpreadPct),
       "kalk.testLayer.pct":     String(rates.testLayerPct),
+      "kalk.preparer.perJam":          String(rates.preparerRatePerJam ?? 35000),
+      "kalk.finisher.perJam":          String(rates.finisherRatePerJam ?? 75000),
+      "kalk.helm.consumables.default": String(rates.helmConsumablesDefault ?? 55000),
       ...Object.fromEntries(PACKING_SIZES.map(s => [`kalk.packing.${s}`, String(rates.packing[s] ?? "")])),
       ...Object.fromEntries(GANTUNGAN_TYPES.map(g => [`kalk.gantungan.${g}`, String(rates.gantungan[g] ?? "")])),
     })
@@ -155,6 +164,34 @@ export function KalkulatorSettingsCard() {
                 onChange={e => setValues(v => ({ ...v, [`kalk.gantungan.${g}`]: e.target.value }))}
                 className="glass-input w-full h-9 rounded-[8px] px-3 text-sm"
               />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Helm / Topeng rates */}
+      <div>
+        <div className="text-xs font-semibold uppercase tracking-wider mb-3 g-accent">
+          🪖 Helm / Topeng — Labor &amp; Consumables
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {HELM_RATES.map(f => (
+            <div key={f.key}>
+              <label className="block text-xs font-medium mb-1 g-label">{f.label}</label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="0"
+                  step="1000"
+                  value={values[f.key] ?? ""}
+                  onChange={e => setValues(v => ({ ...v, [f.key]: e.target.value }))}
+                  className="glass-input flex-1 h-9 rounded-[8px] px-3 text-sm"
+                />
+                <span className="text-xs flex-shrink-0 g-t4">{f.suffix}</span>
+              </div>
+              {f.description && (
+                <div className="text-[10px] mt-0.5 g-t5">{f.description}</div>
+              )}
             </div>
           ))}
         </div>

@@ -56,6 +56,10 @@ export interface KalkulatorRates {
   failureRatePct: number   // % kemungkinan print gagal, default 12
   failureSpreadPct: number // % failure cost yang dibebankan ke floor price (0=owner tanggung, 100=customer tanggung), default 50
   testLayerPct: number     // % gramasi terbuang untuk prototype/test layers, default 5
+  // Helm / Topeng rates
+  preparerRatePerJam: number      // Rp/jam untuk sanding + assembly, default 35000
+  finisherRatePerJam: number      // Rp/jam untuk painting, default 75000
+  helmConsumablesDefault: number  // default flat consumables per topeng, default 55000
 }
 
 export interface HasilKalkulasi {
