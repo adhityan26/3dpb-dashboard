@@ -8,7 +8,8 @@ import { hitungKalkulasi } from "@/lib/kalkulator/formula"
 import { useCreateKalkulasi, useUpdateKalkulasi, useKalkulatorRates } from "@/lib/hooks/use-kalkulator"
 import { useKatalogList } from "@/lib/hooks/use-katalog"
 import { useProducts } from "@/lib/hooks/use-products"
-import type { KalkulasiData, KalkulasiInput, MarginTier, HasilKalkulasi } from "@/lib/kalkulator/types"
+import type { KalkulasiData, KalkulasiInput, MarginTier, HasilKalkulasi, ProduktType, FinishType } from "@/lib/kalkulator/types"
+import { HELM_TIER_DEFAULTS } from "@/lib/kalkulator/types"
 import type { AksesoriState } from "./AksesoriSection"
 import { PrintableQuote } from "./PrintableQuote"
 
@@ -79,6 +80,14 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   )
   const [customRiskEnabled, setCustomRiskEnabled] = useState(false)
   const [customRiskPct, setCustomRiskPct] = useState<number>(12)
+
+  // Helm fields
+  const [produktType, setProduktType] = useState<ProduktType>(initial?.produktType ?? 'SIMPLE')
+  const [finishType, setFinishType] = useState<FinishType>(initial?.finishType ?? 'RAW')
+  const [jamSanding, setJamSanding] = useState<number>(initial?.jamSanding ?? 0)
+  const [jamPainting, setJamPainting] = useState<number>(initial?.jamPainting ?? 0)
+  const [jamAssembly, setJamAssembly] = useState<number>(initial?.jamAssembly ?? 0)
+  const [flatFinishingCost, setFlatFinishingCost] = useState<number>(initial?.flatFinishingCost ?? 0)
 
   const [aksesori, setAksesori] = useState<AksesoriState>(
     initial
@@ -162,6 +171,12 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           qty: k.qty,
         })),
       customRiskPct: customRiskEnabled ? customRiskPct : undefined,
+      produktType,
+      finishType,
+      jamSanding,
+      jamPainting,
+      jamAssembly,
+      flatFinishingCost,
     }
 
     let saved: KalkulasiData
@@ -358,6 +373,205 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
             </div>
           )}
         </div>
+
+        {/* ── Tipe Produk ─────────────────────────────────────────── */}
+        <div className="space-y-3 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+          <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.3)" }}>
+            Tipe Produk
+          </div>
+          <div className="flex gap-2">
+            {(['SIMPLE', 'HELM'] as const).map(t => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => {
+                  setProduktType(t)
+                  if (t === 'SIMPLE') {
+                    setFinishType('RAW')
+                  } else if (t === 'HELM' && flatFinishingCost === 0) {
+                    setFlatFinishingCost(ratesData?.helmConsumablesDefault ?? 55000)
+                  }
+                }}
+                className="px-4 py-2 rounded-[8px] text-[12px] font-medium transition-all"
+                style={{
+                  background: produktType === t ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.04)",
+                  border: `1px solid ${produktType === t ? "rgba(99,102,241,0.4)" : "rgba(255,255,255,0.1)"}`,
+                  color: produktType === t ? "#a5b4fc" : "rgba(255,255,255,0.45)",
+                }}
+              >
+                {t === 'SIMPLE' ? '🧸 Mainan / Keychain' : '🪖 Helm / Topeng'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* ── Helm Finishing (hanya muncul kalau HELM) ─────────────── */}
+        {produktType === 'HELM' && (
+          <div className="space-y-4 p-4 rounded-[12px]" style={{ background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.15)" }}>
+            {/* Finish Type */}
+            <div className="space-y-2">
+              <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "rgba(165,180,252,0.6)" }}>
+                Finish Type
+              </div>
+              <div className="flex gap-2">
+                {(['RAW', 'FINISHING'] as const).map(f => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => setFinishType(f)}
+                    className="px-4 py-2 rounded-[8px] text-[12px] font-medium transition-all"
+                    style={{
+                      background: finishType === f ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.04)",
+                      border: `1px solid ${finishType === f ? "rgba(99,102,241,0.4)" : "rgba(255,255,255,0.1)"}`,
+                      color: finishType === f ? "#a5b4fc" : "rgba(255,255,255,0.45)",
+                    }}
+                  >
+                    {f === 'RAW' ? '🔩 RAW (as-is)' : '🎨 FINISHING'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Labor sections — hanya kalau FINISHING */}
+            {finishType === 'FINISHING' && (
+              <div className="space-y-4">
+                {/* Tier quick-pick */}
+                <div className="space-y-2">
+                  <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "rgba(165,180,252,0.6)" }}>
+                    Tier Preset
+                  </div>
+                  <div className="flex gap-2 flex-wrap">
+                    {(['MINIMAL', 'LIGHT', 'MEDIUM', 'HEAVY'] as const).map(tier => (
+                      <button
+                        key={tier}
+                        type="button"
+                        onClick={() => {
+                          const d = HELM_TIER_DEFAULTS[tier]
+                          setJamSanding(d.jamSanding)
+                          setJamPainting(d.jamPainting)
+                          setJamAssembly(d.jamAssembly)
+                        }}
+                        className="px-3 py-1.5 rounded-[8px] text-[11px] font-medium transition-all hover:opacity-80"
+                        style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}
+                      >
+                        {tier}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.25)" }}>
+                    Klik tier untuk auto-fill jam. Angka bisa diedit bebas.
+                  </div>
+                </div>
+
+                {/* Labor inputs */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-medium mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>
+                      🪵 Preparer — Sanding (jam)
+                      <span className="ml-1.5 text-[10px]" style={{ color: "rgba(255,255,255,0.25)" }}>@Rp35.000</span>
+                    </label>
+                    <input
+                      type="number" min={0} step={0.25}
+                      value={jamSanding || ''}
+                      onChange={e => setJamSanding(Number(e.target.value))}
+                      className="glass-input w-full h-9 rounded-[10px] px-3 text-sm"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>
+                      🎨 Finisher — Painting (jam)
+                      <span className="ml-1.5 text-[10px]" style={{ color: "rgba(255,255,255,0.25)" }}>@Rp75.000</span>
+                    </label>
+                    <input
+                      type="number" min={0} step={0.25}
+                      value={jamPainting || ''}
+                      onChange={e => setJamPainting(Number(e.target.value))}
+                      className="glass-input w-full h-9 rounded-[10px] px-3 text-sm"
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[11px] font-medium mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>
+                      🔩 Preparer — Assembly (jam)
+                      <span className="ml-1.5 text-[10px]" style={{ color: "rgba(255,255,255,0.25)" }}>@Rp35.000</span>
+                    </label>
+                    <input
+                      type="number" min={0} step={0.25}
+                      value={jamAssembly || ''}
+                      onChange={e => setJamAssembly(Number(e.target.value))}
+                      className="glass-input w-full h-9 rounded-[10px] px-3 text-sm"
+                      placeholder="0"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[11px] font-medium mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>
+                      🎨 Consumables (Rp)
+                    </label>
+                    <input
+                      type="number" min={0} step={1000}
+                      value={flatFinishingCost || ''}
+                      onChange={e => setFlatFinishingCost(Number(e.target.value))}
+                      className="glass-input w-full h-9 rounded-[10px] px-3 text-sm"
+                      placeholder="55000"
+                    />
+                  </div>
+                </div>
+
+                {/* Warning: consumables = 0 */}
+                {flatFinishingCost === 0 && (
+                  <div className="flex items-center gap-2 px-3 py-2 rounded-[8px] text-[11px]"
+                    style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", color: "#fbbf24" }}>
+                    ⚠️ Biaya consumables (cat, primer) belum diisi — sudah di-include di tempat lain?
+                  </div>
+                )}
+
+                {/* Real-time breakdown */}
+                {(jamSanding > 0 || jamPainting > 0 || jamAssembly > 0 || flatFinishingCost > 0) && (
+                  <div className="rounded-[8px] p-3 space-y-1 text-[11px] font-mono"
+                    style={{ background: "rgba(10,8,40,0.6)", border: "1px solid rgba(99,102,241,0.15)" }}>
+                    {jamSanding > 0 && (
+                      <div className="flex justify-between">
+                        <span style={{ color: "rgba(255,255,255,0.4)" }}>Sanding {jamSanding}j × Rp35.000</span>
+                        <span style={{ color: "#a5b4fc" }}>Rp {(jamSanding * 35000).toLocaleString('id-ID')}</span>
+                      </div>
+                    )}
+                    {jamPainting > 0 && (
+                      <div className="flex justify-between">
+                        <span style={{ color: "rgba(255,255,255,0.4)" }}>Painting {jamPainting}j × Rp75.000</span>
+                        <span style={{ color: "#a5b4fc" }}>Rp {(jamPainting * 75000).toLocaleString('id-ID')}</span>
+                      </div>
+                    )}
+                    {jamAssembly > 0 && (
+                      <div className="flex justify-between">
+                        <span style={{ color: "rgba(255,255,255,0.4)" }}>Assembly {jamAssembly}j × Rp35.000</span>
+                        <span style={{ color: "#a5b4fc" }}>Rp {(jamAssembly * 35000).toLocaleString('id-ID')}</span>
+                      </div>
+                    )}
+                    {flatFinishingCost > 0 && (
+                      <div className="flex justify-between">
+                        <span style={{ color: "rgba(255,255,255,0.4)" }}>Consumables</span>
+                        <span style={{ color: "#a5b4fc" }}>Rp {flatFinishingCost.toLocaleString('id-ID')}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between pt-1" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
+                      <span style={{ color: "rgba(255,255,255,0.6)", fontWeight: 600 }}>Total Finishing</span>
+                      <span style={{ color: "#4ade80", fontWeight: 700 }}>
+                        Rp {(
+                          (jamSanding + jamAssembly) * 35000 +
+                          jamPainting * 75000 +
+                          flatFinishingCost
+                        ).toLocaleString('id-ID')}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Buttons row */}
         <div className="flex gap-2">
