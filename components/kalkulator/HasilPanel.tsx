@@ -98,6 +98,14 @@ export function HasilPanel({ hasil, hargaShopeeAktual, hargaOfflineAktual, isLoa
         <div className="text-xs font-semibold uppercase tracking-wider mb-3 g-accent">HPP Breakdown</div>
         <Row label="HPP Produksi (cetak)" value={fmt(hasil.hppProduksi)} />
         <Row label="HPP Komponen (aksesori)" value={fmt(hasil.hppKomponen)} />
+        {hasil.hppFinishing > 0 && (
+          <div className="flex justify-between items-center">
+            <span className="text-sm text-muted-foreground">HPP Finishing (labor + consumables)</span>
+            <span className="text-sm font-bold" style={{ color: "#a5b4fc" }}>
+              {fmt(hasil.hppFinishing)}
+            </span>
+          </div>
+        )}
         <Row label="HPP Total" value={fmt(hasil.hppTotal)} bold color="#e5e7eb" />
       </div>
 
