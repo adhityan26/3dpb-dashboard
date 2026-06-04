@@ -111,3 +111,69 @@ describe('hitungKalkulasi', () => {
     expect(result.marginShopeeA).toBeGreaterThan(0)
   })
 })
+
+describe('hitungKalkulasi — helm finishing', () => {
+  it('SIMPLE product: hppFinishing = 0', () => {
+    const result = hitungKalkulasi(
+      [{ tipe: 'FDM', gramasi: 21, durasiJam: 1.17 }],
+      { packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [] },
+      1, DEFAULT_RATES, 'A'
+    )
+    expect(result.hppFinishing).toBe(0)
+  })
+
+  it('HELM RAW: hppFinishing = 0', () => {
+    const helmRaw: import('./types').HelmOptions = {
+      finishType: 'RAW',
+      jamSanding: 2.5, jamPainting: 2.0, jamAssembly: 0.75,
+      flatFinishingCost: 55000,
+      preparerRatePerJam: 35000,
+      finisherRatePerJam: 75000,
+    }
+    const result = hitungKalkulasi(
+      [{ tipe: 'FDM', gramasi: 21, durasiJam: 1.17 }],
+      { packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [] },
+      1, DEFAULT_RATES, 'A', undefined, undefined, helmRaw
+    )
+    expect(result.hppFinishing).toBe(0)
+  })
+
+  it('HELM FINISHING: hppFinishing = labor + consumables', () => {
+    // (1 + 0) * 35000 + 1 * 75000 + 10000 = 120000
+    const helmFin: import('./types').HelmOptions = {
+      finishType: 'FINISHING',
+      jamSanding: 1, jamPainting: 1, jamAssembly: 0,
+      flatFinishingCost: 10000,
+      preparerRatePerJam: 35000,
+      finisherRatePerJam: 75000,
+    }
+    const result = hitungKalkulasi(
+      [{ tipe: 'FDM', gramasi: 21, durasiJam: 1.17 }],
+      { packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [] },
+      1, DEFAULT_RATES, 'A', undefined, undefined, helmFin
+    )
+    expect(result.hppFinishing).toBe(120000)
+  })
+
+  it('HELM FINISHING: hppTotal includes hppFinishing', () => {
+    const base = hitungKalkulasi(
+      [{ tipe: 'FDM', gramasi: 21, durasiJam: 1.17 }],
+      { packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [] },
+      1, DEFAULT_RATES, 'A'
+    )
+    const helmFin: import('./types').HelmOptions = {
+      finishType: 'FINISHING',
+      jamSanding: 1, jamPainting: 1, jamAssembly: 0,
+      flatFinishingCost: 10000,
+      preparerRatePerJam: 35000,
+      finisherRatePerJam: 75000,
+    }
+    const withHelm = hitungKalkulasi(
+      [{ tipe: 'FDM', gramasi: 21, durasiJam: 1.17 }],
+      { packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [] },
+      1, DEFAULT_RATES, 'A', undefined, undefined, helmFin
+    )
+    expect(withHelm.hppTotal).toBe(base.hppTotal + 120000)
+    expect(withHelm.floorPrice).toBeGreaterThan(base.floorPrice)
+  })
+})

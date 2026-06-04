@@ -1,5 +1,5 @@
 import type {
-  PlateInput, KalkulasiStatus, KalkulatorRates, HasilKalkulasi, MarginTier
+  PlateInput, KalkulasiStatus, KalkulatorRates, HasilKalkulasi, MarginTier, HelmOptions
 } from './types'
 
 interface AksesoriInput {
@@ -20,6 +20,7 @@ export function hitungKalkulasi(
   marginTier: MarginTier,
   hargaShopeeAktual?: number,
   customRiskPct?: number,
+  helmOptions?: HelmOptions,
 ): HasilKalkulasi {
   const safeBatch = Math.max(1, batch)
   const failureRate = (customRiskPct ?? rates.failureRatePct) / 100
@@ -77,41 +78,54 @@ export function hitungKalkulasi(
   const hppTotal = hppProduksi + hppKomponen
   const floorPrice = jualBase + hppKomponen
 
-  const offlineA = floorPrice * MARGIN_MULTIPLIERS.A
-  const offlineB = floorPrice * MARGIN_MULTIPLIERS.B
-  const offlineC = floorPrice * MARGIN_MULTIPLIERS.C
+  // Helm finishing: labor (preparer + finisher) + flat consumables
+  const hppFinishing = (helmOptions?.finishType === 'FINISHING')
+    ? Math.round(
+        (helmOptions.jamSanding + helmOptions.jamAssembly) * helmOptions.preparerRatePerJam
+        + helmOptions.jamPainting * helmOptions.finisherRatePerJam
+        + helmOptions.flatFinishingCost
+      )
+    : 0
+
+  const hppTotalWithFinishing = hppTotal + hppFinishing
+  const floorPriceWithFinishing = floorPrice + hppFinishing
+
+  const offlineA = floorPriceWithFinishing * MARGIN_MULTIPLIERS.A
+  const offlineB = floorPriceWithFinishing * MARGIN_MULTIPLIERS.B
+  const offlineC = floorPriceWithFinishing * MARGIN_MULTIPLIERS.C
   const shopeeA = offlineA * rates.adminEcommerce
   const shopeeB = offlineB * rates.adminEcommerce
   const shopeeC = offlineC * rates.adminEcommerce
   const resellerStd = offlineA
-  const resellerBulk = floorPrice * 1.05
+  const resellerBulk = floorPriceWithFinishing * 1.05
 
-  const marginOfflineA = offlineA > 0 ? ((offlineA - hppTotal) / offlineA) * 100 : 0
+  const marginOfflineA = offlineA > 0 ? ((offlineA - hppTotalWithFinishing) / offlineA) * 100 : 0
   const netShopeeA = shopeeA / rates.adminEcommerce
-  const marginShopeeA = netShopeeA > 0 ? ((netShopeeA - hppTotal) / netShopeeA) * 100 : 0
+  const marginShopeeA = netShopeeA > 0 ? ((netShopeeA - hppTotalWithFinishing) / netShopeeA) * 100 : 0
 
   let status: KalkulasiStatus = 'TIDAK_DISET'
   if (hargaShopeeAktual !== undefined) {
     if (hargaShopeeAktual >= shopeeA) status = 'AMAN'
-    else if (hargaShopeeAktual >= floorPrice) status = 'BAWAH_REKM'
+    else if (hargaShopeeAktual >= floorPriceWithFinishing) status = 'BAWAH_REKM'
     else status = 'RUGI'
   }
 
   return {
-    hppProduksi: Math.round(hppProduksi),
-    hppKomponen: Math.round(hppKomponen),
-    hppTotal: Math.round(hppTotal),
-    floorPrice: Math.round(floorPrice),
-    offlineA: Math.round(offlineA),
-    offlineB: Math.round(offlineB),
-    offlineC: Math.round(offlineC),
-    shopeeA: Math.round(shopeeA),
-    shopeeB: Math.round(shopeeB),
-    shopeeC: Math.round(shopeeC),
-    resellerStd: Math.round(resellerStd),
-    resellerBulk: Math.round(resellerBulk),
+    hppProduksi:    Math.round(hppProduksi),
+    hppKomponen:    Math.round(hppKomponen),
+    hppFinishing,                                // already Math.round'd above
+    hppTotal:       Math.round(hppTotalWithFinishing),
+    floorPrice:     Math.round(floorPriceWithFinishing),
+    offlineA:  Math.round(offlineA),
+    offlineB:  Math.round(offlineB),
+    offlineC:  Math.round(offlineC),
+    shopeeA:   Math.round(shopeeA),
+    shopeeB:   Math.round(shopeeB),
+    shopeeC:   Math.round(shopeeC),
+    resellerStd:   Math.round(resellerStd),
+    resellerBulk:  Math.round(resellerBulk),
     marginOfflineA: Math.round(marginOfflineA * 10) / 10,
-    marginShopeeA: Math.round(marginShopeeA * 10) / 10,
+    marginShopeeA:  Math.round(marginShopeeA * 10) / 10,
     status,
   }
 }
