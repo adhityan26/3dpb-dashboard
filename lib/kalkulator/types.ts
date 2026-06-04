@@ -2,6 +2,26 @@ export type PrintTipe = 'FDM' | 'SLA'
 export type MarginTier = 'A' | 'B' | 'C'
 export type KalkulasiStatus = 'AMAN' | 'BAWAH_REKM' | 'RUGI' | 'TIDAK_DISET'
 export type PackingType = 'S' | 'M' | 'L' | 'XL'
+export type ProduktType = 'SIMPLE' | 'HELM'
+export type FinishType = 'RAW' | 'FINISHING'
+export type HelmTier = 'MINIMAL' | 'LIGHT' | 'MEDIUM' | 'HEAVY'
+
+export interface HelmOptions {
+  finishType: FinishType
+  jamSanding: number
+  jamPainting: number
+  jamAssembly: number
+  flatFinishingCost: number
+  preparerRatePerJam: number
+  finisherRatePerJam: number
+}
+
+export const HELM_TIER_DEFAULTS: Record<HelmTier, { jamSanding: number; jamPainting: number; jamAssembly: number }> = {
+  MINIMAL: { jamSanding: 0.5, jamPainting: 0.5, jamAssembly: 0.25 },
+  LIGHT: { jamSanding: 1.5, jamPainting: 1.0, jamAssembly: 0.50 },
+  MEDIUM: { jamSanding: 2.5, jamPainting: 2.0, jamAssembly: 0.75 },
+  HEAVY: { jamSanding: 4.0, jamPainting: 3.5, jamAssembly: 1.00 },
+}
 
 /** One filament entry in a multi-material plate */
 export interface FilamentEntry {
@@ -65,6 +85,7 @@ export interface KalkulatorRates {
 export interface HasilKalkulasi {
   hppProduksi: number
   hppKomponen: number
+  hppFinishing: number
   hppTotal: number
   floorPrice: number
   offlineA: number
@@ -93,6 +114,12 @@ export interface KalkulasiInput {
   plates: PlateInput[]
   komponenKustom: KomponenKustomInput[]
   customRiskPct?: number  // override failure rate per job (high-risk jobs)
+  produktType?: ProduktType          // default: 'SIMPLE'
+  finishType?: FinishType            // only for HELM
+  jamSanding?: number
+  jamPainting?: number
+  jamAssembly?: number
+  flatFinishingCost?: number
 }
 
 export interface KalkulasiData extends HasilKalkulasi {
@@ -111,6 +138,12 @@ export interface KalkulasiData extends HasilKalkulasi {
   plates: PlateData[]
   komponenKustom: KomponenKustomData[]
   produkLinks: KalkulasiProdukData[]
+  produktType: ProduktType
+  finishType: FinishType
+  jamSanding: number
+  jamPainting: number
+  jamAssembly: number
+  flatFinishingCost: number
 }
 
 export interface KalkulasiProdukInput {
