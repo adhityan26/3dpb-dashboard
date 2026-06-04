@@ -77,3 +77,23 @@ export function useTestNotification() {
     mutationFn: testNotification,
   })
 }
+
+// ── Shopee Fee Analytics ──────────────────────────────────────────────────
+
+import type { ShopeeFeeAnalytics } from "@/app/api/settings/shopee-fee/route"
+
+export function useShopeeFeeAnalytics() {
+  return useQuery({
+    queryKey: ["settings", "shopee-fee"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings/shopee-fee")
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        throw new Error((e as { error?: string }).error ?? `HTTP ${res.status}`)
+      }
+      return res.json() as Promise<ShopeeFeeAnalytics>
+    },
+    staleTime: 60 * 60 * 1000,  // 1 hour — matches server cache
+    retry: false,
+  })
+}
