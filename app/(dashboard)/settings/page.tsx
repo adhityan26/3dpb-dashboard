@@ -12,6 +12,7 @@ import { NotificationRunnerCard } from "@/components/settings/NotificationRunner
 import { FilamenCatalogCard } from "@/components/settings/FilamenCatalogCard"
 import { StickerSizeCard } from "@/components/settings/StickerSizeCard"
 import { KalkulatorSettingsCard } from "@/components/settings/KalkulatorSettingsCard"
+import { ShopeeFeeAnalyticsCard } from "@/components/settings/ShopeeFeeAnalyticsCard"
 import { InvoiceMethodsCard } from "@/components/settings/InvoiceMethodsCard"
 import { FilamentAliasCard } from "@/components/settings/FilamentAliasCard"
 import { useSettings } from "@/lib/hooks/use-settings"
@@ -116,6 +117,7 @@ function SettingsPageInner() {
             <ShopeeStatusCard status={data.shopee} />
             <RefreshIntervalCard />
           </div>
+          <ShopeeFeeAnalyticsCard />
         </div>
       )}
 

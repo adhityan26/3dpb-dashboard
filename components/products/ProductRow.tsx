@@ -200,10 +200,16 @@ export function ProductRow({
                     </span>
                   )}
                 </span>
-                <span>
-                  30d: {fmtNum(product.qtySold30d)} pcs ·{" "}
-                  {fmt(product.omzet30d)}
-                </span>
+                <span>30d: {fmtNum(product.qtySold30d)} pcs</span>
+                <span>Omzet: {fmt(product.omzet30d)}</span>
+                {product.buyerPaid30d > 0 && (
+                  <span>Buyer paid: {fmt(product.buyerPaid30d)}</span>
+                )}
+                {product.received30d > 0 && (
+                  <span style={{ color: "rgba(52,211,153,0.8)" }}>
+                    Diterima: {fmt(product.received30d)}
+                  </span>
+                )}
                 {product.grossMargin30d !== null && (
                   <span
                     className={
