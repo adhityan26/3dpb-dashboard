@@ -1,1 +1,0 @@
-ALTER TABLE "PurchaseOrder" ADD COLUMN "ongkir" REAL NOT NULL DEFAULT 0;

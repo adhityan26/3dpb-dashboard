@@ -1,1 +1,0 @@
-ALTER TABLE "FilamentHarga" ADD COLUMN "spoolCount" INTEGER NOT NULL DEFAULT 0;

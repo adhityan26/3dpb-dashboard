@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
 }
 
 model User {
@@ -210,6 +210,14 @@ model KalkulasiHarga {
   marginOfflineA    Float    @default(0)
   marginShopeeA     Float    @default(0)
   status            String   @default("TIDAK_DISET")
+  // Helm/Topeng fields — default "SIMPLE"/"RAW" agar backward-compatible
+  produktType       String  @default("SIMPLE")   // "SIMPLE" | "HELM"
+  finishType        String  @default("RAW")       // "RAW" | "FINISHING"
+  jamSanding        Float   @default(0)           // Preparer hours (sanding + magnet)
+  jamPainting       Float   @default(0)           // Finisher hours (painting)
+  jamAssembly       Float   @default(0)           // Preparer hours (assembly)
+  flatFinishingCost Float   @default(0)           // cat, primer, consumables flat
+  hppFinishing      Float   @default(0)           // computed: labor + consumables
   plates               KalkulasiPlate[]
   komponenKustom       KomponenKustom[]
   produkLinks              KalkulasiProduk[]
