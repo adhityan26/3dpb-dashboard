@@ -7,7 +7,6 @@ import {
 } from "@/lib/shopee/products"
 import { getOrdersInRange } from "@/lib/orders/service"
 import { getEscrowDetail } from "@/lib/shopee/escrow"
-import { loadRates } from "@/lib/kalkulator/rates"
 import { generateMockProducts } from "./mock"
 import type {
   ProductsListResult,
@@ -199,15 +198,13 @@ export async function getProductsPage(
   // ── Serve entirely from DB index + local DB — NO Shopee API calls ──────
   const pageItemIdStrings = indexRows.map((r) => r.itemId)
 
-  const [shopeeLinks, soldStats, rates] = await Promise.all([
+  const [shopeeLinks, soldStats] = await Promise.all([
     prisma.produkInternalShopeeLink.findMany({
       where: { shopeeItemId: { in: pageItemIdStrings } },
       include: { produkInternal: { include: { primaryKalkulasi: true } } },
     }),
     getCachedSoldStats(),
-    loadRates(),
   ])
-  const adminFee = rates.adminEcommerce
 
   const katalogByItemId = new Map<string, KatalogInfo>()
   for (const link of shopeeLinks) {
@@ -227,11 +224,11 @@ export async function getProductsPage(
 
   const products: ProductSummary[] = indexRows.map((row) => {
     const productIdStr = row.itemId
-    const stats = soldStats.get(productIdStr) ?? { qty: 0, omzet: 0 }
+    const stats = soldStats.get(productIdStr) ?? { qty: 0, omzet: 0, buyerPaid: 0, received: 0 }
     const katalog = katalogByItemId.get(productIdStr) ?? null
     const productHpp = katalog?.hppTotal ?? null
     const grossMargin30d = productHpp !== null
-      ? (stats.omzet / adminFee) - productHpp * stats.qty
+      ? stats.received - productHpp * stats.qty
       : null
     const isStockLow = row.stockTotal < STOCK_LOW_THRESHOLD
     const perluPerhatian = isStockLow || stats.qty === 0
@@ -253,6 +250,8 @@ export async function getProductsPage(
       variants: [],            // not stored in index; shown after full fetch
       qtySold30d: stats.qty,
       omzet30d: stats.omzet,
+      buyerPaid30d: stats.buyerPaid,
+      received30d: stats.received,
       grossMargin30d,
       isStockLow,
       perluPerhatian,
@@ -441,7 +440,7 @@ async function fetchProductsFresh(): Promise<ProductsListResult> {
 
   const itemIdStrings = itemIds.map(String)
 
-  const [shopeeLinks, soldStats, rates] = await Promise.all([
+  const [shopeeLinks, soldStats] = await Promise.all([
     prisma.produkInternalShopeeLink.findMany({
       where: { shopeeItemId: { in: itemIdStrings } },
       include: {
@@ -451,9 +450,7 @@ async function fetchProductsFresh(): Promise<ProductsListResult> {
       },
     }),
     getSoldStatsPerItem(),
-    loadRates(),
   ])
-  const adminFee = rates.adminEcommerce
 
   // Map shopeeItemId -> KatalogInfo (from linked ProdukInternal's primary kalkulasi)
   const katalogByItemId = new Map<string, KatalogInfo>()
@@ -502,13 +499,13 @@ async function fetchProductsFresh(): Promise<ProductsListResult> {
       ? { l: dim.package_length, w: dim.package_width, h: dim.package_height }
       : null
 
-    const stats = soldStats.get(productIdStr) ?? { qty: 0, omzet: 0 }
+    const stats = soldStats.get(productIdStr) ?? { qty: 0, omzet: 0, buyerPaid: 0, received: 0 }
     const katalog = katalogByItemId.get(productIdStr) ?? null
     const productHpp = katalog?.hppTotal ?? null
 
     let grossMargin30d: number | null = null
     if (productHpp !== null) {
-      grossMargin30d = (stats.omzet / adminFee) - productHpp * stats.qty
+      grossMargin30d = stats.received - productHpp * stats.qty
     }
 
     const stockValues = hasVariants
@@ -536,6 +533,8 @@ async function fetchProductsFresh(): Promise<ProductsListResult> {
       variants,
       qtySold30d: stats.qty,
       omzet30d: stats.omzet,
+      buyerPaid30d: stats.buyerPaid,
+      received30d: stats.received,
       grossMargin30d,
       isStockLow,
       perluPerhatian,

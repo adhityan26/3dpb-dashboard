@@ -43,6 +43,8 @@ export interface ProductSummary {
   variants: VariantSummary[]
   qtySold30d: number
   omzet30d: number
+  buyerPaid30d: number    // real buyer_payment distributed
+  received30d: number     // real escrow distributed
   grossMargin30d: number | null
   isStockLow: boolean
   perluPerhatian: boolean

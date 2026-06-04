@@ -2,7 +2,7 @@ import type { ProductsListResult, ProductSummary } from "./types"
 
 type MockBase = Omit<
   ProductSummary,
-  "grossMargin30d" | "perluPerhatian" | "isStockLow" | "lowestStock"
+  "grossMargin30d" | "perluPerhatian" | "isStockLow" | "lowestStock" | "buyerPaid30d" | "received30d"
 >
 
 const MOCK_PRODUCTS: MockBase[] = [
@@ -184,6 +184,8 @@ export function generateMockProducts(): ProductsListResult {
       isStockLow,
       perluPerhatian,
       grossMargin30d,
+      buyerPaid30d: 0,
+      received30d: 0,
     }
   })
 
