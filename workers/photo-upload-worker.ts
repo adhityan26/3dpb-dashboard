@@ -16,7 +16,7 @@ const photoUploadQueue: any = null
  * Downloads from MinIO → uploads to Sanity → caches asset ID in Redis
  */
 photoUploadQueue.process(async (job: any) => {
-  const { photoKey, orderId, filename, contentType } = job.data as PhotoUploadJobData
+  const { photoKey, orderId, filename, contentType } = job.data
 
   console.log(`[photo-upload] Processing: ${photoKey}`)
 
