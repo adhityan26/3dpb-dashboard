@@ -31,14 +31,14 @@ photoUploadQueue.process(async (job: any) => {
 /**
  * Handle successful job completion
  */
-photoUploadQueue.on('completed', (job) => {
+photoUploadQueue.on('completed', (job: any) => {
   console.log(`[photo-upload] Job completed: ${job.id} (${job.data.photoKey})`)
 })
 
 /**
  * Handle job failures after all retry attempts
  */
-photoUploadQueue.on('failed', (job, err) => {
+photoUploadQueue.on('failed', (job: any, err: any) => {
   const errorMsg = err instanceof Error ? err.message : String(err)
   console.error(
     `[photo-upload] Job failed permanently: ${job.id} (${job.data.photoKey})`,
@@ -49,7 +49,7 @@ photoUploadQueue.on('failed', (job, err) => {
 /**
  * Handle job retries
  */
-photoUploadQueue.on('stalled', (job) => {
+photoUploadQueue.on('stalled', (job: any) => {
   console.warn(`[photo-upload] Job stalled: ${job.id} (${job.data.photoKey})`)
 })
 
