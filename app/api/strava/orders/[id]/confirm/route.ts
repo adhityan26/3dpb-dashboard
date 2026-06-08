@@ -13,7 +13,7 @@ import { confirmStravaOrder } from '@/lib/strava/service'
  */
 export async function POST(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const internalSecret = process.env.INTERNAL_NOTIFICATION_SECRET
@@ -27,7 +27,7 @@ export async function POST(
       )
     }
 
-    const { id } = params
+    const { id } = await params
 
     // Confirm order
     const confirmed = await confirmStravaOrder(id)

@@ -24,10 +24,10 @@ const MINIO_BUCKET = process.env.STRAVA_MINIO_BUCKET ?? 'strava-orders'
  */
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string; photoKey: string } }
+  { params }: { params: Promise<{ id: string; photoKey: string }> }
 ) {
   try {
-    const { id, photoKey } = params
+    const { id, photoKey } = await params
 
     // Validate params
     if (!id || !photoKey) {
