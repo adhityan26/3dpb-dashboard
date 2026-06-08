@@ -45,10 +45,20 @@ export async function createStravaOrder(input: CreateStravaOrderInput): Promise<
     } as StravaOrder)
 
     // 3. Link Sanity doc to PostgreSQL record
-    return prisma.stravaOrder.update({
+    const updated = await prisma.stravaOrder.update({
       where: { id: order.id },
       data: { sanityDocId: sanityDoc._id },
     })
+    return {
+      ...updated,
+      items: (Array.isArray(updated.items) ? updated.items : []) as any,
+      customerPhone: updated.customerPhone ?? undefined,
+      submittedAt: new Date(updated.submittedAt),
+      confirmedAt: updated.confirmedAt ? new Date(updated.confirmedAt) : undefined,
+      completedAt: updated.completedAt ? new Date(updated.completedAt) : undefined,
+      createdAt: new Date(updated.createdAt),
+      updatedAt: new Date(updated.updatedAt),
+    } as StravaOrder
   } catch (err) {
     // If Sanity creation fails, delete PostgreSQL record
     await prisma.stravaOrder.delete({ where: { id: order.id } })
