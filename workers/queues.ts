@@ -5,6 +5,8 @@
  * Used by photo-service.ts for async Sanity uploads
  */
 
+import Queue from 'bull'
+
 export interface PhotoUploadJobData {
   photoKey: string
   orderId: string
@@ -12,11 +14,12 @@ export interface PhotoUploadJobData {
   contentType: string
 }
 
-// Placeholder queue - implementation depends on BullMQ setup
-// This will be properly initialized when BullMQ is configured
-export const photoUploadQueue = {
-  add: async (name: string, data: PhotoUploadJobData, options?: any) => {
-    console.warn(`[photo-queue] Job enqueued but queue not configured: ${name}`, { data, options })
-    return { id: `mock-${Date.now()}` }
-  },
-} as any
+export const photoUploadQueue = new Queue<PhotoUploadJobData>(
+  'strava:photo-upload',
+  {
+    redis: {
+      host: process.env.REDIS_HOST || 'light-generator-redis-1',
+      port: parseInt(process.env.REDIS_PORT || '6379'),
+    },
+  }
+)
