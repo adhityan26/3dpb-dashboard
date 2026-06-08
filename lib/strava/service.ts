@@ -124,12 +124,14 @@ export async function updateStravaOrder(
 
   return {
     ...updated,
+    items: (Array.isArray(updated.items) ? updated.items : []) as any,
+    customerPhone: updated.customerPhone ?? undefined,
     submittedAt: new Date(updated.submittedAt),
     confirmedAt: updated.confirmedAt ? new Date(updated.confirmedAt) : undefined,
     completedAt: updated.completedAt ? new Date(updated.completedAt) : undefined,
     createdAt: new Date(updated.createdAt),
     updatedAt: new Date(updated.updatedAt),
-  }
+  } as StravaOrder
 }
 
 export async function confirmStravaOrder(id: string): Promise<StravaOrder> {
