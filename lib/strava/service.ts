@@ -38,6 +38,7 @@ export async function createStravaOrder(input: CreateStravaOrderInput): Promise<
   try {
     const sanityDoc = await createSanityStravaOrder({
       ...order,
+      items: (Array.isArray(order.items) ? order.items : []) as any,
       submittedAt: new Date(order.submittedAt),
       createdAt: new Date(order.createdAt),
       updatedAt: new Date(order.updatedAt),
@@ -62,12 +63,13 @@ export async function getStravaOrders(status?: StravaStatus): Promise<StravaOrde
   })
   return orders.map(o => ({
     ...o,
+    items: (Array.isArray(o.items) ? o.items : []) as any,
     submittedAt: new Date(o.submittedAt),
     confirmedAt: o.confirmedAt ? new Date(o.confirmedAt) : undefined,
     completedAt: o.completedAt ? new Date(o.completedAt) : undefined,
     createdAt: new Date(o.createdAt),
     updatedAt: new Date(o.updatedAt),
-  }))
+  })) as StravaOrder[]
 }
 
 export async function getStravaOrder(id: string): Promise<StravaOrder | null> {
@@ -75,12 +77,13 @@ export async function getStravaOrder(id: string): Promise<StravaOrder | null> {
   if (!order) return null
   return {
     ...order,
+    items: (Array.isArray(order.items) ? order.items : []) as any,
     submittedAt: new Date(order.submittedAt),
     confirmedAt: order.confirmedAt ? new Date(order.confirmedAt) : undefined,
     completedAt: order.completedAt ? new Date(order.completedAt) : undefined,
     createdAt: new Date(order.createdAt),
     updatedAt: new Date(order.updatedAt),
-  }
+  } as StravaOrder
 }
 
 export async function getStravaOrderByOrderId(orderId: string): Promise<StravaOrder | null> {
