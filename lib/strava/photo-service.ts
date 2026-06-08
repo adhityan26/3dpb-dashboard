@@ -147,7 +147,7 @@ export async function getResultPhotosWithUrls(
  * Called by photoUploadQueue worker
  */
 export async function uploadPhotoToSanity(
-  jobData: PhotoUploadJobData
+  jobData: { photoKey: string; orderId: string; filename: string; contentType: string }
 ): Promise<{ sanityAssetId: string; expiresAt: number }> {
   const { photoKey, orderId, filename, contentType } = jobData
 
