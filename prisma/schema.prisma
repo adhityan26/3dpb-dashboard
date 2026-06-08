@@ -424,3 +424,36 @@ model ShopeeProductIndex {
   hasVariants  Boolean  @default(false)
   lastSyncedAt DateTime @default(now()) @updatedAt
 }
+
+model StravaOrder {
+  id        String   @id @default(cuid())
+  orderId   String   @unique                    // STR-2026-0001 format
+  sanityDocId String?
+
+  // Customer info
+  customerName    String
+  customerEmail   String
+  customerPhone   String?
+
+  // Items (stored as JSON array)
+  items      Json                              // Array<{productName, quantity, unitPrice, notes}>
+  totalAmount Int                              // in cents (Rp)
+
+  // Status & tracking
+  status     String   @default("pending")      // pending|confirmed|processing|completed|cancelled
+  statusChangedAt DateTime?
+  operatorNotes String?
+
+  // Photos (file paths in MinIO)
+  resultPhotoKeys String[]                    // ["strava/STR-2026-0001/photo1.jpg", ...]
+
+  // Timestamps
+  submittedAt DateTime @default(now())
+  confirmedAt DateTime?
+  completedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status])
+  @@index([submittedAt])
+}
