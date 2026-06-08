@@ -1,6 +1,6 @@
 // lib/strava/sanity-helpers.ts
 
-import { sanity } from '@/lib/sanity/client'
+import { sanityWrite } from '@/lib/sanity/client'
 import type { StravaOrder } from './types'
 
 const STRAVA_ORDER_QUERY = `{
@@ -19,13 +19,13 @@ const STRAVA_ORDER_QUERY = `{
 }`
 
 export async function fetchPendingStravaOrders() {
-  return sanity.fetch(
+  return sanityWrite.fetch(
     `*[_type == "stravaOrder" && status == "submitted"] | order(submittedAt desc) ${STRAVA_ORDER_QUERY}`
   )
 }
 
 export async function fetchAllStravaOrders() {
-  return sanity.fetch(
+  return sanityWrite.fetch(
     `*[_type == "stravaOrder"] | order(submittedAt desc) ${STRAVA_ORDER_QUERY}`
   )
 }
@@ -48,7 +48,7 @@ export async function createSanityStravaOrder(orderData: StravaOrder) {
     submittedAt: orderData.submittedAt.toISOString(),
   }
 
-  return sanity.create(doc)
+  return sanityWrite.create(doc)
 }
 
 export async function updateSanityStravaOrder(docId: string, updates: Partial<StravaOrder>) {
@@ -59,11 +59,11 @@ export async function updateSanityStravaOrder(docId: string, updates: Partial<St
   if (updates.confirmedAt) patch.confirmedAt = updates.confirmedAt.toISOString()
   if (updates.completedAt) patch.completedAt = updates.completedAt.toISOString()
 
-  return sanity.patch(docId).set(patch).commit()
+  return sanityWrite.patch(docId).set(patch).commit()
 }
 
 export async function getStravaOrderBySanityId(sanityDocId: string) {
-  return sanity.fetch(
+  return sanityWrite.fetch(
     `*[_type == "stravaOrder" && _id == $id][0] ${STRAVA_ORDER_QUERY}`,
     { id: sanityDocId }
   )
