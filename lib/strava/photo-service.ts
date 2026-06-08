@@ -8,8 +8,19 @@ import { redisGet, redisSet, redisDel } from '@/lib/redis'
 import { sanityWrite } from '@/lib/sanity/client'
 import type { StravaOrderWithPhotos } from './types'
 
-// Import queue from workers
-import { photoUploadQueue, type PhotoUploadJobData } from '@/workers/queues'
+// Import queue from workers (only at runtime, not during build)
+let photoUploadQueue: any = null
+let PhotoUploadJobData: any = null
+
+// Lazy load at runtime only
+const getQueue = async () => {
+  if (!photoUploadQueue) {
+    const mod = await import('@/workers/queues')
+    photoUploadQueue = mod.photoUploadQueue
+    PhotoUploadJobData = mod.PhotoUploadJobData
+  }
+  return photoUploadQueue
+}
 
 const MINIO_BUCKET = process.env.STRAVA_MINIO_BUCKET ?? 'strava-orders'
 const PHOTO_SANITY_TTL_SECONDS = 30 * 24 * 60 * 60 // 30 days
@@ -50,23 +61,29 @@ export async function uploadResultPhotos(
 
     photoKeys.push(photoKey)
 
-    // Enqueue Sanity upload job
-    await photoUploadQueue.add(
-      'upload-photo-to-sanity',
-      {
-        photoKey,
-        orderId,
-        filename,
-        contentType: file.type,
-      } as PhotoUploadJobData,
-      {
-        attempts: 3,
-        backoff: {
-          type: 'exponential',
-          delay: 2000,
+    // Enqueue Sanity upload job (async lazy load to avoid build-time import of 'bull')
+    try {
+      const queue = await getQueue()
+      await queue.add(
+        'upload-photo-to-sanity',
+        {
+          photoKey,
+          orderId,
+          filename,
+          contentType: file.type,
         },
-      }
-    )
+        {
+          attempts: 3,
+          backoff: {
+            type: 'exponential',
+            delay: 2000,
+          },
+        }
+      )
+    } catch (err) {
+      // Queue enqueue failed, but files are already in MinIO
+      console.warn(`Failed to enqueue Sanity upload for ${photoKey}:`, err)
+    }
   }
 
   // Update PostgreSQL with photo keys
