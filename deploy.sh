@@ -83,7 +83,11 @@ docker run -d \
 echo "✅  stl-service deployed."
 
 # ── Deploy shopee-dashboard ────────────────────────────────────────────────────
-echo "🚀  Deploying $DEPLOY_IMAGE ke $DOCKER_HOST..."
+# Capture build date and git hash for version footer
+BUILD_DATE=$(date +%Y%m%d)
+BUILD_HASH=$(git rev-parse --short=5 HEAD 2>/dev/null || echo "00000")
+
+echo "🚀  Deploying $DEPLOY_IMAGE ke $DOCKER_HOST (version: $BUILD_DATE.$BUILD_HASH)..."
 
 docker stop "$CONTAINER" 2>/dev/null && echo "   stopped $CONTAINER" || true
 docker rm   "$CONTAINER" 2>/dev/null && echo "   removed $CONTAINER" || true
@@ -94,6 +98,8 @@ docker run -d \
   --network homelab \
   -p 3100:3000 \
   -v "$DATA_VOLUME:/app/data" \
+  -e NEXT_PUBLIC_BUILD_DATE="$BUILD_DATE" \
+  -e NEXT_PUBLIC_BUILD_HASH="$BUILD_HASH" \
   -e DATABASE_URL="$DATABASE_URL" \
   -e NEXTAUTH_URL="$NEXTAUTH_URL" \
   -e NEXTAUTH_SECRET="$NEXTAUTH_SECRET" \
