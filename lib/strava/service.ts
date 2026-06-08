@@ -26,7 +26,7 @@ export async function createStravaOrder(input: CreateStravaOrderInput): Promise<
       customerName: input.customerName,
       customerEmail: input.customerEmail,
       customerPhone: input.customerPhone,
-      items: input.items,
+      items: input.items as any,  // JSON field
       totalAmount: input.totalAmount,
       status: 'pending',
       submittedAt: now,
