@@ -2,6 +2,7 @@
 
 import { useStravaOrders, usePatchStravaOrder } from "@/lib/hooks/use-cms"
 import { CollectionList } from "./shared/CollectionList"
+import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
 import type { StravaOrder } from "@/lib/sanity/types"
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
@@ -21,12 +22,10 @@ export function StravaOrdersManager() {
 
   return (
     <div className="p-6 space-y-4">
-      <div>
-        <h2 className="text-[15px] font-bold text-white">🗺️ Strava Map Orders</h2>
-        <p className="text-[12px] mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>
-          {items.length} total{newCount > 0 ? ` · ${newCount} baru perlu diproses` : ""}
-        </p>
-      </div>
+      <GlassPageHeader
+        title="🗺️ Strava Map Orders"
+        subtitle={`${items.length} total${newCount > 0 ? ` · ${newCount} baru perlu diproses` : ""}`}
+      />
 
       <CollectionList
         items={items}
@@ -62,25 +61,6 @@ export function StravaOrdersManager() {
               <div className="text-[11px]" style={{ color: "rgba(255,255,255,0.4)" }}>
                 {new Date(item.submittedAt).toLocaleDateString("id-ID")}
               </div>
-            ),
-          },
-          {
-            key: "download",
-            label: "",
-            width: "44px",
-            render: (item: StravaOrder) => (
-              <a
-                href={`/api/cms/strava-orders/${item._id}/config`}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="Download config JSON"
-                className="flex items-center justify-center w-8 h-8 rounded-[6px] transition-opacity hover:opacity-80"
-                style={{ background: "rgba(99,102,241,0.15)", color: "rgba(165,180,252,0.9)" }}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
-                </svg>
-              </a>
             ),
           },
           {
