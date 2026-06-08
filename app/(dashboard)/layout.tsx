@@ -53,9 +53,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </main>
 
       <MobileBottomNav role={session.user.role} badges={badges} userName={userName} />
-      {/* Build version footer */}
-      <div className="relative z-10 text-center pb-2 pt-1">
-        <span className="text-[10px] font-mono" style={{ color: "rgba(255,255,255,0.12)" }}>
+      {/* Build version footer — sticky at bottom (mobile above nav, desktop at page bottom) */}
+      <div className="fixed bottom-0 left-0 right-0 z-20 text-center pb-14 md:pb-4 md:text-right md:pr-4">
+        <span className="text-[8px] md:text-[10px] font-mono" style={{ color: "rgba(255,255,255,0.12)" }}>
           {`© 3dprintingbandung 2026 · ${process.env.NEXT_PUBLIC_BUILD_DATE}.${process.env.NEXT_PUBLIC_BUILD_HASH}`}
         </span>
       </div>
