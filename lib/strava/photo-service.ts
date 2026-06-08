@@ -131,6 +131,7 @@ export async function getResultPhotosWithUrls(
   return {
     ...order,
     customerPhone: order.customerPhone ?? undefined,  // Convert null to undefined
+    items: (Array.isArray(order.items) ? order.items : []) as any,  // Ensure items is array
     submittedAt: new Date(order.submittedAt),
     confirmedAt: order.confirmedAt ? new Date(order.confirmedAt) : undefined,
     completedAt: order.completedAt ? new Date(order.completedAt) : undefined,
