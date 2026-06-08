@@ -172,17 +172,10 @@ export async function uploadPhotoToSanity(
   }
   const buffer = Buffer.concat(chunks)
 
-  // Upload to Sanity with metadata
+  // Upload to Sanity
   const expiresAt = new Date(Date.now() + PHOTO_SANITY_TTL_SECONDS * 1000)
   const asset = await sanityWrite.assets.upload('file', buffer, {
     filename,
-    metadata: {
-      source: 'strava-orders',
-      orderId,
-      uploadedAt: new Date().toISOString(),
-      expiresAt: expiresAt.toISOString(),
-      _type: 'sanity.fileAsset',
-    },
   })
 
   // Cache in Redis with TTL
