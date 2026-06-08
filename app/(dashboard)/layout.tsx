@@ -58,6 +58,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <span className="text-[10px] font-mono" style={{ color: "rgba(255,255,255,0.12)" }}>
           {`© 3dprintingbandung 2026 · ${process.env.NEXT_PUBLIC_BUILD_DATE}.${process.env.NEXT_PUBLIC_BUILD_HASH}`}
         </span>
+      </div>
     </div>
   )
 }

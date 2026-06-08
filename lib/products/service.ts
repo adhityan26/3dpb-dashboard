@@ -173,7 +173,7 @@ export async function getProductsPage(
   type WhereInput = NonNullable<Parameters<typeof prisma.shopeeProductIndex.findMany>[0]>["where"]
   const where: WhereInput = {}
   if (q && q.trim() !== "") {
-    where.name = { contains: q.trim(), mode: "insensitive" }
+    where.name = { contains: q.trim() }
   }
   if (status && status !== "all") {
     where.status = status.toUpperCase()
