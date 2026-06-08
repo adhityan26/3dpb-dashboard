@@ -53,6 +53,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
       </main>
 
       <MobileBottomNav role={session.user.role} badges={badges} userName={userName} />
+      {/* Build version footer */}
+      <div className="relative z-10 text-center pb-2 pt-1">
+        <span className="text-[10px] font-mono" style={{ color: "rgba(255,255,255,0.12)" }}>
+          © 3dprintingbandung 2026 · 20260608.7bfd5
+        </span>
     </div>
   )
 }
