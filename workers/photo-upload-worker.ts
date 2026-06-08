@@ -12,7 +12,7 @@ import { uploadPhotoToSanity } from '@/lib/strava/photo-service'
  * Process photo upload jobs
  * Downloads from MinIO → uploads to Sanity → caches asset ID in Redis
  */
-photoUploadQueue.process(async (job) => {
+photoUploadQueue.process(async (job: any) => {
   const { photoKey, orderId, filename, contentType } = job.data as PhotoUploadJobData
 
   console.log(`[photo-upload] Processing: ${photoKey}`)
