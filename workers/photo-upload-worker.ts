@@ -5,8 +5,11 @@
  * Processes jobs enqueued by uploadResultPhotos in photo-service.ts
  */
 
-import { photoUploadQueue, type PhotoUploadJobData } from './queues'
+// import { photoUploadQueue, type PhotoUploadJobData } from './queues'  // bull not available at build time
 import { uploadPhotoToSanity } from '@/lib/strava/photo-service'
+
+// Queue setup is deferred to runtime in a Node.js worker process
+const photoUploadQueue: any = null
 
 /**
  * Process photo upload jobs
