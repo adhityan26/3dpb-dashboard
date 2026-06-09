@@ -127,10 +127,19 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
         marginTier,
         // Use actual Shopee price from linked product if available, otherwise manual input
         (shopeeIsLocked ? linkedShopeePrice : hargaShopee) ?? undefined,
-        customRiskEnabled ? customRiskPct : undefined
+        customRiskEnabled ? customRiskPct : undefined,
+        produktType === 'HELM' ? {
+          finishType,
+          jamSanding,
+          jamPainting,
+          jamAssembly,
+          flatFinishingCost,
+          preparerRatePerJam: ratesData.preparerRatePerJam,
+          finisherRatePerJam: ratesData.finisherRatePerJam,
+        } : undefined
       )
     } catch { return null }
-  }, [plates, aksesori, batch, marginTier, hargaShopee, shopeeIsLocked, linkedShopeePrice, ratesData, customRiskEnabled, customRiskPct])
+  }, [plates, aksesori, batch, marginTier, hargaShopee, shopeeIsLocked, linkedShopeePrice, ratesData, customRiskEnabled, customRiskPct, produktType, finishType, jamSanding, jamPainting, jamAssembly, flatFinishingCost])
 
   // Round up to nearest 5000 for placeholder suggestions
   function roundUp5000(n: number): number {
