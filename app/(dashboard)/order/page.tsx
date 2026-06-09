@@ -194,7 +194,7 @@ function StravaOrderView() {
 
   return (
     <div className="space-y-4">
-      <StravaOrderList orders={data.orders} onStatusChange={() => {}} onViewDetails={() => {}} />
+      <StravaOrderList orders={data.orders as any} onStatusChange={() => {}} onViewDetails={() => {}} />
     </div>
   )
 }
