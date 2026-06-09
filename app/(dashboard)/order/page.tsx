@@ -165,7 +165,7 @@ function StravaOrderView() {
 
   if (isLoading) {
     return (
-      <div className="py-12 text-center text-gray-400">Memuat order Strava...</div>
+      <div className="py-12 text-center g-t3">Memuat order Strava...</div>
     )
   }
 
@@ -173,7 +173,7 @@ function StravaOrderView() {
     const msg = error instanceof Error ? error.message : "Unknown error"
     return (
       <div className="py-12 text-center space-y-3">
-        <div className="text-red-500">{msg}</div>
+        <div style={{ color: "rgba(252, 165, 165, 0.8)" }}>{msg}</div>
         <div>
           <Button variant="outline" size="sm" onClick={() => refetch()}>
             Coba lagi
@@ -185,7 +185,7 @@ function StravaOrderView() {
 
   if (!data || !data.orders || data.orders.length === 0) {
     return (
-      <div className="py-12 text-center text-gray-400">
+      <div className="py-12 text-center g-t4">
         Tidak ada order Strava
       </div>
     )
@@ -193,22 +193,7 @@ function StravaOrderView() {
 
   return (
     <div className="space-y-4">
-      <div className="text-sm text-gray-500">
-        {data.orders.length} order Strava ditemukan
-      </div>
-      <div className="grid gap-4">
-        {data.orders.map((order) => (
-          <div
-            key={order.id}
-            className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm"
-          >
-            <div className="font-medium">{order.id}</div>
-            <pre className="mt-2 text-xs overflow-auto">
-              {JSON.stringify(order, null, 2)}
-            </pre>
-          </div>
-        ))}
-      </div>
+      <StravaOrderList orders={data.orders} onStatusChange={() => {}} onViewDetails={() => {}} />
     </div>
   )
 }
@@ -234,42 +219,34 @@ export default function OrderPage() {
       </GlassPageHeader>
 
       <div className="flex gap-4">
-        {/* Sidebar Navigation */}
-        <div className="w-40 space-y-2">
-          <button
-            onClick={() => setChannel("shopee")}
-            className={`w-full rounded-md px-3 py-2 text-sm font-medium text-left transition-colors ${
-              channel === "shopee"
-                ? "bg-[#EE4D2D] text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            Shopee
-          </button>
-          <button
-            onClick={() => setChannel("light-generator")}
-            className={`w-full rounded-md px-3 py-2 text-sm font-medium text-left transition-colors ${
-              channel === "light-generator"
-                ? "bg-blue-600 text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            Light Generator
-          </button>
-          <button
-            onClick={() => setChannel("strava")}
-            className={`w-full rounded-md px-3 py-2 text-sm font-medium text-left transition-colors ${
-              channel === "strava"
-                ? "bg-orange-600 text-white"
-                : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-            }`}
-          >
-            Strava
-          </button>
+        {/* Sidebar Navigation - Glass Design */}
+        <div
+          className="w-40 flex-shrink-0 flex flex-col gap-[2px] p-2 rounded-[12px]"
+          style={{
+            background: "rgba(255,255,255,0.03)",
+            border: "1px solid rgba(99,102,241,0.15)",
+          }}
+        >
+          {["shopee", "light-generator", "strava"].map((ch) => (
+            <button
+              key={ch}
+              onClick={() => setChannel(ch as ChannelType)}
+              className="flex items-center px-2 py-[6px] rounded-[8px] w-full text-left transition-all"
+              style={{
+                background: channel === ch ? "rgba(99,102,241,0.2)" : "transparent",
+                border: channel === ch ? "1px solid rgba(99,102,241,0.35)" : "1px solid transparent",
+                color: channel === ch ? "white" : "rgba(255,255,255,0.45)",
+              }}
+            >
+              <span className="text-[11px] font-medium capitalize">
+                {ch.replace("-", " ")}
+              </span>
+            </button>
+          ))}
         </div>
 
         {/* Content Area */}
-        <div className="flex-1">
+        <div className="flex-1 overflow-auto">
           {channel === "shopee" && <ShopeeOrderView />}
           {channel === "light-generator" && <LightGeneratorOrderView />}
           {channel === "strava" && <StravaOrderView />}
