@@ -58,7 +58,7 @@ export function hitungKalkulasi(
     const testCost = matHpp * testPct
 
     const hpp  = matHpp  + mesin + failureCost * (1 - spread) + testCost
-    const jual = matJual + mesin + failureCost * spread * (matJual > 0 ? matHpp > 0 ? matJual / matHpp : 1 : 1)
+    const jual = matJual + mesin + failureCost * spread
 
     return { hpp, jual }
   }
