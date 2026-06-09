@@ -14,12 +14,11 @@ import { useInvoiceList } from "@/lib/hooks/use-invoice"
 import { useStravaOrders } from "@/lib/hooks/use-strava-orders"
 import { Button } from "@/components/ui/button"
 import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
+import { OrderSidebar, type OrderChannel } from "@/components/order/OrderSidebar"
 import { StravaOrderList } from "@/components/order/StravaOrderList"
 import { InvoiceForm } from "@/components/invoice/InvoiceForm"
 import type { OrderSummary } from "@/lib/orders/types"
 import type { OrderPrefill } from "@/lib/invoice/types"
-
-type ChannelType = "shopee" | "light-generator" | "strava"
 
 // ── ShopeeOrderView ────────────────────────────────────────────────────────
 
@@ -212,7 +211,7 @@ function LightGeneratorOrderView() {
 // ── OrderPage ──────────────────────────────────────────────────────────────
 
 export default function OrderPage() {
-  const [channel, setChannel] = useState<ChannelType>("shopee")
+  const [channel, setChannel] = useState<OrderChannel>("shopee")
 
   return (
     <div className="space-y-4">
@@ -220,33 +219,9 @@ export default function OrderPage() {
       </GlassPageHeader>
 
       <div className="flex gap-4">
-        {/* Sidebar Navigation - Glass Design */}
-        <div
-          className="w-40 flex-shrink-0 flex flex-col gap-[2px] p-2 rounded-[12px]"
-          style={{
-            background: "rgba(255,255,255,0.03)",
-            border: "1px solid rgba(99,102,241,0.15)",
-          }}
-        >
-          {["shopee", "light-generator", "strava"].map((ch) => (
-            <button
-              key={ch}
-              onClick={() => setChannel(ch as ChannelType)}
-              className="flex items-center px-2 py-[6px] rounded-[8px] w-full text-left transition-all"
-              style={{
-                background: channel === ch ? "rgba(99,102,241,0.2)" : "transparent",
-                border: channel === ch ? "1px solid rgba(99,102,241,0.35)" : "1px solid transparent",
-                color: channel === ch ? "white" : "rgba(255,255,255,0.45)",
-              }}
-            >
-              <span className="text-[11px] font-medium capitalize">
-                {ch.replace("-", " ")}
-              </span>
-            </button>
-          ))}
-        </div>
+        <OrderSidebar active={channel} onChange={(ch) => setChannel(ch)} />
 
-        {/* Content Area */}
+                {/* Content Area */}
         <div className="flex-1 overflow-auto">
           {channel === "shopee" && <ShopeeOrderView />}
           {channel === "light-generator" && <LightGeneratorOrderView />}
