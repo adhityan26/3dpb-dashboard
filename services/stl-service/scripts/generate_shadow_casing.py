@@ -574,7 +574,10 @@ def build_stencil_wall(smooth_mask: np.ndarray,
     # z range: base to where r_wall_min ray reaches floor_half
     # Using min r_wall so the stencil covers all angles fully
     r_min = r_wall_arr.min()
-    z_min_s = base_z
+    # Start 0.5mm below base top so the wall interpenetrates the base plate —
+    # a coplanar butt-join makes the combined STL non-manifold and risks
+    # wall/base separation during slicing.
+    z_min_s = max(base_z - 0.5, 0.0)
     z_max_s = min(shell_height, lz * (1.0 - r_min / floor_half))
     if z_max_s <= z_min_s:
         raise ValueError(
@@ -1000,7 +1003,10 @@ def build_stencil_wall_sdf_surface(
     r_scale = half_px / floor_half
 
     r_min = r_wall_arr.min()
-    z_min_s = base_z
+    # Start 0.5mm below base top so the wall interpenetrates the base plate —
+    # a coplanar butt-join makes the combined STL non-manifold and risks
+    # wall/base separation during slicing.
+    z_min_s = max(base_z - 0.5, 0.0)
     z_max_s = min(shell_height, lz * (1.0 - r_min / floor_half))
     if z_max_s <= z_min_s:
         raise ValueError(
@@ -2604,6 +2610,7 @@ def run(
     decimate_ratio       = 0.0,    # 0=off, 0.8=keep 20% of faces (quadric decimation)
     led_socket_height    = 10.0,    # mm — height of LED mount above pillar top
     min_bridge_mm        = 1.2,    # minimum feature width on FLOOR plane (mm); guarantees ~0.3mm wall after anamorphic compression
+    edge_blur_sigma      = 1.0,    # grid-cell blur on thickness field; smooths the staircase introduced by the min-thickness floor
 ):
     """
     Build shadow casing — three components:
@@ -2643,7 +2650,11 @@ def run(
         add_watermark = overrides["add_watermark"]
         min_wall_mm = overrides["min_wall_mm"]
 
-    os.makedirs('output', exist_ok=True)
+    # Create parent dirs for all output paths (no chdir needed by callers)
+    for _out in (output_stl, output_debug, output_mesh_prev, output_shadow_comp):
+        _d = os.path.dirname(str(_out))
+        if _d:
+            os.makedirs(_d, exist_ok=True)
 
     # floor_z = bottom of the raised floor plate.
     # casing_lift floats the whole casing above z=0 to leave room for the
@@ -2816,6 +2827,7 @@ def run(
             shadow_offset_x=shadow_offset_x,
             shadow_offset_y=shadow_offset_y,
             min_bridge_mm=min_bridge_mm,
+            edge_blur_sigma=edge_blur_sigma,
             support_stems=support_stems,
             stem_width=stem_width,
         )
@@ -2886,7 +2898,7 @@ def run(
         led_holder = None
     else:
         led_holder = build_led_holder(
-            start_z        = base_z,
+            start_z        = max(base_z - 0.5, 0.0),  # interpenetrate base for manifold join
             z_light        = z_light - led_socket_height,
             pillar_outer_r = pillar_outer_r,
             pillar_inner_r = pillar_inner_r,

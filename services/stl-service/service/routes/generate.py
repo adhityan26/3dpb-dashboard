@@ -1,15 +1,17 @@
 """POST /generate — full STL build (synchronous, ~10-60 seconds)."""
+import asyncio
 import contextlib
 import io
 import json
-import os
-import sys
+import logging
+import sys  # noqa: F401 — needed for scripts path injection below
 import tempfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import Response
 from pydantic import ValidationError
+from starlette.concurrency import run_in_threadpool
 
 from service.auth import require_bearer_token
 from service.schemas import GeneratorConfig
@@ -21,7 +23,14 @@ if str(_SCRIPTS_DIR) not in sys.path:
 
 from generate_shadow_casing import run as generator_run  # noqa: E402
 
+logger = logging.getLogger("stl-service.generate")
+
 router = APIRouter()
+
+# The generator is CPU-bound and uses redirect_stdout (process-global) for log
+# capture — serialize generations. One at a time is fine at this scale; the
+# lock + threadpool keeps the event loop (and /health) responsive meanwhile.
+_generate_lock = asyncio.Lock()
 
 
 @router.post(
@@ -84,20 +93,16 @@ async def generate(
         out_mesh_prev = tmp / "mesh_preview.png"
         out_shadow_comp = tmp / "shadow_comparison.png"
 
-        # The generator writes to ./output by default. Force it into our
-        # temp dir by chdir-ing — generator's `os.makedirs('output', ...)`
-        # then creates the dir inside our tmpdir, not the project root.
-        prev_cwd = Path.cwd()
-        try:
-            os.chdir(tmp)
+        # Build kwargs from the validated config. The config may
+        # already include merged_builder, so we set it as a
+        # default that the config can override.
+        gen_kwargs = {
+            'merged_builder': True,
+            **validated.model_dump(exclude_none=True),
+        }
+
+        def _run_generator():
             with contextlib.redirect_stdout(log_buf):
-                # Build kwargs from the validated config. The config may
-                # already include merged_builder, so we set it as a
-                # default that the config can override.
-                gen_kwargs = {
-                    'merged_builder': True,
-                    **validated.model_dump(exclude_none=True),
-                }
                 generator_run(
                     input_image        = str(input_path),
                     output_stl         = str(out_stl),
@@ -106,18 +111,26 @@ async def generate(
                     output_shadow_comp = str(out_shadow_comp),
                     **gen_kwargs,
                 )
-        except (ValueError, RuntimeError) as e:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Generator rejected input: {e}",
-            )
-        except Exception as e:  # pragma: no cover - unexpected
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Generator crashed: {e}",
-            )
-        finally:
-            os.chdir(prev_cwd)
+
+        async with _generate_lock:
+            try:
+                await run_in_threadpool(_run_generator)
+            except (ValueError, RuntimeError) as e:
+                logger.warning("generator rejected input: %s\n--- generator log ---\n%s",
+                               e, log_buf.getvalue())
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Generator rejected input: {e}",
+                )
+            except Exception as e:  # pragma: no cover - unexpected
+                logger.error("generator crashed: %s\n--- generator log ---\n%s",
+                             e, log_buf.getvalue())
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail=f"Generator crashed: {e}",
+                )
+
+        logger.info("generation OK\n--- generator log ---\n%s", log_buf.getvalue())
 
         if not out_stl.exists():
             raise HTTPException(

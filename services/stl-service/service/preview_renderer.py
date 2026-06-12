@@ -45,15 +45,19 @@ _PREVIEW_DEFAULTS: dict = {
     "light_x":           0.0,
     "light_y":           0.0,
     "light_z_offset":    10.0,
-    "edge_smooth_sigma": 5.0,
+    # These MUST mirror generate_shadow_casing.run() defaults — a preview rendered
+    # with different smoothing/stems/dilation misleads the operator about exactly
+    # the artifacts they need to judge (thin-line survival, stem visibility).
+    "edge_smooth_sigma": 2.0,
     "shadow_threshold":  0.0,
-    "mask_upsample":     2,
+    "mask_upsample":     4,
     "invert_mask":       False,
     "n_stencil_theta":   512,
     "n_stencil_z":       128,
     "flooring_shape":    None,
-    "support_stems":     False,
+    "support_stems":     True,
     "stem_width":        2,
+    "min_bridge_mm":     1.2,
     "shadow_res":        512,
 }
 
@@ -123,7 +127,7 @@ def render_shadow_preview(image_path: str, config: dict | None = None) -> bytes:
     if raw_mask is None or raw_mask.size == 0:
         raise ValueError(f"Could not load silhouette image: {image_path}")
 
-    smooth_mask, _sdf = prepare_sdf_mask(
+    smooth_mask, sdf = prepare_sdf_mask(
         raw_mask,
         p["edge_smooth_sigma"],
         p["shadow_threshold"],
@@ -184,7 +188,15 @@ def render_shadow_preview(image_path: str, config: dict | None = None) -> bytes:
         0, h_mask - 1,
     )
 
-    stencil = (smooth_mask[PY, PX] > 0)
+    # Sample the SDF and apply the same min_bridge_mm dilation the mesh builder
+    # uses, so the preview shows the stroke widths that will actually print.
+    min_bridge_mm = float(p.get("min_bridge_mm", 0.0))
+    if min_bridge_mm > 0:
+        mm_per_px = floor_half / half_px
+        dilation_px = (min_bridge_mm / 2.0) / mm_per_px
+        stencil = (sdf[PY, PX] + dilation_px) > 0
+    else:
+        stencil = (smooth_mask[PY, PX] > 0)
     stencil[R_fl > floor_half * 1.02] = False
 
     if bool(p["support_stems"]):
