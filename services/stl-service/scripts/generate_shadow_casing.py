@@ -69,7 +69,7 @@ SHADOW_OFFSET_Y      = 0.0     # shift shadow centre on floor in Y (mm) without 
 SUPPORT_STEMS        = True    # auto-ground floating wall islands with thin base stems
 
 # Smoothness (SDF + Gaussian)
-EDGE_SMOOTH_SIGMA    = 5.0     # Gaussian σ on SDF (image pixels); higher = smoother edges
+EDGE_SMOOTH_SIGMA    = 2.0     # Gaussian σ on SDF (image pixels); lowered from 5.0 — high σ erodes thin strokes
 SHADOW_THRESHOLD     = 0.0     # SDF threshold (0 = exact boundary; + erodes; − dilates)
 MASK_UPSAMPLE        = 4       # upsample factor before SDF (higher = finer SDF; 4 recommended)
 
@@ -214,7 +214,9 @@ def prepare_sdf_mask(mask: np.ndarray,
     sdf = dist_in - dist_out
 
     if smooth_sigma > 0:
-        sdf_smooth = cv2.GaussianBlur(sdf, (0, 0), smooth_sigma * upsample)
+        sdf_blur = cv2.GaussianBlur(sdf, (0, 0), smooth_sigma * upsample)
+        # Preserve thin strokes: blur smooths boundaries but must not sink solid ridges below 0
+        sdf_smooth = np.where(sdf > 0, np.maximum(sdf_blur, sdf * 0.5), sdf_blur)
     else:
         sdf_smooth = sdf
 
@@ -1052,6 +1054,11 @@ def build_stencil_wall_sdf_surface(
 
     # ── Compute thickness fraction: 0 (hole) to 1 (solid) ──
     thickness_frac = np.clip(sdf_grid / max(transition_width, 0.1), 0.0, 1.0)
+    # Enforce minimum radial thickness for solid cells — thin strokes get full wall depth
+    # without this, a narrow stroke (SDF peak < transition_width) tapers to near-zero radial thickness
+    _MIN_THICK_FRAC = 0.7  # at least 70% of shell_thickness (e.g. 2.1mm of 3.0mm)
+    solid_mask = sdf_grid > 0
+    thickness_frac[solid_mask] = np.maximum(thickness_frac[solid_mask], _MIN_THICK_FRAC)
 
     # ── Also compute binary stencil for shadow simulation ──
     PX_i = PX_c.astype(np.int32)
@@ -2596,7 +2603,7 @@ def run(
     add_watermark        = False,
     decimate_ratio       = 0.0,    # 0=off, 0.8=keep 20% of faces (quadric decimation)
     led_socket_height    = 10.0,    # mm — height of LED mount above pillar top
-    min_bridge_mm        = 0.0,    # 0=off. Dilate solid regions for printable thin bridges.
+    min_bridge_mm        = 1.2,    # minimum feature width on FLOOR plane (mm); guarantees ~0.3mm wall after anamorphic compression
 ):
     """
     Build shadow casing — three components:
