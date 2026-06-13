@@ -10,6 +10,7 @@ interface LgGeneratePanelProps {
   orderId: string
   config: Record<string, unknown>
   initialStlReady?: boolean
+  hasSilhouette?: boolean
 }
 
 const PLA_PLUS_DENSITY = 1.24
@@ -117,7 +118,7 @@ function computeObjectInfo(config: Record<string, unknown>) {
   }
 }
 
-export function LgGeneratePanel({ orderId, config, initialStlReady }: LgGeneratePanelProps) {
+export function LgGeneratePanel({ orderId, config, initialStlReady, hasSilhouette = true }: LgGeneratePanelProps) {
   const [isPending, startTransition] = useTransition()
   const [stlGeneration, setStlGeneration] = useState(0)
   const [stlReady, setStlReady] = useState(!!initialStlReady)
@@ -212,11 +213,14 @@ export function LgGeneratePanel({ orderId, config, initialStlReady }: LgGenerate
 
         {feedback && <p className="text-sm">{feedback}</p>}
 
+        {!hasSilhouette && (
+          <p className="text-sm text-amber-600">Upload silhouette dulu sebelum generate.</p>
+        )}
         <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={handleGenerateStl} disabled={isPending}>
+          <Button onClick={handleGenerateStl} disabled={isPending || !hasSilhouette}>
             {isPending ? "Working..." : "Generate STL"}
           </Button>
-          <Button variant="outline" onClick={handleShadowPreview} disabled={isPending}>
+          <Button variant="outline" onClick={handleShadowPreview} disabled={isPending || !hasSilhouette}>
             <Eye className="size-4 mr-1" />
             Shadow Preview
           </Button>

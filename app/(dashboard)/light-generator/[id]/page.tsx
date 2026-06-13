@@ -203,6 +203,7 @@ export default function LgOrderDetailPage({ params }: { params: Promise<{ id: st
             orderId={id}
             config={mergedConfig}
             initialStlReady={!!order.stlPath}
+            hasSilhouette={!!order.imagePath}
           />
           <Card>
             <CardHeader><CardTitle>Operator Notes</CardTitle></CardHeader>
