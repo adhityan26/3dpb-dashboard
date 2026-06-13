@@ -25,6 +25,7 @@ The `LightGeneratorOrderView` in `app/(dashboard)/order/page.tsx` is currently a
 - **Use case: internal experimentation** — customer fields are auto-filled, not operator-entered.
 - **Distinguish via `isInternal` boolean** on `LightGeneratorOrder` — clean filtering, keeps the pending-order badge accurate.
 - **Entry point: LG tab on the Order page** — build out the placeholder view with a DB-backed list + create button.
+- **Everything inline** — no navigation to `/light-generator/[id]`. The list and the full editor (upload → config → generate → download) live in the same LG tab via a master-detail layout. The existing detail-page components are reused in place.
 
 ## Architecture
 
@@ -67,11 +68,15 @@ Existing customer orders default to `false` — no backfill needed. Add `@@index
 - `useLgOrders(status?, internal?)` — extend to pass `internal` as a query param; include it in the query key.
 - `useCreateInternalLgOrder()` — mutation POSTing to `/api/light-generator/orders`; on success invalidate the internal-orders query and return the new order (caller navigates to `/light-generator/[id]`).
 
-**`components/light-generator/LgInternalOrdersView.tsx`** (new)
-- Header with "Buat Order Internal" button (optional label input — keep minimal: button creates with default "Internal" name; rename later via existing notes/config if needed).
-- List of internal orders (`useLgOrders(undefined, true)`): id, status badge, createdAt, thumbnail-less row → click navigates to `/light-generator/[id]`.
-- Empty state: prompt to create the first one.
-- On create success → `router.push('/light-generator/${newOrder.id}')`.
+**`components/light-generator/LgInternalOrdersView.tsx`** (new) — master-detail, fully inline (no navigation):
+- **Left (list/master):** "Buat Order Internal" button + list of internal orders (`useLgOrders(undefined, true)`): id, status badge, createdAt. Selecting a row sets `selectedId` state. Empty state prompts to create the first one.
+- **Right (editor/detail):** when `selectedId` is set, render the existing editor components against that order, reusing exactly what the detail page uses:
+  - `useLgOrder(selectedId)` to load the order
+  - `LgImageSlot` (silhouette upload)
+  - `LgConfigEditor` (config)
+  - `LgGeneratePanel` (generate + preview + download STL)
+- On create success → set `selectedId` to the new order's id (no `router.push`).
+- The shared editor markup (image slot + config + generate panel + generate guard) is currently inline in `app/(dashboard)/light-generator/[id]/page.tsx`. Extract it into a reusable `components/light-generator/LgOrderEditor.tsx` that takes an `orderId` prop, so both the standalone detail page and this inline view render the identical editor. The detail page becomes a thin wrapper: `<LgOrderEditor orderId={id} />`.
 
 **`app/(dashboard)/order/page.tsx`**
 - Replace the `LightGeneratorOrderView` placeholder body with `<LgInternalOrdersView />`.
@@ -82,11 +87,11 @@ The generate flow downloads `order.imagePath`. For a fresh internal order `image
 
 ## Data flow
 
-1. Operator opens Order page → LG tab → sees internal order list.
-2. Clicks "Buat Order Internal" → POST → new DB row (`isInternal=true`, `imagePath=""`) → navigate to detail page.
+1. Operator opens Order page → LG tab → sees internal order list (left).
+2. Clicks "Buat Order Internal" → POST → new DB row (`isInternal=true`, `imagePath=""`) → editor opens inline (right), order selected.
 3. Uploads silhouette → PUT sets `imagePath` → Generate button enables.
 4. Adjusts config → Generate → STL built, uploaded to MinIO, `status=ready`.
-5. Downloads STL via the streamed `/stl` route.
+5. Downloads STL via the streamed `/stl` route — all without leaving the Order page.
 
 ## Error handling
 
