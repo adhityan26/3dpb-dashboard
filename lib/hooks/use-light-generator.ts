@@ -5,15 +5,17 @@ import type { LgOrder, SanityLgOrder, SanityLgOrderWithConfirmed } from "@/lib/l
 
 // ── Keys ────────────────────────────────────────────────────────────────────
 
-const LG_ORDERS_KEY = (status?: string) => ["lg-orders", status ?? "all"] as const
+const LG_ORDERS_KEY = (status?: string, internal?: boolean) =>
+  ["lg-orders", status ?? "all", internal ? "internal" : "customer"] as const
 const LG_ORDER_KEY = (id: string) => ["lg-order", id] as const
 const LG_SANITY_ORDERS_KEY = ["lg-sanity-orders"] as const
 
 // ── Fetchers ─────────────────────────────────────────────────────────────────
 
-async function fetchOrders(status?: string): Promise<{ orders: LgOrder[]; total: number }> {
+async function fetchOrders(status?: string, internal?: boolean): Promise<{ orders: LgOrder[]; total: number }> {
   const params = new URLSearchParams({ limit: "200" })
   if (status) params.set("status", status)
+  if (internal) params.set("internal", "true")
   const res = await fetch(`/api/light-generator/orders?${params}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()
@@ -33,10 +35,10 @@ async function fetchSanityOrders(): Promise<SanityLgOrderWithConfirmed[]> {
 
 // ── Hooks ─────────────────────────────────────────────────────────────────────
 
-export function useLgOrders(status?: string) {
+export function useLgOrders(status?: string, internal?: boolean) {
   return useQuery({
-    queryKey: LG_ORDERS_KEY(status),
-    queryFn: () => fetchOrders(status),
+    queryKey: LG_ORDERS_KEY(status, internal),
+    queryFn: () => fetchOrders(status, internal),
   })
 }
 
@@ -44,6 +46,27 @@ export function useLgOrder(id: string) {
   return useQuery({
     queryKey: LG_ORDER_KEY(id),
     queryFn: () => fetchOrder(id),
+  })
+}
+
+export function useCreateInternalLgOrder() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: async (label?: string) => {
+      const res = await fetch("/api/light-generator/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(label ? { label } : {}),
+      })
+      if (!res.ok) {
+        const j = await res.json().catch(() => ({})) as { error?: string }
+        throw new Error(j.error ?? `HTTP ${res.status}`)
+      }
+      return res.json() as Promise<LgOrder>
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lg-orders"] })
+    },
   })
 }
 
