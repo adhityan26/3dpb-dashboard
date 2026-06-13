@@ -70,7 +70,7 @@ function OrderTable({ orders }: { orders: LgOrder[] }) {
 
 function LightGeneratorPageInner() {
   const [activeStatus, setActiveStatus] = useState<LgStatus | "all">("all")
-  const { data: allData, isLoading } = useLgOrders() // always fetch all
+  const { data: allData, isLoading } = useLgOrders() // customer orders only — internal orders live in the Order tab
 
   // Count per status
   const counts: Record<string, number> = {}
