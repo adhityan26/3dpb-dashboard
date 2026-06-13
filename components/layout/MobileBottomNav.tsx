@@ -14,7 +14,6 @@ const ALL_TABS = [
   { href: "/produk",   label: "Produk",   icon: "🏷️", roles: ["OWNER", "ADMIN", "TEST_USER"] },
   { href: "/finance",  label: "Finance",  icon: "💰", roles: ["OWNER", "ADMIN"] },
   { href: "/landing",        label: "Landing",   icon: "🌐", roles: ["OWNER"] },
-  { href: "/light-generator", label: "Light Gen", icon: "💡", roles: ["OWNER"] },
   { href: "/settings",        label: "Settings",  icon: "⚙️", roles: ["OWNER"] },
 ]
 

@@ -33,9 +33,9 @@ export async function listLgOrders(opts: {
   limit?: number
   offset?: number
 }): Promise<{ orders: LgOrder[]; total: number }> {
-  const where: { status?: string; isInternal: boolean } = {
-    isInternal: opts.internal === true,
-  }
+  // internal: true → only internal, false → only customer, undefined → all
+  const where: { status?: string; isInternal?: boolean } = {}
+  if (opts.internal !== undefined) where.isInternal = opts.internal
   if (opts.status) where.status = opts.status
   const [orders, total] = await Promise.all([
     prisma.lightGeneratorOrder.findMany({

@@ -94,13 +94,22 @@ describe('listLgOrders() internal filter', () => {
     expect(where.isInternal).toBe(true)
   })
 
-  it('excludes internal orders by default', async () => {
+  it('returns only customer orders when internal=false', async () => {
+    mockPrisma.lightGeneratorOrder.findMany.mockResolvedValue([])
+    mockPrisma.lightGeneratorOrder.count.mockResolvedValue(0)
+
+    await listLgOrders({ internal: false })
+    const where = mockPrisma.lightGeneratorOrder.findMany.mock.calls[0][0].where
+    expect(where.isInternal).toBe(false)
+  })
+
+  it('returns all orders (no isInternal filter) by default', async () => {
     mockPrisma.lightGeneratorOrder.findMany.mockResolvedValue([])
     mockPrisma.lightGeneratorOrder.count.mockResolvedValue(0)
 
     await listLgOrders({})
     const where = mockPrisma.lightGeneratorOrder.findMany.mock.calls[0][0].where
-    expect(where.isInternal).toBe(false)
+    expect(where.isInternal).toBeUndefined()
   })
 })
 

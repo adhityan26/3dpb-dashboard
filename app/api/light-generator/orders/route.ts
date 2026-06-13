@@ -8,7 +8,9 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const status = searchParams.get("status") ?? undefined
-  const internal = searchParams.get("internal") === "true"
+  // internal: "true" → internal only, "false" → customer only, absent → all
+  const internalParam = searchParams.get("internal")
+  const internal = internalParam === null ? undefined : internalParam === "true"
   const limit = Number(searchParams.get("limit") ?? "100")
   const offset = Number(searchParams.get("offset") ?? "0")
 

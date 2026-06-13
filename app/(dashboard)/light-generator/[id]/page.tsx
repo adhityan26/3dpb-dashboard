@@ -81,7 +81,7 @@ export default function LgOrderDetailPage({ params }: { params: Promise<{ id: st
 
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Link href="/light-generator">
+        <Link href="/order">
           <Button variant="ghost" size="sm">&larr; Back</Button>
         </Link>
         <h1 className="text-xl font-semibold tracking-wide font-mono">{order.id}</h1>

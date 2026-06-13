@@ -1,7 +1,6 @@
 "use client"
 
 import { useMemo, useState } from "react"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { OrderKpiBar } from "@/components/order/OrderKpiBar"
 import {
@@ -15,8 +14,8 @@ import { useRefreshConfig } from "@/lib/use-refresh-config"
 import { useInvoiceList } from "@/lib/hooks/use-invoice"
 import { useStravaOrders } from "@/lib/hooks/use-strava-orders"
 import { useLgOrders, useCreateInternalLgOrder } from "@/lib/hooks/use-light-generator"
+import { LgOrderTable } from "@/components/light-generator/LgOrderTable"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
 import { OrderSidebar, type OrderChannel } from "@/components/order/OrderSidebar"
 import { StravaOrderList } from "@/components/order/StravaOrderList"
@@ -204,22 +203,49 @@ function StravaOrderView() {
 
 // ── LightGeneratorOrderView ────────────────────────────────────────────────
 
+type LgOwnership = "all" | "customer" | "internal"
+const LG_OWNERSHIP: { value: LgOwnership; label: string }[] = [
+  { value: "all", label: "Semua" },
+  { value: "customer", label: "Customer" },
+  { value: "internal", label: "Internal" },
+]
+
 function LightGeneratorOrderView() {
   const router = useRouter()
-  const { data, isLoading } = useLgOrders(undefined, true)
+  const { data, isLoading } = useLgOrders() // all orders (customer + internal)
   const createMut = useCreateInternalLgOrder()
+  const [ownership, setOwnership] = useState<LgOwnership>("all")
 
   async function handleCreate() {
     const order = await createMut.mutateAsync(undefined)
     router.push(`/light-generator/${order.id}`)
   }
 
-  const orders = data?.orders ?? []
+  const orders = useMemo(() => {
+    const all = data?.orders ?? []
+    if (ownership === "internal") return all.filter((o) => o.isInternal)
+    if (ownership === "customer") return all.filter((o) => !o.isInternal)
+    return all
+  }, [data, ownership])
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-medium text-muted-foreground">Order internal (eksperimen)</h2>
+      <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {LG_OWNERSHIP.map((f) => (
+            <button
+              key={f.value}
+              onClick={() => setOwnership(f.value)}
+              className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors
+                ${ownership === f.value
+                  ? "bg-indigo-600 text-white border-indigo-600"
+                  : "border-border text-muted-foreground hover:bg-muted"
+                }`}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
         <Button size="sm" onClick={handleCreate} disabled={createMut.isPending}>
           {createMut.isPending ? "Membuat..." : "+ Buat Order Internal"}
         </Button>
@@ -233,26 +259,8 @@ function LightGeneratorOrderView() {
 
       {isLoading ? (
         <p className="py-8 text-center text-muted-foreground">Memuat...</p>
-      ) : orders.length === 0 ? (
-        <p className="py-8 text-center text-muted-foreground">
-          Belum ada order internal. Klik &quot;Buat Order Internal&quot; untuk mulai.
-        </p>
       ) : (
-        <div className="space-y-2">
-          {orders.map((o) => (
-            <Link
-              key={o.id}
-              href={`/light-generator/${o.id}`}
-              className="flex items-center gap-3 rounded-md border px-4 py-3 hover:bg-muted/50 transition-colors"
-            >
-              <span className="font-mono text-sm">{o.id}</span>
-              <Badge variant="outline" className="capitalize">{o.status}</Badge>
-              <span className="ml-auto text-xs text-muted-foreground">
-                {new Date(o.createdAt).toLocaleDateString("id-ID")}
-              </span>
-            </Link>
-          ))}
-        </div>
+        <LgOrderTable orders={orders} />
       )}
     </div>
   )

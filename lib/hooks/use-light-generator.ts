@@ -6,7 +6,7 @@ import type { LgOrder, SanityLgOrder, SanityLgOrderWithConfirmed } from "@/lib/l
 // ── Keys ────────────────────────────────────────────────────────────────────
 
 const LG_ORDERS_KEY = (status?: string, internal?: boolean) =>
-  ["lg-orders", status ?? "all", internal ? "internal" : "customer"] as const
+  ["lg-orders", status ?? "all", internal === undefined ? "all" : internal ? "internal" : "customer"] as const
 const LG_ORDER_KEY = (id: string) => ["lg-order", id] as const
 const LG_SANITY_ORDERS_KEY = ["lg-sanity-orders"] as const
 
@@ -15,7 +15,7 @@ const LG_SANITY_ORDERS_KEY = ["lg-sanity-orders"] as const
 async function fetchOrders(status?: string, internal?: boolean): Promise<{ orders: LgOrder[]; total: number }> {
   const params = new URLSearchParams({ limit: "200" })
   if (status) params.set("status", status)
-  if (internal) params.set("internal", "true")
+  if (internal !== undefined) params.set("internal", String(internal))
   const res = await fetch(`/api/light-generator/orders?${params}`)
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
   return res.json()
