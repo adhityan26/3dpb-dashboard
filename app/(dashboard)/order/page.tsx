@@ -1,6 +1,8 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { OrderKpiBar } from "@/components/order/OrderKpiBar"
 import {
   OrderFilter,
@@ -12,7 +14,9 @@ import { useOrders, useMarkLabel } from "@/lib/hooks/use-orders"
 import { useRefreshConfig } from "@/lib/use-refresh-config"
 import { useInvoiceList } from "@/lib/hooks/use-invoice"
 import { useStravaOrders } from "@/lib/hooks/use-strava-orders"
+import { useLgOrders, useCreateInternalLgOrder } from "@/lib/hooks/use-light-generator"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
 import { OrderSidebar, type OrderChannel } from "@/components/order/OrderSidebar"
 import { StravaOrderList } from "@/components/order/StravaOrderList"
@@ -201,9 +205,55 @@ function StravaOrderView() {
 // ── LightGeneratorOrderView ────────────────────────────────────────────────
 
 function LightGeneratorOrderView() {
+  const router = useRouter()
+  const { data, isLoading } = useLgOrders(undefined, true)
+  const createMut = useCreateInternalLgOrder()
+
+  async function handleCreate() {
+    const order = await createMut.mutateAsync(undefined)
+    router.push(`/light-generator/${order.id}`)
+  }
+
+  const orders = data?.orders ?? []
+
   return (
-    <div className="py-12 text-center text-gray-400">
-      Light Generator order management coming soon
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-sm font-medium text-muted-foreground">Order internal (eksperimen)</h2>
+        <Button size="sm" onClick={handleCreate} disabled={createMut.isPending}>
+          {createMut.isPending ? "Membuat..." : "+ Buat Order Internal"}
+        </Button>
+      </div>
+
+      {createMut.isError && (
+        <p className="text-sm text-destructive">
+          Gagal membuat order: {createMut.error instanceof Error ? createMut.error.message : "Unknown error"}
+        </p>
+      )}
+
+      {isLoading ? (
+        <p className="py-8 text-center text-muted-foreground">Memuat...</p>
+      ) : orders.length === 0 ? (
+        <p className="py-8 text-center text-muted-foreground">
+          Belum ada order internal. Klik &quot;Buat Order Internal&quot; untuk mulai.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {orders.map((o) => (
+            <Link
+              key={o.id}
+              href={`/light-generator/${o.id}`}
+              className="flex items-center gap-3 rounded-md border px-4 py-3 hover:bg-muted/50 transition-colors"
+            >
+              <span className="font-mono text-sm">{o.id}</span>
+              <Badge variant="outline" className="capitalize">{o.status}</Badge>
+              <span className="ml-auto text-xs text-muted-foreground">
+                {new Date(o.createdAt).toLocaleDateString("id-ID")}
+              </span>
+            </Link>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
