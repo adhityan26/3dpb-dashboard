@@ -26,7 +26,7 @@ export default async function KeycapOrderDetailPage({ params }: Props) {
   return (
     <div className="space-y-6 p-6 max-w-3xl">
       <div className="flex items-center gap-4">
-        <Link href="/keycap" className="text-sm text-gray-400 hover:text-gray-700">← Orders</Link>
+        <Link href="/landing?section=keycap-orders" className="text-sm text-gray-400 hover:text-gray-700">← Orders</Link>
         <h1 className="text-xl font-semibold font-mono">{order.orderNumber}</h1>
         <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs">
           {KEYCAP_STATUS_LABELS[order.status] ?? order.status}

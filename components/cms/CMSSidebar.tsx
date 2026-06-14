@@ -1,20 +1,18 @@
 "use client"
 
-import Link from "next/link"
 import { useCmsCounts } from "@/lib/hooks/use-cms"
 
 type CmsSection =
   | "site-settings" | "gallery" | "testimonials" | "faq"
   | "strava-orders" | "waitlist" | "generator" | "faceshell"
-  | "lg-orders"
+  | "lg-orders" | "keycap-orders"
 
 interface NavItem {
-  section?: CmsSection  // omitted for href items (they navigate away, not switch section)
+  section: CmsSection
   icon: string
   label: string
   badge?: (counts: ReturnType<typeof useCmsCounts>["data"]) => number | null
   badgeVariant?: "default" | "alert"
-  href?: string  // when set, the item navigates to a standalone page instead of switching section
 }
 
 const NAV_ITEMS: NavItem[] = [
@@ -50,11 +48,11 @@ const NAV_ITEMS: NavItem[] = [
     badgeVariant: "alert",
   },
   {
+    section: "keycap-orders",
     icon: "⌨️",
     label: "Keycap Orders",
     badge: (c) => c?.keycapOrdersPending ?? null,
     badgeVariant: "alert",
-    href: "/keycap",
   },
 ]
 
@@ -83,16 +81,19 @@ export function CMSSidebar({ active, onChange }: CMSSidebarProps) {
       </div>
 
       {NAV_ITEMS.map((item) => {
-        const isActive = item.section != null && active === item.section
+        const isActive = active === item.section
         const badgeCount = item.badge?.(counts)
-        const rowClass = "flex items-center gap-2 px-2 py-[6px] rounded-[8px] w-full text-left transition-all"
-        const rowStyle = {
-          background: isActive ? "rgba(99,102,241,0.2)" : "transparent",
-          border: isActive ? "1px solid rgba(99,102,241,0.35)" : "1px solid transparent",
-          color: isActive ? "white" : "rgba(255,255,255,0.45)",
-        }
-        const inner = (
-          <>
+        return (
+          <button
+            key={item.section}
+            onClick={() => onChange(item.section)}
+            className="flex items-center gap-2 px-2 py-[6px] rounded-[8px] w-full text-left transition-all"
+            style={{
+              background: isActive ? "rgba(99,102,241,0.2)" : "transparent",
+              border: isActive ? "1px solid rgba(99,102,241,0.35)" : "1px solid transparent",
+              color: isActive ? "white" : "rgba(255,255,255,0.45)",
+            }}
+          >
             <span className="text-[13px]">{item.icon}</span>
             <span className="text-[11px] font-medium flex-1">{item.label}</span>
             {badgeCount != null && badgeCount > 0 && (
@@ -110,25 +111,6 @@ export function CMSSidebar({ active, onChange }: CMSSidebarProps) {
                 {badgeCount}
               </span>
             )}
-          </>
-        )
-
-        if (item.href) {
-          return (
-            <Link key={item.label} href={item.href} className={rowClass} style={rowStyle}>
-              {inner}
-            </Link>
-          )
-        }
-
-        return (
-          <button
-            key={item.section}
-            onClick={() => item.section && onChange(item.section)}
-            className={rowClass}
-            style={rowStyle}
-          >
-            {inner}
           </button>
         )
       })}

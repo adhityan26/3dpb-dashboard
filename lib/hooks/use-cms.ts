@@ -3,7 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import type {
   SiteSettings, GeneratorSettings, FaceshellSettings,
-  GalleryItem, Testimonial, FaqItem, StravaOrder, WaitlistEntry, CmsCounts
+  GalleryItem, Testimonial, FaqItem, StravaOrder, WaitlistEntry, CmsCounts, SanityKeycapOrder
 } from "@/lib/sanity/types"
 
 async function apiFetch<T>(url: string, opts?: RequestInit): Promise<T> {
@@ -181,6 +181,22 @@ export function usePatchStravaOrder() {
     mutationFn: ({ id, ...data }: { id: string; status?: string; adminNotes?: string }) =>
       apiFetch(`/api/cms/strava-orders/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["cms", "strava-orders"] }),
+  })
+}
+
+// ── Keycap Orders ───────────────────────────────────────────────
+export function useKeycapOrders() {
+  return useQuery({
+    queryKey: ["cms", "keycap-orders"],
+    queryFn: () => apiFetch<{ items: SanityKeycapOrder[] }>("/api/cms/keycap-orders").then(r => r.items),
+  })
+}
+export function usePatchKeycapOrder() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, ...data }: { id: string; status?: string; statusNote?: string | null }) =>
+      apiFetch(`/api/cms/keycap-orders/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["cms", "keycap-orders"] }),
   })
 }
 

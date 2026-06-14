@@ -13,11 +13,12 @@ import { WaitlistViewer } from "@/components/cms/WaitlistViewer"
 import { GeneratorEditor } from "@/components/cms/GeneratorEditor"
 import { FaceshellEditor } from "@/components/cms/FaceshellEditor"
 import { LgOrdersManager } from "@/components/cms/LgOrdersManager"
+import { KeycapOrdersManager } from "@/components/cms/KeycapOrdersManager"
 
 type CmsSection =
   | "site-settings" | "gallery" | "testimonials" | "faq"
   | "strava-orders" | "waitlist" | "generator" | "faceshell"
-  | "lg-orders"
+  | "lg-orders" | "keycap-orders"
 
 export default function LandingPage() {
   return (
@@ -61,6 +62,7 @@ function LandingPageInner() {
         {activeSection === "generator"       && <GeneratorEditor />}
         {activeSection === "faceshell"       && <FaceshellEditor />}
         {activeSection === "lg-orders"       && <LgOrdersManager />}
+        {activeSection === "keycap-orders"   && <KeycapOrdersManager />}
       </div>
     </div>
   )
