@@ -140,4 +140,53 @@ export interface CmsCounts {
   stravaOrdersNew: number
   waitlist: number
   lgOrdersPending: number
+  keycapOrdersPending: number
+}
+
+// ── Keycap orders ────────────────────────────────────────────────
+
+export interface FilamentColorRef {
+  name: string
+  hex: string
+}
+
+export interface KeycapKeyConfig {
+  _key: string
+  position: number
+  char: string
+  font: string
+  baseColor: FilamentColorRef
+  textColor: FilamentColorRef
+}
+
+export type KeycapStatus = 'pending' | 'confirmed' | 'printing' | 'done' | 'cancelled'
+
+export interface KeycapOrder {
+  id: string
+  sanityId: string
+  status: KeycapStatus
+  customerName: string
+  customerPhone: string
+  qty: number
+  orientation: 'horizontal' | 'vertical'
+  bodyColor: FilamentColorRef
+  keys: KeycapKeyConfig[]
+  submittedAt: string
+  adminNotes?: string
+  statusNote?: string
+}
+
+export interface SanityKeycapOrder {
+  _id: string
+  orderNumber: string
+  status: KeycapStatus
+  submittedAt: string
+  customerName: string
+  customerPhone: string
+  qty: number
+  orientation: 'horizontal' | 'vertical'
+  bodyColor: FilamentColorRef
+  keys: KeycapKeyConfig[]
+  adminNotes?: string
+  statusNote?: string
 }

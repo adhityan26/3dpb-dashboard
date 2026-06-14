@@ -6,6 +6,7 @@ export type AlertKind =
   | "product_delist"
   | "spool_low"
   | "lg_order"
+  | "keycap_order"
 
 export interface NotificationAlert {
   alertKey: string
