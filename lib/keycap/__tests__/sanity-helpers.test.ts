@@ -15,6 +15,7 @@ import {
   fetchAllKeycapOrders,
   fetchPendingKeycapOrders,
   countPendingKeycapOrders,
+  fetchKeycapOrderById,
   patchKeycapOrderStatus,
 } from '../sanity-helpers'
 import type { SanityKeycapOrder } from '@/lib/sanity/types'
@@ -66,6 +67,21 @@ describe('countPendingKeycapOrders', () => {
     mockFetch.mockResolvedValue(0)
     const count = await countPendingKeycapOrders()
     expect(count).toBe(0)
+  })
+})
+
+describe('fetchKeycapOrderById', () => {
+  it('returns the order when found', async () => {
+    mockFetch.mockResolvedValue(fakeOrder())
+    const result = await fetchKeycapOrderById('sanity-id-1')
+    expect(result).not.toBeNull()
+    expect(result?._id).toBe('sanity-id-1')
+  })
+
+  it('returns null when not found', async () => {
+    mockFetch.mockResolvedValue(null)
+    const result = await fetchKeycapOrderById('nonexistent-id')
+    expect(result).toBeNull()
   })
 })
 
