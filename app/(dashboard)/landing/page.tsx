@@ -32,7 +32,7 @@ function LandingPageInner() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const rawSection = searchParams.get("section") ?? "site-settings"
-  const validSections: CmsSection[] = ["site-settings", "gallery", "testimonials", "faq", "strava-orders", "waitlist", "generator", "faceshell", "lg-orders"]
+  const validSections: CmsSection[] = ["site-settings", "gallery", "testimonials", "faq", "strava-orders", "waitlist", "generator", "faceshell", "lg-orders", "keycap-orders"]
   const activeSection: CmsSection = validSections.includes(rawSection as CmsSection) ? (rawSection as CmsSection) : "site-settings"
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
