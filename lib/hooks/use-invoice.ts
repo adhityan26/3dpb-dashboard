@@ -28,6 +28,29 @@ export function useUpdatePaymentMethods() {
   })
 }
 
+const BANK_KEY = ['invoice', 'bank-account'] as const
+
+export function useInvoiceBankAccount() {
+  return useQuery({
+    queryKey: BANK_KEY,
+    queryFn: () => apiFetch<{ bankAccount: string }>('/api/settings/invoice-bank').then(r => r.bankAccount),
+    staleTime: 60_000,
+  })
+}
+
+export function useUpdateInvoiceBankAccount() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (bankAccount: string) =>
+      apiFetch<{ bankAccount: string }>('/api/settings/invoice-bank', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ bankAccount }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: BANK_KEY }),
+  })
+}
+
 const INVOICE_KEY = ['invoice'] as const
 
 async function apiFetch<T>(url: string, opts?: RequestInit): Promise<T> {

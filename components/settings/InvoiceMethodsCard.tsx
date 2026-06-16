@@ -1,13 +1,30 @@
 "use client"
 
-import { useState } from "react"
-import { usePaymentMethods, useUpdatePaymentMethods } from "@/lib/hooks/use-invoice"
+import { useEffect, useState } from "react"
+import {
+  usePaymentMethods, useUpdatePaymentMethods,
+  useInvoiceBankAccount, useUpdateInvoiceBankAccount,
+} from "@/lib/hooks/use-invoice"
 
 export function InvoiceMethodsCard() {
   const { data: methods, isLoading } = usePaymentMethods()
   const updateMut = useUpdatePaymentMethods()
+  const { data: bankAccount } = useInvoiceBankAccount()
+  const updateBankMut = useUpdateInvoiceBankAccount()
   const [newMethod, setNewMethod] = useState("")
+  const [bankDraft, setBankDraft] = useState("")
+  const [bankSaved, setBankSaved] = useState(false)
   const [saved, setSaved] = useState(false)
+
+  useEffect(() => {
+    if (bankAccount !== undefined) setBankDraft(bankAccount)
+  }, [bankAccount])
+
+  async function handleSaveBank() {
+    await updateBankMut.mutateAsync(bankDraft)
+    setBankSaved(true)
+    setTimeout(() => setBankSaved(false), 1500)
+  }
 
   async function handleAdd() {
     const m = newMethod.trim()
@@ -80,6 +97,37 @@ export function InvoiceMethodsCard() {
         >
           + Tambah
         </button>
+      </div>
+
+      {/* Bank account — shown on printed invoice */}
+      <div className="pt-4 border-t" style={{ borderColor: "var(--g-border, rgba(255,255,255,0.08))" }}>
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <div className="text-sm font-semibold g-t1">🏦 Rekening Pembayaran</div>
+            <div className="text-xs mt-0.5 g-t4">Ditampilkan di cetak invoice agar pelanggan bisa transfer</div>
+          </div>
+          {bankSaved && <span className="text-xs font-semibold" style={{ color: "#34d399" }}>✓ Tersimpan</span>}
+        </div>
+        <textarea
+          value={bankDraft}
+          onChange={e => setBankDraft(e.target.value)}
+          rows={3}
+          placeholder={"BCA 1234567890\na/n Nama Pemilik"}
+          className="glass-input w-full rounded-[8px] px-3 py-2 text-sm"
+        />
+        <div className="flex justify-end mt-2">
+          <button
+            onClick={handleSaveBank}
+            disabled={bankDraft === (bankAccount ?? "") || updateBankMut.isPending}
+            className="h-9 px-4 rounded-[8px] text-sm font-semibold"
+            style={{
+              background: bankDraft !== (bankAccount ?? "") ? "linear-gradient(135deg, #5055e8, #7c84f8)" : "var(--g-inner)",
+              color: bankDraft !== (bankAccount ?? "") ? "white" : "var(--g-t4)",
+            }}
+          >
+            Simpan Rekening
+          </button>
+        </div>
       </div>
     </div>
   )

@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState, useEffect } from "react"
-import { useInvoice, useUpdateInvoice, useAddPayment, useDeletePayment, usePaymentMethods } from "@/lib/hooks/use-invoice"
+import { useInvoice, useUpdateInvoice, useAddPayment, useDeletePayment, usePaymentMethods, useInvoiceBankAccount } from "@/lib/hooks/use-invoice"
 import type { QuotationStatus, QuotationItemInput } from "@/lib/invoice/types"
 
 function fmt(n: number) { return `Rp ${Math.round(n).toLocaleString("id-ID")}` }
@@ -55,6 +55,7 @@ interface Props {
 export function InvoiceDetail({ invoiceId, onBack }: Props) {
   const { data: inv, isLoading } = useInvoice(invoiceId)
   const { data: paymentMethods } = usePaymentMethods()
+  const { data: bankAccount } = useInvoiceBankAccount()
   const updateMut = useUpdateInvoice()
   const addPaymentMut = useAddPayment()
   const deletePaymentMut = useDeletePayment()
@@ -657,6 +658,17 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
               </div>
             )}
           </div>
+
+          {bankAccount && bankAccount.trim() && (
+            <div style={{ marginTop: 16, padding: "10px 14px", border: "1px solid #e5e7eb", borderRadius: 8 }}>
+              <div style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.06em", color: "#555", marginBottom: 4 }}>
+                Pembayaran via Transfer
+              </div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: "#111", whiteSpace: "pre-line" }}>
+                {bankAccount}
+              </div>
+            </div>
+          )}
 
           {invoice.catatan && (
             <div style={{ marginTop: 16, fontSize: 11, color: "#666", padding: "8px 12px", border: "1px solid #e5e7eb", borderRadius: 6 }}>
