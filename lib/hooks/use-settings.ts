@@ -78,6 +78,25 @@ export function useTestNotification() {
   })
 }
 
+// ── Discord Bot Status ────────────────────────────────────────────────────
+
+export function useDiscordStatus() {
+  return useQuery({
+    queryKey: ["settings", "discord-status"],
+    queryFn: async () => {
+      const res = await fetch("/api/settings/discord-status")
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return res.json() as Promise<{
+        configured: boolean
+        endpointUrl: string
+        guildId: string | null
+        commands: { name: string }[] | null
+      }>
+    },
+    staleTime: 60_000,
+  })
+}
+
 // ── Shopee Fee Analytics ──────────────────────────────────────────────────
 
 import type { ShopeeFeeAnalytics } from "@/app/api/settings/shopee-fee/route"
