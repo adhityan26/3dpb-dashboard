@@ -154,6 +154,12 @@ export async function getQuotation(id: string): Promise<QuotationData | null> {
   return toQuotationData(raw)
 }
 
+export async function getQuotationByNomor(nomor: string): Promise<QuotationData | null> {
+  const row = await prisma.quotation.findFirst({ where: { nomor }, select: { id: true } })
+  if (!row) return null
+  return getQuotation(row.id)
+}
+
 export async function createQuotation(input: QuotationInput): Promise<QuotationData> {
   const nomor = await generateNomor(input.tanggal)
   const raw = await (prisma.quotation.create as any)({
