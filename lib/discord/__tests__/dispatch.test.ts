@@ -13,7 +13,7 @@ vi.mock("@/lib/discord/commands/stok", () => ({ handleStokFilament: vi.fn() }))
 import { dispatchCommand } from "@/lib/discord/dispatch"
 
 describe("dispatchCommand", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks() })
 
   it("routes invoice/buat subcommand", async () => {
     const r = await dispatchCommand({

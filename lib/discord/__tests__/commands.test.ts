@@ -16,7 +16,7 @@ const mockByNomor = getQuotationByNomor as any
 const mockRates = loadRates as any
 
 describe("handleInvoiceBuat", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks() })
 
   it("replies with an error and does NOT create when items are malformed", async () => {
     const reply = await handleInvoiceBuat([
@@ -45,7 +45,7 @@ describe("handleInvoiceBuat", () => {
 })
 
 describe("handleInvoiceStatus", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks() })
 
   it("replies not-found when nomor missing", async () => {
     mockByNomor.mockResolvedValue(null)
@@ -62,7 +62,7 @@ describe("handleInvoiceStatus", () => {
 })
 
 describe("handleKalkulator", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks() })
 
   it("computes prices from gramasi/jam and replies", async () => {
     mockRates.mockResolvedValue({
