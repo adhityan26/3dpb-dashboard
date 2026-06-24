@@ -51,6 +51,29 @@ export function useUpdateInvoiceBankAccount() {
   })
 }
 
+const QRIS_KEY = ['invoice', 'qris'] as const
+
+export function useInvoiceQris() {
+  return useQuery({
+    queryKey: QRIS_KEY,
+    queryFn: () => apiFetch<{ qris: string }>('/api/settings/invoice-qris').then(r => r.qris),
+    staleTime: 60_000,
+  })
+}
+
+export function useUpdateInvoiceQris() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (qris: string) =>
+      apiFetch<{ qris: string }>('/api/settings/invoice-qris', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ qris }),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: QRIS_KEY }),
+  })
+}
+
 const INVOICE_KEY = ['invoice'] as const
 
 async function apiFetch<T>(url: string, opts?: RequestInit): Promise<T> {

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import {
   usePaymentMethods, useUpdatePaymentMethods,
   useInvoiceBankAccount, useUpdateInvoiceBankAccount,
+  useInvoiceQris, useUpdateInvoiceQris,
 } from "@/lib/hooks/use-invoice"
 
 export function InvoiceMethodsCard() {
@@ -11,9 +12,13 @@ export function InvoiceMethodsCard() {
   const updateMut = useUpdatePaymentMethods()
   const { data: bankAccount } = useInvoiceBankAccount()
   const updateBankMut = useUpdateInvoiceBankAccount()
+  const { data: qris } = useInvoiceQris()
+  const updateQrisMut = useUpdateInvoiceQris()
   const [newMethod, setNewMethod] = useState("")
   const [bankDraft, setBankDraft] = useState("")
   const [bankSaved, setBankSaved] = useState(false)
+  const [qrisSaved, setQrisSaved] = useState(false)
+  const [qrisErr, setQrisErr] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
@@ -24,6 +29,29 @@ export function InvoiceMethodsCard() {
     await updateBankMut.mutateAsync(bankDraft)
     setBankSaved(true)
     setTimeout(() => setBankSaved(false), 1500)
+  }
+
+  async function handleQrisFile(file: File) {
+    setQrisErr(null)
+    if (!file.type.startsWith("image/")) { setQrisErr("File harus berupa gambar"); return }
+    if (file.size > 1_500_000) { setQrisErr("Gambar terlalu besar (maks 1.5MB)"); return }
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result as string)
+      reader.onerror = () => reject(reader.error)
+      reader.readAsDataURL(file)
+    })
+    try {
+      await updateQrisMut.mutateAsync(dataUrl)
+      setQrisSaved(true)
+      setTimeout(() => setQrisSaved(false), 1500)
+    } catch (e) {
+      setQrisErr(e instanceof Error ? e.message : "Gagal menyimpan QRIS")
+    }
+  }
+
+  async function handleRemoveQris() {
+    await updateQrisMut.mutateAsync("")
   }
 
   async function handleAdd() {
@@ -128,6 +156,42 @@ export function InvoiceMethodsCard() {
             Simpan Rekening
           </button>
         </div>
+      </div>
+
+      {/* QRIS — shown on printed invoice */}
+      <div className="pt-4 border-t" style={{ borderColor: "var(--g-border, rgba(255,255,255,0.08))" }}>
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <div className="text-sm font-semibold g-t1">📱 QRIS</div>
+            <div className="text-xs mt-0.5 g-t4">Upload gambar QRIS — ditampilkan di cetak invoice</div>
+          </div>
+          {qrisSaved && <span className="text-xs font-semibold" style={{ color: "#34d399" }}>✓ Tersimpan</span>}
+        </div>
+
+        {qris ? (
+          <div className="flex items-center gap-3">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={qris} alt="QRIS" className="w-24 h-24 rounded-[8px] object-contain" style={{ background: "#fff", padding: 4 }} />
+            <div className="flex flex-col gap-2">
+              <label className="h-8 px-3 rounded-[8px] text-xs font-semibold flex items-center cursor-pointer" style={{ background: "var(--g-inner)", color: "var(--g-t2)" }}>
+                Ganti Gambar
+                <input type="file" accept="image/*" className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) handleQrisFile(f); e.target.value = "" }} />
+              </label>
+              <button onClick={handleRemoveQris} disabled={updateQrisMut.isPending}
+                className="h-8 px-3 rounded-[8px] text-xs font-semibold" style={{ color: "#f87171", background: "rgba(248,113,113,0.1)" }}>
+                Hapus
+              </button>
+            </div>
+          </div>
+        ) : (
+          <label className="h-9 px-4 rounded-[8px] text-sm font-semibold inline-flex items-center cursor-pointer text-white" style={{ background: "linear-gradient(135deg, #5055e8, #7c84f8)" }}>
+            ⬆️ Upload QRIS
+            <input type="file" accept="image/*" className="hidden"
+              onChange={e => { const f = e.target.files?.[0]; if (f) handleQrisFile(f); e.target.value = "" }} />
+          </label>
+        )}
+        {qrisErr && <div className="text-xs mt-2" style={{ color: "#f87171" }}>{qrisErr}</div>}
       </div>
     </div>
   )
