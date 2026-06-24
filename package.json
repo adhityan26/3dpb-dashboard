@@ -11,7 +11,8 @@
     "db:seed": "tsx scripts/seed.ts",
     "db:studio": "prisma studio",
     "test": "vitest run --passWithNoTests",
-    "db:import-ams": "tsx scripts/import-ams.ts"
+    "db:import-ams": "tsx scripts/import-ams.ts",
+    "discord:register": "node --experimental-strip-types scripts/register-discord-commands.mjs"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
