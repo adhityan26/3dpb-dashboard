@@ -18,7 +18,7 @@ const RATES = {
 }
 
 describe("POST /api/bot/kalkulator", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks() })
 
   it("401 when token invalid", async () => {
     mockAuth.mockReturnValue(false)

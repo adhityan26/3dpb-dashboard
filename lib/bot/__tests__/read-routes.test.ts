@@ -20,7 +20,7 @@ const mockAuth = requireBotToken as any
 const reqUrl = (url: string) => ({ headers: { get: () => "Bearer x" }, url } as any)
 
 describe("GET /api/bot/produk", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks() })
   it("401 when token invalid", async () => {
     mockAuth.mockReturnValue(false)
     const res = await produkGET(reqUrl("http://x/api/bot/produk?q=key"))
@@ -40,7 +40,7 @@ describe("GET /api/bot/produk", () => {
 })
 
 describe("GET /api/bot/order/perlu-cetak", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks() })
   it("returns only not-yet-printed orders", async () => {
     mockAuth.mockReturnValue(true)
     mockOrders.mockResolvedValue({ orders: [
@@ -55,7 +55,7 @@ describe("GET /api/bot/order/perlu-cetak", () => {
 })
 
 describe("GET /api/bot/stok/filament", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks() })
   it("groups non-empty spools by brand+material, filtered by brand", async () => {
     mockAuth.mockReturnValue(true)
     mockSpools.mockResolvedValue({ spools: [

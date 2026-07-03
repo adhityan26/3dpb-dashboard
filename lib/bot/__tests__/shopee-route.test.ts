@@ -16,7 +16,7 @@ const req = { headers: { get: () => "Bearer x" } } as any
 const ctx = (sn: string) => ({ params: Promise.resolve({ sn }) })
 
 describe("GET /api/bot/shopee/order/[sn]", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks() })
 
   it("401 when token invalid", async () => {
     mockAuth.mockReturnValue(false)

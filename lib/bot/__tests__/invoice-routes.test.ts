@@ -20,7 +20,7 @@ function req(body?: unknown) {
 }
 
 describe("POST /api/bot/invoice", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks() })
 
   it("401 when token invalid", async () => {
     mockAuth.mockReturnValue(false)
@@ -59,7 +59,7 @@ describe("POST /api/bot/invoice", () => {
 })
 
 describe("GET /api/bot/invoice/[nomor]", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks() })
 
   it("401 when token invalid", async () => {
     mockAuth.mockReturnValue(false)
