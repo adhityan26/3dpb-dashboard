@@ -14,7 +14,6 @@ import { StickerSizeCard } from "@/components/settings/StickerSizeCard"
 import { KalkulatorSettingsCard } from "@/components/settings/KalkulatorSettingsCard"
 import { ShopeeFeeAnalyticsCard } from "@/components/settings/ShopeeFeeAnalyticsCard"
 import { InvoiceMethodsCard } from "@/components/settings/InvoiceMethodsCard"
-import { DiscordStatusCard } from "@/components/settings/DiscordStatusCard"
 import { FilamentAliasCard } from "@/components/settings/FilamentAliasCard"
 import { useSettings } from "@/lib/hooks/use-settings"
 import { useSession } from "next-auth/react"
@@ -141,7 +140,6 @@ function SettingsPageInner() {
       {activeTab === "lainnya" && (
         <div className="space-y-4">
           <InvoiceMethodsCard />
-          <DiscordStatusCard />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <FilamenCatalogCard lastCatalogSync={filamenSettings?.lastCatalogSync ?? null} />
             <StickerSizeCard
