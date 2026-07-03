@@ -15,7 +15,7 @@ export async function GET() {
     where: { id: { in: sanityOrders.map((o) => o.orderId) } },
     select: { id: true },
   })
-  const confirmedSet = new Set(confirmed.map((r) => r.id))
+  const confirmedSet = new Set(confirmed.map((r: { id: string }) => r.id))
 
   const result: SanityLgOrderWithConfirmed[] = sanityOrders.map((o) => ({
     ...o,

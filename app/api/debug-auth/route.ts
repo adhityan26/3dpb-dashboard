@@ -9,7 +9,7 @@ export async function GET() {
     select: { key: true, value: true, updatedAt: true }
   })
   const shopee: Record<string, string> = {}
-  shopeeRows.forEach(r => {
+  shopeeRows.forEach((r: { key: string; value: string; updatedAt: Date }) => {
     shopee[r.key] = r.key.includes('token')
       ? r.value.substring(0, 15) + '...' + ` (updated: ${r.updatedAt.toISOString()})`
       : r.value

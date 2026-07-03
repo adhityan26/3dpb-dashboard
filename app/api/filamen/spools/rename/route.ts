@@ -41,7 +41,7 @@ export async function PUT(req: NextRequest) {
         if (exists) await prisma.filamentHarga.deleteMany({ where: { brand: brandScope, material: from } })
         else await prisma.filamentHarga.updateMany({ where: { material: from, brand: brandScope }, data: { material: to } })
       } else {
-        const toBrands = (await prisma.filamentHarga.findMany({ where: { material: to }, select: { brand: true } })).map(r => r.brand)
+        const toBrands = (await prisma.filamentHarga.findMany({ where: { material: to }, select: { brand: true } })).map((r: { brand: string }) => r.brand)
         if (toBrands.length > 0) {
           await prisma.filamentHarga.deleteMany({ where: { material: from, brand: { in: toBrands } } })
         }
@@ -52,7 +52,7 @@ export async function PUT(req: NextRequest) {
       where = { brand: from }
       data = { brand: to }
       // Delete FilamentHarga rows for `from` that would conflict with existing `to` rows
-      const toMaterials = (await prisma.filamentHarga.findMany({ where: { brand: to }, select: { material: true } })).map(r => r.material)
+      const toMaterials = (await prisma.filamentHarga.findMany({ where: { brand: to }, select: { material: true } })).map((r: { material: string }) => r.material)
       if (toMaterials.length > 0) {
         await prisma.filamentHarga.deleteMany({ where: { brand: from, material: { in: toMaterials } } })
       }

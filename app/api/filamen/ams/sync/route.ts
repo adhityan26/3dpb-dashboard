@@ -68,10 +68,10 @@ export async function POST() {
 
     // Delete slots no longer in sheet (preserve DB rows so spool assignments aren't lost for kept slots)
     const toDelete = existing.filter(
-      (e) => !newKeys.has(`${e.variantName}|||${e.slotNumber}`)
+      (e: { id: string; variantName: string; slotNumber: number }) => !newKeys.has(`${e.variantName}|||${e.slotNumber}`)
     )
     if (toDelete.length > 0) {
-      await prisma.amsSlot.deleteMany({ where: { id: { in: toDelete.map((e) => e.id) } } })
+      await prisma.amsSlot.deleteMany({ where: { id: { in: toDelete.map((e: { id: string }) => e.id) } } })
       totalDeleted += toDelete.length
     }
 
