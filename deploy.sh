@@ -129,6 +129,7 @@ docker run -d \
   -e STL_SERVICE_TOKEN="${STL_SERVICE_TOKEN:-}" \
   -e DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-}" \
   -e OPS_API_SECRET="${OPS_API_SECRET:-}" \
+  -e BOT_API_TOKEN="${BOT_API_TOKEN:-}" \
   "$DEPLOY_IMAGE"
 
 # ── Health check ───────────────────────────────────────────────────────────────
