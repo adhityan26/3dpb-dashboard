@@ -51,6 +51,10 @@ export async function getOrderDetail(
     "update_time",
     "ship_by_date",
     "days_to_ship",
+    "shipping_carrier",
+    "payment_method",
+    "cod",
+    "message_to_seller",
   ].join(",")
 
   const json = await shopeeRequest<ShopeeOrderDetailResponse>(

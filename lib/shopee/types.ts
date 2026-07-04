@@ -63,6 +63,10 @@ export interface ShopeeOrderDetail {
   item_list: ShopeeOrderItemDetail[]
   days_to_ship?: number
   ship_by_date?: number
+  shipping_carrier?: string
+  payment_method?: string
+  cod?: boolean
+  message_to_seller?: string
 }
 
 export interface ShopeeOrderDetailResponse {
