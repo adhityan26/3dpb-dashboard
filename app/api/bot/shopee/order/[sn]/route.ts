@@ -44,8 +44,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ sn: 
       sku: i.item_sku ?? null,
       variant: i.model_name ?? null,
       variantSku: i.model_sku ?? null,
-      priceOriginal: i.model_original_price,
-      priceDiscounted: i.model_discounted_price,
+      priceOriginal: i.model_original_price ?? null,
+      priceDiscounted: i.model_discounted_price ?? null,
       imageUrl: i.image_info?.image_url ?? null,
     })),
     money: {

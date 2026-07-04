@@ -18,7 +18,8 @@ export async function getTrackingNumber(orderSn: string): Promise<string | null>
       { order_sn: orderSn },
     )
     return json.response.tracking_number || null
-  } catch {
+  } catch (err) {
+    console.warn(`[shopee] getTrackingNumber failed for ${orderSn}:`, err instanceof Error ? err.message : err)
     return null
   }
 }

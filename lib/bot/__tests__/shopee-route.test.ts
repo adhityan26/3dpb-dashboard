@@ -132,4 +132,21 @@ describe("GET /api/bot/shopee/order/[sn]", () => {
     })
     expect(body.items).toEqual([])
   })
+
+  it("defaults item priceOriginal/priceDiscounted to null when absent from the API response", async () => {
+    mockAuth.mockReturnValue(true)
+    mockDetail.mockResolvedValue([{
+      ...FULL_DETAIL,
+      item_list: [{
+        item_name: "Keychain", item_sku: "KC-01", model_name: "Merah", model_sku: "KC-01-RED",
+        model_quantity_purchased: 2, model_original_price: undefined, model_discounted_price: undefined,
+        image_info: { image_url: "https://example.com/img.jpg" },
+      }],
+    }])
+    mockEscrow.mockResolvedValue(FULL_ESCROW)
+    const res = await GET(req, ctx("S1"))
+    const body = await res.json()
+    expect(body.items[0].priceOriginal).toBeNull()
+    expect(body.items[0].priceDiscounted).toBeNull()
+  })
 })
