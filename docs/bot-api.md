@@ -18,7 +18,24 @@ curl -X POST .../api/bot/invoice -H "Authorization: Bearer $BOT_API_TOKEN" \
 → `{ "nomor", "status", "total", "totalPaid", "sisaBayar" }` · 404 if not found.
 
 ### GET /api/bot/shopee/order/{sn}
-→ `{ "orderSn", "status", "items":[{"name","qty"}], "total", "buyerPaid", "received", "url" }` · `buyerPaid`/`received` null if escrow unavailable · 404 if not found.
+→
+```json
+{
+  "orderSn": "...", "status": "READY_TO_SHIP", "total": 100000, "currency": "IDR",
+  "createTime": 1700000000, "updateTime": 1700001000,
+  "shipByDate": 1700100000, "daysToShip": 2,
+  "shippingCarrier": "SPX Standard", "paymentMethod": "COD", "cod": true,
+  "messageToSeller": "Tolong bungkus rapi",
+  "buyer": { "username": "...", "name": "...", "phone": "...", "city": "...", "district": "...", "state": "...", "zip": "...", "fullAddress": "..." },
+  "items": [{ "name": "...", "qty": 2, "sku": "...", "variant": "...", "variantSku": "...", "priceOriginal": 20000, "priceDiscounted": 18000, "imageUrl": "..." }],
+  "money": { "buyerPaid": 110000, "received": 90000, "commissionFee": 5000, "serviceFee": 2000, "transactionFee": 1000, "actualShippingFee": 8000 },
+  "url": "https://seller.shopee.co.id/portal/sale/order/..."
+}
+```
+All fields under `buyer`/`money` are `null` when the underlying data isn't available yet (e.g. `money.*` before escrow settles). 404 if the order doesn't exist.
+
+### GET /api/bot/shopee/order/{sn}/tracking
+→ `{ "trackingNumber": "SPXTRK123" }` or `{ "trackingNumber": null }` when not yet assigned (e.g. not shipped). Never errors for the not-yet-available case.
 
 ### POST /api/bot/kalkulator
 Body: `{ "gramasi": 50, "jam": 2, "tipe": "FDM", "tier": "A" }` (tipe FDM|SLA default FDM; tier A|B|C default A)
