@@ -54,12 +54,26 @@ describe("GET /api/bot/shopee/order/[sn]", () => {
     expect(res.status).toBe(401)
   })
 
-  it("404 when order not found", async () => {
+  it("404 when order not found (empty result)", async () => {
     mockAuth.mockReturnValue(true)
     mockDetail.mockResolvedValue([])
     mockEscrow.mockResolvedValue(null)
     const res = await GET(req, ctx("S1"))
     expect(res.status).toBe(404)
+  })
+
+  it("404 when Shopee throws a not-found error for the order", async () => {
+    mockAuth.mockReturnValue(true)
+    mockDetail.mockRejectedValue(new Error("Shopee API error: order_not_found — Order SN provided is invalid or does not belong to you."))
+    const res = await GET(req, ctx("FAKE123"))
+    expect(res.status).toBe(404)
+    expect(mockEscrow).not.toHaveBeenCalled()
+  })
+
+  it("propagates non-not-found errors as 500", async () => {
+    mockAuth.mockReturnValue(true)
+    mockDetail.mockRejectedValue(new Error("Shopee API error: access_token_invalid — token expired"))
+    await expect(GET(req, ctx("S1"))).rejects.toThrow(/access_token_invalid/)
   })
 
   it("returns the full nested shape with escrow present", async () => {

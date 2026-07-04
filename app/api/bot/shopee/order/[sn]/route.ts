@@ -9,9 +9,20 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ sn: 
   if (!requireBotToken(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const { sn } = await params
 
-  const [details, escrow] = await Promise.all([getOrderDetail([sn]), getEscrowDetail(sn)])
+  let details: Awaited<ReturnType<typeof getOrderDetail>>
+  try {
+    details = await getOrderDetail([sn])
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    if (/order_not_found|error_not_found|order.*(not exist|invalid)/i.test(msg)) {
+      return NextResponse.json({ error: `Order ${sn} tidak ditemukan` }, { status: 404 })
+    }
+    throw err
+  }
   const detail = details[0]
   if (!detail) return NextResponse.json({ error: `Order ${sn} tidak ditemukan` }, { status: 404 })
+
+  const escrow = await getEscrowDetail(sn)
 
   const addr = detail.recipient_address
 
