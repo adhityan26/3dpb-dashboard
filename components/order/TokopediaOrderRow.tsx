@@ -84,7 +84,7 @@ export function TokopediaOrderRow({ order, defaultExpanded = false }: TokopediaO
             )}
           </div>
 
-          {order.latestRtsTime && order.statusCode !== 140 && (() => {
+          {order.latestRtsTime && (order.statusCode === 110 || order.statusCode === 111) && (() => {
             const sb = shipBy(order.latestRtsTime)
             return (
               <div className="mt-0.5 text-[11px] font-medium" style={{ color: sb.overdue ? "#f87171" : sb.urgent ? "#fb923c" : "#94a3b8" }}>

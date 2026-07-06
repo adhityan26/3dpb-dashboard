@@ -5,7 +5,8 @@ export const SKU_DISPLAY_STATUS: Record<number, string> = {
   110: "Perlu Dikirim",
   111: "Perlu Dikirim",  // pre-order awaiting ship
   120: "Dikirim",
-  121: "Dikirim",
+  121: "Dikirim",        // in transit
+  122: "Terkirim",       // delivered
   130: "Dikirim",
   140: "Selesai",
 }
