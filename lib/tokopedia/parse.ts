@@ -3,10 +3,18 @@ import type { TokopediaOrderSummary } from "./types"
 
 export const SKU_DISPLAY_STATUS: Record<number, string> = {
   110: "Perlu Dikirim",
+  111: "Perlu Dikirim",  // pre-order awaiting ship
   120: "Dikirim",
   121: "Dikirim",
   130: "Dikirim",
   140: "Selesai",
+}
+
+// product_image is an object { thumb_url_list: string[], thumb_uri, ... }
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function productImageUrl(img: any): string | null {
+  const url = Array.isArray(img?.thumb_url_list) ? img.thumb_url_list[0] : null
+  return typeof url === "string" && url ? url : null
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,6 +54,7 @@ export function parseOrder(raw: TokopediaRawOrder): TokopediaOrderSummary {
       variant: String(s.sku_name ?? ""),
       qty: num(s.quantity),
       totalPrice: priceVal(s.sku_total_price),
+      imageUrl: productImageUrl(s.product_image),
     })) : [],
     courier: delivery?.shipment_provider_info?.name ?? null,
     serviceType: delivery?.logistics_service_info?.logistics_service_name ?? null,

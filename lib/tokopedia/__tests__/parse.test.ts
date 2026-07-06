@@ -6,7 +6,8 @@ const RAW = {
   trade_order_module: { pay_method: "BCA VA", latest_rts_time: 1783200000, payment_time: 1783100000 },
   order_status_module: [{ sku_display_status: 121, main_order_status: 102 }],
   sku_module: [
-    { product_name: "Kaiju No. 8 Mask", sku_name: "No Damage", quantity: 1, sku_total_price: { price_val: "150000" } },
+    { product_name: "Kaiju No. 8 Mask", sku_name: "No Damage", quantity: 1, sku_total_price: { price_val: "150000" },
+      product_image: { thumb_url_list: ["https://cdn.example/a.jpg", "https://cdn.example/a2.jpg"] } },
     { product_name: "Stand", sku_name: "", quantity: 2, sku_total_price: { price_val: "50000" } },
   ],
   delivery_module: [{
@@ -27,8 +28,8 @@ describe("parseOrder", () => {
     expect(s.statusCode).toBe(121)
     expect(s.statusLabel).toBe("Dikirim")
     expect(s.products).toEqual([
-      { name: "Kaiju No. 8 Mask", variant: "No Damage", qty: 1, totalPrice: 150000 },
-      { name: "Stand", variant: "", qty: 2, totalPrice: 50000 },
+      { name: "Kaiju No. 8 Mask", variant: "No Damage", qty: 1, totalPrice: 150000, imageUrl: "https://cdn.example/a.jpg" },
+      { name: "Stand", variant: "", qty: 2, totalPrice: 50000, imageUrl: null },
     ])
     expect(s.courier).toBe("J&T Express")
     expect(s.serviceType).toBe("Reguler")

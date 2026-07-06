@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import Image from "next/image"
 import { Card, CardContent } from "@/components/ui/card"
 import type { TokopediaOrderSummary } from "@/lib/tokopedia/types"
 
@@ -27,14 +28,30 @@ function statusStyle(code: number | null): { dot: string; dotClass: string; bord
 
 export function TokopediaOrderRow({ order, defaultExpanded = false }: TokopediaOrderRowProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
+  const [imgError, setImgError] = useState(false)
   const s = statusStyle(order.statusCode)
   const totalQty = order.products.reduce((sum, p) => sum + p.qty, 0)
   const first = order.products[0]
+  const showImage = !imgError && !!first?.imageUrl
 
   return (
     <Card style={{ borderColor: s.border, background: s.bg }}>
       <CardContent className="p-3">
-        <button type="button" onClick={() => setExpanded(e => !e)} className="w-full text-left">
+        <div className="flex items-start gap-3">
+          {showImage && (
+            <div className="flex-shrink-0 w-10 h-10 rounded-md overflow-hidden self-start mt-0.5">
+              <Image
+                src={first.imageUrl!}
+                alt={first.name}
+                width={40}
+                height={40}
+                className="w-full h-full object-cover"
+                onError={() => setImgError(true)}
+                unoptimized
+              />
+            </div>
+          )}
+          <button type="button" onClick={() => setExpanded(e => !e)} className="flex-1 text-left">
           <div className="flex items-center gap-2 flex-wrap">
             <span className={s.dotClass}>{s.dot}</span>
             <span className="font-mono text-sm font-semibold">#{order.orderId}</span>
@@ -63,15 +80,23 @@ export function TokopediaOrderRow({ order, defaultExpanded = false }: TokopediaO
           {order.latestLogistic && (
             <div className="mt-0.5 text-[11px] text-muted-foreground">🚚 {order.latestLogistic.msg}</div>
           )}
-        </button>
+          </button>
+        </div>
 
         {expanded && (
           <div className="mt-3 border-t dark:border-slate-700 pt-3 space-y-2 text-xs">
             {order.products.map((p, idx) => (
               <div key={idx} className="flex justify-between gap-2">
-                <div>
-                  <div className="font-medium">{p.name}</div>
-                  {p.variant && <div className="text-gray-500 dark:text-slate-400">{p.variant}</div>}
+                <div className="flex items-start gap-2">
+                  {p.imageUrl && (
+                    <div className="flex-shrink-0 w-8 h-8 rounded overflow-hidden">
+                      <Image src={p.imageUrl} alt={p.name} width={32} height={32} className="w-full h-full object-cover" unoptimized />
+                    </div>
+                  )}
+                  <div>
+                    <div className="font-medium">{p.name}</div>
+                    {p.variant && <div className="text-gray-500 dark:text-slate-400">{p.variant}</div>}
+                  </div>
                 </div>
                 <div className="text-right">
                   <div>{p.qty} pcs</div>

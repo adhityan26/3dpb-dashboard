@@ -30,7 +30,7 @@ export interface TokopediaOrderSummary {
   orderId: string
   statusCode: number | null
   statusLabel: string
-  products: { name: string; variant: string; qty: number; totalPrice: number }[]
+  products: { name: string; variant: string; qty: number; totalPrice: number; imageUrl: string | null }[]
   courier: string | null
   serviceType: string | null
   trackingNo: string | null
