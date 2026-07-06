@@ -49,3 +49,12 @@ Body: `{ "gramasi": 50, "jam": 2, "tipe": "FDM", "tier": "A" }` (tipe FDM|SLA de
 
 ### GET /api/bot/stok/filament?brand={brand}
 → `{ "groups":[{"key","count"}] }` (non-empty spools grouped by "brand material"; brand filter optional).
+
+### GET /api/bot/tokopedia/orders?tab={perlu-dikirim|semua}
+→ `{ "ok": true, "data": { "total_count": N, "main_orders": [ ...raw Tokopedia orders... ] } }`
+Raw Tokopedia response — the bot maps fields itself. Session errors: `{ "ok": false, "error": "SESSION_INVALID" | "SESSION_MISSING" }` (fix by re-pasting cookies in the dashboard Settings).
+
+### GET /api/bot/tokopedia/orders/{id}
+→ `{ "ok": true, "data": { ...raw order... } }` · `{ "ok": false, "error": "not_found" }` when the id matches nothing · session errors as above.
+
+Note: the Tokopedia session is managed only from the dashboard (Settings → Tokopedia Session). The bot cannot save or refresh it.
