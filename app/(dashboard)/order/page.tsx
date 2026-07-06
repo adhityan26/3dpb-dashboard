@@ -22,6 +22,7 @@ import { StravaOrderList } from "@/components/order/StravaOrderList"
 import { InvoiceForm } from "@/components/invoice/InvoiceForm"
 import type { OrderSummary } from "@/lib/orders/types"
 import type { OrderPrefill } from "@/lib/invoice/types"
+import { useTokopediaSession, useTokopediaOrders, useTokopediaOrder } from "@/lib/hooks/use-tokopedia"
 
 // ── ShopeeOrderView ────────────────────────────────────────────────────────
 
@@ -266,6 +267,84 @@ function LightGeneratorOrderView() {
   )
 }
 
+// ── TokopediaOrderView ─────────────────────────────────────────────────────
+
+function TokopediaOrderView() {
+  const [tab, setTab] = useState<"perlu-dikirim" | "semua">("perlu-dikirim")
+  const [searchId, setSearchId] = useState("")
+  const [openId, setOpenId] = useState<string | null>(null)
+  const { data: sessionStatus } = useTokopediaSession()
+  const { data, isLoading, isError, error } = useTokopediaOrders(tab)
+  const { data: detail } = useTokopediaOrder(openId ?? (searchId.trim() || null))
+
+  const sessionBad = sessionStatus && (!sessionStatus.exists || sessionStatus.expired)
+
+  return (
+    <div className="space-y-4">
+      {sessionBad && (
+        <div className="rounded-md border px-4 py-3 text-sm" style={{ borderColor: "rgba(245,158,11,0.4)", color: "#f59e0b" }}>
+          Session Tokopedia belum ada / expired. Buka Settings → Tokopedia Session untuk paste cookies.
+        </div>
+      )}
+      <div className="flex items-center gap-2 flex-wrap">
+        {(["perlu-dikirim", "semua"] as const).map(t => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`px-3 py-1 rounded-full text-sm font-medium border ${tab === t ? "bg-indigo-600 text-white border-indigo-600" : "border-border text-muted-foreground hover:bg-muted"}`}>
+            {t === "perlu-dikirim" ? "Perlu Dikirim" : "Semua"}
+          </button>
+        ))}
+        <input value={searchId} onChange={e => setSearchId(e.target.value)} placeholder="Cari order ID..."
+          className="ml-auto h-8 rounded-md border px-3 text-sm bg-transparent" />
+      </div>
+
+      {isError ? (
+        <p className="py-8 text-center text-destructive">{error instanceof Error ? error.message : "Error"}</p>
+      ) : isLoading ? (
+        <p className="py-8 text-center text-muted-foreground">Memuat...</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="text-left border-b">
+              <th className="py-2 pr-4">Order ID</th><th className="py-2 pr-4">Status</th>
+              <th className="py-2 pr-4">Produk</th><th className="py-2 pr-4">Kurir</th>
+              <th className="py-2 pr-4">Resi</th><th className="py-2 pr-4">Total</th>
+            </tr></thead>
+            <tbody>
+              {(data?.orders ?? []).map(o => (
+                <tr key={o.orderId} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => setOpenId(o.orderId)}>
+                  <td className="py-2 pr-4 font-mono text-xs">{o.orderId}</td>
+                  <td className="py-2 pr-4">{o.statusLabel}</td>
+                  <td className="py-2 pr-4">{o.products.map(p => `${p.name}${p.variant ? ` (${p.variant})` : ""} ×${p.qty}`).join(", ")}</td>
+                  <td className="py-2 pr-4">{o.courier ?? "-"}</td>
+                  <td className="py-2 pr-4 font-mono text-xs">{o.trackingNo ?? "-"}</td>
+                  <td className="py-2 pr-4">Rp {o.grandTotal.toLocaleString("id-ID")}</td>
+                </tr>
+              ))}
+              {(data?.orders ?? []).length === 0 && (
+                <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">Tidak ada order</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {detail && (openId || searchId.trim()) && (
+        <div className="rounded-md border p-4 text-sm space-y-1">
+          <div className="flex items-center justify-between">
+            <span className="font-mono">{detail.orderId} · {detail.statusLabel}</span>
+            <button className="text-xs text-muted-foreground" onClick={() => { setOpenId(null); setSearchId("") }}>tutup</button>
+          </div>
+          <div>Produk: {detail.products.map(p => `${p.name}${p.variant ? ` (${p.variant})` : ""} ×${p.qty}`).join(", ")}</div>
+          <div>Kurir: {detail.courier ?? "-"} {detail.serviceType ? `(${detail.serviceType})` : ""} · Resi: {detail.trackingNo ?? "-"}</div>
+          {detail.latestLogistic && <div>Update: {detail.latestLogistic.msg}</div>}
+          <div>Buyer: {detail.buyerNickname ?? "-"} · Total: Rp {detail.grandTotal.toLocaleString("id-ID")}</div>
+          {detail.note && <div>Catatan: {detail.note}</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── OrderPage ──────────────────────────────────────────────────────────────
 
 export default function OrderPage() {
@@ -282,6 +361,7 @@ export default function OrderPage() {
                 {/* Content Area */}
         <div className="flex-1 overflow-auto">
           {channel === "shopee" && <ShopeeOrderView />}
+          {channel === "tokopedia" && <TokopediaOrderView />}
           {channel === "light-generator" && <LightGeneratorOrderView />}
           {channel === "strava" && <StravaOrderView />}
         </div>

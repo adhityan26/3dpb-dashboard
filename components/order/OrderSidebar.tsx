@@ -1,9 +1,10 @@
 "use client"
 
-export type OrderChannel = "shopee" | "light-generator" | "strava"
+export type OrderChannel = "shopee" | "light-generator" | "strava" | "tokopedia"
 
 const NAV_ITEMS: { channel: OrderChannel; icon: string; label: string }[] = [
   { channel: "shopee", icon: "🛒", label: "Shopee" },
+  { channel: "tokopedia", icon: "🟢", label: "Tokopedia" },
   { channel: "light-generator", icon: "💡", label: "Light Generator" },
   { channel: "strava", icon: "🏃", label: "Strava" },
 ]
