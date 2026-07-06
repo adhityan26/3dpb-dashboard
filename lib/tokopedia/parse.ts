@@ -1,0 +1,60 @@
+import type { TokopediaRawOrder } from "./orders"
+import type { TokopediaOrderSummary } from "./types"
+
+export const SKU_DISPLAY_STATUS: Record<number, string> = {
+  110: "Perlu Dikirim",
+  120: "Dikirim",
+  121: "Dikirim",
+  130: "Dikirim",
+  140: "Selesai",
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function num(v: any): number {
+  if (v == null) return 0
+  const n = typeof v === "number" ? v : Number(String(v))
+  return Number.isFinite(n) ? n : 0
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function priceVal(mod: any): number {
+  return num(mod?.price_val)
+}
+
+export function parseOrder(raw: TokopediaRawOrder): TokopediaOrderSummary {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const o = raw as any
+  const statusMod = o.order_status_module?.[0]
+  const statusCode: number | null = typeof statusMod?.sku_display_status === "number" ? statusMod.sku_display_status : null
+  const statusLabel = statusCode != null ? (SKU_DISPLAY_STATUS[statusCode] ?? "Tidak diketahui") : "Tidak diketahui"
+
+  const delivery = o.delivery_module?.[0]
+  const trackingNo = (delivery?.tracking_no || delivery?.last_tracking_no) || null
+
+  const logistic = o.logistics_info_module?.[0]?.logistics_detail_item
+  const latestLogistic = logistic?.display_msg
+    ? { msg: String(logistic.display_msg), timestamp: num(logistic.timestamp) }
+    : null
+
+  return {
+    orderId: String(o.main_order_id ?? ""),
+    statusCode,
+    statusLabel,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    products: Array.isArray(o.sku_module) ? o.sku_module.map((s: any) => ({
+      name: String(s.product_name ?? ""),
+      variant: String(s.sku_name ?? ""),
+      qty: num(s.quantity),
+      totalPrice: priceVal(s.sku_total_price),
+    })) : [],
+    courier: delivery?.shipment_provider_info?.name ?? null,
+    serviceType: delivery?.logistics_service_info?.logistics_service_name ?? null,
+    trackingNo,
+    latestLogistic,
+    grandTotal: priceVal(o.price_module?.grand_total),
+    subTotal: priceVal(o.price_module?.sub_total),
+    buyerNickname: o.buyer_info_module?.buyer_nickname ?? null,
+    latestRtsTime: o.trade_order_module?.latest_rts_time != null ? num(o.trade_order_module.latest_rts_time) : null,
+    note: o.note_module?.buyer_note || null,
+  }
+}
