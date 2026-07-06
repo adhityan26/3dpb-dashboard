@@ -44,6 +44,10 @@ export function parseOrder(raw: TokopediaRawOrder): TokopediaOrderSummary {
     ? { msg: String(logistic.display_msg), timestamp: num(logistic.timestamp) }
     : null
 
+  const trade = o.trade_order_module
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const isPreOrder = Array.isArray(o.order_label_module) && o.order_label_module.some((l: any) => l?.isPreOrder === 1)
+
   return {
     orderId: String(o.main_order_id ?? ""),
     statusCode,
@@ -58,12 +62,16 @@ export function parseOrder(raw: TokopediaRawOrder): TokopediaOrderSummary {
     })) : [],
     courier: delivery?.shipment_provider_info?.name ?? null,
     serviceType: delivery?.logistics_service_info?.logistics_service_name ?? null,
+    shippingType: delivery?.logistics_service_info?.logistics_service_level ?? null,
     trackingNo,
     latestLogistic,
     grandTotal: priceVal(o.price_module?.grand_total),
     subTotal: priceVal(o.price_module?.sub_total),
     buyerNickname: o.buyer_info_module?.buyer_nickname ?? null,
-    latestRtsTime: o.trade_order_module?.latest_rts_time != null ? num(o.trade_order_module.latest_rts_time) : null,
+    orderDate: trade?.create_time != null ? num(trade.create_time) : null,
+    latestRtsTime: trade?.latest_rts_time != null ? num(trade.latest_rts_time) : null,
+    payMethod: trade?.pay_method ?? null,
+    isPreOrder,
     note: o.note_module?.buyer_note || null,
   }
 }

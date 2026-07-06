@@ -271,7 +271,7 @@ function LightGeneratorOrderView() {
 // ── TokopediaOrderView ─────────────────────────────────────────────────────
 
 function TokopediaOrderView() {
-  const [tab, setTab] = useState<"perlu-dikirim" | "semua">("perlu-dikirim")
+  const [tab, setTab] = useState<"perlu-dikirim" | "dikirim" | "selesai">("perlu-dikirim")
   const [searchId, setSearchId] = useState("")
   const { data: sessionStatus } = useTokopediaSession()
   const { data, isLoading, isError, error } = useTokopediaOrders(tab)
@@ -287,10 +287,10 @@ function TokopediaOrderView() {
         </div>
       )}
       <div className="flex items-center gap-2 flex-wrap">
-        {(["perlu-dikirim", "semua"] as const).map(t => (
+        {([["perlu-dikirim", "Perlu Dikirim"], ["dikirim", "Dikirim"], ["selesai", "Selesai"]] as const).map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-3 py-1 rounded-full text-sm font-medium border ${tab === t ? "bg-indigo-600 text-white border-indigo-600" : "border-border text-muted-foreground hover:bg-muted"}`}>
-            {t === "perlu-dikirim" ? "Perlu Dikirim" : "Semua"}
+            {label}
           </button>
         ))}
         <input value={searchId} onChange={e => setSearchId(e.target.value)} placeholder="Cari order ID..."

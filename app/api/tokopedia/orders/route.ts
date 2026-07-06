@@ -7,7 +7,8 @@ import { TokopediaError } from "@/lib/tokopedia/types"
 export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  const tab = new URL(req.url).searchParams.get("tab") === "semua" ? "semua" : "perlu-dikirim"
+  const tabParam = new URL(req.url).searchParams.get("tab")
+  const tab = tabParam === "dikirim" || tabParam === "selesai" ? tabParam : "perlu-dikirim"
   try {
     const data = await listOrders(tab)
     return NextResponse.json({ totalCount: data.total_count, orders: data.main_orders.map(parseOrder) })

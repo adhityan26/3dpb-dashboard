@@ -14,6 +14,19 @@ function rupiah(n: number): string {
   return "Rp " + Math.round(n).toLocaleString("id-ID")
 }
 
+function formatDate(unixSec: number): string {
+  return new Date(unixSec * 1000).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })
+}
+
+function shipBy(unixSec: number): { text: string; urgent: boolean; overdue: boolean } {
+  const ms = unixSec * 1000 - Date.now()
+  return {
+    text: new Date(unixSec * 1000).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }),
+    urgent: ms >= 0 && ms < 24 * 60 * 60 * 1000,
+    overdue: ms < 0,
+  }
+}
+
 // status → visual vocabulary (mirrors Shopee OrderRow's dot/border scheme)
 function statusStyle(code: number | null): { dot: string; dotClass: string; border: string; bg: string; badgeBg: string; badgeColor: string } {
   if (code === 140) {
@@ -58,10 +71,28 @@ export function TokopediaOrderRow({ order, defaultExpanded = false }: TokopediaO
             <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: s.badgeBg, color: s.badgeColor }}>
               {order.statusLabel}
             </span>
+            {order.isPreOrder && (
+              <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded" style={{ background: "rgba(139,92,246,0.2)", color: "#a78bfa" }}>
+                PRE-ORDER
+              </span>
+            )}
+            {order.orderDate && (
+              <span className="text-[11px] text-muted-foreground">🗓️ {formatDate(order.orderDate)}</span>
+            )}
             {order.trackingNo && (
               <span className="text-[11px] font-mono text-muted-foreground">📦 {order.trackingNo}</span>
             )}
           </div>
+
+          {order.latestRtsTime && order.statusCode !== 140 && (() => {
+            const sb = shipBy(order.latestRtsTime)
+            return (
+              <div className="mt-0.5 text-[11px] font-medium" style={{ color: sb.overdue ? "#f87171" : sb.urgent ? "#fb923c" : "#94a3b8" }}>
+                {sb.overdue ? "⚠️" : sb.urgent ? "⏰" : "📅"} Kirim sebelum {sb.text}
+                {sb.overdue && " · TERLAMBAT"}{sb.urgent && !sb.overdue && " · Segera!"}
+              </div>
+            )
+          })()}
 
           <div className="mt-1 text-sm text-gray-700 dark:text-slate-300">
             {first ? first.name : "(no items)"}
@@ -73,7 +104,8 @@ export function TokopediaOrderRow({ order, defaultExpanded = false }: TokopediaO
 
           <div className="text-xs text-gray-500 dark:text-slate-400">
             {totalQty} pcs · {rupiah(order.grandTotal)}
-            {order.courier && <> · {order.courier}{order.serviceType ? ` (${order.serviceType})` : ""}</>}
+            {order.courier && <> · {order.courier}{order.shippingType ? ` · ${order.shippingType}` : ""}</>}
+            {order.payMethod && <> · {order.payMethod}</>}
             {order.buyerNickname && <> · {order.buyerNickname}</>}
           </div>
 

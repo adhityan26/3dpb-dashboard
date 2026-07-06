@@ -6,20 +6,27 @@ export interface TokopediaRawData {
   main_orders: TokopediaRawOrder[]
 }
 
+export type TokopediaTab = "perlu-dikirim" | "dikirim" | "selesai"
+
+// Real Seller Center tab bodies (verified from the network payload — the tab is
+// selected entirely by the POST body, the URL is identical across tabs).
+const TAB_CONFIG: Record<TokopediaTab, { condition_list: Record<string, unknown>; sort_info: string }> = {
+  "perlu-dikirim": { condition_list: { order_status: { value: ["1"] }, search_tab: { value: ["101"] } }, sort_info: "11" },
+  "dikirim":       { condition_list: { search_tab: { value: ["102"] } }, sort_info: "6" },
+  "selesai":       { condition_list: { search_tab: { value: ["103"] } }, sort_info: "6" },
+}
+
 export async function listOrders(
-  tab: "perlu-dikirim" | "semua",
+  tab: TokopediaTab,
   opts: { count?: number; offset?: number } = {},
 ): Promise<TokopediaRawData> {
-  const condition_list: Record<string, unknown> =
-    tab === "perlu-dikirim"
-      ? { order_status: { value: ["1"] }, search_tab: { value: ["101"] } }
-      : {}
+  const cfg = TAB_CONFIG[tab]
   const body = {
     count: opts.count ?? 20,
     offset: opts.offset ?? 0,
     pagination_type: 0,
-    sort_info: "11",
-    search_condition: { condition_list },
+    sort_info: cfg.sort_info,
+    search_condition: { condition_list: cfg.condition_list },
     search_cursor: "",
   }
   return tokopediaRequest<TokopediaRawData>(body)

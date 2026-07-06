@@ -26,10 +26,10 @@ describe("bot tokopedia routes", () => {
   it("list returns raw data passthrough", async () => {
     mockAuth.mockReturnValue(true)
     mockList.mockResolvedValue({ total_count: 2, main_orders: [{ main_order_id: "A" }] })
-    const res = await listGET(req("http://x/api/bot/tokopedia/orders?tab=semua"))
+    const res = await listGET(req("http://x/api/bot/tokopedia/orders?tab=dikirim"))
     const body = await res.json()
     expect(body).toEqual({ ok: true, data: { total_count: 2, main_orders: [{ main_order_id: "A" }] } })
-    expect(mockList.mock.calls[0][0]).toBe("semua")
+    expect(mockList.mock.calls[0][0]).toBe("dikirim")
   })
 
   it("list returns ok:false with session error code", async () => {

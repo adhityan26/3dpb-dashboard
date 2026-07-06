@@ -10,20 +10,31 @@ const mockReq = tokopediaRequest as any
 describe("listOrders", () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it("sends the perlu-dikirim filter", async () => {
+  it("sends the perlu-dikirim filter (order_status 1 + search_tab 101, sort 11)", async () => {
     mockReq.mockResolvedValue({ total_count: 0, main_orders: [] })
     await listOrders("perlu-dikirim")
     const body = mockReq.mock.calls[0][0]
     expect(body.search_condition.condition_list.order_status.value).toEqual(["1"])
     expect(body.search_condition.condition_list.search_tab.value).toEqual(["101"])
+    expect(body.sort_info).toBe("11")
     expect(body.count).toBe(20)
   })
 
-  it("omits the status filter for the semua tab", async () => {
+  it("sends the dikirim filter (search_tab 102, no order_status, sort 6)", async () => {
     mockReq.mockResolvedValue({ total_count: 0, main_orders: [] })
-    await listOrders("semua")
+    await listOrders("dikirim")
     const body = mockReq.mock.calls[0][0]
+    expect(body.search_condition.condition_list.search_tab.value).toEqual(["102"])
     expect(body.search_condition.condition_list.order_status).toBeUndefined()
+    expect(body.sort_info).toBe("6")
+  })
+
+  it("sends the selesai filter (search_tab 103, sort 6)", async () => {
+    mockReq.mockResolvedValue({ total_count: 0, main_orders: [] })
+    await listOrders("selesai")
+    const body = mockReq.mock.calls[0][0]
+    expect(body.search_condition.condition_list.search_tab.value).toEqual(["103"])
+    expect(body.sort_info).toBe("6")
   })
 
   it("honors count/offset overrides", async () => {
