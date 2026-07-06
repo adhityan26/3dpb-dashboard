@@ -23,6 +23,7 @@ import { InvoiceForm } from "@/components/invoice/InvoiceForm"
 import type { OrderSummary } from "@/lib/orders/types"
 import type { OrderPrefill } from "@/lib/invoice/types"
 import { useTokopediaSession, useTokopediaOrders, useTokopediaOrder } from "@/lib/hooks/use-tokopedia"
+import { TokopediaOrderRow } from "@/components/order/TokopediaOrderRow"
 
 // ── ShopeeOrderView ────────────────────────────────────────────────────────
 
@@ -272,10 +273,9 @@ function LightGeneratorOrderView() {
 function TokopediaOrderView() {
   const [tab, setTab] = useState<"perlu-dikirim" | "semua">("perlu-dikirim")
   const [searchId, setSearchId] = useState("")
-  const [openId, setOpenId] = useState<string | null>(null)
   const { data: sessionStatus } = useTokopediaSession()
   const { data, isLoading, isError, error } = useTokopediaOrders(tab)
-  const { data: detail } = useTokopediaOrder(openId ?? (searchId.trim() || null))
+  const { data: detail } = useTokopediaOrder(searchId.trim() || null)
 
   const sessionBad = sessionStatus && (!sessionStatus.exists || sessionStatus.expired)
 
@@ -297,49 +297,30 @@ function TokopediaOrderView() {
           className="ml-auto h-8 rounded-md border px-3 text-sm bg-transparent" />
       </div>
 
-      {isError ? (
-        <p className="py-8 text-center text-destructive">{error instanceof Error ? error.message : "Error"}</p>
-      ) : isLoading ? (
-        <p className="py-8 text-center text-muted-foreground">Memuat...</p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead><tr className="text-left border-b">
-              <th className="py-2 pr-4">Order ID</th><th className="py-2 pr-4">Status</th>
-              <th className="py-2 pr-4">Produk</th><th className="py-2 pr-4">Kurir</th>
-              <th className="py-2 pr-4">Resi</th><th className="py-2 pr-4">Total</th>
-            </tr></thead>
-            <tbody>
-              {(data?.orders ?? []).map(o => (
-                <tr key={o.orderId} className="border-b hover:bg-muted/30 cursor-pointer" onClick={() => setOpenId(o.orderId)}>
-                  <td className="py-2 pr-4 font-mono text-xs">{o.orderId}</td>
-                  <td className="py-2 pr-4">{o.statusLabel}</td>
-                  <td className="py-2 pr-4">{o.products.map(p => `${p.name}${p.variant ? ` (${p.variant})` : ""} ×${p.qty}`).join(", ")}</td>
-                  <td className="py-2 pr-4">{o.courier ?? "-"}</td>
-                  <td className="py-2 pr-4 font-mono text-xs">{o.trackingNo ?? "-"}</td>
-                  <td className="py-2 pr-4">Rp {o.grandTotal.toLocaleString("id-ID")}</td>
-                </tr>
-              ))}
-              {(data?.orders ?? []).length === 0 && (
-                <tr><td colSpan={6} className="py-8 text-center text-muted-foreground">Tidak ada order</td></tr>
-              )}
-            </tbody>
-          </table>
+      {searchId.trim() && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Hasil pencarian: {searchId.trim()}</span>
+            <button className="text-xs text-muted-foreground" onClick={() => setSearchId("")}>bersihkan</button>
+          </div>
+          {detail
+            ? <TokopediaOrderRow order={detail} defaultExpanded />
+            : <p className="py-6 text-center text-muted-foreground text-sm">Order tidak ditemukan / memuat...</p>}
         </div>
       )}
 
-      {detail && (openId || searchId.trim()) && (
-        <div className="rounded-md border p-4 text-sm space-y-1">
-          <div className="flex items-center justify-between">
-            <span className="font-mono">{detail.orderId} · {detail.statusLabel}</span>
-            <button className="text-xs text-muted-foreground" onClick={() => { setOpenId(null); setSearchId("") }}>tutup</button>
+      {!searchId.trim() && (
+        isError ? (
+          <p className="py-8 text-center text-destructive">{error instanceof Error ? error.message : "Error"}</p>
+        ) : isLoading ? (
+          <p className="py-8 text-center text-muted-foreground">Memuat...</p>
+        ) : (data?.orders ?? []).length === 0 ? (
+          <p className="py-12 text-center text-gray-400 text-sm">Tidak ada order untuk filter ini.</p>
+        ) : (
+          <div className="space-y-2">
+            {(data?.orders ?? []).map(o => <TokopediaOrderRow key={o.orderId} order={o} />)}
           </div>
-          <div>Produk: {detail.products.map(p => `${p.name}${p.variant ? ` (${p.variant})` : ""} ×${p.qty}`).join(", ")}</div>
-          <div>Kurir: {detail.courier ?? "-"} {detail.serviceType ? `(${detail.serviceType})` : ""} · Resi: {detail.trackingNo ?? "-"}</div>
-          {detail.latestLogistic && <div>Update: {detail.latestLogistic.msg}</div>}
-          <div>Buyer: {detail.buyerNickname ?? "-"} · Total: Rp {detail.grandTotal.toLocaleString("id-ID")}</div>
-          {detail.note && <div>Catatan: {detail.note}</div>}
-        </div>
+        )
       )}
     </div>
   )
