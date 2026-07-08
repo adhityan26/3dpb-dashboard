@@ -91,3 +91,18 @@ export interface HasilKalkulasi {
   marginShopeeA: number
   status: KalkulasiStatus
 }
+
+// ── V2: printer ──
+export interface PrinterProfile {
+  id: string
+  nama: string
+  mesinPerJam: number
+}
+
+export interface PrinterCostInput {
+  watt: number              // konsumsi rata-rata printer
+  tarifPerKwh: number       // tarif listrik Rp/kWh
+  hargaPrinter: number      // harga beli printer
+  umurPakaiJam: number      // estimasi umur pakai dalam jam print
+  maintenancePerJam?: number
+}
