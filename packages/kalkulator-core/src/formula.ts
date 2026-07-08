@@ -1,136 +1,73 @@
 import type {
-  PlateInput, KalkulasiStatus, KalkulatorRates, HasilKalkulasi, HelmOptions
+  PlateInput, KalkulatorRates, HasilKalkulasi, HelmOptions, KalkulasiStatus,
 } from './types'
+import { hitungKalkulasiV2 } from './formula-v2'
+import {
+  legacyPlateToV2, legacyKomponenToV2, helmToLabor, legacySettingsToV2,
+  type LegacyAksesori,
+} from './adapter'
 
-interface AksesoriInput {
-  packingType?: string
-  gantunganType?: string
-  switchQty: number
-  hasLabel: boolean
-  komponenKustom: { harga: number; qty: number }[]
-}
-
+/**
+ * API legacy — delegasi ke hitungKalkulasiV2 lewat adapter, lalu presenter
+ * mereproduksi pembulatan lama persis (hppFinishing dibulatkan SEBELUM
+ * dijumlahkan, sesuai perilaku sebelum refactor).
+ */
 export function hitungKalkulasi(
   plates: PlateInput[],
-  aksesori: AksesoriInput,
+  aksesori: LegacyAksesori,
   batch: number,
   rates: KalkulatorRates,
   hargaShopeeAktual?: number,
   customRiskPct?: number,
   helmOptions?: HelmOptions,
 ): HasilKalkulasi {
-  const safeBatch = Math.max(1, batch)
-  const failureRate = (customRiskPct ?? rates.failureRatePct) / 100
-  const spread = rates.failureSpreadPct / 100          // 0=owner, 1=customer
-  const testPct = rates.testLayerPct / 100
+  const v2 = hitungKalkulasiV2({
+    plates: plates.map(p => legacyPlateToV2(p, rates)),
+    batch,
+    komponen: legacyKomponenToV2(aksesori, rates),
+    labor: helmToLabor(helmOptions),
+    customRiskPct,
+  }, legacySettingsToV2(rates))
 
-  // Calculate HPP and jual cost for one plate
-  // HPP  = actual cost (katalog rate, fallback ke base config) + failure buffer (owner portion) + test layer
-  // Jual = floor price basis (MAX(base config, katalog)) + failure buffer (customer portion)
-  function plateCost(p: PlateInput): { hpp: number; jual: number } {
-    const mesin = p.durasiJam * rates.mesinPerJam
-
-    let matHpp: number, matJual: number
-
-    if (p.materials && p.materials.length > 0) {
-      const isSLA = p.tipe === 'SLA'
-      const baseHpp  = isSLA ? rates.slaHppPerGram  : rates.fdmHppPerGram
-      const baseJual = isSLA ? rates.slaJualPerGram : rates.fdmJualPerGram
-      const { totalHpp, totalJual } = p.materials.reduce((s, m) => {
-        const hppRate  = m.hargaPerGram ?? baseHpp
-        const jualRate = Math.max(baseJual, m.hargaPerGram ?? baseJual)
-        return { totalHpp: s.totalHpp + m.gramasi * hppRate, totalJual: s.totalJual + m.gramasi * jualRate }
-      }, { totalHpp: 0, totalJual: 0 })
-      matHpp = totalHpp; matJual = totalJual
-    } else {
-      const isSLA = p.tipe === 'SLA'
-      const baseHpp  = isSLA ? rates.slaHppPerGram  : rates.fdmHppPerGram
-      const baseJual = isSLA ? rates.slaJualPerGram : rates.fdmJualPerGram
-      const hppRate  = p.hargaPerGram ?? baseHpp
-      const jualRate = Math.max(baseJual, p.hargaPerGram ?? baseJual)
-      matHpp = (p.gramasi ?? 0) * hppRate
-      matJual = (p.gramasi ?? 0) * jualRate
-    }
-
-    // Failure cost — base = hppRate (real cost)
-    const failureCost = (matHpp + mesin) * failureRate
-    // Test layer cost — HPP only (owner's QC cost), material only
-    const testCost = matHpp * testPct
-
-    const hpp  = matHpp  + mesin + failureCost * (1 - spread) + testCost
-    const jual = matJual + mesin + failureCost * spread
-
-    return { hpp, jual }
-  }
-
-  let totalHppBatch = 0, totalJualBatch = 0
-  for (const p of plates) {
-    const c = plateCost(p)
-    totalHppBatch += c.hpp
-    totalJualBatch += c.jual
-  }
-  const hppProduksi = totalHppBatch  / safeBatch
-  const jualBase    = totalJualBatch / safeBatch
-
-  const hppKomponen =
-    (aksesori.packingType ? (rates.packing[aksesori.packingType] ?? 0) : 0) +
-    (aksesori.gantunganType ? (rates.gantungan[aksesori.gantunganType] ?? 0) : 0) +
-    aksesori.switchQty * rates.switchPerPcs +
-    (aksesori.hasLabel ? rates.labelPerLembar : 0) +
-    aksesori.komponenKustom.reduce((s, k) => s + k.harga * k.qty, 0)
-
-  const hppTotal = hppProduksi + hppKomponen
-  const floorPrice = jualBase + hppKomponen
-
-  // Helm finishing: labor (preparer + finisher) + flat consumables
-  const hppFinishing = (helmOptions?.finishType === 'FINISHING')
-    ? Math.round(
-        (helmOptions.jamSanding + helmOptions.jamAssembly) * helmOptions.preparerRatePerJam
-        + helmOptions.jamPainting * helmOptions.finisherRatePerJam
-        + helmOptions.flatFinishingCost
-      )
-    : 0
-
-  const hppTotalWithFinishing = hppTotal + hppFinishing
-  const floorPriceWithFinishing = floorPrice + hppFinishing
+  const hppFinishing = Math.round(v2.hppLabor)
+  const hppTotal = v2.hppProduksi + v2.hppKomponen + hppFinishing
+  const floorPrice = v2.jualBase + v2.hppKomponen + hppFinishing
 
   const m = rates.marginMultipliers
-  const offlineA = floorPriceWithFinishing * m.A
-  const offlineB = floorPriceWithFinishing * m.B
-  const offlineC = floorPriceWithFinishing * m.C
+  const offlineA = floorPrice * m.A
+  const offlineB = floorPrice * m.B
+  const offlineC = floorPrice * m.C
   const shopeeA = offlineA * rates.adminEcommerce
   const shopeeB = offlineB * rates.adminEcommerce
   const shopeeC = offlineC * rates.adminEcommerce
-  const resellerStd = offlineA
-  const resellerBulk = floorPriceWithFinishing * rates.resellerBulkMultiplier
 
-  const marginOfflineA = offlineA > 0 ? ((offlineA - hppTotalWithFinishing) / offlineA) * 100 : 0
+  const marginOfflineA = offlineA > 0 ? ((offlineA - hppTotal) / offlineA) * 100 : 0
   const netShopeeA = shopeeA / rates.adminEcommerce
-  const marginShopeeA = netShopeeA > 0 ? ((netShopeeA - hppTotalWithFinishing) / netShopeeA) * 100 : 0
+  const marginShopeeA = netShopeeA > 0 ? ((netShopeeA - hppTotal) / netShopeeA) * 100 : 0
 
   let status: KalkulasiStatus = 'TIDAK_DISET'
   if (hargaShopeeAktual !== undefined) {
     if (hargaShopeeAktual >= shopeeA) status = 'AMAN'
-    else if (hargaShopeeAktual >= floorPriceWithFinishing) status = 'BAWAH_REKM'
+    else if (hargaShopeeAktual >= floorPrice) status = 'BAWAH_REKM'
     else status = 'RUGI'
   }
 
   return {
-    hppProduksi:    Math.round(hppProduksi),
-    hppKomponen:    Math.round(hppKomponen),
-    hppFinishing,                                // already Math.round'd above
-    hppTotal:       Math.round(hppTotalWithFinishing),
-    floorPrice:     Math.round(floorPriceWithFinishing),
-    offlineA:  Math.round(offlineA),
-    offlineB:  Math.round(offlineB),
-    offlineC:  Math.round(offlineC),
-    shopeeA:   Math.round(shopeeA),
-    shopeeB:   Math.round(shopeeB),
-    shopeeC:   Math.round(shopeeC),
-    resellerStd:   Math.round(resellerStd),
-    resellerBulk:  Math.round(resellerBulk),
+    hppProduksi: Math.round(v2.hppProduksi),
+    hppKomponen: Math.round(v2.hppKomponen),
+    hppFinishing,
+    hppTotal: Math.round(hppTotal),
+    floorPrice: Math.round(floorPrice),
+    offlineA: Math.round(offlineA),
+    offlineB: Math.round(offlineB),
+    offlineC: Math.round(offlineC),
+    shopeeA: Math.round(shopeeA),
+    shopeeB: Math.round(shopeeB),
+    shopeeC: Math.round(shopeeC),
+    resellerStd: Math.round(offlineA),
+    resellerBulk: Math.round(floorPrice * rates.resellerBulkMultiplier),
     marginOfflineA: Math.round(marginOfflineA * 10) / 10,
-    marginShopeeA:  Math.round(marginShopeeA * 10) / 10,
+    marginShopeeA: Math.round(marginShopeeA * 10) / 10,
     status,
   }
 }
