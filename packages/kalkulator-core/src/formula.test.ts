@@ -74,6 +74,18 @@ describe('hitungKalkulasi', () => {
     expect(result.hppProduksi).toBeCloseTo(13900, 0)
   })
 
+  it('SLA plate with materials[] falls back to SLA rates, not FDM', () => {
+    const result = hitungKalkulasi(
+      [{ tipe: 'SLA', durasiJam: 0.5, materials: [{ brand: 'AnyCubic', material: 'ABS-like', color: 'Grey', gramasi: 5 }] }],
+      { packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [] },
+      1, DEFAULT_RATES, 'A'
+    )
+    // matHpp = 5 × 1750 = 8750; mesin = 0.5 × 4000 = 2000 → 10750
+    expect(result.hppProduksi).toBeCloseTo(10750, 0)
+    // matJual = 5 × 3500 = 17500; + mesin 2000 → 19500
+    expect(result.floorPrice).toBeCloseTo(19500, 0)
+  })
+
   it('calculates switch qty correctly', () => {
     const result = hitungKalkulasi(
       [{ tipe: 'FDM', gramasi: 25, durasiJam: 1.0 }],

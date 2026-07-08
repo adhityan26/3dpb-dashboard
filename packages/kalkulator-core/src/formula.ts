@@ -33,19 +33,22 @@ export function hitungKalkulasi(
   function plateCost(p: PlateInput): { hpp: number; jual: number } {
     const mesin = p.durasiJam * rates.mesinPerJam
 
-    let baseHpp: number, baseJual: number, matHpp: number, matJual: number
+    let matHpp: number, matJual: number
 
     if (p.materials && p.materials.length > 0) {
+      const isSLA = p.tipe === 'SLA'
+      const baseHpp  = isSLA ? rates.slaHppPerGram  : rates.fdmHppPerGram
+      const baseJual = isSLA ? rates.slaJualPerGram : rates.fdmJualPerGram
       const { totalHpp, totalJual } = p.materials.reduce((s, m) => {
-        const hppRate  = m.hargaPerGram ?? rates.fdmHppPerGram
-        const jualRate = Math.max(rates.fdmJualPerGram, m.hargaPerGram ?? rates.fdmJualPerGram)
+        const hppRate  = m.hargaPerGram ?? baseHpp
+        const jualRate = Math.max(baseJual, m.hargaPerGram ?? baseJual)
         return { totalHpp: s.totalHpp + m.gramasi * hppRate, totalJual: s.totalJual + m.gramasi * jualRate }
       }, { totalHpp: 0, totalJual: 0 })
       matHpp = totalHpp; matJual = totalJual
     } else {
       const isSLA = p.tipe === 'SLA'
-      baseHpp  = isSLA ? rates.slaHppPerGram  : rates.fdmHppPerGram
-      baseJual = isSLA ? rates.slaJualPerGram : rates.fdmJualPerGram
+      const baseHpp  = isSLA ? rates.slaHppPerGram  : rates.fdmHppPerGram
+      const baseJual = isSLA ? rates.slaJualPerGram : rates.fdmJualPerGram
       const hppRate  = p.hargaPerGram ?? baseHpp
       const jualRate = Math.max(baseJual, p.hargaPerGram ?? baseJual)
       matHpp = (p.gramasi ?? 0) * hppRate
