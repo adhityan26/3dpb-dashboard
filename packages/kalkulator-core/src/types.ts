@@ -106,3 +106,85 @@ export interface PrinterCostInput {
   umurPakaiJam: number      // estimasi umur pakai dalam jam print
   maintenancePerJam?: number
 }
+
+// ── V2: model settings-driven ──
+export interface MaterialProfile {
+  id: string
+  nama: string             // 'PLA', 'PETG', 'ABS', 'ASA', 'TPU', 'Resin ABS-like', …
+  tipe: PrintTipe
+  hppPerGram: number       // harga modal per gram
+  jualPerGram: number      // basis floor price per gram
+  failureRatePct: number   // failure rate khas material ini
+}
+
+export interface KomponenItem { nama: string; harga: number; qty: number }
+
+/** Biaya = (jam × ratePerJam) + flat. Field yang tidak diisi dianggap 0. */
+export interface LaborItem {
+  nama: string
+  jam?: number
+  ratePerJam?: number
+  flat?: number
+}
+
+export interface ChannelDef {
+  id: string               // 'offline', 'shopee', 'tokopedia', …
+  nama: string
+  feeMultiplier: number    // offline = 1; Shopee ≈ 1.2
+}
+
+export interface SettingsV2 {
+  failureSpreadPct: number
+  testLayerPct: number
+  marginMultipliers: Record<MarginTier, number>
+  resellerBulkMultiplier: number
+  channels: ChannelDef[]
+}
+
+/** Pemakaian material di satu plate — nilai SUDAH resolved (dari profile/katalog/override). */
+export interface MaterialUsageV2 {
+  gramasi: number
+  hppPerGram: number
+  jualPerGram: number
+  failureRatePct: number
+  materialProfileId?: string
+}
+
+export interface PlateInputV2 {
+  namaPart?: string
+  durasiJam: number
+  mesinPerJam: number      // resolved dari printer profile
+  materials: MaterialUsageV2[]
+  printerProfileId?: string
+}
+
+export interface KalkulasiInputV2 {
+  plates: PlateInputV2[]
+  batch: number
+  komponen: KomponenItem[]
+  labor: LaborItem[]
+  customRiskPct?: number   // override failure rate SEMUA material
+  hargaAktual?: { channelId: string; harga: number }
+}
+
+export interface HargaChannelV2 {
+  channelId: string
+  A: number
+  B: number
+  C: number
+  margin: number           // margin % pada harga A (net setelah fee) vs hppTotal
+}
+
+/** Semua nilai TIDAK dibulatkan. */
+export interface HasilKalkulasiV2 {
+  hppProduksi: number
+  hppKomponen: number
+  hppLabor: number
+  hppTotal: number
+  jualBase: number
+  floorPrice: number
+  hargaPerChannel: HargaChannelV2[]
+  resellerStd: number
+  resellerBulk: number
+  status: KalkulasiStatus
+}
