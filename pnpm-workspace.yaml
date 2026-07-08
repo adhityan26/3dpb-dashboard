@@ -1,0 +1,13 @@
+packages:
+  - apps/*
+  - packages/*
+
+# pnpm 10 memblokir postinstall script by default — izinkan yang dibutuhkan
+onlyBuiltDependencies:
+  - '@prisma/client'
+  - '@prisma/engines'
+  - prisma
+  - esbuild
+  - sharp
+  - lightningcss
+  - '@tailwindcss/oxide'
