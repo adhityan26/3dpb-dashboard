@@ -1,0 +1,21 @@
+**/node_modules
+**/.next
+**/.turbo
+.git
+.superpowers
+.claude
+.idea
+docs
+*.xlsx
+*.csv
+*.pdf
+apps/dashboard/authentik
+apps/dashboard/nginx-proxy-manager
+
+# Real .env files punya secret lokal — jangan pernah masuk build context.
+# Next.js standalone output meng-copy .env yang ada di project dir ke
+# .next/standalone, dan Dockerfile meng-copy standalone itu ke image final,
+# jadi kalau tidak di-exclude di sini, secret bisa ke-bake ke image.
+**/.env
+**/.env.local
+**/.env.deploy

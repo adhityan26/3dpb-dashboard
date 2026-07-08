@@ -1,50 +1,44 @@
-# ── Stage 1: Install dependencies ────────────────────────────────────────────
-FROM node:22-alpine AS deps
-WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm install --legacy-peer-deps
-
-# ── Stage 2: Build the Next.js app ──────────────────────────────────────────
+# ── Stage 1: Build (monorepo, pnpm via corepack) ─────────────────────────────
 FROM node:22-alpine AS builder
-WORKDIR /app
-COPY --from=deps /app/node_modules ./node_modules
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable
+WORKDIR /repo
+
 COPY . .
+RUN pnpm install --frozen-lockfile
 
-# Generate Prisma client (needed at build time for type checking)
-RUN npx prisma generate
+# Generate Prisma client (dibutuhkan saat build untuk type checking)
+RUN pnpm --filter shopee-dashboard exec prisma generate
 
-# Build Next.js in standalone mode
-RUN npm run build
+# Build Next.js standalone
+RUN pnpm --filter shopee-dashboard build
 
-# ── Stage 3: Production runtime ─────────────────────────────────────────────
+# ── Stage 2: Production runtime ──────────────────────────────────────────────
 FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Create non-root user for security
 RUN addgroup --system --gid 1001 nodejs && \
     adduser --system --uid 1001 nextjs
 
-# Copy standalone server output
-COPY --from=builder /app/.next/standalone ./
-COPY --from=builder /app/.next/static ./.next/static
+# Standalone output (layout monorepo: server.js ada di apps/dashboard/)
+COPY --from=builder /repo/apps/dashboard/.next/standalone ./
+COPY --from=builder /repo/apps/dashboard/.next/static ./apps/dashboard/.next/static
+COPY --from=builder /repo/apps/dashboard/public ./apps/dashboard/public
 
-# Copy Prisma schema + migrations (needed for `prisma migrate deploy`)
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
+# Prisma schema + migrations (untuk `prisma migrate deploy` di entrypoint)
+COPY --from=builder /repo/apps/dashboard/prisma ./apps/dashboard/prisma
+COPY --from=builder /repo/apps/dashboard/prisma.config.ts ./apps/dashboard/prisma.config.ts
 
-# Copy full node_modules for runtime, prisma CLI, and seed script.
-# Standalone output handles Next.js deps; we need the rest for Prisma + tools.
-COPY --from=builder /app/node_modules ./node_modules
+# Full node_modules untuk prisma CLI + seed script (pola sama seperti sebelumnya).
+# Symlink pnpm relatif, jadi copy root + app node_modules mempertahankan resolusi.
+COPY --from=builder /repo/node_modules ./node_modules
+COPY --from=builder /repo/apps/dashboard/node_modules ./apps/dashboard/node_modules
 
-# Copy migration scripts
-COPY --from=builder /app/scripts ./scripts
+COPY --from=builder /repo/apps/dashboard/scripts ./apps/dashboard/scripts
+COPY --from=builder /repo/apps/dashboard/docker-entrypoint.sh ./docker-entrypoint.sh
 
-# Copy entrypoint script (runs migrations before starting server)
-COPY --from=builder /app/docker-entrypoint.sh ./docker-entrypoint.sh
-
-# Create data directory for SQLite persistence (mounted as volume)
 RUN mkdir -p /app/data && chown nextjs:nodejs /app/data
 
 USER nextjs

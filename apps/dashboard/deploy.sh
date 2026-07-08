@@ -12,6 +12,7 @@ set -euo pipefail
 
 # ── Config defaults ────────────────────────────────────────────────────────────
 MODE="${1:-build}"
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 DOCKER_HOST="${DOCKER_HOST:-tcp://192.168.88.113:2375}"
 CONTAINER="shopee-dashboard"
 LOCAL_IMAGE="shopee-dashboard:latest"
@@ -57,7 +58,7 @@ if [ "$MODE" = "pull" ]; then
   DEPLOY_IMAGE="$GHCR_IMAGE"
 elif [ "$MODE" = "build" ]; then
   echo "🔨  Building shopee-dashboard image di $DOCKER_HOST..."
-  docker build -t "$LOCAL_IMAGE" "$(dirname "$0")"
+  docker build -t "$LOCAL_IMAGE" -f "$REPO_ROOT/apps/dashboard/Dockerfile" "$REPO_ROOT"
   DEPLOY_IMAGE="$LOCAL_IMAGE"
 
   echo "🔨  Building stl-service image di $DOCKER_HOST..."
