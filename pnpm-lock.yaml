@@ -170,6 +170,15 @@ importers:
         specifier: ^1.32.0
         version: 1.32.0
 
+  packages/kalkulator-core:
+    devDependencies:
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.1
+        version: 1.6.1(@types/node@20.19.43)(lightningcss@1.32.0)
+
 packages:
 
   '@alloc/quick-lru@5.2.0':
