@@ -20,6 +20,15 @@ describe("listOrders", () => {
     expect(body.count).toBe(20)
   })
 
+  it("sends the menunggu-pengambilan filter (order_status 2 + search_tab 101, sort 11)", async () => {
+    mockReq.mockResolvedValue({ total_count: 0, main_orders: [] })
+    await listOrders("menunggu-pengambilan")
+    const body = mockReq.mock.calls[0][0]
+    expect(body.search_condition.condition_list.order_status.value).toEqual(["2"])
+    expect(body.search_condition.condition_list.search_tab.value).toEqual(["101"])
+    expect(body.sort_info).toBe("11")
+  })
+
   it("sends the dikirim filter (search_tab 102, no order_status, sort 6)", async () => {
     mockReq.mockResolvedValue({ total_count: 0, main_orders: [] })
     await listOrders("dikirim")

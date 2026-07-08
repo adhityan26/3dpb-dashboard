@@ -8,10 +8,10 @@ export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   const tabParam = new URL(req.url).searchParams.get("tab")
-  const tab = tabParam === "dikirim" || tabParam === "selesai" ? tabParam : "perlu-dikirim"
+  const tab = tabParam === "dikirim" || tabParam === "selesai" || tabParam === "menunggu-pengambilan" ? tabParam : "perlu-dikirim"
   try {
     const data = await listOrders(tab)
-    return NextResponse.json({ totalCount: data.total_count, orders: data.main_orders.map(parseOrder) })
+    return NextResponse.json({ totalCount: data.total_count ?? 0, orders: (data.main_orders ?? []).map(parseOrder) })
   } catch (err) {
     if (err instanceof TokopediaError) return NextResponse.json({ error: err.code }, { status: 409 })
     return NextResponse.json({ error: err instanceof Error ? err.message : "error" }, { status: 500 })

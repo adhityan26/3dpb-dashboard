@@ -33,7 +33,7 @@ export function useTestTokopediaSession() {
   })
 }
 
-export function useTokopediaOrders(tab: "perlu-dikirim" | "dikirim" | "selesai") {
+export function useTokopediaOrders(tab: "perlu-dikirim" | "menunggu-pengambilan" | "dikirim" | "selesai") {
   return useQuery({
     queryKey: ["tokopedia", "orders", tab],
     queryFn: () => apiFetch<{ totalCount: number; orders: TokopediaOrderSummary[] }>(`/api/tokopedia/orders?tab=${tab}`),

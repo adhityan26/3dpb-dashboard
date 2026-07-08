@@ -1,7 +1,7 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useMemo, useState, Suspense } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { OrderKpiBar } from "@/components/order/OrderKpiBar"
 import {
   OrderFilter,
@@ -270,8 +270,23 @@ function LightGeneratorOrderView() {
 
 // ── TokopediaOrderView ─────────────────────────────────────────────────────
 
+type TokopediaViewTab = "perlu-dikirim" | "menunggu-pengambilan" | "dikirim" | "selesai"
+const VALID_TOKOPEDIA_TABS: TokopediaViewTab[] = ["perlu-dikirim", "menunggu-pengambilan", "dikirim", "selesai"]
+
 function TokopediaOrderView() {
-  const [tab, setTab] = useState<"perlu-dikirim" | "dikirim" | "selesai">("perlu-dikirim")
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const rawTab = searchParams.get("tab") ?? "perlu-dikirim"
+  const tab: TokopediaViewTab = VALID_TOKOPEDIA_TABS.includes(rawTab as TokopediaViewTab)
+    ? (rawTab as TokopediaViewTab)
+    : "perlu-dikirim"
+
+  function setTab(t: TokopediaViewTab) {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("tab", t)
+    router.replace(`?${params.toString()}`, { scroll: false })
+  }
+
   const [searchId, setSearchId] = useState("")
   const { data: sessionStatus } = useTokopediaSession()
   const { data, isLoading, isError, error } = useTokopediaOrders(tab)
@@ -287,7 +302,7 @@ function TokopediaOrderView() {
         </div>
       )}
       <div className="flex items-center gap-2 flex-wrap">
-        {([["perlu-dikirim", "Perlu Dikirim"], ["dikirim", "Dikirim"], ["selesai", "Selesai"]] as const).map(([t, label]) => (
+        {([["perlu-dikirim", "Perlu Dikirim"], ["menunggu-pengambilan", "Menunggu Pengambilan"], ["dikirim", "Dikirim"], ["selesai", "Selesai"]] as const).map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-3 py-1 rounded-full text-sm font-medium border ${tab === t ? "bg-indigo-600 text-white border-indigo-600" : "border-border text-muted-foreground hover:bg-muted"}`}>
             {label}
@@ -329,7 +344,28 @@ function TokopediaOrderView() {
 // ── OrderPage ──────────────────────────────────────────────────────────────
 
 export default function OrderPage() {
-  const [channel, setChannel] = useState<OrderChannel>("shopee")
+  return (
+    <Suspense>
+      <OrderPageInner />
+    </Suspense>
+  )
+}
+
+const VALID_CHANNELS: OrderChannel[] = ["shopee", "tokopedia", "light-generator", "strava"]
+
+function OrderPageInner() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const rawChannel = searchParams.get("channel") ?? "shopee"
+  const channel: OrderChannel = VALID_CHANNELS.includes(rawChannel as OrderChannel)
+    ? (rawChannel as OrderChannel)
+    : "shopee"
+
+  function setChannel(ch: OrderChannel) {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("channel", ch)
+    router.replace(`?${params.toString()}`, { scroll: false })
+  }
 
   return (
     <div className="space-y-4">
