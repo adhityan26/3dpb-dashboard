@@ -27,7 +27,7 @@ COPY --from=builder /repo/apps/dashboard/.next/standalone ./
 COPY --from=builder /repo/apps/dashboard/.next/static ./apps/dashboard/.next/static
 COPY --from=builder /repo/apps/dashboard/public ./apps/dashboard/public
 
-# Prisma schema + migrations (untuk `prisma migrate deploy` di entrypoint)
+# Prisma schema + migrations (untuk `prisma db push` di entrypoint)
 COPY --from=builder /repo/apps/dashboard/prisma ./apps/dashboard/prisma
 COPY --from=builder /repo/apps/dashboard/prisma.config.ts ./apps/dashboard/prisma.config.ts
 

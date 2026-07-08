@@ -1,6 +1,8 @@
 services:
   shopee-dashboard:
-    build: .
+    build:
+      context: ../..
+      dockerfile: apps/dashboard/Dockerfile
     container_name: shopee-dashboard
     ports:
       - "3000:3000"

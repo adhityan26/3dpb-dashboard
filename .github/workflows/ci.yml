@@ -21,14 +21,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - run: corepack enable
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
+          cache: 'pnpm'
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
-      - run: npm run lint
+      - run: pnpm --filter shopee-dashboard lint
 
   test:
     name: Test
@@ -36,16 +38,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - run: corepack enable
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'npm'
+          cache: 'pnpm'
 
-      - run: npm ci
+      - run: pnpm install --frozen-lockfile
 
-      - run: npx prisma generate
+      - run: pnpm --filter shopee-dashboard exec prisma generate
 
-      - run: npm test
+      - run: pnpm --filter shopee-dashboard test
 
   build-push:
     name: Build & Push to GHCR
