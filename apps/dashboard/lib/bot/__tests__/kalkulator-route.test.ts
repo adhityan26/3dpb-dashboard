@@ -15,6 +15,7 @@ const RATES = {
   fdmHppPerGram: 300, slaHppPerGram: 800, fdmJualPerGram: 500, slaJualPerGram: 1200,
   mesinPerJam: 1000, adminEcommerce: 0.8, failureRatePct: 12, failureSpreadPct: 50,
   testLayerPct: 5, packing: {}, gantungan: {}, switchPerPcs: 0, labelPerLembar: 0,
+  marginMultipliers: { A: 1.1, B: 1.5, C: 2.0 }, resellerBulkMultiplier: 1.05,
 }
 
 describe("POST /api/bot/kalkulator", () => {

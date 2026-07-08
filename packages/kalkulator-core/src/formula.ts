@@ -1,5 +1,5 @@
 import type {
-  PlateInput, KalkulasiStatus, KalkulatorRates, HasilKalkulasi, MarginTier, HelmOptions
+  PlateInput, KalkulasiStatus, KalkulatorRates, HasilKalkulasi, HelmOptions
 } from './types'
 
 interface AksesoriInput {
@@ -10,14 +10,11 @@ interface AksesoriInput {
   komponenKustom: { harga: number; qty: number }[]
 }
 
-const MARGIN_MULTIPLIERS: Record<MarginTier, number> = { A: 1.1, B: 1.5, C: 2.0 }
-
 export function hitungKalkulasi(
   plates: PlateInput[],
   aksesori: AksesoriInput,
   batch: number,
   rates: KalkulatorRates,
-  marginTier: MarginTier,
   hargaShopeeAktual?: number,
   customRiskPct?: number,
   helmOptions?: HelmOptions,
@@ -66,8 +63,12 @@ export function hitungKalkulasi(
     return { hpp, jual }
   }
 
-  const totalHppBatch  = plates.reduce((s, p) => s + plateCost(p).hpp,  0)
-  const totalJualBatch = plates.reduce((s, p) => s + plateCost(p).jual, 0)
+  let totalHppBatch = 0, totalJualBatch = 0
+  for (const p of plates) {
+    const c = plateCost(p)
+    totalHppBatch += c.hpp
+    totalJualBatch += c.jual
+  }
   const hppProduksi = totalHppBatch  / safeBatch
   const jualBase    = totalJualBatch / safeBatch
 
@@ -93,14 +94,15 @@ export function hitungKalkulasi(
   const hppTotalWithFinishing = hppTotal + hppFinishing
   const floorPriceWithFinishing = floorPrice + hppFinishing
 
-  const offlineA = floorPriceWithFinishing * MARGIN_MULTIPLIERS.A
-  const offlineB = floorPriceWithFinishing * MARGIN_MULTIPLIERS.B
-  const offlineC = floorPriceWithFinishing * MARGIN_MULTIPLIERS.C
+  const m = rates.marginMultipliers
+  const offlineA = floorPriceWithFinishing * m.A
+  const offlineB = floorPriceWithFinishing * m.B
+  const offlineC = floorPriceWithFinishing * m.C
   const shopeeA = offlineA * rates.adminEcommerce
   const shopeeB = offlineB * rates.adminEcommerce
   const shopeeC = offlineC * rates.adminEcommerce
   const resellerStd = offlineA
-  const resellerBulk = floorPriceWithFinishing * 1.05
+  const resellerBulk = floorPriceWithFinishing * rates.resellerBulkMultiplier
 
   const marginOfflineA = offlineA > 0 ? ((offlineA - hppTotalWithFinishing) / offlineA) * 100 : 0
   const netShopeeA = shopeeA / rates.adminEcommerce

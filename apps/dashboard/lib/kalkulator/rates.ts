@@ -32,6 +32,12 @@ export async function loadRates(): Promise<KalkulatorRates> {
     preparerRatePerJam:     parseFloat(map['kalk.preparer.perJam']          ?? '35000'),
     finisherRatePerJam:     parseFloat(map['kalk.finisher.perJam']          ?? '75000'),
     helmConsumablesDefault: parseFloat(map['kalk.helm.consumables.default'] ?? '55000'),
+    marginMultipliers: {
+      A: parseFloat(map['kalk.margin.a'] ?? '1.1'),
+      B: parseFloat(map['kalk.margin.b'] ?? '1.5'),
+      C: parseFloat(map['kalk.margin.c'] ?? '2.0'),
+    },
+    resellerBulkMultiplier: parseFloat(map['kalk.resellerBulk.multiplier'] ?? '1.05'),
   }
 }
 

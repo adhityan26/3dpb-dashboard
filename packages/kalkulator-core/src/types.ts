@@ -69,6 +69,8 @@ export interface KalkulatorRates {
   preparerRatePerJam: number      // Rp/jam untuk sanding + assembly, default 35000
   finisherRatePerJam: number      // Rp/jam untuk painting, default 75000
   helmConsumablesDefault: number  // default flat consumables per topeng, default 55000
+  marginMultipliers: Record<MarginTier, number>  // default { A: 1.1, B: 1.5, C: 2.0 }
+  resellerBulkMultiplier: number                 // default 1.05
 }
 
 export interface HasilKalkulasi {

@@ -19,6 +19,8 @@ const DEFAULT_RATES: KalkulatorRates = {
   preparerRatePerJam: 35000,
   finisherRatePerJam: 75000,
   helmConsumablesDefault: 55000,
+  marginMultipliers: { A: 1.1, B: 1.5, C: 2.0 },
+  resellerBulkMultiplier: 1.05,
 }
 
 describe('hitungKalkulasi', () => {
@@ -26,7 +28,7 @@ describe('hitungKalkulasi', () => {
     const result = hitungKalkulasi(
       [{ tipe: 'FDM', gramasi: 21, durasiJam: 1.17 }],
       { packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [] },
-      1, DEFAULT_RATES, 'A'
+      1, DEFAULT_RATES
     )
     expect(result.hppProduksi).toBeCloseTo(10980, 0)
     expect(result.hppKomponen).toBe(0)
@@ -37,7 +39,7 @@ describe('hitungKalkulasi', () => {
     const result = hitungKalkulasi(
       [{ tipe: 'FDM', gramasi: 21, durasiJam: 1.17 }],
       { packingType: 'S', gantunganType: 'kew_kew', switchQty: 0, hasLabel: false, komponenKustom: [] },
-      1, DEFAULT_RATES, 'A'
+      1, DEFAULT_RATES
     )
     expect(result.hppKomponen).toBe(2400)
     expect(result.floorPrice).toBeCloseTo(25980, 0)
@@ -47,7 +49,7 @@ describe('hitungKalkulasi', () => {
     const result = hitungKalkulasi(
       [{ tipe: 'FDM', gramasi: 210, durasiJam: 11.7 }],
       { packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [] },
-      10, DEFAULT_RATES, 'A'
+      10, DEFAULT_RATES
     )
     expect(result.hppProduksi).toBeCloseTo(10980, 0)
   })
@@ -56,7 +58,7 @@ describe('hitungKalkulasi', () => {
     const result = hitungKalkulasi(
       [{ tipe: 'SLA', gramasi: 5, durasiJam: 0.5 }],
       { packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [] },
-      1, DEFAULT_RATES, 'A'
+      1, DEFAULT_RATES
     )
     expect(result.hppProduksi).toBeCloseTo(10750, 0)
     expect(result.floorPrice).toBeCloseTo(19500, 0)
@@ -69,7 +71,7 @@ describe('hitungKalkulasi', () => {
         { tipe: 'SLA', gramasi: 2, durasiJam: 0.25 },
       ],
       { packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [] },
-      1, DEFAULT_RATES, 'A'
+      1, DEFAULT_RATES
     )
     expect(result.hppProduksi).toBeCloseTo(13900, 0)
   })
@@ -78,7 +80,7 @@ describe('hitungKalkulasi', () => {
     const result = hitungKalkulasi(
       [{ tipe: 'SLA', durasiJam: 0.5, materials: [{ brand: 'AnyCubic', material: 'ABS-like', color: 'Grey', gramasi: 5 }] }],
       { packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [] },
-      1, DEFAULT_RATES, 'A'
+      1, DEFAULT_RATES
     )
     // matHpp = 5 × 1750 = 8750; mesin = 0.5 × 4000 = 2000 → 10750
     expect(result.hppProduksi).toBeCloseTo(10750, 0)
@@ -90,7 +92,7 @@ describe('hitungKalkulasi', () => {
     const result = hitungKalkulasi(
       [{ tipe: 'FDM', gramasi: 25, durasiJam: 1.0 }],
       { packingType: 'S', gantunganType: undefined, switchQty: 3, hasLabel: false, komponenKustom: [] },
-      1, DEFAULT_RATES, 'A'
+      1, DEFAULT_RATES
     )
     expect(result.hppKomponen).toBe(9000)
   })
@@ -99,7 +101,7 @@ describe('hitungKalkulasi', () => {
     const result = hitungKalkulasi(
       [{ tipe: 'FDM', gramasi: 21, durasiJam: 1.17 }],
       { packingType: 'S', gantunganType: 'kew_kew', switchQty: 0, hasLabel: false, komponenKustom: [] },
-      1, DEFAULT_RATES, 'A', 50000
+      1, DEFAULT_RATES, 50000
     )
     expect(result.status).toBe('AMAN')
   })
@@ -108,7 +110,7 @@ describe('hitungKalkulasi', () => {
     const result = hitungKalkulasi(
       [{ tipe: 'FDM', gramasi: 21, durasiJam: 1.17 }],
       { packingType: 'S', gantunganType: 'kew_kew', switchQty: 0, hasLabel: false, komponenKustom: [] },
-      1, DEFAULT_RATES, 'A', 10000
+      1, DEFAULT_RATES, 10000
     )
     expect(result.status).toBe('RUGI')
   })
@@ -117,7 +119,7 @@ describe('hitungKalkulasi', () => {
     const result = hitungKalkulasi(
       [{ tipe: 'FDM', gramasi: 21, durasiJam: 1.17 }],
       { packingType: 'S', gantunganType: 'kew_kew', switchQty: 0, hasLabel: false, komponenKustom: [] },
-      1, DEFAULT_RATES, 'A'
+      1, DEFAULT_RATES
     )
     expect(result.marginOfflineA).toBeGreaterThan(0)
     expect(result.marginShopeeA).toBeGreaterThan(0)
@@ -129,7 +131,7 @@ describe('hitungKalkulasi — helm finishing', () => {
     const result = hitungKalkulasi(
       [{ tipe: 'FDM', gramasi: 21, durasiJam: 1.17 }],
       { packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [] },
-      1, DEFAULT_RATES, 'A'
+      1, DEFAULT_RATES
     )
     expect(result.hppFinishing).toBe(0)
   })
@@ -145,7 +147,7 @@ describe('hitungKalkulasi — helm finishing', () => {
     const result = hitungKalkulasi(
       [{ tipe: 'FDM', gramasi: 21, durasiJam: 1.17 }],
       { packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [] },
-      1, DEFAULT_RATES, 'A', undefined, undefined, helmRaw
+      1, DEFAULT_RATES, undefined, undefined, helmRaw
     )
     expect(result.hppFinishing).toBe(0)
   })
@@ -162,7 +164,7 @@ describe('hitungKalkulasi — helm finishing', () => {
     const result = hitungKalkulasi(
       [{ tipe: 'FDM', gramasi: 21, durasiJam: 1.17 }],
       { packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [] },
-      1, DEFAULT_RATES, 'A', undefined, undefined, helmFin
+      1, DEFAULT_RATES, undefined, undefined, helmFin
     )
     expect(result.hppFinishing).toBe(120000)
   })
@@ -171,7 +173,7 @@ describe('hitungKalkulasi — helm finishing', () => {
     const base = hitungKalkulasi(
       [{ tipe: 'FDM', gramasi: 21, durasiJam: 1.17 }],
       { packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [] },
-      1, DEFAULT_RATES, 'A'
+      1, DEFAULT_RATES
     )
     const helmFin: import('./types').HelmOptions = {
       finishType: 'FINISHING',
@@ -183,7 +185,7 @@ describe('hitungKalkulasi — helm finishing', () => {
     const withHelm = hitungKalkulasi(
       [{ tipe: 'FDM', gramasi: 21, durasiJam: 1.17 }],
       { packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [] },
-      1, DEFAULT_RATES, 'A', undefined, undefined, helmFin
+      1, DEFAULT_RATES, undefined, undefined, helmFin
     )
     expect(withHelm.hppTotal).toBe(base.hppTotal + 120000)
     expect(withHelm.floorPrice).toBeGreaterThan(base.floorPrice)

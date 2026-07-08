@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireBotToken } from "@/lib/bot/auth"
 import { loadRates } from "@/lib/kalkulator/rates"
 import { hitungKalkulasi } from "@3pb/kalkulator-core"
-import type { PrintTipe, MarginTier } from "@/lib/kalkulator/types"
+import type { PrintTipe } from "@/lib/kalkulator/types"
 
 export async function POST(req: NextRequest) {
   if (!requireBotToken(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -17,7 +17,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "gramasi dan jam harus angka > 0" }, { status: 400 })
   }
   const tipe = (body.tipe === "SLA" ? "SLA" : "FDM") as PrintTipe
-  const tier = (body.tier === "B" || body.tier === "C" ? body.tier : "A") as MarginTier
 
   const rates = await loadRates()
   const hasil = hitungKalkulasi(
@@ -25,7 +24,6 @@ export async function POST(req: NextRequest) {
     { switchQty: 0, hasLabel: false, komponenKustom: [] },
     1,
     rates,
-    tier,
   )
   return NextResponse.json({
     hppTotal: hasil.hppTotal,
