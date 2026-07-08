@@ -26,7 +26,9 @@ export function hitungKalkulasi(
     batch,
     komponen: legacyKomponenToV2(aksesori, rates),
     labor: helmToLabor(helmOptions),
-    customRiskPct,
+    // Paritas legacy: failure rate selalu konstan (customRiskPct ?? rates),
+    // sehingga buffer tetap kena biaya mesin meski total gramasi 0.
+    customRiskPct: customRiskPct ?? rates.failureRatePct,
   }, legacySettingsToV2(rates))
 
   const hppFinishing = Math.round(v2.hppLabor)

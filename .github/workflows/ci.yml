@@ -49,7 +49,7 @@ jobs:
 
       - run: pnpm --filter shopee-dashboard exec prisma generate
 
-      - run: pnpm --filter shopee-dashboard test
+      - run: pnpm turbo test
 
   build-push:
     name: Build & Push to GHCR

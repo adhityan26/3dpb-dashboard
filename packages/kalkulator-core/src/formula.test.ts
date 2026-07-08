@@ -124,6 +124,17 @@ describe('hitungKalkulasi', () => {
     expect(result.marginOfflineA).toBeGreaterThan(0)
     expect(result.marginShopeeA).toBeGreaterThan(0)
   })
+
+  it('failure buffer tetap kena biaya mesin saat total gramasi 0 (paritas legacy)', () => {
+    const rates = { ...DEFAULT_RATES, failureRatePct: 12 }
+    const result = hitungKalkulasi(
+      [{ tipe: 'FDM', gramasi: 0, durasiJam: 1 }],
+      { packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [] },
+      1, rates
+    )
+    // mesin = 4000; failureCost = 4000 × 0.12 = 480; spread 50% → HPP kena 240
+    expect(result.hppProduksi).toBeCloseTo(4240, 0)
+  })
 })
 
 describe('hitungKalkulasi — helm finishing', () => {
