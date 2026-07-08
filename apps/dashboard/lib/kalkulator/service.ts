@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db'
-import { hitungKalkulasi } from './formula'
+import { hitungKalkulasi } from '@3pb/kalkulator-core'
 import { loadRates } from './rates'
 import type {
   KalkulasiInput, KalkulasiData, KalkulasiProdukInput,

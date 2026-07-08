@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireBotToken } from "@/lib/bot/auth"
 import { loadRates } from "@/lib/kalkulator/rates"
-import { hitungKalkulasi } from "@/lib/kalkulator/formula"
+import { hitungKalkulasi } from "@3pb/kalkulator-core"
 import type { PrintTipe, MarginTier } from "@/lib/kalkulator/types"
 
 export async function POST(req: NextRequest) {

@@ -15,6 +15,9 @@ const nextConfig: NextConfig = {
 
   // Allow dev HMR from local network IPs (only applies in dev mode).
   allowedDevOrigins: ["192.168.88.0/24"],
+
+  // Transpile workspace packages that ship untranspiled TS source.
+  transpilePackages: ["@3pb/kalkulator-core"],
 };
 
 export default nextConfig;
