@@ -1,5 +1,7 @@
 # Formula Kalkulator HPP — Dokumentasi & Rencana Perubahan
 
+> **Status:** Fase 0 selesai — formula sudah di `packages/kalkulator-core` (legacy `hitungKalkulasi` = wrapper di atas `hitungKalkulasiV2`). Adopsi penuh v2 di dashboard internal (UI settings, migrasi DB helm→labor) menyusul di plan Fase 0b.
+
 **Sumber:** `shopee-dashboard/lib/kalkulator/formula.ts` + `rates.ts` (per 2026-07-08)
 **Konteks:** acuan refactor ke `packages/kalkulator-core` (Fase 0 SaaS — lihat `docs/superpowers/specs/2026-07-08-saas-3pb-design.md`)
 
