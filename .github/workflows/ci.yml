@@ -78,8 +78,8 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ghcr.io/adhityan26/3dpb-dashboard
+          # :latest hanya ditulis oleh deploy.yml — di sini cukup tag per-commit
           tags: |
-            type=raw,value=latest
             type=sha,prefix=sha-,format=short
 
       - name: Build and push

@@ -4,8 +4,13 @@ ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
 WORKDIR /repo
 
+# Layer caching: download dependensi hanya dari lockfile, sebelum COPY . .
+# — perubahan source code tidak menginvalidasi layer fetch ini.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
+RUN pnpm fetch
+
 COPY . .
-RUN pnpm install --frozen-lockfile
+RUN pnpm install --frozen-lockfile --offline
 
 # Generate Prisma client (dibutuhkan saat build untuk type checking)
 RUN pnpm --filter shopee-dashboard exec prisma generate

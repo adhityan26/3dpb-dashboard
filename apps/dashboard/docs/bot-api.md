@@ -38,7 +38,7 @@ All fields under `buyer`/`money` are `null` when the underlying data isn't avail
 → `{ "trackingNumber": "SPXTRK123" }` or `{ "trackingNumber": null }` when not yet assigned (e.g. not shipped). Never errors for the not-yet-available case.
 
 ### POST /api/bot/kalkulator
-Body: `{ "gramasi": 50, "jam": 2, "tipe": "FDM", "tier": "A" }` (tipe FDM|SLA default FDM; tier A|B|C default A)
+Body: `{ "gramasi": 50, "jam": 2, "tipe": "FDM" }` (tipe FDM|SLA default FDM; field lain diabaikan — `tier` lama sudah tidak dipakai, respons selalu berisi semua tier via `shopeeA`/`offlineA`)
 → `{ "hppTotal", "floorPrice", "shopeeA", "offlineA", "marginShopeeA" }` · 400 if gramasi/jam ≤ 0.
 
 ### GET /api/bot/produk?q={kata}

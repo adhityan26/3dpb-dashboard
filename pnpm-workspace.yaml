@@ -4,6 +4,8 @@ packages:
 
 # pnpm 10 memblokir postinstall script by default — izinkan yang dibutuhkan
 onlyBuiltDependencies:
+  # dipakai satu-satunya oleh apps/dashboard/scripts/migrate-sqlite-to-pg.mjs (one-off)
+  - better-sqlite3
   - '@prisma/client'
   - '@prisma/engines'
   - prisma
