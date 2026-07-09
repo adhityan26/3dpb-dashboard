@@ -9,6 +9,10 @@ packages/kalkulator-core/ → formula HPP: hitungKalkulasi (legacy wrapper) + hi
 docs/                  → spec & plan level project; docs/kalkulator-formula.md = before/after formula + catatan paritas
 ```
 
+## Peta modul dashboard (semua di bawah `apps/dashboard/`)
+
+Pola per fitur: logika di `lib/<fitur>/` → API routes di `app/api/<fitur>/` → halaman di `app/(dashboard)/` → hooks di `lib/hooks/` → endpoint bot Telegram di `app/api/bot/<fitur>/`. Contoh: **Tokopedia** = `lib/tokopedia/` (orders.ts, client, session; test di `lib/tokopedia/__tests__/`) + `app/api/tokopedia/` + `app/api/bot/tokopedia/` + hook `lib/hooks/use-tokopedia.ts` + UI `app/(dashboard)/order/page.tsx`. Path lama pra-monorepo (`lib/...`, `app/...` di root) kini semuanya berawalan `apps/dashboard/`.
+
 ## Perintah
 
 ```bash
