@@ -98,3 +98,57 @@ Keputusan user 2026-07-08:
 7. Perbaikan teknis: bug SLA multi-material, hapus dead param `marginTier`, single-pass `plateCost`.
 
 Formula inti (failure spread, test layer, batch, dua jalur harga material, status) **tidak berubah**.
+
+## 4. Hasil implementasi (AFTER — merged ke master `d74affb`, 2026-07-08)
+
+### Lokasi & konsumsi
+
+- Formula hidup di **`packages/kalkulator-core`** (source TS, tanpa build step; export dari `src/index.ts`).
+- Dikonsumsi app via dependency `"@3pb/kalkulator-core": "workspace:*"` + `transpilePackages` di `next.config.ts`.
+- Test: 30 test di package (`pnpm --filter @3pb/kalkulator-core test`); CI menjalankan `pnpm turbo test`.
+
+| File | Isi |
+|---|---|
+| `src/types.ts` | tipe legacy (PlateInput, KalkulatorRates, HasilKalkulasi, dst.) + tipe v2 (MaterialProfile, PrinterProfile/PrinterCostInput, KomponenItem, LaborItem, ChannelDef, SettingsV2, MaterialUsageV2, PlateInputV2, KalkulasiInputV2, HargaChannelV2, HasilKalkulasiV2) |
+| `src/formula.ts` | `hitungKalkulasi(...)` **legacy = wrapper** — adapter → v2 → presenter pembulatan lama |
+| `src/formula-v2.ts` | `hitungKalkulasiV2(input, settings)` — formula inti, **tanpa pembulatan** |
+| `src/adapter.ts` | `legacyPlateToV2`, `legacyKomponenToV2`, `helmToLabor`, `legacySettingsToV2`, tipe `LegacyAksesori` |
+| `src/printer.ts` | `hitungMesinPerJam({watt, tarifPerKwh, hargaPrinter, umurPakaiJam, maintenancePerJam?})` |
+
+### API
+
+```ts
+// Legacy (dipakai dashboard internal sekarang) — output identik pra-refactor
+hitungKalkulasi(plates, aksesori, batch, rates, hargaShopeeAktual?, customRiskPct?, helmOptions?)
+// ⚠ BERUBAH dari pra-refactor: param ke-5 `marginTier` DIHAPUS (dead param).
+// Field marginTier di KalkulasiInput/DB tetap ada — hanya untuk memilih tampilan tier.
+
+// V2 (dipakai SaaS Fase 1 + internal setelah Fase 0b)
+hitungKalkulasiV2(input: KalkulasiInputV2, settings: SettingsV2): HasilKalkulasiV2
+```
+
+Semantik v2 vs legacy:
+- **Material per entry** membawa `hppPerGram/jualPerGram/failureRatePct` sendiri (resolved dari material profile); failure rate plate = **weighted average by gramasi**; `customRiskPct` meng-override semua.
+- **Mesin per plate** (`mesinPerJam` dari printer profile), bukan angka global.
+- **Komponen & labor generik** (`KomponenItem[]`, `LaborItem[]` = jam×rate + flat) menggantikan packing/gantungan/switch/label & mode HELM.
+- **Harga per channel**: `floorPrice × marginMultiplier × feeMultiplier`; margin dihitung dari net (A ÷ fee); status dibanding `hargaAktual {channelId, harga}`.
+- Hasil v2 **tidak dibulatkan** — pembulatan urusan presenter.
+
+### Rates baru (Config keys)
+
+`kalk.margin.a/b/c` (default 1.1/1.5/2.0) dan `kalk.resellerBulk.multiplier` (1.05) → `rates.marginMultipliers` & `rates.resellerBulkMultiplier`. Multiplier tidak lagi hardcoded.
+
+### Catatan paritas wrapper (penting saat menyentuh adapter/wrapper)
+
+1. `hppFinishing = Math.round(v2.hppLabor)` **sebelum** dijumlahkan ke hppTotal/floorPrice (reproduksi pembulatan lama).
+2. Wrapper meneruskan `customRiskPct ?? rates.failureRatePct` sebagai `customRiskPct` v2 — failure rate jalur legacy selalu konstan, sehingga **failure buffer tetap kena biaya mesin meski total gramasi 0** (ada regression test-nya).
+3. V2 meng-clamp `jual = max(jualPerGram, hppPerGram)` per material — floor price tidak pernah di bawah modal. Beda halus dari legacy hanya jika user set jual < hpp.
+4. 14 golden test legacy di `formula.test.ts` adalah kontrak paritas — **jangan diedit** untuk meloloskan perubahan wrapper/adapter.
+
+### Perubahan perilaku yang disengaja (satu-satunya)
+
+Plate **SLA multi-material** kini memakai rate SLA (dulu bug: fallback FDM, 300/g vs 1.750/g).
+
+### Belum berubah (menunggu Fase 0b)
+
+Dashboard internal masih memanggil wrapper legacy dengan field gantungan/switch/label & mode HELM. Fase 0b: migrasi DB + UI ke v2 (settings printer/material profile, komponen preset, labor cost).
