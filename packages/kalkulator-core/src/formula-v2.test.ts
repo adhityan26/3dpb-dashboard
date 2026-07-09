@@ -106,6 +106,46 @@ describe('hitungKalkulasiV2', () => {
     expect(hitungKalkulasiV2(baseInput({ hargaAktual: { channelId: 'shopee', harga: 9999 } }), SETTINGS).status).toBe('RUGI')
   })
 
+  it('jualPerGram di bawah hppPerGram di-clamp ke hppPerGram di jalur jual', () => {
+    const r = hitungKalkulasiV2(baseInput({
+      plates: [{
+        durasiJam: 1, mesinPerJam: 1000,
+        materials: [{ gramasi: 10, hppPerGram: 300, jualPerGram: 100, failureRatePct: 0 }],
+      }],
+    }), SETTINGS)
+    // floor tidak turun di bawah modal material: pakai 300, bukan 100
+    expect(r.floorPrice).toBeCloseTo(10 * 300 + 1000)
+  })
+
+  it('feeMultiplier 0 menghasilkan harga & margin 0, tanpa NaN/Infinity', () => {
+    const settings: SettingsV2 = {
+      ...SETTINGS,
+      channels: [...SETTINGS.channels, { id: 'gratis', nama: 'Gratis', feeMultiplier: 0 }],
+    }
+    const r = hitungKalkulasiV2(baseInput(), settings)
+    const gratis = r.hargaPerChannel.find(c => c.channelId === 'gratis')!
+    expect(gratis.A).toBe(0)
+    expect(gratis.B).toBe(0)
+    expect(gratis.C).toBe(0)
+    expect(gratis.margin).toBe(0)
+    expect(Number.isFinite(gratis.margin)).toBe(true)
+  })
+
+  it('hargaAktual dengan channelId tak dikenal → status TIDAK_DISET', () => {
+    const r = hitungKalkulasiV2(baseInput({
+      hargaAktual: { channelId: 'tokopedia', harga: 99999 },
+    }), SETTINGS)
+    expect(r.status).toBe('TIDAK_DISET')
+  })
+
+  it('batch ≤ 0 di-clamp ke 1', () => {
+    for (const batch of [0, -3]) {
+      const r = hitungKalkulasiV2(baseInput({ batch }), SETTINGS)
+      expect(r.hppProduksi).toBeCloseTo(4000)
+      expect(r.floorPrice).toBeCloseTo(10000)
+    }
+  })
+
   it('gramasi total 0 tidak menghasilkan NaN', () => {
     const r = hitungKalkulasiV2(baseInput({
       plates: [{ durasiJam: 1, mesinPerJam: 1000, materials: [] }],

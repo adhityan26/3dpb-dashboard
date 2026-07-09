@@ -18,6 +18,10 @@ export function hitungKalkulasiV2(input: KalkulasiInputV2, settings: SettingsV2)
     let matHpp = 0, matJual = 0, gramTotal = 0, failWeighted = 0
     for (const m of p.materials) {
       matHpp += m.gramasi * m.hppPerGram
+      // Clamp: jualPerGram tidak boleh di bawah hppPerGram. Kalau user set harga
+      // jual < HPP, jalur jual (floor price) tetap pakai HPP agar floor tidak pernah
+      // turun di bawah modal material. Beda halus dari legacy yang memakai jualPerGram
+      // apa adanya.
       matJual += m.gramasi * Math.max(m.jualPerGram, m.hppPerGram)
       gramTotal += m.gramasi
       failWeighted += m.gramasi * m.failureRatePct

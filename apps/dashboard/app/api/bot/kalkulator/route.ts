@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   if (!requireBotToken(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const body = await req.json().catch(() => null) as
-    | { gramasi?: unknown; jam?: unknown; tipe?: unknown; tier?: unknown } | null
+    | { gramasi?: unknown; jam?: unknown; tipe?: unknown } | null
   if (!body) return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 })
 
   const gramasi = Number(body.gramasi)
