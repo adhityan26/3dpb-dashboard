@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, Suspense, useCallback, useEffect, useRef } from "react"
+import { useMemo, useState, Suspense, useCallback, useRef } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { FilamenTab } from "@/components/filamen/FilamenTab"
 import { KalkulasiTab } from "@/components/kalkulator/KalkulasiTab"
@@ -78,10 +78,12 @@ function ProdukPageInner() {
     }, 400)
   }, [])
 
-  // Reset page when filter changes
-  useEffect(() => {
+  // Reset page when filter changes (adjust state during render, per React docs)
+  const [prevFilter, setPrevFilter] = useState(filter)
+  if (filter !== prevFilter) {
+    setPrevFilter(filter)
     setPage(1)
-  }, [filter])
+  }
 
   const statusParam =
     filter === "unlist" ? "UNLIST" :

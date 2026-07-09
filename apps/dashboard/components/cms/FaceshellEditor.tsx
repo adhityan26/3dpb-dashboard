@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { useFaceshell, usePatchFaceshell } from "@/lib/hooks/use-cms"
 import { LocalizedField } from "./shared/LocalizedField"
 import { ImageUpload } from "./shared/ImageUpload"
@@ -21,7 +21,7 @@ export function FaceshellEditor() {
   const [itemForm, setItemForm] = useState<Omit<Item, "_key">>(EMPTY_ITEM)
   const [zoomSrc, setZoomSrc] = useState<{ src: string; alt: string } | null>(null)
 
-  useEffect(() => { if (data && !form) setForm(data) }, [data, form])
+  if (data && !form) setForm(data)
   if (isLoading || !form) return <div className="p-6 text-white/40 text-sm">Memuat...</div>
 
   const items: Item[] = form.items ?? []

@@ -1,6 +1,7 @@
 "use client"
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
+import type { StravaOrder, StravaOrderWithPhotos } from "@/lib/strava/types"
 
 // ── Keys ────────────────────────────────────────────────────────────────────
 
@@ -9,14 +10,8 @@ const STRAVA_ORDER_KEY = (id: string) => ["strava-order", id] as const
 
 // ── Types ───────────────────────────────────────────────────────────────────
 
-export interface StravaOrder {
-  id: string
-  [key: string]: unknown
-}
-
-export interface StravaOrderDetail extends StravaOrder {
-  [key: string]: unknown
-}
+export type { StravaOrder }
+export type StravaOrderDetail = StravaOrderWithPhotos
 
 // ── Fetchers ────────────────────────────────────────────────────────────────
 

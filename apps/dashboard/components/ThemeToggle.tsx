@@ -92,11 +92,14 @@ export function ThemeToggle() {
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), [])
 
-  useEffect(() => {
+  // Sync local `active` state from the theme store (adjust state during render, per React docs)
+  const [prevTheme, setPrevTheme] = useState(theme)
+  if (theme !== prevTheme) {
+    setPrevTheme(theme)
     if (theme === "light" || theme === "dark" || theme === "system") {
       setActive(theme as ThemeState)
     }
-  }, [theme])
+  }
 
   if (!mounted) return <div className="w-[80px] h-[32px] rounded-full bg-white/5" />
 

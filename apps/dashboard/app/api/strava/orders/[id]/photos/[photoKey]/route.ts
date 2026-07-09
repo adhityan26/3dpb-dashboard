@@ -61,7 +61,7 @@ export async function GET(
       // Photo exists in MinIO, redirect to MinIO URL
       // Note: In future, could trigger re-upload to Sanity job here
       return NextResponse.redirect(minioUrl, { status: 301 })
-    } catch (minioError) {
+    } catch {
       // Photo not found in MinIO either
       return NextResponse.json(
         { error: 'Photo not found' },
