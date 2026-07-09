@@ -112,6 +112,10 @@ export function TokopediaOrderRow({ order, defaultExpanded = false }: TokopediaO
           {order.latestLogistic && (
             <div className="mt-0.5 text-[11px] text-muted-foreground">🚚 {order.latestLogistic.msg}</div>
           )}
+
+          {order.note && (
+            <div className="mt-0.5 text-[11px]" style={{ color: "#facc15" }}>📝 {order.note}</div>
+          )}
           </button>
         </div>
 
