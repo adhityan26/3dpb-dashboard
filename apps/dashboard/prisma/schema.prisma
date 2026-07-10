@@ -275,6 +275,53 @@ model ResinHarga {
   @@unique([brand, grade])
 }
 
+// ── Kalkulator v2: profiles & presets (Fase 0b) ──────────────────────────────
+
+model KalkPrinterProfile {
+  id                String   @id @default(cuid())
+  nama              String   @unique
+  mesinPerJam       Float
+  // Input kalkulator bantu — disimpan agar bisa di-recompute saat tarif berubah
+  watt              Float?
+  tarifPerKwh       Float?
+  hargaPrinter      Float?
+  umurPakaiJam      Float?
+  maintenancePerJam Float?
+  isDefault         Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model KalkMaterialProfile {
+  id             String   @id @default(cuid())
+  nama           String // 'PLA', 'PETG', 'ABS', 'TPU', 'Resin ABS-like', …
+  tipe           String   @default("FDM") // "FDM" | "SLA"
+  hppPerGram     Float
+  jualPerGram    Float
+  failureRatePct Float    @default(12)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([nama, tipe])
+}
+
+model KomponenPreset {
+  id        String   @id @default(cuid())
+  nama      String   @unique
+  harga     Float
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model LaborPreset {
+  id        String   @id @default(cuid())
+  nama      String   @unique
+  itemsJson String // JSON LaborItem[]: [{ nama, jam?, ratePerJam?, flat? }]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 model ProdukInternal {
   id                 String                     @id @default(cuid())
   nama               String
