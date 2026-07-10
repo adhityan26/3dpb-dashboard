@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
 
 vi.mock('@/lib/db', () => ({
   prisma: {
@@ -16,7 +16,13 @@ import {
   upsertLaborPreset, listLaborPresets,
 } from '../profiles-service'
 
-const db = prisma as any
+type MockedPrisma = {
+  kalkPrinterProfile: { findMany: Mock; findUnique: Mock; create: Mock; update: Mock; updateMany: Mock; delete: Mock }
+  kalkMaterialProfile: { findMany: Mock; upsert: Mock; delete: Mock }
+  komponenPreset: { findMany: Mock; upsert: Mock; delete: Mock }
+  laborPreset: { findMany: Mock; upsert: Mock; delete: Mock }
+}
+const db = prisma as unknown as MockedPrisma
 const row = (over = {}) => ({
   id: 'p1', nama: 'P1P', mesinPerJam: 4000, watt: null, tarifPerKwh: null,
   hargaPrinter: null, umurPakaiJam: null, maintenancePerJam: null, isDefault: false,

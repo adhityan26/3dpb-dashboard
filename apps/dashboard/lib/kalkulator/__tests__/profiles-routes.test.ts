@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import type { NextRequest } from 'next/server'
 
 vi.mock('@/lib/auth', () => ({ auth: vi.fn() }))
 vi.mock('@/lib/kalkulator/profiles-service', () => ({
@@ -11,9 +12,9 @@ import { GET, POST } from '@/app/api/kalkulator/printer-profiles/route'
 import { DELETE } from '@/app/api/kalkulator/printer-profiles/[id]/route'
 import { listPrinterProfiles, createPrinterProfile, deletePrinterProfile } from '@/lib/kalkulator/profiles-service'
 
-const mockAuth = auth as any
-const req = (body: unknown) => ({ json: async () => body } as any)
-const ctx = (id: string) => ({ params: Promise.resolve({ id }) } as any)
+const mockAuth = vi.mocked(auth)
+const req = (body: unknown) => ({ json: async () => body }) as unknown as NextRequest
+const ctx = (id: string) => ({ params: Promise.resolve({ id }) })
 
 beforeEach(() => { vi.clearAllMocks(); mockAuth.mockResolvedValue({ user: { name: 'a' } }) })
 
@@ -25,7 +26,10 @@ describe('printer-profiles routes', () => {
   })
 
   it('GET mengembalikan list', async () => {
-    ;(listPrinterProfiles as any).mockResolvedValue([{ id: 'p1', nama: 'P1P', mesinPerJam: 4000, isDefault: true }])
+    vi.mocked(listPrinterProfiles).mockResolvedValue([{
+      id: 'p1', nama: 'P1P', mesinPerJam: 4000, isDefault: true,
+      watt: null, tarifPerKwh: null, hargaPrinter: null, umurPakaiJam: null, maintenancePerJam: null,
+    }])
     const res = await GET()
     expect(res.status).toBe(200)
     expect((await res.json())[0].nama).toBe('P1P')
@@ -37,13 +41,13 @@ describe('printer-profiles routes', () => {
   })
 
   it('POST INVALID_INPUT dari service → 400', async () => {
-    ;(createPrinterProfile as any).mockRejectedValue(new Error('INVALID_INPUT'))
+    vi.mocked(createPrinterProfile).mockRejectedValue(new Error('INVALID_INPUT'))
     const res = await POST(req({ nama: 'X' }))
     expect(res.status).toBe(400)
   })
 
   it('DELETE default profile → 400 DEFAULT_PROFILE', async () => {
-    ;(deletePrinterProfile as any).mockRejectedValue(new Error('DEFAULT_PROFILE'))
+    vi.mocked(deletePrinterProfile).mockRejectedValue(new Error('DEFAULT_PROFILE'))
     const res = await DELETE(req(undefined), ctx('p1'))
     expect(res.status).toBe(400)
     expect((await res.json()).error).toBe('DEFAULT_PROFILE')

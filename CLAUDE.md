@@ -24,6 +24,7 @@ pnpm turbo test                   # semua package (135 test)
 pnpm turbo build
 pnpm --filter shopee-dashboard dev|test|build
 pnpm --filter @3pb/kalkulator-core test
+pnpm --filter shopee-dashboard db:seed-kalk-v2   # seed profiles/presets kalkulator v2 (idempoten)
 ```
 
 ## Aturan penting

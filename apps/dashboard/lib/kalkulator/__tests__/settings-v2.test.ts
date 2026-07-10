@@ -1,11 +1,11 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
 
 vi.mock('@/lib/db', () => ({ prisma: { config: { findMany: vi.fn() } } }))
 
 import { prisma } from '@/lib/db'
 import { loadSettingsV2 } from '../settings-v2'
 
-const mockFindMany = (prisma as any).config.findMany
+const mockFindMany = (prisma as unknown as { config: { findMany: Mock } }).config.findMany
 const rows = (obj: Record<string, string>) => Object.entries(obj).map(([key, value]) => ({ key, value }))
 
 beforeEach(() => vi.clearAllMocks())
