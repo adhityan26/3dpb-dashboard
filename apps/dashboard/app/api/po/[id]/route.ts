@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { getPO, updatePO, deletePO } from '@/lib/po/service'
-import type { UpdatePOInput } from '@/lib/po/types'
+import { DuplicatePONomorError, type UpdatePOInput } from '@/lib/po/types'
 
 export async function GET(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -17,8 +17,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   const body: UpdatePOInput = await req.json()
-  const result = await updatePO(id, body)
-  return NextResponse.json(result)
+  try {
+    const result = await updatePO(id, body)
+    return NextResponse.json(result)
+  } catch (err) {
+    if (err instanceof DuplicatePONomorError) return NextResponse.json({ error: err.message }, { status: 409 })
+    throw err
+  }
 }
 
 export async function DELETE(_: NextRequest, { params }: { params: Promise<{ id: string }> }) {

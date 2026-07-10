@@ -1,5 +1,12 @@
 export type POStatus = 'DRAFT' | 'ORDERED' | 'RECEIVED' | 'CANCELLED'
 
+export class DuplicatePONomorError extends Error {
+  constructor(public nomor: string) {
+    super(`PO dengan nomor "${nomor}" sudah ada`)
+    this.name = 'DuplicatePONomorError'
+  }
+}
+
 export interface POItemData {
   id: string
   poId: string
