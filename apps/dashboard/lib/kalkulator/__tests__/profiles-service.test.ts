@@ -71,11 +71,19 @@ describe('deletePrinterProfile', () => {
 
 describe('setDefaultPrinterProfile', () => {
   it('unset default lain lalu set target', async () => {
+    db.kalkPrinterProfile.findUnique.mockResolvedValue(row({ id: 'p2' }))
     db.kalkPrinterProfile.updateMany.mockResolvedValue({ count: 1 })
     db.kalkPrinterProfile.update.mockResolvedValue(row({ isDefault: true }))
     await setDefaultPrinterProfile('p2')
     expect(db.kalkPrinterProfile.updateMany).toHaveBeenCalledWith({ where: { isDefault: true }, data: { isDefault: false } })
     expect(db.kalkPrinterProfile.update).toHaveBeenCalledWith({ where: { id: 'p2' }, data: { isDefault: true } })
+  })
+
+  it('id tidak ditemukan → NOT_FOUND, default lain TIDAK di-unset', async () => {
+    db.kalkPrinterProfile.findUnique.mockResolvedValue(null)
+    await expect(setDefaultPrinterProfile('ghost')).rejects.toThrow('NOT_FOUND')
+    expect(db.kalkPrinterProfile.updateMany).not.toHaveBeenCalled()
+    expect(db.kalkPrinterProfile.update).not.toHaveBeenCalled()
   })
 })
 

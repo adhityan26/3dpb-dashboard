@@ -6,6 +6,13 @@ export async function PUT(_req: NextRequest, { params }: { params: Promise<{ id:
   const session = await auth()
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
-  await setDefaultPrinterProfile(id)
+  try {
+    await setDefaultPrinterProfile(id)
+  } catch (e) {
+    if (e instanceof Error && e.message === 'NOT_FOUND') {
+      return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
+    }
+    return NextResponse.json({ error: 'INTERNAL_ERROR' }, { status: 500 })
+  }
   return new NextResponse(null, { status: 204 })
 }

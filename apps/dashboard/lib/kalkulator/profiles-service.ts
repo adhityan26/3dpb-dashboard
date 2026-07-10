@@ -111,6 +111,8 @@ export async function deletePrinterProfile(id: string): Promise<void> {
 }
 
 export async function setDefaultPrinterProfile(id: string): Promise<void> {
+  const existing = await prisma.kalkPrinterProfile.findUnique({ where: { id } })
+  if (!existing) throw new Error('NOT_FOUND')
   await prisma.kalkPrinterProfile.updateMany({ where: { isDefault: true }, data: { isDefault: false } })
   await prisma.kalkPrinterProfile.update({ where: { id }, data: { isDefault: true } })
 }
@@ -140,7 +142,13 @@ export async function listMaterialProfiles(): Promise<MaterialProfileData[]> {
 }
 
 export async function upsertMaterialProfile(input: MaterialProfileInput): Promise<MaterialProfileData> {
-  const data = { ...input, nama: input.nama.trim() }
+  const data = {
+    nama: input.nama.trim(),
+    tipe: input.tipe,
+    hppPerGram: input.hppPerGram,
+    jualPerGram: input.jualPerGram,
+    failureRatePct: input.failureRatePct,
+  }
   const { createdAt, updatedAt, ...row } = await prisma.kalkMaterialProfile.upsert({
     where: { nama_tipe: { nama: data.nama, tipe: data.tipe } },
     create: data,

@@ -1,7 +1,6 @@
 /**
  * Seed idempoten data kalkulator v2 dari nilai Config kalk.* existing.
- * Aman dijalankan berulang: create-if-missing, TIDAK menimpa data yang sudah ada
- * (kecuali upsert profile generik yang memang belum pernah diedit — pakai create-only).
+ * Aman dijalankan berulang: create-if-missing, TIDAK pernah menimpa data yang sudah ada.
  *
  * Jalankan: pnpm --filter shopee-dashboard db:seed-kalk-v2
  */
