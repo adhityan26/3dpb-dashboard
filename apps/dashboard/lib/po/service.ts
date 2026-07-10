@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/db'
 import type { POData, POInput, UpdatePOInput, POListItem, POStatus } from './types'
+import { DuplicatePONomorError } from './types'
 import { recomputeFilamentHarga } from '@/lib/kalkulator/service'
 
 function toItemData(raw: any) {
@@ -56,9 +57,14 @@ export async function getPO(id: string): Promise<POData | null> {
 }
 
 export async function createPO(input: POInput): Promise<POData> {
+  const nomor = input.nomor?.trim() || null
+  if (nomor) {
+    const existing = await prisma.purchaseOrder.findFirst({ where: { nomor } })
+    if (existing) throw new DuplicatePONomorError(nomor)
+  }
   const raw = await (prisma.purchaseOrder.create as any)({
     data: {
-      nomor: input.nomor ?? null,
+      nomor,
       vendorNama: input.vendorNama,
       tanggal: input.tanggal ? new Date(input.tanggal) : new Date(),
       catatan: input.catatan ?? null,
@@ -83,7 +89,14 @@ export async function createPO(input: POInput): Promise<POData> {
 
 export async function updatePO(id: string, input: UpdatePOInput): Promise<POData> {
   const data: any = {}
-  if (input.nomor !== undefined) data.nomor = input.nomor
+  if (input.nomor !== undefined) {
+    const nomor = input.nomor?.trim() || null
+    if (nomor) {
+      const existing = await prisma.purchaseOrder.findFirst({ where: { nomor, id: { not: id } } })
+      if (existing) throw new DuplicatePONomorError(nomor)
+    }
+    data.nomor = nomor
+  }
   if (input.vendorNama !== undefined) data.vendorNama = input.vendorNama
   if (input.tanggal !== undefined) data.tanggal = new Date(input.tanggal)
   if (input.catatan !== undefined) data.catatan = input.catatan
