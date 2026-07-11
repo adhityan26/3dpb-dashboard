@@ -1,6 +1,8 @@
 'use client'
 
 import { PrinterProfilesSection } from './PrinterProfilesSection'
+import { MaterialProfilesSection } from './MaterialProfilesSection'
+import { KomponenPresetsSection } from './KomponenPresetsSection'
 
 export function KalkulatorV2SettingsCard() {
   return (
@@ -12,8 +14,8 @@ export function KalkulatorV2SettingsCard() {
         </div>
       </div>
       <PrinterProfilesSection />
-      {/* SECTION_MATERIAL */}
-      {/* SECTION_KOMPONEN */}
+      <MaterialProfilesSection />
+      <KomponenPresetsSection />
       {/* SECTION_LABOR */}
       {/* SECTION_CHANNEL */}
     </div>
