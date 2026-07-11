@@ -5,11 +5,21 @@ import type {
   KalkulasiData, KalkulasiInput, KalkulasiListResponse,
   FilamentHargaData, ResinHargaData, KalkulatorRates, KalkulasiProdukInput
 } from '@/lib/kalkulator/types'
+import type {
+  PrinterProfileData, PrinterProfileInput, MaterialProfileData, MaterialProfileInput,
+  KomponenPresetData, LaborPresetData,
+} from '@/lib/kalkulator/profiles-service'
+import type { SettingsV2, LaborItem } from '@3pb/kalkulator-core'
 
 const KALK_KEY = ['kalkulator'] as const
 const FILAMENT_KEY = ['kalkulator', 'filament-harga'] as const
 const RESIN_KEY = ['kalkulator', 'resin-harga'] as const
 const RATES_KEY = ['kalkulator', 'rates'] as const
+const PRINTER_PROFILES_KEY = ['kalkulator', 'printer-profiles'] as const
+const MATERIAL_PROFILES_KEY = ['kalkulator', 'material-profiles'] as const
+const KOMPONEN_PRESETS_KEY = ['kalkulator', 'komponen-presets'] as const
+const LABOR_PRESETS_KEY = ['kalkulator', 'labor-presets'] as const
+const SETTINGS_V2_KEY = ['kalkulator', 'settings-v2'] as const
 
 async function apiFetch<T>(url: string, opts?: RequestInit): Promise<T> {
   const res = await fetch(url, opts)
@@ -163,6 +173,118 @@ export function useUpdateRates() {
   return useMutation({
     mutationFn: (updates: { key: string; value: string }[]) =>
       apiFetch<KalkulatorRates>('/api/kalkulator/rates', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(updates) }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: RATES_KEY }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: RATES_KEY })
+      qc.invalidateQueries({ queryKey: SETTINGS_V2_KEY })
+    },
   })
+}
+
+// ── Kalkulator v2: profiles, presets, settings ──────────────────────────────
+
+const JSON_HEADERS = { 'Content-Type': 'application/json' }
+
+export function usePrinterProfiles() {
+  return useQuery({ queryKey: PRINTER_PROFILES_KEY, queryFn: () => apiFetch<PrinterProfileData[]>('/api/kalkulator/printer-profiles') })
+}
+
+export function useCreatePrinterProfile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: PrinterProfileInput) =>
+      apiFetch<PrinterProfileData>('/api/kalkulator/printer-profiles', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: PRINTER_PROFILES_KEY }),
+  })
+}
+
+export function useUpdatePrinterProfile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, input }: { id: string; input: Partial<PrinterProfileInput> }) =>
+      apiFetch<PrinterProfileData>(`/api/kalkulator/printer-profiles/${id}`, { method: 'PUT', headers: JSON_HEADERS, body: JSON.stringify(input) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: PRINTER_PROFILES_KEY }),
+  })
+}
+
+export function useDeletePrinterProfile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<void>(`/api/kalkulator/printer-profiles/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: PRINTER_PROFILES_KEY }),
+  })
+}
+
+export function useSetDefaultPrinterProfile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<void>(`/api/kalkulator/printer-profiles/${id}/default`, { method: 'PUT' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: PRINTER_PROFILES_KEY }),
+  })
+}
+
+export function useMaterialProfiles() {
+  return useQuery({ queryKey: MATERIAL_PROFILES_KEY, queryFn: () => apiFetch<MaterialProfileData[]>('/api/kalkulator/material-profiles') })
+}
+
+export function useUpsertMaterialProfile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: MaterialProfileInput) =>
+      apiFetch<MaterialProfileData>('/api/kalkulator/material-profiles', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: MATERIAL_PROFILES_KEY }),
+  })
+}
+
+export function useDeleteMaterialProfile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<void>(`/api/kalkulator/material-profiles/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: MATERIAL_PROFILES_KEY }),
+  })
+}
+
+export function useKomponenPresets() {
+  return useQuery({ queryKey: KOMPONEN_PRESETS_KEY, queryFn: () => apiFetch<KomponenPresetData[]>('/api/kalkulator/komponen-presets') })
+}
+
+export function useUpsertKomponenPreset() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { nama: string; harga: number; isActive?: boolean }) =>
+      apiFetch<KomponenPresetData>('/api/kalkulator/komponen-presets', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KOMPONEN_PRESETS_KEY }),
+  })
+}
+
+export function useDeleteKomponenPreset() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<void>(`/api/kalkulator/komponen-presets/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KOMPONEN_PRESETS_KEY }),
+  })
+}
+
+export function useLaborPresets() {
+  return useQuery({ queryKey: LABOR_PRESETS_KEY, queryFn: () => apiFetch<LaborPresetData[]>('/api/kalkulator/labor-presets') })
+}
+
+export function useUpsertLaborPreset() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (input: { nama: string; items: LaborItem[] }) =>
+      apiFetch<LaborPresetData>('/api/kalkulator/labor-presets', { method: 'POST', headers: JSON_HEADERS, body: JSON.stringify(input) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: LABOR_PRESETS_KEY }),
+  })
+}
+
+export function useDeleteLaborPreset() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<void>(`/api/kalkulator/labor-presets/${id}`, { method: 'DELETE' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: LABOR_PRESETS_KEY }),
+  })
+}
+
+export function useSettingsV2() {
+  return useQuery({ queryKey: SETTINGS_V2_KEY, queryFn: () => apiFetch<SettingsV2>('/api/kalkulator/settings-v2') })
 }
