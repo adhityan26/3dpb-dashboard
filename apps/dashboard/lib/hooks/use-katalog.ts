@@ -76,8 +76,14 @@ export function useAddShopeeLink() {
 export function useRemoveShopeeLink() {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ katalogId, shopeeItemId }: { katalogId: string; shopeeItemId: string }) =>
-      apiFetch<void>(`/api/katalog/${katalogId}/shopee-links/${shopeeItemId}`, { method: 'DELETE' }),
+    mutationFn: ({ katalogId, shopeeItemId, shopeeModelId }: {
+      katalogId: string
+      shopeeItemId: string
+      shopeeModelId?: string | null
+    }) => {
+      const qs = shopeeModelId ? `?shopeeModelId=${encodeURIComponent(shopeeModelId)}` : ''
+      return apiFetch<void>(`/api/katalog/${katalogId}/shopee-links/${shopeeItemId}${qs}`, { method: 'DELETE' })
+    },
     onSuccess: (_, { katalogId }) => {
       qc.invalidateQueries({ queryKey: KATALOG_KEY })
       qc.invalidateQueries({ queryKey: [...KATALOG_KEY, katalogId] })

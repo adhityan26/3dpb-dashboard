@@ -67,8 +67,8 @@ export function ShopeeLinksSection({ produk }: Props) {
     setPendingProductId(null)
   }
 
-  async function handleRemove(linkId: string, shopeeItemId: string) {
-    await removeLink.mutateAsync({ katalogId: produkId, shopeeItemId })
+  async function handleRemove(linkId: string, shopeeItemId: string, shopeeModelId: string | null) {
+    await removeLink.mutateAsync({ katalogId: produkId, shopeeItemId, shopeeModelId })
   }
 
   async function handleSetKalkulasi(linkId: string, kalkulasiId: string | null) {
@@ -134,7 +134,7 @@ export function ShopeeLinksSection({ produk }: Props) {
                   🧮 Kalkulasi
                 </button>
                 <button
-                  onClick={() => handleRemove(link.id, link.shopeeItemId)}
+                  onClick={() => handleRemove(link.id, link.shopeeItemId, link.shopeeModelId)}
                   disabled={removeLink.isPending}
                   className="text-[10px] w-5 h-5 flex items-center justify-center rounded transition-all flex-shrink-0"
                   style={{ color: "rgba(239,68,68,0.5)" }}
