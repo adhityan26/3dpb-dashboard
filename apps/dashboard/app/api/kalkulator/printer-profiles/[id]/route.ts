@@ -24,7 +24,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     return new NextResponse(null, { status: 204 })
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'error'
-    const status = msg === 'DEFAULT_PROFILE' ? 400 : 500
-    return NextResponse.json({ error: msg }, { status })
+    if (msg === 'NOT_FOUND') return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
+    if (msg === 'DEFAULT_PROFILE') return NextResponse.json({ error: 'DEFAULT_PROFILE' }, { status: 400 })
+    return NextResponse.json({ error: 'INTERNAL_ERROR' }, { status: 500 })
   }
 }

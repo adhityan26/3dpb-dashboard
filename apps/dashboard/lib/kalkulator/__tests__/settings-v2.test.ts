@@ -48,4 +48,11 @@ describe('loadSettingsV2', () => {
     const s = await loadSettingsV2()
     expect(s.channels.map(c => c.id)).toEqual(['offline'])
   })
+
+  it('channel offline SELALU ada meski config hanya punya channel lain', async () => {
+    mockFindMany.mockResolvedValue(rows({ 'kalk.channel.shopee': '1.2' }))
+    const s = await loadSettingsV2()
+    expect(s.channels[0]).toEqual({ id: 'offline', nama: 'Offline', feeMultiplier: 1 })
+    expect(s.channels.map(c => c.id)).toEqual(['offline', 'shopee'])
+  })
 })

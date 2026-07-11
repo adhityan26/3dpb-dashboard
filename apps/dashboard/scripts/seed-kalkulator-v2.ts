@@ -6,6 +6,7 @@
  */
 import 'dotenv/config'
 import { prisma } from '@/lib/db'
+import { HELM_TIER_DEFAULTS } from '@3pb/kalkulator-core'
 
 async function configNum(key: string, fallback: number): Promise<number> {
   const row = await prisma.config.findUnique({ where: { key } })
@@ -68,16 +69,10 @@ async function main() {
   const preparer = await configNum('kalk.preparer.perJam', 35000)
   const finisher = await configNum('kalk.finisher.perJam', 75000)
   const consumables = await configNum('kalk.helm.consumables.default', 55000)
-  const HELM_TIERS: Record<string, { s: number; p: number; a: number }> = {
-    MINIMAL: { s: 0.5, p: 0.5, a: 0.25 },
-    LIGHT: { s: 1.5, p: 1.0, a: 0.5 },
-    MEDIUM: { s: 2.5, p: 2.0, a: 0.75 },
-    HEAVY: { s: 4.0, p: 3.5, a: 1.0 },
-  }
-  for (const [tier, t] of Object.entries(HELM_TIERS)) {
+  for (const [tier, t] of Object.entries(HELM_TIER_DEFAULTS)) {
     const items = [
-      { nama: 'Preparer (sanding + assembly)', jam: t.s + t.a, ratePerJam: preparer },
-      { nama: 'Finisher (painting)', jam: t.p, ratePerJam: finisher },
+      { nama: 'Preparer (sanding + assembly)', jam: t.jamSanding + t.jamAssembly, ratePerJam: preparer },
+      { nama: 'Finisher (painting)', jam: t.jamPainting, ratePerJam: finisher },
       { nama: 'Consumables finishing', flat: consumables },
     ]
     await createIfMissing(

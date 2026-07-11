@@ -6,6 +6,12 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const session = await auth()
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
-  await deleteLaborPreset(id)
-  return new NextResponse(null, { status: 204 })
+  try {
+    await deleteLaborPreset(id)
+    return new NextResponse(null, { status: 204 })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'error'
+    if (msg === 'NOT_FOUND') return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 })
+    return NextResponse.json({ error: 'INTERNAL_ERROR' }, { status: 500 })
+  }
 }

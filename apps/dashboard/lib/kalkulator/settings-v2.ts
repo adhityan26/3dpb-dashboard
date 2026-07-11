@@ -34,6 +34,12 @@ export async function loadSettingsV2(): Promise<SettingsV2> {
     )
   }
 
+  // offline wajib selalu ada (basis harga tanpa fee) — meski user mengisi
+  // kalk.channel.* tanpa menyertakan offline
+  if (!channels.some(c => c.id === 'offline')) {
+    channels.unshift({ id: 'offline', nama: 'Offline', feeMultiplier: 1 })
+  }
+
   return {
     failureSpreadPct: parseFloat(map['kalk.failureSpread.pct'] ?? '50'),
     testLayerPct: parseFloat(map['kalk.testLayer.pct'] ?? '5'),

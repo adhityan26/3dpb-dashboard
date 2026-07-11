@@ -13,7 +13,7 @@ vi.mock('@/lib/db', () => ({
 import { prisma } from '@/lib/db'
 import {
   createPrinterProfile, deletePrinterProfile, setDefaultPrinterProfile,
-  upsertLaborPreset, listLaborPresets,
+  upsertLaborPreset, listLaborPresets, deleteKomponenPreset,
 } from '../profiles-service'
 
 type MockedPrisma = {
@@ -111,5 +111,20 @@ describe('labor preset', () => {
     const out = await listLaborPresets()
     expect(out[0].items).toEqual([{ nama: 'A', flat: 100 }])
     expect(out[1].items).toEqual([])
+  })
+})
+
+describe('delete dengan id tak dikenal', () => {
+  it('deleteKomponenPreset: P2025 → NOT_FOUND', async () => {
+    const p2025 = Object.assign(new Error('No record found'), { code: 'P2025' })
+    db.komponenPreset.delete.mockRejectedValue(p2025)
+    await expect(deleteKomponenPreset('ghost')).rejects.toThrow('NOT_FOUND')
+  })
+
+  it('deletePrinterProfile non-default: P2025 → NOT_FOUND', async () => {
+    db.kalkPrinterProfile.findUnique.mockResolvedValue(null)
+    const p2025 = Object.assign(new Error('No record found'), { code: 'P2025' })
+    db.kalkPrinterProfile.delete.mockRejectedValue(p2025)
+    await expect(deletePrinterProfile('ghost')).rejects.toThrow('NOT_FOUND')
   })
 })

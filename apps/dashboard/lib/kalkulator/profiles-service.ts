@@ -1,6 +1,18 @@
 import { prisma } from '@/lib/db'
 import { hitungMesinPerJam, type LaborItem } from '@3pb/kalkulator-core'
 
+/** Terjemahkan Prisma P2025 (record tak ditemukan) jadi sentinel NOT_FOUND. */
+async function deleteOrNotFound(fn: () => Promise<unknown>): Promise<void> {
+  try {
+    await fn()
+  } catch (err) {
+    if (typeof err === 'object' && err !== null && (err as { code?: string }).code === 'P2025') {
+      throw new Error('NOT_FOUND')
+    }
+    throw err
+  }
+}
+
 // ── Printer profile ──────────────────────────────────────────────────────────
 
 export interface PrinterProfileData {
@@ -107,7 +119,7 @@ export async function updatePrinterProfile(id: string, input: Partial<PrinterPro
 export async function deletePrinterProfile(id: string): Promise<void> {
   const existing = await prisma.kalkPrinterProfile.findUnique({ where: { id } })
   if (existing?.isDefault) throw new Error('DEFAULT_PROFILE')
-  await prisma.kalkPrinterProfile.delete({ where: { id } })
+  await deleteOrNotFound(() => prisma.kalkPrinterProfile.delete({ where: { id } }))
 }
 
 export async function setDefaultPrinterProfile(id: string): Promise<void> {
@@ -158,7 +170,7 @@ export async function upsertMaterialProfile(input: MaterialProfileInput): Promis
 }
 
 export async function deleteMaterialProfile(id: string): Promise<void> {
-  await prisma.kalkMaterialProfile.delete({ where: { id } })
+  await deleteOrNotFound(() => prisma.kalkMaterialProfile.delete({ where: { id } }))
 }
 
 // ── Komponen preset ──────────────────────────────────────────────────────────
@@ -186,7 +198,7 @@ export async function upsertKomponenPreset(input: { nama: string; harga: number;
 }
 
 export async function deleteKomponenPreset(id: string): Promise<void> {
-  await prisma.komponenPreset.delete({ where: { id } })
+  await deleteOrNotFound(() => prisma.komponenPreset.delete({ where: { id } }))
 }
 
 // ── Labor preset ─────────────────────────────────────────────────────────────
@@ -231,5 +243,5 @@ export async function upsertLaborPreset(input: { nama: string; items: LaborItem[
 }
 
 export async function deleteLaborPreset(id: string): Promise<void> {
-  await prisma.laborPreset.delete({ where: { id } })
+  await deleteOrNotFound(() => prisma.laborPreset.delete({ where: { id } }))
 }
