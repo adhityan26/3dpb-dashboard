@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useSettingsV2, useUpdateRates } from '@/lib/hooks/use-kalkulator'
 
 export function ChannelsSection() {
@@ -13,15 +13,18 @@ export function ChannelsSection() {
   const [newFee, setNewFee] = useState('')
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Sync data yang datang async ke state form lokal tanpa useEffect
+  // (menghindari cascading render); pola "adjust state during render".
+  const [syncedSettings, setSyncedSettings] = useState(settings)
 
-  useEffect(() => {
-    if (!settings) return
+  if (settings && settings !== syncedSettings) {
+    setSyncedSettings(settings)
     setFees(Object.fromEntries(settings.channels.map(c => [c.id, String(c.feeMultiplier)])))
     setMargins({
       a: String(settings.marginMultipliers.A), b: String(settings.marginMultipliers.B),
       c: String(settings.marginMultipliers.C), reseller: String(settings.resellerBulkMultiplier),
     })
-  }, [settings])
+  }
 
   async function handleSave() {
     setError(null)
