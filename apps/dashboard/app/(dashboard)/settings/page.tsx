@@ -12,6 +12,7 @@ import { NotificationRunnerCard } from "@/components/settings/NotificationRunner
 import { FilamenCatalogCard } from "@/components/settings/FilamenCatalogCard"
 import { StickerSizeCard } from "@/components/settings/StickerSizeCard"
 import { KalkulatorSettingsCard } from "@/components/settings/KalkulatorSettingsCard"
+import { KalkulatorV2SettingsCard } from "@/components/settings/kalkulator-v2/KalkulatorV2SettingsCard"
 import { ShopeeFeeAnalyticsCard } from "@/components/settings/ShopeeFeeAnalyticsCard"
 import { InvoiceMethodsCard } from "@/components/settings/InvoiceMethodsCard"
 import { TokopediaSessionCard } from "@/components/settings/TokopediaSessionCard"
@@ -123,7 +124,10 @@ function SettingsPageInner() {
       )}
 
       {activeTab === "kalkulator" && (
-        <KalkulatorSettingsCard />
+        <div className="space-y-4">
+          <KalkulatorSettingsCard />
+          <KalkulatorV2SettingsCard />
+        </div>
       )}
 
       {activeTab === "notifikasi" && (
