@@ -1,15 +1,22 @@
 'use client'
 
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useKomponenPresets, useUpsertKomponenPreset, useDeleteKomponenPreset } from '@/lib/hooks/use-kalkulator'
 
 export function KomponenPresetsSection() {
+  const qc = useQueryClient()
   const { data: presets, isLoading } = useKomponenPresets()
   const upsertMut = useUpsertKomponenPreset()
   const deleteMut = useDeleteKomponenPreset()
   const [nama, setNama] = useState('')
   const [harga, setHarga] = useState('')
   const [error, setError] = useState<string | null>(null)
+  const [rowError, setRowError] = useState<string | null>(null)
+
+  function invalidatePresets() {
+    qc.invalidateQueries({ queryKey: ['kalkulator', 'komponen-presets'] })
+  }
 
   async function handleSubmit() {
     setError(null)
@@ -39,20 +46,31 @@ export function KomponenPresetsSection() {
             <span className="text-xs g-t2 flex-1">{k.nama}</span>
             <span className="text-xs font-mono g-t1">Rp {k.harga}</span>
             <button
-              onClick={() => upsertMut.mutate({ nama: k.nama, harga: k.harga, isActive: !k.isActive })}
-              className="text-[10px] g-t4 hover:text-indigo-300 transition-colors px-1"
+              onClick={() => upsertMut.mutate({ nama: k.nama, harga: k.harga, isActive: !k.isActive }, {
+                onError: e => { setRowError(e instanceof Error ? e.message : 'Gagal'); invalidatePresets() },
+                onSuccess: () => setRowError(null),
+              })}
+              disabled={upsertMut.isPending}
+              className="text-[10px] g-t4 hover:text-indigo-300 transition-colors px-1 disabled:opacity-40"
               title={k.isActive ? 'Nonaktifkan' : 'Aktifkan'}>
               {k.isActive ? '👁' : '🚫'}
             </button>
             <button onClick={() => { setNama(k.nama); setHarga(String(k.harga)) }}
               className="text-[10px] g-t4 hover:text-indigo-300 transition-colors px-1">✎</button>
-            <button onClick={() => deleteMut.mutate(k.id)} className="text-[10px] g-t4 hover:text-red-400 transition-colors px-1">✕</button>
+            <button
+              onClick={() => deleteMut.mutate(k.id, {
+                onError: e => { setRowError(e instanceof Error ? e.message : 'Gagal'); invalidatePresets() },
+                onSuccess: () => setRowError(null),
+              })}
+              disabled={deleteMut.isPending}
+              className="text-[10px] g-t4 hover:text-red-400 transition-colors px-1 disabled:opacity-40">✕</button>
           </div>
         ))}
         {(presets ?? []).length === 0 && !isLoading && (
           <div className="text-xs g-t5 text-center py-2">Belum ada preset.</div>
         )}
       </div>
+      {rowError && <div className="text-xs text-red-400 mt-2">{rowError}</div>}
 
       <div className="flex gap-2 flex-wrap items-end">
         <div className="flex flex-col gap-1">

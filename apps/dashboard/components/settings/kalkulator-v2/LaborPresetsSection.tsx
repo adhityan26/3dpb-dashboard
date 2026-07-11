@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useLaborPresets, useUpsertLaborPreset, useDeleteLaborPreset } from '@/lib/hooks/use-kalkulator'
 import type { LaborItem } from '@3pb/kalkulator-core'
 
@@ -26,12 +27,14 @@ function itemCost(i: LaborItem): number {
 }
 
 export function LaborPresetsSection() {
+  const qc = useQueryClient()
   const { data: presets, isLoading } = useLaborPresets()
   const upsertMut = useUpsertLaborPreset()
   const deleteMut = useDeleteLaborPreset()
   const [nama, setNama] = useState('')
   const [rows, setRows] = useState<ItemRow[]>([{ ...EMPTY_ROW }])
   const [error, setError] = useState<string | null>(null)
+  const [rowError, setRowError] = useState<string | null>(null)
 
   function setRow(i: number, patch: Partial<ItemRow>) {
     setRows(rs => rs.map((r, idx) => idx === i ? { ...r, ...patch } : r))
@@ -74,7 +77,13 @@ export function LaborPresetsSection() {
               <span className="text-xs g-t2 flex-1">{p.nama}</span>
               <span className="text-xs font-mono g-t1">Rp {Math.round(p.items.reduce((s, i) => s + itemCost(i), 0))}</span>
               <button onClick={() => loadPreset(p.nama, p.items)} className="text-[10px] g-t4 hover:text-indigo-300 transition-colors px-1">✎</button>
-              <button onClick={() => deleteMut.mutate(p.id)} className="text-[10px] g-t4 hover:text-red-400 transition-colors px-1">✕</button>
+              <button
+                onClick={() => deleteMut.mutate(p.id, {
+                  onError: e => { setRowError(e instanceof Error ? e.message : 'Gagal'); qc.invalidateQueries({ queryKey: ['kalkulator', 'labor-presets'] }) },
+                  onSuccess: () => setRowError(null),
+                })}
+                disabled={deleteMut.isPending}
+                className="text-[10px] g-t4 hover:text-red-400 transition-colors px-1 disabled:opacity-40">✕</button>
             </div>
             <div className="text-[10px] g-t5 mt-0.5">
               {p.items.map(i => i.jam != null ? `${i.nama} ${i.jam}j×${i.ratePerJam}` : `${i.nama} flat ${i.flat}`).join(' · ')}
@@ -85,6 +94,7 @@ export function LaborPresetsSection() {
           <div className="text-xs g-t5 text-center py-2">Belum ada preset.</div>
         )}
       </div>
+      {rowError && <div className="text-xs text-red-400 mt-2">{rowError}</div>}
 
       <div className="mb-2">
         <label className="block text-[10px] g-t4 uppercase tracking-wide mb-1">Nama preset</label>

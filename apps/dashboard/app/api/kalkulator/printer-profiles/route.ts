@@ -18,6 +18,7 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'error'
     if (msg === 'INVALID_INPUT') return NextResponse.json({ error: 'INVALID_INPUT' }, { status: 400 })
-    return NextResponse.json({ error: msg }, { status: 500 })
+    if ((err as { code?: string })?.code === 'P2002') return NextResponse.json({ error: 'Nama printer sudah dipakai' }, { status: 400 })
+    return NextResponse.json({ error: 'INTERNAL_ERROR' }, { status: 500 })
   }
 }

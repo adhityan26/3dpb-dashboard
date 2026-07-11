@@ -1,16 +1,19 @@
 'use client'
 
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useMaterialProfiles, useUpsertMaterialProfile, useDeleteMaterialProfile } from '@/lib/hooks/use-kalkulator'
 
 const EMPTY = { nama: '', tipe: 'FDM' as 'FDM' | 'SLA', hppPerGram: '', jualPerGram: '', failureRatePct: '12' }
 
 export function MaterialProfilesSection() {
+  const qc = useQueryClient()
   const { data: materials, isLoading } = useMaterialProfiles()
   const upsertMut = useUpsertMaterialProfile()
   const deleteMut = useDeleteMaterialProfile()
   const [form, setForm] = useState(EMPTY)
   const [error, setError] = useState<string | null>(null)
+  const [rowError, setRowError] = useState<string | null>(null)
 
   async function handleSubmit() {
     setError(null)
@@ -48,13 +51,20 @@ export function MaterialProfilesSection() {
             <span className="text-[10px] g-t4">fail {m.failureRatePct}%</span>
             <button onClick={() => setForm({ nama: m.nama, tipe: m.tipe as 'FDM' | 'SLA', hppPerGram: String(m.hppPerGram), jualPerGram: String(m.jualPerGram), failureRatePct: String(m.failureRatePct) })}
               className="text-[10px] g-t4 hover:text-indigo-300 transition-colors px-1">✎</button>
-            <button onClick={() => deleteMut.mutate(m.id)} className="text-[10px] g-t4 hover:text-red-400 transition-colors px-1">✕</button>
+            <button
+              onClick={() => deleteMut.mutate(m.id, {
+                onError: e => { setRowError(e instanceof Error ? e.message : 'Gagal'); qc.invalidateQueries({ queryKey: ['kalkulator', 'material-profiles'] }) },
+                onSuccess: () => setRowError(null),
+              })}
+              disabled={deleteMut.isPending}
+              className="text-[10px] g-t4 hover:text-red-400 transition-colors px-1 disabled:opacity-40">✕</button>
           </div>
         ))}
         {(materials ?? []).length === 0 && !isLoading && (
           <div className="text-xs g-t5 text-center py-2">Belum ada material profile.</div>
         )}
       </div>
+      {rowError && <div className="text-xs text-red-400 mt-2">{rowError}</div>}
 
       <div className="grid grid-cols-6 gap-2 items-end">
         <div className="col-span-2">

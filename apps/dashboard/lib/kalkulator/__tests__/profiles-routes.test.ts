@@ -52,4 +52,10 @@ describe('printer-profiles routes', () => {
     expect(res.status).toBe(400)
     expect((await res.json()).error).toBe('DEFAULT_PROFILE')
   })
+
+  it('POST nama duplikat (P2002) → 400', async () => {
+    vi.mocked(createPrinterProfile).mockRejectedValue(Object.assign(new Error('Unique constraint'), { code: 'P2002' }))
+    const res = await POST(req({ nama: 'P1P', mesinPerJam: 4000 }))
+    expect(res.status).toBe(400)
+  })
 })

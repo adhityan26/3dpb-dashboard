@@ -37,9 +37,13 @@ export function ChannelsSection() {
     if (margins.b) updates.push({ key: 'kalk.margin.b', value: margins.b })
     if (margins.c) updates.push({ key: 'kalk.margin.c', value: margins.c })
     if (margins.reseller) updates.push({ key: 'kalk.resellerBulk.multiplier', value: margins.reseller })
-    await updateMut.mutateAsync(updates)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
+    try {
+      await updateMut.mutateAsync(updates)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2000)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Gagal menyimpan')
+    }
   }
 
   async function handleAddChannel() {
@@ -54,8 +58,12 @@ export function ChannelsSection() {
       setError('Fee multiplier harus angka > 0 (contoh: 1.2 = fee 20%)')
       return
     }
-    await updateMut.mutateAsync([{ key: `kalk.channel.${id}`, value: String(fee) }])
-    setNewId(''); setNewFee('')
+    try {
+      await updateMut.mutateAsync([{ key: `kalk.channel.${id}`, value: String(fee) }])
+      setNewId(''); setNewFee('')
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Gagal menyimpan')
+    }
   }
 
   if (isLoading) return <div className="text-xs g-t5 py-2">Memuat…</div>

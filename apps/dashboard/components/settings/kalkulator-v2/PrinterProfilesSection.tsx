@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { hitungMesinPerJam } from '@3pb/kalkulator-core'
 import {
   usePrinterProfiles, useCreatePrinterProfile, useUpdatePrinterProfile,
@@ -16,6 +17,7 @@ function num(v: string): number | undefined {
 }
 
 export function PrinterProfilesSection() {
+  const qc = useQueryClient()
   const { data: profiles, isLoading } = usePrinterProfiles()
   const createMut = useCreatePrinterProfile()
   const updateMut = useUpdatePrinterProfile()
@@ -25,6 +27,11 @@ export function PrinterProfilesSection() {
   const [form, setForm] = useState(EMPTY)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [rowError, setRowError] = useState<string | null>(null)
+
+  function invalidateProfiles() {
+    qc.invalidateQueries({ queryKey: ['kalkulator', 'printer-profiles'] })
+  }
 
   const breakdown = {
     watt: num(form.watt), tarifPerKwh: num(form.tarifPerKwh),
@@ -92,9 +99,21 @@ export function PrinterProfilesSection() {
             <button onClick={() => startEdit(p)} className="text-[10px] g-t4 hover:text-indigo-300 transition-colors px-1">✎</button>
             {!p.isDefault && (
               <>
-                <button onClick={() => setDefaultMut.mutate(p.id)} className="text-[10px] g-t4 hover:text-indigo-300 transition-colors px-1"
-                        title="Jadikan default">★</button>
-                <button onClick={() => deleteMut.mutate(p.id)} className="text-[10px] g-t4 hover:text-red-400 transition-colors px-1">✕</button>
+                <button
+                  onClick={() => setDefaultMut.mutate(p.id, {
+                    onError: e => { setRowError(e instanceof Error ? e.message : 'Gagal'); invalidateProfiles() },
+                    onSuccess: () => setRowError(null),
+                  })}
+                  disabled={setDefaultMut.isPending}
+                  className="text-[10px] g-t4 hover:text-indigo-300 transition-colors px-1 disabled:opacity-40"
+                  title="Jadikan default">★</button>
+                <button
+                  onClick={() => deleteMut.mutate(p.id, {
+                    onError: e => { setRowError(e instanceof Error ? e.message : 'Gagal'); invalidateProfiles() },
+                    onSuccess: () => setRowError(null),
+                  })}
+                  disabled={deleteMut.isPending}
+                  className="text-[10px] g-t4 hover:text-red-400 transition-colors px-1 disabled:opacity-40">✕</button>
               </>
             )}
           </div>
@@ -103,6 +122,7 @@ export function PrinterProfilesSection() {
           <div className="text-xs g-t5 text-center py-2">Belum ada profil. Jalankan seed atau tambah manual.</div>
         )}
       </div>
+      {rowError && <div className="text-xs text-red-400 mt-2">{rowError}</div>}
 
       <div className="grid grid-cols-3 gap-2 items-end">
         <div className="col-span-2">
