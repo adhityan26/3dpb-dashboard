@@ -12,6 +12,7 @@ import type { KalkulasiData, KalkulasiInput, MarginTier, HasilKalkulasi, Produkt
 import { HELM_TIER_DEFAULTS } from "@/lib/kalkulator/types"
 import type { AksesoriState } from "./AksesoriSection"
 import { PrintableQuote } from "./PrintableQuote"
+import { RincianPanel } from "./RincianPanel"
 
 interface PlateRow {
   key: string
@@ -631,6 +632,32 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           isLoading={!ratesData}
           marginTier={marginTier}
         />
+        {hasil && ratesData && (
+          <RincianPanel
+            plates={plates.filter(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0) && p.durasiJam > 0)}
+            aksesori={{
+              packingType: aksesori.packingType,
+              gantunganType: aksesori.gantunganType,
+              switchQty: aksesori.switchQty,
+              hasLabel: aksesori.hasLabel,
+              komponenKustom: aksesori.komponenKustom,
+            }}
+            batch={Math.max(1, batch)}
+            rates={ratesData}
+            hasil={hasil}
+            hargaShopeeAktual={(shopeeIsLocked ? linkedShopeePrice : hargaShopee) ?? undefined}
+            customRiskPct={customRiskEnabled ? customRiskPct : undefined}
+            helmOptions={produktType === 'HELM' ? {
+              finishType,
+              jamSanding,
+              jamPainting,
+              jamAssembly,
+              flatFinishingCost,
+              preparerRatePerJam: ratesData.preparerRatePerJam,
+              finisherRatePerJam: ratesData.finisherRatePerJam,
+            } : undefined}
+          />
+        )}
       </div>
 
     </div>
