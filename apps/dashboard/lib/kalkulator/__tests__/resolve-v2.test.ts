@@ -75,7 +75,7 @@ describe('resolusi profil', () => {
       produktType: 'SIMPLE', finishType: 'RAW',
       packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [],
       customRiskPct: undefined,
-      plates: [{ tipe: 'FDM', gramasi: 0, durasiJam: 1, printerProfileId: 'p1' } as any],
+      plates: [{ tipe: 'FDM', gramasi: 0, durasiJam: 1, printerProfileId: 'p1' }],
     })
     const v2 = resolveInputV2(input, DEPS)
     expect(v2.plates[0].mesinPerJam).toBe(4000)      // aktual = profil p1
@@ -84,7 +84,7 @@ describe('resolusi profil', () => {
 
   it('materialProfileId di material entry → hpp/jual/failure dari profil', () => {
     const input = legacyInput({
-      plates: [{ tipe: 'FDM', durasiJam: 1, materials: [{ brand: 'eSUN', material: 'PLA', color: 'Red', gramasi: 10, materialProfileId: 'm1' }] } as any],
+      plates: [{ tipe: 'FDM', durasiJam: 1, materials: [{ brand: 'eSUN', material: 'PLA', color: 'Red', gramasi: 10, materialProfileId: 'm1' }] }],
     })
     const v2 = resolveInputV2(input, DEPS)
     expect(v2.plates[0].materials[0]).toMatchObject({ hppPerGram: 250, jualPerGram: 800, failureRatePct: 8 })
@@ -92,7 +92,7 @@ describe('resolusi profil', () => {
 
   it('override hargaPerGram menang atas material profile (hpp saja, jual tetap profil)', () => {
     const input = legacyInput({
-      plates: [{ tipe: 'FDM', durasiJam: 1, materials: [{ brand: 'X', material: 'PLA', color: 'R', gramasi: 10, hargaPerGram: 280, materialProfileId: 'm1' }] } as any],
+      plates: [{ tipe: 'FDM', durasiJam: 1, materials: [{ brand: 'X', material: 'PLA', color: 'R', gramasi: 10, hargaPerGram: 280, materialProfileId: 'm1' }] }],
     })
     const v2 = resolveInputV2(input, DEPS)
     expect(v2.plates[0].materials[0].hppPerGram).toBe(280)
@@ -112,6 +112,6 @@ describe('resolusi profil', () => {
   it('hargaChannelJson berisi seluruh channel dari settings', () => {
     const out = buildHasilV2(legacyInput(), DEPS_NO_PROFILES)
     const channels = JSON.parse(out.hargaChannelJson)
-    expect(channels.map((c: any) => c.channelId)).toEqual(['offline', 'shopee'])
+    expect(channels.map((c: { channelId: string }) => c.channelId)).toEqual(['offline', 'shopee'])
   })
 })
