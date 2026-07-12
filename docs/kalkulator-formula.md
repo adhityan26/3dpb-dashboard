@@ -99,6 +99,16 @@ Keputusan user 2026-07-08:
 
 Formula inti (failure spread, test layer, batch, dua jalur harga material, status) **tidak berubah**.
 
+### Keputusan tambahan 2026-07-12 (untuk Fase 0b-2b): mesin acuan harga
+
+Output print bersifat fungible — customer tidak tahu/tidak peduli mesin mana yang mencetak. Maka:
+
+- **HPP memakai printer profile AKTUAL** yang dipilih per plate → mencerminkan biaya produksi riil, dipakai untuk membandingkan produktivitas/profitabilitas antar mesin.
+- **Floor price (dan semua rekomendasi harga jual) memakai printer profile ACUAN HARGA** — satu profil yang di-set manual oleh user (flag `isPricingReference` / badge "acuan harga" di samping badge "default"; lazimnya mesin termahal). Harga jual jadi stabil, tidak ikut turun saat produksi pindah ke mesin yang lebih murah/lunas; mesin mana pun dijamin tidak rugi.
+- **Failure buffer tetap dihitung dari biaya aktual** (buffer biaya, bukan komponen harga).
+- Konsekuensi UI 0b-2b: HasilPanel bisa menampilkan perbandingan margin per printer profile untuk job yang sama.
+- Menggantikan ide `jualPerJam` per printer (dibatalkan).
+
 ## 4. Hasil implementasi (AFTER — merged ke master `d74affb`, 2026-07-08)
 
 ### Lokasi & konsumsi
