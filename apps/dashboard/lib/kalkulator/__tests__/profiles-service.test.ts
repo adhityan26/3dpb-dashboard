@@ -12,7 +12,7 @@ vi.mock('@/lib/db', () => ({
 
 import { prisma } from '@/lib/db'
 import {
-  createPrinterProfile, deletePrinterProfile, setDefaultPrinterProfile,
+  createPrinterProfile, deletePrinterProfile, setDefaultPrinterProfile, setPricingReferencePrinterProfile,
   upsertLaborPreset, listLaborPresets, deleteKomponenPreset,
 } from '../profiles-service'
 
@@ -26,6 +26,7 @@ const db = prisma as unknown as MockedPrisma
 const row = (over = {}) => ({
   id: 'p1', nama: 'P1P', mesinPerJam: 4000, watt: null, tarifPerKwh: null,
   hargaPrinter: null, umurPakaiJam: null, maintenancePerJam: null, isDefault: false,
+  isPricingReference: false,
   createdAt: new Date(), updatedAt: new Date(), ...over,
 })
 
@@ -84,6 +85,23 @@ describe('setDefaultPrinterProfile', () => {
     await expect(setDefaultPrinterProfile('ghost')).rejects.toThrow('NOT_FOUND')
     expect(db.kalkPrinterProfile.updateMany).not.toHaveBeenCalled()
     expect(db.kalkPrinterProfile.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('setPricingReferencePrinterProfile', () => {
+  it('id tidak ditemukan → NOT_FOUND, tidak meng-unset acuan lain', async () => {
+    db.kalkPrinterProfile.findUnique.mockResolvedValue(null)
+    await expect(setPricingReferencePrinterProfile('ghost')).rejects.toThrow('NOT_FOUND')
+    expect(db.kalkPrinterProfile.updateMany).not.toHaveBeenCalled()
+  })
+
+  it('unset acuan lain lalu set target', async () => {
+    db.kalkPrinterProfile.findUnique.mockResolvedValue(row({ id: 'p2' }))
+    db.kalkPrinterProfile.updateMany.mockResolvedValue({ count: 1 })
+    db.kalkPrinterProfile.update.mockResolvedValue(row({ id: 'p2', isPricingReference: true }))
+    await setPricingReferencePrinterProfile('p2')
+    expect(db.kalkPrinterProfile.updateMany).toHaveBeenCalledWith({ where: { isPricingReference: true }, data: { isPricingReference: false } })
+    expect(db.kalkPrinterProfile.update).toHaveBeenCalledWith({ where: { id: 'p2' }, data: { isPricingReference: true } })
   })
 })
 

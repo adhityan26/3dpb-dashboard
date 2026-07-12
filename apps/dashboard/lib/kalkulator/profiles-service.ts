@@ -25,6 +25,7 @@ export interface PrinterProfileData {
   umurPakaiJam: number | null
   maintenancePerJam: number | null
   isDefault: boolean
+  isPricingReference: boolean
 }
 
 export interface PrinterProfileInput {
@@ -127,6 +128,13 @@ export async function setDefaultPrinterProfile(id: string): Promise<void> {
   if (!existing) throw new Error('NOT_FOUND')
   await prisma.kalkPrinterProfile.updateMany({ where: { isDefault: true }, data: { isDefault: false } })
   await prisma.kalkPrinterProfile.update({ where: { id }, data: { isDefault: true } })
+}
+
+export async function setPricingReferencePrinterProfile(id: string): Promise<void> {
+  const existing = await prisma.kalkPrinterProfile.findUnique({ where: { id } })
+  if (!existing) throw new Error('NOT_FOUND')
+  await prisma.kalkPrinterProfile.updateMany({ where: { isPricingReference: true }, data: { isPricingReference: false } })
+  await prisma.kalkPrinterProfile.update({ where: { id }, data: { isPricingReference: true } })
 }
 
 // ── Material profile ─────────────────────────────────────────────────────────

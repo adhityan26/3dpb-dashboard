@@ -9,6 +9,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   try {
     return NextResponse.json(await updatePrinterProfile(id, await req.json()))
   } catch (err) {
+    if ((err as { code?: string })?.code === 'P2002') {
+      return NextResponse.json({ error: 'Nama printer sudah dipakai' }, { status: 400 })
+    }
     const msg = err instanceof Error ? err.message : 'error'
     const status = msg === 'NOT_FOUND' ? 404 : msg === 'INVALID_INPUT' ? 400 : 500
     return NextResponse.json({ error: msg }, { status })

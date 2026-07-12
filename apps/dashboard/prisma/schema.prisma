@@ -218,8 +218,10 @@ model KalkulasiHarga {
   jamAssembly       Float   @default(0)           // Preparer hours (assembly)
   flatFinishingCost Float   @default(0)           // cat, primer, consumables flat
   hppFinishing      Float   @default(0)           // computed: labor + consumables
+  hargaChannelJson  String?                        // JSON HargaChannelV2[] snapshot saat save (v2)
   plates               KalkulasiPlate[]
   komponenKustom       KomponenKustom[]
+  labor                KalkulasiLabor[]
   produkLinks              KalkulasiProduk[]
   produkInternalLinks      ProdukInternal[]
   produkInternalShopeeLinks ProdukInternalShopeeLink[]
@@ -238,6 +240,8 @@ model KalkulasiPlate {
   durasiJam            Float
   filamentHargaId      String?                          // FK to FilamentHarga (single-material override)
   filamentHargaPerGram Float?                           // cached rate at time of save
+  printerProfileId     String?                          // FK lunak ke KalkPrinterProfile (tanpa relasi — profil bisa dihapus)
+  mesinPerJam          Float?                           // cache rate aktual saat save
 }
 
 model KomponenKustom {
@@ -247,6 +251,17 @@ model KomponenKustom {
   nama        String
   harga       Float
   qty         Int            @default(1)
+}
+
+model KalkulasiLabor {
+  id          String         @id @default(cuid())
+  kalkulasiId String
+  kalkulasi   KalkulasiHarga @relation(fields: [kalkulasiId], references: [id], onDelete: Cascade)
+  urutan      Int            @default(0)
+  nama        String
+  jam         Float?
+  ratePerJam  Float?
+  flat        Float?
 }
 
 model KalkulasiProduk {
@@ -288,6 +303,7 @@ model KalkPrinterProfile {
   umurPakaiJam      Float?
   maintenancePerJam Float?
   isDefault         Boolean  @default(false)
+  isPricingReference Boolean @default(false) // profil acuan harga jual (manual set)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 }

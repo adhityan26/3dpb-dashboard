@@ -9,8 +9,8 @@ vi.mock('@/lib/kalkulator/profiles-service', () => ({
 
 import { auth } from '@/lib/auth'
 import { GET, POST } from '@/app/api/kalkulator/printer-profiles/route'
-import { DELETE } from '@/app/api/kalkulator/printer-profiles/[id]/route'
-import { listPrinterProfiles, createPrinterProfile, deletePrinterProfile } from '@/lib/kalkulator/profiles-service'
+import { PUT, DELETE } from '@/app/api/kalkulator/printer-profiles/[id]/route'
+import { listPrinterProfiles, createPrinterProfile, updatePrinterProfile, deletePrinterProfile } from '@/lib/kalkulator/profiles-service'
 
 const mockAuth = vi.mocked(auth)
 const req = (body: unknown) => ({ json: async () => body }) as unknown as NextRequest
@@ -27,7 +27,7 @@ describe('printer-profiles routes', () => {
 
   it('GET mengembalikan list', async () => {
     vi.mocked(listPrinterProfiles).mockResolvedValue([{
-      id: 'p1', nama: 'P1P', mesinPerJam: 4000, isDefault: true,
+      id: 'p1', nama: 'P1P', mesinPerJam: 4000, isDefault: true, isPricingReference: false,
       watt: null, tarifPerKwh: null, hargaPrinter: null, umurPakaiJam: null, maintenancePerJam: null,
     }])
     const res = await GET()
@@ -56,6 +56,12 @@ describe('printer-profiles routes', () => {
   it('POST nama duplikat (P2002) → 400', async () => {
     vi.mocked(createPrinterProfile).mockRejectedValue(Object.assign(new Error('Unique constraint'), { code: 'P2002' }))
     const res = await POST(req({ nama: 'P1P', mesinPerJam: 4000 }))
+    expect(res.status).toBe(400)
+  })
+
+  it('PUT [id] nama duplikat (P2002) → 400', async () => {
+    vi.mocked(updatePrinterProfile).mockRejectedValue(Object.assign(new Error('Unique constraint'), { code: 'P2002' }))
+    const res = await PUT(req({ nama: 'X1C' }), ctx('p1'))
     expect(res.status).toBe(400)
   })
 })
