@@ -74,6 +74,8 @@ export interface KalkulasiData extends HasilKalkulasi {
   jamPainting: number
   jamAssembly: number
   flatFinishingCost: number
+  labor?: LaborItem[]
+  hargaChannel?: { channelId: string; A: number; B: number; C: number }[]
 }
 
 export interface KalkulasiProdukInput {

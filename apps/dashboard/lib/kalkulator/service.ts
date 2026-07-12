@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/db'
-import { hitungKalkulasi } from '@3pb/kalkulator-core'
 import { loadRates } from './rates'
+import { loadSettingsV2 } from './settings-v2'
+import { listPrinterProfiles, listMaterialProfiles } from './profiles-service'
+import { buildHasilV2, resolveMesinAktual, legacyLabor, type ResolveDeps } from './resolve-v2'
 import type {
   KalkulasiInput, KalkulasiData, KalkulasiProdukInput,
   FilamentHargaData, ResinHargaData, MarginTier
@@ -9,7 +11,15 @@ import type {
 const INCLUDE_ALL = {
   plates: { orderBy: { urutan: 'asc' as const } },
   komponenKustom: true,
+  labor: { orderBy: { urutan: 'asc' as const } },
   produkLinks: true,
+}
+
+async function loadDeps(): Promise<ResolveDeps> {
+  const [rates, settings, printerProfiles, materialProfiles] = await Promise.all([
+    loadRates(), loadSettingsV2(), listPrinterProfiles(), listMaterialProfiles(),
+  ])
+  return { rates, settings, printerProfiles, materialProfiles }
 }
 
 function toKalkulasiData(raw: any): KalkulasiData {
@@ -22,8 +32,17 @@ function toKalkulasiData(raw: any): KalkulasiData {
       materials: p.materialsJson ? JSON.parse(p.materialsJson) : undefined,
       filamentHargaId: p.filamentHargaId ?? undefined,
       hargaPerGram: p.filamentHargaPerGram ?? undefined,
+      printerProfileId: p.printerProfileId ?? undefined,
+      mesinPerJam: p.mesinPerJam ?? undefined,
     })),
     komponenKustom: raw.komponenKustom ?? [],
+    labor: (raw.labor ?? []).map(({ id, kalkulasiId, urutan, ...l }: any) => ({
+      nama: l.nama,
+      ...(l.jam != null && { jam: l.jam }),
+      ...(l.ratePerJam != null && { ratePerJam: l.ratePerJam }),
+      ...(l.flat != null && { flat: l.flat }),
+    })),
+    hargaChannel: raw.hargaChannelJson ? JSON.parse(raw.hargaChannelJson) : undefined,
     produkLinks: raw.produkLinks ?? [],
     produktType: raw.produktType ?? 'SIMPLE',
     finishType: raw.finishType ?? 'RAW',
@@ -34,34 +53,45 @@ function toKalkulasiData(raw: any): KalkulasiData {
   }
 }
 
-function buildHasil(input: KalkulasiInput, rates: any) {
-  const helmOptions = (input.produktType === 'HELM' && input.finishType === 'FINISHING')
-    ? {
-        finishType: input.finishType as import('./types').FinishType,
-        jamSanding: input.jamSanding ?? 0,
-        jamPainting: input.jamPainting ?? 0,
-        jamAssembly: input.jamAssembly ?? 0,
-        flatFinishingCost: input.flatFinishingCost ?? 0,
-        preparerRatePerJam: rates.preparerRatePerJam,
-        finisherRatePerJam: rates.finisherRatePerJam,
-      }
-    : undefined
+function laborCreate(input: KalkulasiInput, deps: ResolveDeps) {
+  const items = input.labor ?? legacyLabor(input, deps.rates)
+  return items.map((l, i) => ({ urutan: i + 1, nama: l.nama, jam: l.jam ?? null, ratePerJam: l.ratePerJam ?? null, flat: l.flat ?? null }))
+}
 
-  return hitungKalkulasi(
-    input.plates,
-    {
-      packingType: input.packingType,
-      gantunganType: input.gantunganType,
-      switchQty: input.switchQty,
-      hasLabel: input.hasLabel,
-      komponenKustom: input.komponenKustom,
-    },
-    input.batch,
-    rates,
-    input.hargaShopeeAktual,
-    input.customRiskPct,
-    helmOptions,
-  )
+function komponenCreate(input: KalkulasiInput) {
+  if (input.komponen) return input.komponen.map(k => ({ nama: k.nama, harga: k.harga, qty: k.qty }))
+  return input.komponenKustom.map(k => ({ nama: k.nama, harga: k.harga, qty: k.qty }))
+}
+
+/** Kolom aksesori legacy — kalau input pakai bentuk baru (komponen[]), null-kan
+ *  supaya tidak dobel-hitung lewat resolveInputV2 (yang jatuh balik ke legacyKomponen
+ *  hanya saat input.komponen absen). */
+function legacyAksesoriCols(input: KalkulasiInput) {
+  if (input.komponen) {
+    return { packingType: null, gantunganType: null, switchQty: 0, hasLabel: false }
+  }
+  return {
+    packingType: input.packingType,
+    gantunganType: input.gantunganType,
+    switchQty: input.switchQty,
+    hasLabel: input.hasLabel,
+  }
+}
+
+function platesCreate(input: KalkulasiInput, deps: ResolveDeps) {
+  return input.plates.map((p, i) => ({
+    urutan: i + 1,
+    namaPart: p.namaPart,
+    tipe: p.tipe ?? 'FDM',
+    printer: p.printer,
+    gramasi: p.gramasi ?? 0,
+    materialsJson: p.materials ? JSON.stringify(p.materials) : null,
+    durasiJam: p.durasiJam,
+    filamentHargaId: p.filamentHargaId ?? null,
+    filamentHargaPerGram: p.hargaPerGram ?? null,
+    printerProfileId: p.printerProfileId ?? null,
+    mesinPerJam: resolveMesinAktual(p, deps),
+  }))
 }
 
 export async function listKalkulasi(): Promise<KalkulasiData[]> {
@@ -78,8 +108,8 @@ export async function getKalkulasi(id: string): Promise<KalkulasiData | null> {
 }
 
 export async function createKalkulasi(input: KalkulasiInput): Promise<KalkulasiData> {
-  const rates = await loadRates()
-  const hasil = buildHasil(input, rates)
+  const deps = await loadDeps()
+  const hasil = buildHasilV2(input, deps)
   const record = await prisma.kalkulasiHarga.create({
     data: {
       nama: input.nama,
@@ -87,10 +117,7 @@ export async function createKalkulasi(input: KalkulasiInput): Promise<KalkulasiD
       marginTier: input.marginTier,
       hargaShopeeAktual: input.hargaShopeeAktual,
       hargaOfflineAktual: input.hargaOfflineAktual,
-      packingType: input.packingType,
-      gantunganType: input.gantunganType,
-      switchQty: input.switchQty,
-      hasLabel: input.hasLabel,
+      ...legacyAksesoriCols(input),
       produktType: input.produktType ?? 'SIMPLE',
       finishType: input.finishType ?? 'RAW',
       jamSanding: input.jamSanding ?? 0,
@@ -98,8 +125,9 @@ export async function createKalkulasi(input: KalkulasiInput): Promise<KalkulasiD
       jamAssembly: input.jamAssembly ?? 0,
       flatFinishingCost: input.flatFinishingCost ?? 0,
       ...hasil,
-      plates: { create: input.plates.map((p, i) => ({ urutan: i + 1, namaPart: p.namaPart, tipe: p.tipe ?? 'FDM', printer: p.printer, gramasi: p.gramasi ?? 0, materialsJson: p.materials ? JSON.stringify(p.materials) : null, durasiJam: p.durasiJam, filamentHargaId: p.filamentHargaId ?? null, filamentHargaPerGram: p.hargaPerGram ?? null })) },
-      komponenKustom: { create: input.komponenKustom.map(k => ({ nama: k.nama, harga: k.harga, qty: k.qty })) },
+      plates: { create: platesCreate(input, deps) },
+      komponenKustom: { create: komponenCreate(input) },
+      labor: { create: laborCreate(input, deps) },
     },
     include: INCLUDE_ALL,
   })
@@ -107,11 +135,12 @@ export async function createKalkulasi(input: KalkulasiInput): Promise<KalkulasiD
 }
 
 export async function updateKalkulasi(id: string, input: KalkulasiInput): Promise<KalkulasiData> {
-  const rates = await loadRates()
-  const hasil = buildHasil(input, rates)
+  const deps = await loadDeps()
+  const hasil = buildHasilV2(input, deps)
   await prisma.$transaction([
     prisma.kalkulasiPlate.deleteMany({ where: { kalkulasiId: id } }),
     prisma.komponenKustom.deleteMany({ where: { kalkulasiId: id } }),
+    prisma.kalkulasiLabor.deleteMany({ where: { kalkulasiId: id } }),
   ])
   const record = await prisma.kalkulasiHarga.update({
     where: { id },
@@ -121,10 +150,7 @@ export async function updateKalkulasi(id: string, input: KalkulasiInput): Promis
       marginTier: input.marginTier,
       hargaShopeeAktual: input.hargaShopeeAktual,
       hargaOfflineAktual: input.hargaOfflineAktual,
-      packingType: input.packingType,
-      gantunganType: input.gantunganType,
-      switchQty: input.switchQty,
-      hasLabel: input.hasLabel,
+      ...legacyAksesoriCols(input),
       produktType: input.produktType ?? 'SIMPLE',
       finishType: input.finishType ?? 'RAW',
       jamSanding: input.jamSanding ?? 0,
@@ -132,8 +158,9 @@ export async function updateKalkulasi(id: string, input: KalkulasiInput): Promis
       jamAssembly: input.jamAssembly ?? 0,
       flatFinishingCost: input.flatFinishingCost ?? 0,
       ...hasil,
-      plates: { create: input.plates.map((p, i) => ({ urutan: i + 1, namaPart: p.namaPart, tipe: p.tipe ?? 'FDM', printer: p.printer, gramasi: p.gramasi ?? 0, materialsJson: p.materials ? JSON.stringify(p.materials) : null, durasiJam: p.durasiJam, filamentHargaId: p.filamentHargaId ?? null, filamentHargaPerGram: p.hargaPerGram ?? null })) },
-      komponenKustom: { create: input.komponenKustom.map(k => ({ nama: k.nama, harga: k.harga, qty: k.qty })) },
+      plates: { create: platesCreate(input, deps) },
+      komponenKustom: { create: komponenCreate(input) },
+      labor: { create: laborCreate(input, deps) },
     },
     include: INCLUDE_ALL,
   })
@@ -157,7 +184,7 @@ export async function duplicateKalkulasi(id: string, newNama: string, newBatch?:
     gantunganType: source.gantunganType ?? undefined,
     switchQty: source.switchQty,
     hasLabel: source.hasLabel,
-    plates: source.plates.map(p => ({ namaPart: p.namaPart ?? undefined, tipe: p.tipe as 'FDM' | 'SLA', printer: p.printer ?? undefined, gramasi: p.gramasi, materials: p.materials, durasiJam: p.durasiJam, filamentHargaId: p.filamentHargaId, hargaPerGram: p.hargaPerGram })),
+    plates: source.plates.map(p => ({ namaPart: p.namaPart ?? undefined, tipe: p.tipe as 'FDM' | 'SLA', printer: p.printer ?? undefined, gramasi: p.gramasi, materials: p.materials, durasiJam: p.durasiJam, filamentHargaId: p.filamentHargaId, hargaPerGram: p.hargaPerGram, printerProfileId: p.printerProfileId ?? undefined })),
     komponenKustom: source.komponenKustom.map(k => ({ nama: k.nama, harga: k.harga, qty: k.qty })),
     produktType: source.produktType as import('./types').ProduktType,
     finishType: source.finishType as import('./types').FinishType,
@@ -165,6 +192,7 @@ export async function duplicateKalkulasi(id: string, newNama: string, newBatch?:
     jamPainting: source.jamPainting,
     jamAssembly: source.jamAssembly,
     flatFinishingCost: source.flatFinishingCost,
+    labor: source.labor && source.labor.length > 0 ? source.labor : undefined,
   }
   return createKalkulasi(input)
 }
