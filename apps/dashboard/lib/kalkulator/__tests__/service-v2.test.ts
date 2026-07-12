@@ -17,7 +17,7 @@ import { prisma } from '@/lib/db'
 import { loadRates } from '@/lib/kalkulator/rates'
 import { loadSettingsV2 } from '@/lib/kalkulator/settings-v2'
 import { listPrinterProfiles, listMaterialProfiles } from '@/lib/kalkulator/profiles-service'
-import { createKalkulasi } from '../service'
+import { createKalkulasi, listKalkulasi } from '../service'
 
 const db = prisma as any
 
@@ -81,5 +81,24 @@ describe('createKalkulasi (jalur v2)', () => {
     // Labor rows ditulis dari mapping helm (3 baris)
     expect(data.labor.create).toHaveLength(3)
     expect(data.jamSanding).toBe(1) // kolom helm legacy tetap terisi (drop di 0b-2b-2)
+  })
+})
+
+describe('listKalkulasi pagination', () => {
+  it('dengan page/limit → skip/take + total', async () => {
+    db.kalkulasiHarga.findMany.mockResolvedValue([])
+    db.kalkulasiHarga.count.mockResolvedValue(37)
+    const res = await listKalkulasi({ page: 3, limit: 10 })
+    expect(db.kalkulasiHarga.findMany).toHaveBeenCalledWith(expect.objectContaining({ skip: 20, take: 10 }))
+    expect(res).toMatchObject({ total: 37, page: 3, limit: 10 })
+  })
+
+  it('tanpa opts → semua item (tanpa skip/take)', async () => {
+    db.kalkulasiHarga.findMany.mockResolvedValue([])
+    db.kalkulasiHarga.count.mockResolvedValue(5)
+    await listKalkulasi()
+    const args = db.kalkulasiHarga.findMany.mock.calls.at(-1)[0]
+    expect(args.skip).toBeUndefined()
+    expect(args.take).toBeUndefined()
   })
 })

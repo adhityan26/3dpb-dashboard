@@ -107,4 +107,7 @@ export interface ResinHargaData {
 
 export interface KalkulasiListResponse {
   items: KalkulasiData[]
+  total: number
+  page?: number
+  limit?: number
 }

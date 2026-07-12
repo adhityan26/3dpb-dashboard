@@ -94,12 +94,19 @@ function platesCreate(input: KalkulasiInput, deps: ResolveDeps) {
   }))
 }
 
-export async function listKalkulasi(): Promise<KalkulasiData[]> {
-  const items = await prisma.kalkulasiHarga.findMany({
-    include: INCLUDE_ALL,
-    orderBy: { createdAt: 'desc' },
-  })
-  return items.map(toKalkulasiData)
+export interface ListKalkulasiOpts { page?: number; limit?: number }
+
+export async function listKalkulasi(opts?: ListKalkulasiOpts): Promise<{ items: KalkulasiData[]; total: number; page?: number; limit?: number }> {
+  const paginate = opts?.page !== undefined && opts?.limit !== undefined && opts.limit > 0
+  const [rows, total] = await Promise.all([
+    prisma.kalkulasiHarga.findMany({
+      include: INCLUDE_ALL,
+      orderBy: { createdAt: 'desc' },
+      ...(paginate && { skip: (Math.max(1, opts!.page!) - 1) * opts!.limit!, take: opts!.limit! }),
+    }),
+    prisma.kalkulasiHarga.count(),
+  ])
+  return { items: rows.map(toKalkulasiData), total, ...(paginate && { page: Math.max(1, opts!.page!), limit: opts!.limit! }) }
 }
 
 export async function getKalkulasi(id: string): Promise<KalkulasiData | null> {

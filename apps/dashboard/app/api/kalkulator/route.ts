@@ -3,11 +3,15 @@ import { auth } from '@/lib/auth'
 import { listKalkulasi, createKalkulasi } from '@/lib/kalkulator/service'
 import type { KalkulasiInput } from '@/lib/kalkulator/types'
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const items = await listKalkulasi()
-  return NextResponse.json({ items })
+  const pageParam = parseInt(req.nextUrl.searchParams.get('page') ?? '', 10)
+  const limitParam = parseInt(req.nextUrl.searchParams.get('limit') ?? '', 10)
+  const page = Number.isNaN(pageParam) ? undefined : pageParam
+  const limit = Number.isNaN(limitParam) ? undefined : limitParam
+  const result = await listKalkulasi({ page, limit })
+  return NextResponse.json(result)
 }
 
 export async function POST(req: NextRequest) {
