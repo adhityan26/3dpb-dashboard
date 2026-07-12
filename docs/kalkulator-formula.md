@@ -109,6 +109,11 @@ Output print bersifat fungible — customer tidak tahu/tidak peduli mesin mana y
 - Konsekuensi UI 0b-2b: HasilPanel bisa menampilkan perbandingan margin per printer profile untuk job yang sama.
 - Menggantikan ide `jualPerJam` per printer (dibatalkan).
 
+### Permintaan UI kalkulator untuk Fase 0b-2b (2026-07-12)
+
+1. **Total per unit di baris TOTAL part/plate**: selain total gram & durasi seluruh part, tampilkan juga hasil bagi per unit (`total gram ÷ batch`, `total durasi ÷ batch`). Kebutuhan: membandingkan mekanisme produksi batch vs satuan — gram/waktu per unit berbeda antara print sekaligus vs print satuan, dan angka ini jadi penentu mekanisme akhir. Contoh: batch 26, total 317,5 g / 11j53m → per unit 12,2 g / ±27 m.
+2. **Pagination di list history kalkulasi** (KalkulasiHistory) — data sudah banyak; tambahkan pagination (page size ±10) di UI + dukungan `page/limit` di API/service `listKalkulasi` (sekarang mengembalikan semua baris sekaligus).
+
 ## 4. Hasil implementasi (AFTER — merged ke master `d74affb`, 2026-07-08)
 
 ### Lokasi & konsumsi
