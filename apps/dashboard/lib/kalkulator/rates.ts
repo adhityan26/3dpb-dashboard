@@ -41,10 +41,24 @@ export async function loadRates(): Promise<KalkulatorRates> {
   }
 }
 
+/** kalk.adminEcommerce (preview UI lama & bot) dan kalk.channel.shopee (settings v2 / engine
+ *  server) adalah dua kunci Config yang merepresentasikan fee channel Shopee yang sama.
+ *  updateRate menulis keduanya sekaligus supaya tidak ada dua sumber kebenaran yang divergen. */
+const SHOPEE_FEE_KEYS = ['kalk.adminEcommerce', 'kalk.channel.shopee'] as const
+
 export async function updateRate(key: string, value: string): Promise<void> {
   await prisma.config.upsert({
     where: { key },
     create: { key, value },
     update: { value },
   })
+
+  if ((SHOPEE_FEE_KEYS as readonly string[]).includes(key)) {
+    const mirrorKey = SHOPEE_FEE_KEYS.find(k => k !== key)!
+    await prisma.config.upsert({
+      where: { key: mirrorKey },
+      create: { key: mirrorKey, value },
+      update: { value },
+    })
+  }
 }

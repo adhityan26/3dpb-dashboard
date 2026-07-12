@@ -69,6 +69,32 @@ describe('PARITAS: input legacy tanpa profil == hitungKalkulasi wrapper', () => 
   })
 })
 
+describe('PARITAS: plate multi-material dengan hargaPerGram override', () => {
+  it('semua field HasilKalkulasi identik (tanpa helm, tanpa customRisk)', () => {
+    const input = legacyInput({
+      produktType: 'SIMPLE', finishType: 'RAW',
+      packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [],
+      customRiskPct: undefined,
+      plates: [{
+        tipe: 'FDM', durasiJam: 2,
+        materials: [
+          { brand: 'eSUN', material: 'PLA+', color: 'Red', gramasi: 15, hargaPerGram: 280 },
+          { brand: 'Bambu', material: 'TPU', color: 'Clear', gramasi: 5 },
+        ],
+      }],
+    })
+    const expected = hitungKalkulasi(
+      input.plates,
+      { packingType: input.packingType, gantunganType: input.gantunganType, switchQty: input.switchQty, hasLabel: input.hasLabel, komponenKustom: input.komponenKustom },
+      input.batch, RATES, input.hargaShopeeAktual, input.customRiskPct,
+    )
+    const actual = buildHasilV2(input, DEPS_NO_PROFILES)
+    for (const k of Object.keys(expected) as (keyof typeof expected)[]) {
+      expect(actual[k], String(k)).toEqual(expected[k])
+    }
+  })
+})
+
 describe('resolusi profil', () => {
   it('plate ber-printerProfileId: HPP pakai rate profil, jual pakai rate acuan', () => {
     const input = legacyInput({
