@@ -143,12 +143,12 @@ export function PrinterProfilesSection() {
         <div className="text-[10px] g-t5 mb-1">Atau hitung dari breakdown (kosongkan Mesin/jam untuk pakai hasil hitung):</div>
         <div className="grid grid-cols-5 gap-2">
           {([
-            ['watt', 'Watt'], ['tarifPerKwh', 'Rp/kWh'], ['hargaPrinter', 'Harga printer'],
-            ['umurPakaiJam', 'Umur (jam)'], ['maintenancePerJam', 'Maint./jam'],
-          ] as const).map(([key, label]) => (
+            ['watt', 'Watt', '120'], ['tarifPerKwh', 'Rp/kWh', '1445'], ['hargaPrinter', 'Harga printer', '6000000'],
+            ['umurPakaiJam', 'Umur (jam)', '2000'], ['maintenancePerJam', 'Maint./jam', '400'],
+          ] as const).map(([key, label, hint]) => (
             <div key={key}>
               <label className="block text-[10px] g-t4 uppercase tracking-wide mb-1">{label}</label>
-              <input type="number" min="0" value={form[key]}
+              <input type="number" min="0" value={form[key]} placeholder={hint}
                 onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
                 className="glass-input w-full h-9 rounded-[8px] px-2 text-xs" />
             </div>
@@ -157,6 +157,18 @@ export function PrinterProfilesSection() {
         {preview !== undefined && (
           <div className="text-[10px] mt-1 g-t4">Hasil hitung: <span className="font-mono g-t1">Rp {Math.round(preview)}/jam</span></div>
         )}
+        <details className="mt-2 rounded-[8px] px-3 py-2"
+                 style={{ background: 'var(--g-inner)', border: '1px solid var(--g-inner-border)' }}>
+          <summary className="text-[11px] g-t3 cursor-pointer select-none">💡 Cara mengisi breakdown</summary>
+          <div className="text-[10px] g-t4 mt-2 space-y-1.5 leading-relaxed">
+            <p><b className="g-t2">Watt</b> — konsumsi listrik <i>rata-rata saat printing</i>, bukan angka maksimum PSU di spesifikasi (itu cuma peak saat heat-up bed). Paling akurat diukur pakai smart plug / watt meter selama ±1 jam print. Patokan: P1P/A1 print PLA ≈ 90–130 W; ABS/ASA (bed panas terus) ≈ 150–250 W; printer resin ≈ 60–100 W.</p>
+            <p><b className="g-t2">Rp/kWh</b> — tarif listrik PLN sesuai golongan (cek tagihan / PLN Mobile): R-1 1.300–2.200 VA ≈ 1.445; R-2/R-3 ≥3.500 VA ≈ 1.700; 900 VA non-subsidi ≈ 1.352.</p>
+            <p><b className="g-t2">Harga printer</b> — harga beli unit. <b className="g-t2">Umur (jam)</b> — perkiraan total jam print sepanjang umur ekonomisnya (FDM umumnya 2.000–5.000 jam). Dua angka ini jadi biaya depresiasi: harga ÷ umur.</p>
+            <p><b className="g-t2">Maint./jam</b> — opsional. Perkiraan biaya sparepart & perawatan setahun (nozzle, belt, lube, PTFE) dibagi jam print setahun. Contoh: Rp600rb ÷ 1.500 jam ≈ Rp400/jam.</p>
+            <p className="font-mono g-t5">mesin/jam = (watt÷1000 × Rp/kWh) + (harga ÷ umur) + maint/jam</p>
+            <p className="g-t5">Contoh P1P: (120÷1000 × 1.445) + (6.000.000 ÷ 2.000) + 800 ≈ Rp3.973/jam — didominasi depresiasi, bukan listrik. Kalau hasil hitung tidak cocok dengan feeling, isi kolom Mesin/jam manual — nilai manual selalu menang.</p>
+          </div>
+        </details>
       </div>
 
       {error && <div className="text-xs text-red-400 mt-2">{error}</div>}
