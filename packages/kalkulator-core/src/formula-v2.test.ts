@@ -154,3 +154,28 @@ describe('hitungKalkulasiV2', () => {
     expect(Number.isNaN(r.hppTotal)).toBe(false)
   })
 })
+
+describe('hitungKalkulasiV2 — mesin acuan harga (mesinPerJamJual)', () => {
+  it('jual path pakai mesinPerJamJual; HPP & failure tetap pakai mesinPerJam aktual', () => {
+    const r = hitungKalkulasiV2(baseInput({
+      plates: [{
+        durasiJam: 2, mesinPerJam: 1000, mesinPerJamJual: 4000,
+        materials: [{ gramasi: 10, hppPerGram: 300, jualPerGram: 900, failureRatePct: 10 }],
+      }],
+    }), SETTINGS)
+    // HPP: mat 3000 + mesin aktual 2000 = 5000; failure = 5000×10% = 500, spread 50 → +250
+    expect(r.hppProduksi).toBeCloseTo(5250)
+    // Jual: mat 9000 + mesin ACUAN 8000 = 17000; + failure(customer) 250
+    expect(r.floorPrice).toBeCloseTo(17250)
+  })
+
+  it('tanpa mesinPerJamJual → fallback mesinPerJam (perilaku lama)', () => {
+    const a = hitungKalkulasiV2(baseInput(), SETTINGS)
+    const b = hitungKalkulasiV2(baseInput({
+      plates: [{ durasiJam: 1, mesinPerJam: 1000, mesinPerJamJual: 1000,
+        materials: [{ gramasi: 10, hppPerGram: 300, jualPerGram: 900, failureRatePct: 0 }] }],
+    }), SETTINGS)
+    expect(b.floorPrice).toBeCloseTo(a.floorPrice)
+    expect(b.hppProduksi).toBeCloseTo(a.hppProduksi)
+  })
+})

@@ -32,6 +32,7 @@ export interface FilamentEntry {
   isSupport?: boolean      // true = support material
   hargaPerGram?: number    // override cost, else use FilamentHarga catalog or default rate
   filamentId?: string      // optional link to FilamentHarga catalog
+  materialProfileId?: string   // link ke KalkMaterialProfile (metadata; resolusi dilakukan app)
 }
 
 export interface PlateInput {
@@ -154,6 +155,9 @@ export interface PlateInputV2 {
   namaPart?: string
   durasiJam: number
   mesinPerJam: number      // resolved dari printer profile
+  /** Rate mesin untuk jalur HARGA (floor price) — dari printer profile acuan.
+   *  Fallback ke mesinPerJam. HPP & failure cost SELALU pakai mesinPerJam (biaya aktual). */
+  mesinPerJamJual?: number
   materials: MaterialUsageV2[]
   printerProfileId?: string
 }

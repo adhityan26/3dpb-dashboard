@@ -15,6 +15,7 @@ export function hitungKalkulasiV2(input: KalkulasiInputV2, settings: SettingsV2)
 
   function plateCost(p: PlateInputV2): { hpp: number; jual: number } {
     const mesin = p.durasiJam * p.mesinPerJam
+    const mesinJual = p.durasiJam * (p.mesinPerJamJual ?? p.mesinPerJam)
     let matHpp = 0, matJual = 0, gramTotal = 0, failWeighted = 0
     for (const m of p.materials) {
       matHpp += m.gramasi * m.hppPerGram
@@ -31,7 +32,7 @@ export function hitungKalkulasiV2(input: KalkulasiInputV2, settings: SettingsV2)
     const testCost = matHpp * testPct
     return {
       hpp:  matHpp  + mesin + failureCost * (1 - spread) + testCost,
-      jual: matJual + mesin + failureCost * spread,
+      jual: matJual + mesinJual + failureCost * spread,
     }
   }
 
