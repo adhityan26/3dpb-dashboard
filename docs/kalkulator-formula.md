@@ -112,7 +112,11 @@ Output print bersifat fungible — customer tidak tahu/tidak peduli mesin mana y
 ### Permintaan UI kalkulator untuk Fase 0b-2b (2026-07-12)
 
 1. **Total per unit di baris TOTAL part/plate**: selain total gram & durasi seluruh part, tampilkan juga hasil bagi per unit (`total gram ÷ batch`, `total durasi ÷ batch`). Kebutuhan: membandingkan mekanisme produksi batch vs satuan — gram/waktu per unit berbeda antara print sekaligus vs print satuan, dan angka ini jadi penentu mekanisme akhir. Contoh: batch 26, total 317,5 g / 11j53m → per unit 12,2 g / ±27 m.
-2. **Pagination di list history kalkulasi** (KalkulasiHistory) — data sudah banyak; tambahkan pagination (page size ±10) di UI + dukungan `page/limit` di API/service `listKalkulasi` (sekarang mengembalikan semua baris sekaligus).
+2. **Pagination di list history kalkulasi** (KalkulasiHistory) — data sudah banyak; tambahkan pagination (page size ±10) di UI + dukungan `page/limit` di API/service `listKalkulasi` (✅ backend selesai di 0b-2b-1; UI menyusul).
+3. **Panel "Rincian Perhitungan" (debug trace)** — user perlu bisa membaca perhitungan langkah demi langkah untuk debugging. Desain:
+   - **Core**: `hitungKalkulasiV2` mengembalikan field opsional tambahan `rincian` — per plate: setiap material entry (`gramasi × hppPerGram = matHpp`, idem jual), `mesin = durasiJam × mesinPerJam`, `mesinJual` (bila beda), `failureRatePct` efektif + `failureCost` + pembagiannya (owner/customer via spread), `testCost`, subtotal `plateHpp/plateJual`. Additive — golden test tak tersentuh.
+   - **Resolve (app)**: lampirkan metadata sumber tiap angka — printer profile mana (nama, aktual vs acuan), sumber harga material (override manual / katalog FilamentHarga / material profile / default rates), sumber failure rate.
+   - **UI**: seksi collapsible di HasilPanel (atau modal 🔍) menampilkan trace dengan formula terisi angka nyata, urut: per plate → agregasi ÷ batch (sekalian total per-unit dari poin sebelumnya) → komponen rows → labor rows → floor → margin A/B/C → fee per channel → status. Live di form (client-side) dan tersedia juga untuk kalkulasi tersimpan.
 
 ## 4. Hasil implementasi (AFTER — merged ke master `d74affb`, 2026-07-08)
 
