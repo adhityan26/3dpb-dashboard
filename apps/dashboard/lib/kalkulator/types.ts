@@ -2,18 +2,24 @@ export type {
   PrintTipe, MarginTier, KalkulasiStatus, PackingType, ProduktType,
   FinishType, HelmTier, HelmOptions, FilamentEntry, PlateInput,
   KomponenKustomInput, KalkulatorRates, HasilKalkulasi,
+  KomponenItem, LaborItem,
 } from '@3pb/kalkulator-core'
 export { HELM_TIER_DEFAULTS } from '@3pb/kalkulator-core'
 
 import type {
   PlateInput, KomponenKustomInput, HasilKalkulasi, MarginTier,
-  PackingType, ProduktType, FinishType,
+  PackingType, ProduktType, FinishType, KomponenItem, LaborItem,
 } from '@3pb/kalkulator-core'
+
+/** PlateInput app-level — tambahan link ke printer profile (resolusi di resolve-v2.ts). */
+export type PlateInputApp = PlateInput & { printerProfileId?: string }
 
 export interface PlateData extends PlateInput {
   id: string
   urutan: number
   kalkulasiId: string
+  printerProfileId?: string | null
+  mesinPerJam?: number | null
 }
 
 export interface KomponenKustomData extends KomponenKustomInput {
@@ -31,7 +37,7 @@ export interface KalkulasiInput {
   gantunganType?: string
   switchQty: number
   hasLabel: boolean
-  plates: PlateInput[]
+  plates: PlateInputApp[]
   komponenKustom: KomponenKustomInput[]
   customRiskPct?: number  // override failure rate per job (high-risk jobs)
   produktType?: ProduktType          // default: 'SIMPLE'
@@ -40,6 +46,10 @@ export interface KalkulasiInput {
   jamPainting?: number
   jamAssembly?: number
   flatFinishingCost?: number
+  /** Bentuk baru v2 — kalau diisi, menggantikan packing/gantungan/switch/label/komponenKustom */
+  komponen?: KomponenItem[]
+  /** Bentuk baru v2 — kalau diisi, menggantikan field helm (produktType/finishType/jam*) */
+  labor?: LaborItem[]
 }
 
 export interface KalkulasiData extends HasilKalkulasi {
