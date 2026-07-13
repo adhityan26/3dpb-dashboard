@@ -11,6 +11,8 @@ interface PlateRow extends PlateInput {
 interface PlateTableProps {
   plates: PlateRow[]
   onChange: (plates: PlateRow[]) => void
+  /** Batch unit — kalau > 1, baris TOTAL menampilkan juga gram & durasi per pcs */
+  batch?: number
 }
 
 function parseDurasi(raw: string): number {
@@ -127,7 +129,7 @@ function FilamentPicker({ filaments, selectedId, onSelect, onClear }: {
   )
 }
 
-export function PlateTable({ plates, onChange }: PlateTableProps) {
+export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
   const [durasiRaw, setDurasiRaw] = useState<Record<string, string>>({})
   const keyCounterRef = useRef(0)
   function nextKey() { return `plate-${++keyCounterRef.current}` }
@@ -530,6 +532,18 @@ export function PlateTable({ plates, onChange }: PlateTableProps) {
           </span>
           <span className="text-sm font-bold" style={{ color: "#a5b4fc" }}>
             {formatDurasiDisplay(totalDurasi)}
+          </span>
+        </div>
+      )}
+      {multiPlate && (batch ?? 1) > 1 && totalGramasi > 0 && (
+        <div className="flex items-center gap-4 px-1">
+          <span className="text-[11px] g-t4">per pcs · ÷ batch {batch}</span>
+          <span className="flex-1" />
+          <span className="text-xs font-semibold g-t2">
+            {(totalGramasi / batch!).toFixed(1)}g
+          </span>
+          <span className="text-xs font-semibold g-t2">
+            {formatDurasiDisplay(totalDurasi / batch!)}
           </span>
         </div>
       )}

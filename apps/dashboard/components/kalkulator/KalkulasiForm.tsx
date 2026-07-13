@@ -284,7 +284,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           <div className="text-xs font-semibold uppercase tracking-wider mb-2 g-accent">
             Part / Plate
           </div>
-          <PlateTable plates={plates} onChange={setPlates} />
+          <PlateTable plates={plates} onChange={setPlates} batch={Math.max(1, batch)} />
         </div>
 
         {/* Aksesori */}
