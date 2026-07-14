@@ -95,6 +95,28 @@ describe('PARITAS: plate multi-material dengan hargaPerGram override', () => {
   })
 })
 
+describe('PARITAS: hargaPerGram override LEBIH BESAR dari jual base (jual = max(baseJual, override))', () => {
+  it('semua field HasilKalkulasi identik (single-material, override 3000 > fdmJualPerGram 900)', () => {
+    const input = legacyInput({
+      produktType: 'SIMPLE', finishType: 'RAW',
+      packingType: undefined, gantunganType: undefined, switchQty: 0, hasLabel: false, komponenKustom: [],
+      customRiskPct: undefined,
+      plates: [{
+        tipe: 'FDM', gramasi: 10, durasiJam: 1, hargaPerGram: 3000,
+      }],
+    })
+    const expected = hitungKalkulasi(
+      input.plates,
+      { packingType: input.packingType, gantunganType: input.gantunganType, switchQty: input.switchQty, hasLabel: input.hasLabel, komponenKustom: input.komponenKustom },
+      input.batch, RATES, input.hargaShopeeAktual, input.customRiskPct,
+    )
+    const actual = buildHasilV2(input, DEPS_NO_PROFILES)
+    for (const k of Object.keys(expected) as (keyof typeof expected)[]) {
+      expect(actual[k], String(k)).toEqual(expected[k])
+    }
+  })
+})
+
 describe('resolusi profil', () => {
   it('plate ber-printerProfileId: HPP pakai rate profil, jual pakai rate acuan', () => {
     const input = legacyInput({

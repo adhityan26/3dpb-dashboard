@@ -22,6 +22,14 @@ async function loadDeps(): Promise<ResolveDeps> {
   return { rates, settings, printerProfiles, materialProfiles }
 }
 
+function parseHargaChannel(json: string | null | undefined) {
+  if (!json) return undefined
+  try {
+    const parsed = JSON.parse(json)
+    return Array.isArray(parsed) ? parsed : undefined
+  } catch { return undefined }
+}
+
 function toKalkulasiData(raw: any): KalkulasiData {
   return {
     ...raw,
@@ -42,7 +50,7 @@ function toKalkulasiData(raw: any): KalkulasiData {
       ...(l.ratePerJam != null && { ratePerJam: l.ratePerJam }),
       ...(l.flat != null && { flat: l.flat }),
     })),
-    hargaChannel: raw.hargaChannelJson ? JSON.parse(raw.hargaChannelJson) : undefined,
+    hargaChannel: parseHargaChannel(raw.hargaChannelJson),
     produkLinks: raw.produkLinks ?? [],
     produktType: raw.produktType ?? 'SIMPLE',
     finishType: raw.finishType ?? 'RAW',
@@ -96,17 +104,28 @@ function platesCreate(input: KalkulasiInput, deps: ResolveDeps) {
 
 export interface ListKalkulasiOpts { page?: number; limit?: number }
 
+export function parsePagination(pageRaw: string | null, limitRaw: string | null): ListKalkulasiOpts {
+  if (pageRaw === null && limitRaw === null) return {}
+  const page = parseInt(pageRaw ?? '', 10)
+  const limit = parseInt(limitRaw ?? '', 10)
+  return {
+    page: Number.isFinite(page) && page >= 1 ? page : 1,
+    limit: Number.isFinite(limit) && limit >= 1 ? limit : 10,
+  }
+}
+
 export async function listKalkulasi(opts?: ListKalkulasiOpts): Promise<{ items: KalkulasiData[]; total: number; page?: number; limit?: number }> {
   const paginate = opts?.page !== undefined && opts?.limit !== undefined && opts.limit > 0
+  if (!paginate) {
+    const rows = await prisma.kalkulasiHarga.findMany({ include: INCLUDE_ALL, orderBy: { createdAt: 'desc' } })
+    return { items: rows.map(toKalkulasiData), total: rows.length }
+  }
+  const page = Math.max(1, opts!.page!)
   const [rows, total] = await Promise.all([
-    prisma.kalkulasiHarga.findMany({
-      include: INCLUDE_ALL,
-      orderBy: { createdAt: 'desc' },
-      ...(paginate && { skip: (Math.max(1, opts!.page!) - 1) * opts!.limit!, take: opts!.limit! }),
-    }),
+    prisma.kalkulasiHarga.findMany({ include: INCLUDE_ALL, orderBy: { createdAt: 'desc' }, skip: (page - 1) * opts!.limit!, take: opts!.limit! }),
     prisma.kalkulasiHarga.count(),
   ])
-  return { items: rows.map(toKalkulasiData), total, ...(paginate && { page: Math.max(1, opts!.page!), limit: opts!.limit! }) }
+  return { items: rows.map(toKalkulasiData), total, page, limit: opts!.limit! }
 }
 
 export async function getKalkulasi(id: string): Promise<KalkulasiData | null> {

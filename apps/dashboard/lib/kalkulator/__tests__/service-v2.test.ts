@@ -18,7 +18,7 @@ import { loadRates } from '@/lib/kalkulator/rates'
 import { loadSettingsV2 } from '@/lib/kalkulator/settings-v2'
 import { listPrinterProfiles, listMaterialProfiles } from '@/lib/kalkulator/profiles-service'
 import type { PrinterProfileData } from '@/lib/kalkulator/profiles-service'
-import { createKalkulasi, listKalkulasi } from '../service'
+import { createKalkulasi, listKalkulasi, getKalkulasi, parsePagination } from '../service'
 import type { KalkulatorRates, SettingsV2 } from '@3pb/kalkulator-core'
 import type { KalkulasiInput } from '../types'
 
@@ -103,12 +103,50 @@ describe('listKalkulasi pagination', () => {
     expect(res).toMatchObject({ total: 37, page: 3, limit: 10 })
   })
 
-  it('tanpa opts → semua item (tanpa skip/take)', async () => {
-    db.kalkulasiHarga.findMany.mockResolvedValue([])
-    db.kalkulasiHarga.count.mockResolvedValue(5)
+  it('tanpa opts → semua item (tanpa skip/take), count() TIDAK dipanggil', async () => {
+    db.kalkulasiHarga.findMany.mockResolvedValue([
+      { id: 'a', createdAt: new Date(), updatedAt: new Date(), plates: [], komponenKustom: [], labor: [], produkLinks: [] },
+      { id: 'b', createdAt: new Date(), updatedAt: new Date(), plates: [], komponenKustom: [], labor: [], produkLinks: [] },
+    ])
     await listKalkulasi()
     const args = db.kalkulasiHarga.findMany.mock.calls.at(-1)[0]
     expect(args.skip).toBeUndefined()
     expect(args.take).toBeUndefined()
+    expect(db.kalkulasiHarga.count).not.toHaveBeenCalled()
+  })
+})
+
+describe('parsePagination', () => {
+  it('dua param kosong → tanpa pagination', () => {
+    expect(parsePagination(null, null)).toEqual({})
+  })
+  it('hanya page → limit default 10', () => {
+    expect(parsePagination('2', null)).toEqual({ page: 2, limit: 10 })
+  })
+  it('hanya limit → page default 1', () => {
+    expect(parsePagination(null, '25')).toEqual({ page: 1, limit: 25 })
+  })
+  it('nilai rusak/negatif → clamp default', () => {
+    expect(parsePagination('abc', '-5')).toEqual({ page: 1, limit: 10 })
+    expect(parsePagination('0', '0')).toEqual({ page: 1, limit: 10 })
+  })
+})
+
+describe('toKalkulasiData: hargaChannelJson korup', () => {
+  const rawBase = {
+    id: 'k1', createdAt: new Date(), updatedAt: new Date(),
+    plates: [], komponenKustom: [], labor: [], produkLinks: [],
+  }
+
+  it('JSON rusak → tidak throw, hargaChannel undefined', async () => {
+    db.kalkulasiHarga.findUnique.mockResolvedValue({ ...rawBase, hargaChannelJson: '{rusak' })
+    const data = await getKalkulasi('k1')
+    expect(data?.hargaChannel).toBeUndefined()
+  })
+
+  it('JSON valid tapi bukan array → hargaChannel undefined', async () => {
+    db.kalkulasiHarga.findUnique.mockResolvedValue({ ...rawBase, hargaChannelJson: '{}' })
+    const data = await getKalkulasi('k1')
+    expect(data?.hargaChannel).toBeUndefined()
   })
 })
