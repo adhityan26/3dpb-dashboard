@@ -5,11 +5,15 @@ import { PlateTable } from "./PlateTable"
 import { AksesoriSection } from "./AksesoriSection"
 import { HasilPanel } from "./HasilPanel"
 import { hitungKalkulasi } from "@3pb/kalkulator-core"
-import { useCreateKalkulasi, useUpdateKalkulasi, useKalkulatorRates } from "@/lib/hooks/use-kalkulator"
+import {
+  useCreateKalkulasi, useUpdateKalkulasi, useKalkulatorRates,
+  useSettingsV2, usePrinterProfiles, useMaterialProfiles,
+} from "@/lib/hooks/use-kalkulator"
 import { useKatalogList } from "@/lib/hooks/use-katalog"
 import { useProducts } from "@/lib/hooks/use-products"
 import type { KalkulasiData, KalkulasiInput, MarginTier, HasilKalkulasi, ProduktType, FinishType } from "@/lib/kalkulator/types"
 import { HELM_TIER_DEFAULTS } from "@/lib/kalkulator/types"
+import type { ResolveDeps } from "@/lib/kalkulator/resolve-v2"
 import type { AksesoriState } from "./AksesoriSection"
 import { PrintableQuote } from "./PrintableQuote"
 import { RincianPanel } from "./RincianPanel"
@@ -45,6 +49,15 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   const updateMut = useUpdateKalkulasi()
   const { data: katalogList } = useKatalogList()
   const { data: productsData } = useProducts()
+  const { data: settingsV2 } = useSettingsV2()
+  const { data: printerProfiles } = usePrinterProfiles()
+  const { data: materialProfiles } = useMaterialProfiles()
+  // Deps untuk jalur v2 (RincianPanel) — resolveInputV2 butuh keempatnya sudah ter-load.
+  const deps: ResolveDeps | null = useMemo(() =>
+    ratesData && settingsV2 && printerProfiles && materialProfiles
+      ? { rates: ratesData, settings: settingsV2, printerProfiles, materialProfiles }
+      : null,
+    [ratesData, settingsV2, printerProfiles, materialProfiles])
 
   // Find if this kalkulasi is set as primary HPP source for any katalog product
   // If yes and that product has Shopee links → auto-fill harga shopee from actual Shopee price
@@ -140,6 +153,29 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
       )
     } catch { return null }
   }, [plates, aksesori, batch, hargaShopee, shopeeIsLocked, linkedShopeePrice, ratesData, customRiskEnabled, customRiskPct, produktType, finishType, jamSanding, jamPainting, jamAssembly, flatFinishingCost])
+
+  // Input jalur v2 khusus RincianPanel — bentuk masih legacy (resolveInputV2 menangani
+  // via legacyKomponen/legacyLabor), tapi plates dipertahankan apa adanya (bukan di-remap
+  // seperti handleSave) supaya printerProfileId/materialProfileId yang dipilih di PlateTable
+  // ikut terbawa walau kalkulasi belum disimpan.
+  const validPlatesForRincian = useMemo(() =>
+    plates.filter(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0) && p.durasiJam > 0),
+    [plates])
+
+  const rincianInput: KalkulasiInput = useMemo(() => ({
+    nama: nama.trim() || "-",
+    batch: Math.max(1, batch),
+    marginTier,
+    hargaShopeeAktual: (shopeeIsLocked ? linkedShopeePrice : hargaShopee) ?? undefined,
+    packingType: aksesori.packingType,
+    gantunganType: aksesori.gantunganType,
+    switchQty: aksesori.switchQty,
+    hasLabel: aksesori.hasLabel,
+    plates: validPlatesForRincian,
+    komponenKustom: aksesori.komponenKustom.filter(k => k.nama && k.harga > 0),
+    customRiskPct: customRiskEnabled ? customRiskPct : undefined,
+    produktType, finishType, jamSanding, jamPainting, jamAssembly, flatFinishingCost,
+  }), [nama, batch, marginTier, shopeeIsLocked, linkedShopeePrice, hargaShopee, aksesori, validPlatesForRincian, customRiskEnabled, customRiskPct, produktType, finishType, jamSanding, jamPainting, jamAssembly, flatFinishingCost])
 
   // Round up to nearest 5000 for placeholder suggestions
   function roundUp5000(n: number): number {
@@ -632,30 +668,12 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           isLoading={!ratesData}
           marginTier={marginTier}
         />
-        {hasil && ratesData && (
+        {hasil && deps && (
           <RincianPanel
-            plates={plates.filter(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0) && p.durasiJam > 0)}
-            aksesori={{
-              packingType: aksesori.packingType,
-              gantunganType: aksesori.gantunganType,
-              switchQty: aksesori.switchQty,
-              hasLabel: aksesori.hasLabel,
-              komponenKustom: aksesori.komponenKustom,
-            }}
-            batch={Math.max(1, batch)}
-            rates={ratesData}
+            input={rincianInput}
+            deps={deps}
             hasil={hasil}
             hargaShopeeAktual={(shopeeIsLocked ? linkedShopeePrice : hargaShopee) ?? undefined}
-            customRiskPct={customRiskEnabled ? customRiskPct : undefined}
-            helmOptions={produktType === 'HELM' ? {
-              finishType,
-              jamSanding,
-              jamPainting,
-              jamAssembly,
-              flatFinishingCost,
-              preparerRatePerJam: ratesData.preparerRatePerJam,
-              finisherRatePerJam: ratesData.finisherRatePerJam,
-            } : undefined}
           />
         )}
       </div>
