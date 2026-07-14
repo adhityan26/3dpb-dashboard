@@ -1,10 +1,11 @@
 "use client"
 
 import { useState, useRef, useEffect } from "react"
-import type { PlateInput, PrintTipe, FilamentEntry, FilamentHargaData } from "@/lib/kalkulator/types"
-import { useFilamentHarga } from "@/lib/hooks/use-kalkulator"
+import type { PlateInputApp, PrintTipe, FilamentEntry, FilamentHargaData } from "@/lib/kalkulator/types"
+import type { MaterialProfileData } from "@/lib/kalkulator/profiles-service"
+import { useFilamentHarga, usePrinterProfiles, useMaterialProfiles } from "@/lib/hooks/use-kalkulator"
 
-interface PlateRow extends PlateInput {
+interface PlateRow extends PlateInputApp {
   key: string
 }
 
@@ -31,15 +32,28 @@ function formatDurasiDisplay(jam: number): string {
   return m === 0 ? `${h}j` : `${h}j ${m}m`
 }
 
-const PRINTERS = [
-  "Bambu Lab A1",
-  "Bambu Lab A1 Mini",
-  "Bambu Lab P1S",
-  "Bambu Lab P1P",
-  "Bambu Lab X1C",
-  "Bambu Lab P2S",
-  "Snapmaker U1",
-]
+function MaterialProfilePicker({ profiles, tipe, selectedId, onSelect }: {
+  profiles: MaterialProfileData[]
+  tipe: "FDM" | "SLA"
+  selectedId?: string
+  onSelect: (id: string | undefined) => void
+}) {
+  const list = profiles.filter(m => m.tipe === tipe)
+  if (list.length === 0) return null
+  return (
+    <select
+      value={selectedId ?? ""}
+      onChange={e => onSelect(e.target.value || undefined)}
+      className="glass-input h-7 rounded-[6px] px-2 text-[10px]"
+      title="Profil material (hpp/jual/failure per jenis)"
+    >
+      <option value="">Profil material: default {tipe}</option>
+      {list.map(m => (
+        <option key={m.id} value={m.id}>{m.nama} · Rp{m.hppPerGram}/g · fail {m.failureRatePct}%</option>
+      ))}
+    </select>
+  )
+}
 
 function FilamentPicker({ filaments, selectedId, onSelect, onClear }: {
   filaments: FilamentHargaData[]
@@ -136,6 +150,8 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
 
   const { data: filamentHargaData } = useFilamentHarga()
   const filamentCatalog: FilamentHargaData[] = filamentHargaData ?? []
+  const { data: printerProfiles } = usePrinterProfiles()
+  const { data: materialProfiles } = useMaterialProfiles()
 
   function addPlate() {
     const key = nextKey()
@@ -149,8 +165,12 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
     setDurasiRaw(prev => { const n = { ...prev }; delete n[key]; return n })
   }
 
-  function updatePlate<K extends keyof PlateInput>(key: string, field: K, value: PlateInput[K]) {
+  function updatePlate<K extends keyof PlateInputApp>(key: string, field: K, value: PlateInputApp[K]) {
     onChange(plates.map(p => p.key === key ? { ...p, [field]: value } : p))
+  }
+
+  function updatePlateFields(key: string, partial: Partial<PlateInputApp>) {
+    onChange(plates.map(p => p.key === key ? { ...p, ...partial } : p))
   }
 
   function handleDurasiChange(key: string, raw: string) {
@@ -189,7 +209,7 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
     ))
   }
 
-  function updateMaterial(key: string, idx: number, field: keyof FilamentEntry, value: string | number | boolean) {
+  function updateMaterial(key: string, idx: number, field: keyof FilamentEntry, value: string | number | boolean | undefined) {
     onChange(plates.map(p => {
       if (p.key !== key) return p
       const mats = [...(p.materials ?? [])]
@@ -363,18 +383,26 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
                   <div className="text-[10px] font-semibold uppercase tracking-wider mb-1 g-accent">
                     Filament (opsional — override rate default)
                   </div>
-                  <FilamentPicker
-                    filaments={filamentCatalog}
-                    selectedId={plate.filamentHargaId}
-                    onSelect={f => {
-                      updatePlate(plate.key, "filamentHargaId", f.id)
-                      updatePlate(plate.key, "hargaPerGram", f.hargaPerGram)
-                    }}
-                    onClear={() => {
-                      updatePlate(plate.key, "filamentHargaId", undefined)
-                      updatePlate(plate.key, "hargaPerGram", undefined)
-                    }}
-                  />
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <FilamentPicker
+                      filaments={filamentCatalog}
+                      selectedId={plate.filamentHargaId}
+                      onSelect={f => {
+                        updatePlate(plate.key, "filamentHargaId", f.id)
+                        updatePlate(plate.key, "hargaPerGram", f.hargaPerGram)
+                      }}
+                      onClear={() => {
+                        updatePlate(plate.key, "filamentHargaId", undefined)
+                        updatePlate(plate.key, "hargaPerGram", undefined)
+                      }}
+                    />
+                    <MaterialProfilePicker
+                      profiles={materialProfiles ?? []}
+                      tipe={plate.tipe === "SLA" ? "SLA" : "FDM"}
+                      selectedId={plate.materialProfileId}
+                      onSelect={id => updatePlateFields(plate.key, { materialProfileId: id })}
+                    />
+                  </div>
                 </div>
               </>
             )}
@@ -397,12 +425,20 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
                        className="grid items-center"
                        style={{ gridTemplateColumns: "180px 1fr 72px 52px 24px", gap: "4px" }}>
                     {/* Filament picker for multi-material row */}
-                    <FilamentPicker
-                      filaments={filamentCatalog}
-                      selectedId={mat.filamentId}
-                      onSelect={f => setMaterialFromCatalog(plate.key, mIdx, f)}
-                      onClear={() => setMaterialFromCatalog(plate.key, mIdx, null)}
-                    />
+                    <div className="flex flex-col gap-1">
+                      <FilamentPicker
+                        filaments={filamentCatalog}
+                        selectedId={mat.filamentId}
+                        onSelect={f => setMaterialFromCatalog(plate.key, mIdx, f)}
+                        onClear={() => setMaterialFromCatalog(plate.key, mIdx, null)}
+                      />
+                      <MaterialProfilePicker
+                        profiles={materialProfiles ?? []}
+                        tipe={plate.tipe === "SLA" ? "SLA" : "FDM"}
+                        selectedId={mat.materialProfileId}
+                        onSelect={id => updateMaterial(plate.key, mIdx, "materialProfileId", id)}
+                      />
+                    </div>
                     <input
                       type="text"
                       placeholder="Warna"
@@ -490,29 +526,35 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
               <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 g-accent">Printer</div>
               <div className="flex gap-2 flex-wrap">
                 <button
-                  onClick={() => updatePlate(plate.key, "printer", undefined)}
+                  onClick={() => updatePlateFields(plate.key, { printer: undefined, printerProfileId: undefined })}
                   className="h-8 px-3 rounded-[6px] text-xs transition-all"
-                  style={!plate.printer
+                  style={!plate.printerProfileId
                     ? { background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", color: "#a5b4fc" }
-                    : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t4)" }
-                  }
-                >
-                  —
-                </button>
-                {PRINTERS.map(printer => (
+                    : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t4)" }}
+                  title="Tanpa profil — pakai rate mesin global"
+                >—</button>
+                {(printerProfiles ?? []).map(pp => (
                   <button
-                    key={printer}
-                    onClick={() => updatePlate(plate.key, "printer", printer)}
+                    key={pp.id}
+                    onClick={() => updatePlateFields(plate.key, { printer: pp.nama, printerProfileId: pp.id })}
                     className="h-8 px-3 rounded-[6px] text-xs font-medium transition-all"
-                    style={plate.printer === printer
+                    style={plate.printerProfileId === pp.id
                       ? { background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", color: "#a5b4fc" }
-                      : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t2)" }
-                    }
+                      : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t2)" }}
+                    title={`Rp ${Math.round(pp.mesinPerJam).toLocaleString("id-ID")}/jam${pp.isPricingReference ? " · acuan harga" : ""}`}
                   >
-                    {printer.replace("Bambu Lab ", "").replace("Snapmaker ", "")}
+                    {pp.nama.replace("Bambu Lab ", "").replace("Snapmaker ", "")}{pp.isPricingReference ? " 🎯" : ""}
                   </button>
                 ))}
               </div>
+              {plate.printerProfileId && printerProfiles && !printerProfiles.some(pp => pp.id === plate.printerProfileId) && (
+                <div className="flex items-center gap-2 mt-1.5 px-2 py-1.5 rounded-[6px] text-[10px]"
+                     style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", color: "#fbbf24" }}>
+                  ⚠️ Profil printer &quot;{plate.printer ?? plate.printerProfileId}&quot; sudah dihapus — perhitungan jatuh ke rate global.
+                  <button onClick={() => updatePlateFields(plate.key, { printer: undefined, printerProfileId: undefined })}
+                          className="underline">bersihkan</button>
+                </div>
+              )}
             </div>
 
           </div>

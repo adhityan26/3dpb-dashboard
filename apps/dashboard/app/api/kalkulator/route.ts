@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
-import { listKalkulasi, createKalkulasi } from '@/lib/kalkulator/service'
+import { listKalkulasi, createKalkulasi, parsePagination } from '@/lib/kalkulator/service'
 import type { KalkulasiInput } from '@/lib/kalkulator/types'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  const pageParam = parseInt(req.nextUrl.searchParams.get('page') ?? '', 10)
-  const limitParam = parseInt(req.nextUrl.searchParams.get('limit') ?? '', 10)
-  const page = Number.isNaN(pageParam) ? undefined : pageParam
-  const limit = Number.isNaN(limitParam) ? undefined : limitParam
+  const { page, limit } = parsePagination(req.nextUrl.searchParams.get('page'), req.nextUrl.searchParams.get('limit'))
   const result = await listKalkulasi({ page, limit })
   return NextResponse.json(result)
 }
@@ -19,8 +16,11 @@ export async function POST(req: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body: KalkulasiInput = await req.json()
   if (!body.nama?.trim()) return NextResponse.json({ error: 'nama is required' }, { status: 400 })
+  if (!Array.isArray(body.komponen) || !Array.isArray(body.labor)) {
+    return NextResponse.json({ error: 'form kadaluarsa — refresh halaman' }, { status: 400 })
+  }
   const hasPlates = body.plates?.length > 0
-  const hasKomponen = body.komponenKustom?.some((k: { harga: number }) => k.harga > 0)
+  const hasKomponen = body.komponen?.some((k: { harga: number }) => k.harga > 0)
   if (!hasPlates && !hasKomponen) return NextResponse.json({ error: 'isi minimal 1 plate atau 1 komponen' }, { status: 400 })
   const result = await createKalkulasi(body)
   return NextResponse.json(result, { status: 201 })

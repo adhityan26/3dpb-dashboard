@@ -22,8 +22,9 @@ interface Props {
   onLinkProduk: (k: KalkulasiData) => void
 }
 
+const LIMIT = 10
+
 export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
-  const { data, isLoading } = useKalkulasiList()
   const deleteMut = useDeleteKalkulasi()
   const dupMut = useDuplicateKalkulasi()
   const [search, setSearch] = useState("")
@@ -33,8 +34,18 @@ export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
   const [dupNama, setDupNama] = useState("")
   const [dupBatch, setDupBatch] = useState(1)
   const [newProdukPrefill, setNewProdukPrefill] = useState<{ nama: string; primaryKalkulasiId: string } | null>(null)
+  const [page, setPage] = useState(1)
 
-  const items = data?.items ?? []
+  const filterAktif = search.trim() !== "" || filterStatus !== "all"
+  const pagedQ = useKalkulasiList({ page, limit: LIMIT })
+  const fullQ = useKalkulasiList({ enabled: filterAktif })   // full list hanya saat filter/search aktif
+  const isLoading = filterAktif ? fullQ.isLoading : pagedQ.isLoading
+  const items = (filterAktif ? fullQ.data?.items : pagedQ.data?.items) ?? []
+  const total = pagedQ.data?.total ?? 0
+  const totalPages = Math.max(1, Math.ceil(total / LIMIT))
+  // clamp saat data menyusut (pola adjust-state-during-render dgn guard, hindari useEffect):
+  if (page > totalPages && !pagedQ.isLoading) setPage(totalPages)
+
   const filtered = items.filter(k => {
     if (filterStatus !== "all" && k.status !== filterStatus) return false
     if (search && !k.nama.toLowerCase().includes(search.toLowerCase())) return false
@@ -57,8 +68,9 @@ export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
       {/* Header: title + search (full width on mobile) */}
       <div className="mb-3 space-y-2">
         <div className="flex items-center gap-2">
-          <div className="text-[11px] font-bold uppercase tracking-wider flex-1 g-accent">
+          <div className="text-[11px] font-bold uppercase tracking-wider flex-1 g-accent flex items-center gap-2">
             Riwayat Tersimpan
+            {filterAktif && <span className="text-[9px] g-t5 font-normal normal-case tracking-normal">mencari di semua halaman</span>}
           </div>
           <input
             type="text"
@@ -237,6 +249,18 @@ export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
           )
         })}
       </div>
+
+      {!filterAktif && totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3 mt-3">
+          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
+            className="h-7 px-3 rounded-[8px] text-[10px] disabled:opacity-30"
+            style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t2)" }}>‹ Prev</button>
+          <span className="text-[10px] g-t4">Hal {page} / {totalPages} · {total} kalkulasi</span>
+          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
+            className="h-7 px-3 rounded-[8px] text-[10px] disabled:opacity-30"
+            style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t2)" }}>Next ›</button>
+        </div>
+      )}
 
       {/* Buat Produk dari Kalkulasi */}
       {newProdukPrefill && (

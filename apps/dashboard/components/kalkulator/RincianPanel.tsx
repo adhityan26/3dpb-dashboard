@@ -1,20 +1,15 @@
 "use client"
 
 import { useMemo } from "react"
-import {
-  hitungKalkulasiV2, legacyPlateToV2, legacyKomponenToV2, helmToLabor, legacySettingsToV2,
-  type KalkulatorRates, type HelmOptions, type PlateInput, type LegacyAksesori, type HasilKalkulasi,
-} from "@3pb/kalkulator-core"
+import { hitungKalkulasiV2, type HasilKalkulasi } from "@3pb/kalkulator-core"
+import { resolveInputV2, type ResolveDeps } from "@/lib/kalkulator/resolve-v2"
+import type { KalkulasiInput } from "@/lib/kalkulator/types"
 
 interface Props {
-  plates: PlateInput[]
-  aksesori: LegacyAksesori
-  batch: number
-  rates: KalkulatorRates
+  input: KalkulasiInput
+  deps: ResolveDeps
   hasil: HasilKalkulasi
   hargaShopeeAktual?: number
-  customRiskPct?: number
-  helmOptions?: HelmOptions
 }
 
 const rp = (n: number) => `Rp ${Math.round(n).toLocaleString("id-ID")}`
@@ -35,57 +30,68 @@ function Row({ label, formula, value, dim }: { label: string; formula?: string; 
 }
 
 /**
- * Panel debug: menampilkan perhitungan langkah demi langkah.
- * SUMBER ANGKA: adapter legacy→v2 + hitungKalkulasiV2 dari @3pb/kalkulator-core —
- * persis jalur yang dipakai hitungKalkulasi (golden-tested). Panel hanya memformat;
- * baris per-plate dihitung ulang untuk display lalu DIREKONSILIASI terhadap output
- * formula — selisih > Rp1 memunculkan peringatan merah.
+ * Panel debug: menampilkan perhitungan langkah demi langkah — jalur v2 PERSIS.
+ * SUMBER ANGKA: resolveInputV2 (resolusi printer/material profile → acuan harga
+ * jika ada) + hitungKalkulasiV2 dari @3pb/kalkulator-core — jalur yang sama
+ * dipakai server (buildHasilV2). Panel hanya memformat; baris per-plate dihitung
+ * ulang untuk display MENIRU formula-v2 plateCost persis, lalu DIREKONSILIASI
+ * terhadap output formula — selisih > Rp1 memunculkan peringatan merah.
  */
-export function RincianPanel({ plates, aksesori, batch, rates, hasil, hargaShopeeAktual, customRiskPct, helmOptions }: Props) {
+export function RincianPanel({ input, deps, hasil, hargaShopeeAktual }: Props) {
   const rincian = useMemo(() => {
     try {
-      const v2input = {
-        plates: plates.map(p => legacyPlateToV2(p, rates)),
-        batch,
-        komponen: legacyKomponenToV2(aksesori, rates),
-        labor: helmToLabor(helmOptions),
-        // paritas wrapper: rate konstan diteruskan (buffer tetap kena mesin meski 0 gram)
-        customRiskPct: customRiskPct ?? rates.failureRatePct,
-      }
-      const settings = legacySettingsToV2(rates)
-      const v2 = hitungKalkulasiV2(v2input, settings)
-      const spread = settings.failureSpreadPct / 100
-      const testPct = settings.testLayerPct / 100
-      const failRate = v2input.customRiskPct
+      const v2input = resolveInputV2(input, deps)
+      const v2 = hitungKalkulasiV2(v2input, deps.settings)
+      const spread = deps.settings.failureSpreadPct / 100
+      const testPct = deps.settings.testLayerPct / 100
+      const acuanGlobal = deps.printerProfiles.find(pp => pp.isPricingReference)
 
       const plateLines = v2input.plates.map((p, i) => {
-        const src = plates[i]
+        const src = input.plates[i]
+        const profil = src.printerProfileId ? deps.printerProfiles.find(pp => pp.id === src.printerProfileId) : undefined
         const mesin = p.durasiJam * p.mesinPerJam
+        const mesinJualRate = p.mesinPerJamJual ?? p.mesinPerJam
+        const mesinJual = p.durasiJam * mesinJualRate
+
+        let gramTotal = 0
+        let failWeighted = 0
         const mats = p.materials.map((m, j) => {
-          const override = src.materials?.[j]?.hargaPerGram ?? (src.materials ? undefined : src.hargaPerGram)
-          const label = src.materials?.[j]
-            ? `${src.materials[j].brand} ${src.materials[j].material}`
-            : (src.tipe ?? "FDM")
+          const srcMat = src.materials?.[j]
+          const profilMat = m.materialProfileId ? deps.materialProfiles.find(mp => mp.id === m.materialProfileId) : undefined
+          const override = srcMat ? srcMat.hargaPerGram : src.hargaPerGram
+          const sumber = override != null ? "katalog/override"
+            : profilMat ? `profil ${profilMat.nama}`
+            : `default ${src.tipe ?? "FDM"}`
+          const label = srcMat
+            ? (`${srcMat.brand} ${srcMat.material}`.trim() || (profilMat?.nama ?? "material"))
+            : (profilMat?.nama ?? src.tipe ?? "FDM")
+          const jualRate = Math.max(m.jualPerGram, m.hppPerGram)
+          gramTotal += m.gramasi
+          failWeighted += m.gramasi * m.failureRatePct
           return {
-            label,
-            sumber: override != null ? "katalog/override" : `default ${src.tipe ?? "FDM"}`,
-            gramasi: m.gramasi,
-            hppRate: m.hppPerGram,
-            jualRate: Math.max(m.jualPerGram, m.hppPerGram),
-            hpp: m.gramasi * m.hppPerGram,
-            jual: m.gramasi * Math.max(m.jualPerGram, m.hppPerGram),
+            label, sumber, gramasi: m.gramasi, hppRate: m.hppPerGram, jualRate, rate: m.failureRatePct,
+            hpp: m.gramasi * m.hppPerGram, jual: m.gramasi * jualRate,
           }
         })
         const matHpp = mats.reduce((s, m) => s + m.hpp, 0)
         const matJual = mats.reduce((s, m) => s + m.jual, 0)
-        const failureCost = (matHpp + mesin) * (failRate / 100)
+        // Paritas persis formula-v2 plateCost: SATU rate per plate (customRiskPct ??
+        // rata-rata tertimbang gramasi dari failureRatePct tiap material), dikalikan
+        // ke (matHpp + mesin) SEKALIGUS — bukan penjumlahan biaya-gagal per material.
+        const ratePlate = v2input.customRiskPct ?? (gramTotal > 0 ? failWeighted / gramTotal : 0)
+        const failureCost = (matHpp + mesin) * (ratePlate / 100)
         const testCost = matHpp * testPct
         const plateHpp = matHpp + mesin + failureCost * (1 - spread) + testCost
-        const plateJual = matJual + mesin + failureCost * spread
+        const plateJual = matJual + mesinJual + failureCost * spread
         return {
           nama: src.namaPart || `Part ${i + 1}`,
           durasiJam: p.durasiJam, mesinPerJam: p.mesinPerJam, mesin,
-          mats, matHpp, matJual, failureCost, testCost, plateHpp, plateJual,
+          mesinJualRate, mesinJual,
+          sumberMesin: profil ? `profil ${profil.nama}` : "rate global",
+          sumberMesinJual: p.mesinPerJamJual !== undefined
+            ? `acuan ${(acuanGlobal ?? profil)?.nama ?? "-"}`
+            : undefined,
+          mats, matHpp, matJual, failureCost, testCost, plateHpp, plateJual, ratePlate,
         }
       })
 
@@ -93,19 +99,23 @@ export function RincianPanel({ plates, aksesori, batch, rates, hasil, hargaShope
       const sumJual = plateLines.reduce((s, p) => s + p.plateJual, 0)
       const totalGram = plateLines.reduce((s, p) => s + p.mats.reduce((g, m) => g + m.gramasi, 0), 0)
       const totalJam = plateLines.reduce((s, p) => s + p.durasiJam, 0)
+      const batch = Math.max(1, v2input.batch)
       // Rekonsiliasi: baris display vs output formula core
       const mismatch = Math.abs(sumHpp / batch - v2.hppProduksi) > 1 || Math.abs(sumJual / batch - v2.jualBase) > 1
+      // Fail% per-material ditampilkan hanya kalau tiap material bisa punya rate
+      // berbeda (tak ada customRiskPct konstan yang meratakan semuanya).
+      const showPerMatFail = v2input.customRiskPct === undefined
 
-      return { v2input, settings, v2, plateLines, sumHpp, sumJual, totalGram, totalJam, failRate, spread, testPct, mismatch }
+      return { v2input, v2, plateLines, sumHpp, sumJual, totalGram, totalJam, batch, spread, testPct, mismatch, showPerMatFail }
     } catch {
       return null
     }
-  }, [plates, aksesori, batch, rates, customRiskPct, helmOptions])
+  }, [input, deps])
 
   if (!rincian) return null
-  const { v2input, settings, v2, plateLines, sumHpp, sumJual, totalGram, totalJam, failRate, spread, testPct, mismatch } = rincian
-  const shopeeFee = settings.channels.find(c => c.id === "shopee")?.feeMultiplier ?? rates.adminEcommerce
-  const m = settings.marginMultipliers
+  const { v2input, v2, plateLines, sumHpp, sumJual, totalGram, totalJam, batch, spread, testPct, mismatch, showPerMatFail } = rincian
+  const shopeeFee = deps.settings.channels.find(c => c.id === "shopee")?.feeMultiplier ?? deps.rates.adminEcommerce
+  const m = deps.settings.marginMultipliers
 
   return (
     <details className="mt-3 rounded-[10px] px-3 py-2"
@@ -126,12 +136,15 @@ export function RincianPanel({ plates, aksesori, batch, rates, hasil, hargaShope
             <div className="text-[11px] font-semibold g-t2 mb-1">{p.nama}</div>
             {p.mats.map((mt, j) => (
               <Row key={j} label={`Material ${mt.label}`}
-                formula={`${num(mt.gramasi)} g × ${rp(mt.hppRate)}/g  [${mt.sumber}]`}
+                formula={`${num(mt.gramasi)} g × ${rp(mt.hppRate)}/g  [${mt.sumber}]${showPerMatFail ? ` · fail ${num(mt.rate)}%` : ""}`}
                 value={rp(mt.hpp)} />
             ))}
-            <Row label="Mesin" formula={`${num(p.durasiJam, 2)} j × ${rp(p.mesinPerJam)}/j`} value={rp(p.mesin)} />
-            <Row label={`Failure ${num(failRate)}%`}
-              formula={`(${rp(p.matHpp)} + ${rp(p.mesin)}) × ${num(failRate)}% → HPP ${num((1 - spread) * 100, 0)}% / harga ${num(spread * 100, 0)}%`}
+            <Row label="Mesin" formula={`${num(p.durasiJam, 2)} j × ${rp(p.mesinPerJam)}/j  [${p.sumberMesin}]`} value={rp(p.mesin)} />
+            {p.mesinJualRate !== p.mesinPerJam && (
+              <Row label="Mesin (harga)" formula={`${num(p.durasiJam, 2)} j × ${rp(p.mesinJualRate)}/j  [${p.sumberMesinJual}]`} value={rp(p.mesinJual)} />
+            )}
+            <Row label={`Failure ${num(p.ratePlate)}%`}
+              formula={`(${rp(p.matHpp)} + ${rp(p.mesin)}) × ${num(p.ratePlate)}% → HPP ${num((1 - spread) * 100, 0)}% / harga ${num(spread * 100, 0)}%`}
               value={rp(p.failureCost)} />
             {testPct > 0 && (
               <Row label={`Test layer ${num(testPct * 100, 0)}%`} formula={`${rp(p.matHpp)} × ${num(testPct * 100, 0)}%`} value={rp(p.testCost)} />
@@ -175,7 +188,7 @@ export function RincianPanel({ plates, aksesori, batch, rates, hasil, hargaShope
             value={`${rp(hasil.offlineA)} · ${rp(hasil.offlineB)} · ${rp(hasil.offlineC)}`} />
           <Row label="Shopee A/B/C" formula={`offline × fee ${num(shopeeFee, 2)}`}
             value={`${rp(hasil.shopeeA)} · ${rp(hasil.shopeeB)} · ${rp(hasil.shopeeC)}`} />
-          <Row label="Reseller" formula={`std = offline A · bulk = floor × ${num(rates.resellerBulkMultiplier, 2)}`}
+          <Row label="Reseller" formula={`std = offline A · bulk = floor × ${num(deps.rates.resellerBulkMultiplier, 2)}`}
             value={`${rp(hasil.resellerStd)} · ${rp(hasil.resellerBulk)}`} />
           {hargaShopeeAktual !== undefined && (
             <Row label={`Status ${hasil.status}`}

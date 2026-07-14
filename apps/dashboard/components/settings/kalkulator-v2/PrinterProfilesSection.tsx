@@ -5,7 +5,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { hitungMesinPerJam } from '@3pb/kalkulator-core'
 import {
   usePrinterProfiles, useCreatePrinterProfile, useUpdatePrinterProfile,
-  useDeletePrinterProfile, useSetDefaultPrinterProfile,
+  useDeletePrinterProfile, useSetDefaultPrinterProfile, useSetPricingReferencePrinterProfile,
 } from '@/lib/hooks/use-kalkulator'
 import type { PrinterProfileData } from '@/lib/kalkulator/profiles-service'
 
@@ -23,6 +23,7 @@ export function PrinterProfilesSection() {
   const updateMut = useUpdatePrinterProfile()
   const deleteMut = useDeletePrinterProfile()
   const setDefaultMut = useSetDefaultPrinterProfile()
+  const setAcuanMut = useSetPricingReferencePrinterProfile()
 
   const [form, setForm] = useState(EMPTY)
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -81,7 +82,7 @@ export function PrinterProfilesSection() {
   return (
     <div>
       <div className="text-xs font-semibold uppercase tracking-wider mb-3 g-accent">🖨️ Printer Profile</div>
-      <p className="text-xs g-t4 mb-2">Biaya mesin per jam per printer (listrik + depresiasi + maintenance). Profil default dipakai saat plate tidak memilih printer.</p>
+      <p className="text-xs g-t4 mb-2">Biaya mesin per jam per printer (listrik + depresiasi + maintenance). Profil default dipakai saat plate tidak memilih printer. Profil <b>acuan harga</b> (🎯) menentukan floor price & rekomendasi harga jual — HPP tetap pakai printer aktual per plate.</p>
 
       {isLoading && <div className="text-xs g-t5 py-2">Memuat…</div>}
       <div className="space-y-1 mb-3">
@@ -94,8 +95,22 @@ export function PrinterProfilesSection() {
                 <span className="ml-1.5 text-[9px] px-1.5 py-0.5 rounded-full font-medium"
                       style={{ background: 'rgba(99,102,241,0.2)', color: '#a5b4fc' }}>default</span>
               )}
+              {p.isPricingReference && (
+                <span className="ml-1.5 text-[9px] px-1.5 py-0.5 rounded-full font-medium"
+                      style={{ background: 'rgba(245,158,11,0.15)', color: '#fbbf24' }}>acuan harga</span>
+              )}
             </span>
             <span className="text-xs font-mono g-t1">Rp {Math.round(p.mesinPerJam)}/jam</span>
+            {!p.isPricingReference && (
+              <button
+                onClick={() => setAcuanMut.mutate(p.id, {
+                  onError: e => { setRowError(e instanceof Error ? e.message : 'Gagal'); invalidateProfiles() },
+                  onSuccess: () => setRowError(null),
+                })}
+                disabled={setAcuanMut.isPending}
+                className="text-[10px] g-t4 hover:text-amber-300 transition-colors px-1 disabled:opacity-40"
+                title="Jadikan acuan harga (floor & harga jual dihitung dari mesin ini)">🎯</button>
+            )}
             <button onClick={() => startEdit(p)} className="text-[10px] g-t4 hover:text-indigo-300 transition-colors px-1">✎</button>
             {!p.isDefault && (
               <>

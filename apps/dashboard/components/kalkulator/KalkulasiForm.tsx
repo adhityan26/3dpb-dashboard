@@ -2,37 +2,43 @@
 
 import { useState, useMemo } from "react"
 import { PlateTable } from "./PlateTable"
-import { AksesoriSection } from "./AksesoriSection"
+import { KomponenSection } from "./KomponenSection"
+import { LaborSection } from "./LaborSection"
 import { HasilPanel } from "./HasilPanel"
-import { hitungKalkulasi } from "@3pb/kalkulator-core"
-import { useCreateKalkulasi, useUpdateKalkulasi, useKalkulatorRates } from "@/lib/hooks/use-kalkulator"
+import {
+  useCreateKalkulasi, useUpdateKalkulasi, useKalkulatorRates,
+  useSettingsV2, usePrinterProfiles, useMaterialProfiles,
+} from "@/lib/hooks/use-kalkulator"
 import { useKatalogList } from "@/lib/hooks/use-katalog"
 import { useProducts } from "@/lib/hooks/use-products"
-import type { KalkulasiData, KalkulasiInput, MarginTier, HasilKalkulasi, ProduktType, FinishType } from "@/lib/kalkulator/types"
-import { HELM_TIER_DEFAULTS } from "@/lib/kalkulator/types"
-import type { AksesoriState } from "./AksesoriSection"
+import type { KalkulasiData, KalkulasiInput, MarginTier, HasilKalkulasi, PackingType, PlateInputApp } from "@/lib/kalkulator/types"
+import { buildHasilV2, type ResolveDeps } from "@/lib/kalkulator/resolve-v2"
+import { composeKomponen, splitPackingRow, hitungPerbandinganPrinter, type KomponenRow, type LaborRow } from "@/lib/kalkulator/form-v2"
 import { PrintableQuote } from "./PrintableQuote"
 import { RincianPanel } from "./RincianPanel"
 
-interface PlateRow {
-  key: string
-  namaPart?: string
-  tipe?: "FDM" | "SLA"
-  printer?: string
-  gramasi?: number
-  materials?: import("@/lib/kalkulator/types").FilamentEntry[]
-  durasiJam: number
-}
-
-const DEFAULT_AKSESORI: AksesoriState = {
-  packingType: undefined,
-  gantunganType: undefined,
-  switchQty: 0,
-  hasLabel: false,
-  komponenKustom: [],
-}
+type PlateRow = PlateInputApp & { key: string }
 
 const DEFAULT_PLATE: PlateRow = { key: "plate-init-1", tipe: "FDM", gramasi: 0, durasiJam: 0 }
+
+function hasPlateContent(p: PlateInputApp): boolean {
+  return (p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0
+}
+
+function toPlateInputApp(p: PlateRow): PlateInputApp {
+  return {
+    namaPart: p.namaPart,
+    tipe: p.tipe,
+    printer: p.printer,
+    gramasi: p.gramasi ?? 0,
+    materials: p.materials,
+    durasiJam: p.durasiJam,
+    filamentHargaId: p.filamentHargaId,
+    hargaPerGram: p.hargaPerGram,
+    printerProfileId: p.printerProfileId,
+    materialProfileId: p.materialProfileId,
+  }
+}
 
 interface Props {
   initial?: KalkulasiData          // load existing for edit
@@ -45,6 +51,15 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   const updateMut = useUpdateKalkulasi()
   const { data: katalogList } = useKatalogList()
   const { data: productsData } = useProducts()
+  const { data: settingsV2 } = useSettingsV2()
+  const { data: printerProfiles } = usePrinterProfiles()
+  const { data: materialProfiles } = useMaterialProfiles()
+  // Deps untuk jalur v2 — buildHasilV2/RincianPanel butuh keempatnya sudah ter-load.
+  const deps: ResolveDeps | null = useMemo(() =>
+    ratesData && settingsV2 && printerProfiles && materialProfiles
+      ? { rates: ratesData, settings: settingsV2, printerProfiles, materialProfiles }
+      : null,
+    [ratesData, settingsV2, printerProfiles, materialProfiles])
 
   // Find if this kalkulasi is set as primary HPP source for any katalog product
   // If yes and that product has Shopee links → auto-fill harga shopee from actual Shopee price
@@ -77,69 +92,76 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
       gramasi: p.gramasi ?? 0,
       materials: p.materials,
       durasiJam: p.durasiJam,
+      filamentHargaId: p.filamentHargaId ?? undefined,
+      hargaPerGram: p.hargaPerGram ?? undefined,
+      printerProfileId: p.printerProfileId ?? undefined,
+      materialProfileId: p.materialProfileId ?? undefined,
     })) ?? [DEFAULT_PLATE]
   )
   const [customRiskEnabled, setCustomRiskEnabled] = useState(false)
   const [customRiskPct, setCustomRiskPct] = useState<number>(12)
 
-  // Helm fields
-  const [produktType, setProduktType] = useState<ProduktType>(initial?.produktType ?? 'SIMPLE')
-  const [finishType, setFinishType] = useState<FinishType>(initial?.finishType ?? 'RAW')
-  const [jamSanding, setJamSanding] = useState<number>(initial?.jamSanding ?? 0)
-  const [jamPainting, setJamPainting] = useState<number>(initial?.jamPainting ?? 0)
-  const [jamAssembly, setJamAssembly] = useState<number>(initial?.jamAssembly ?? 0)
-  const [flatFinishingCost, setFlatFinishingCost] = useState<number>(initial?.flatFinishingCost ?? 0)
+  // Komponen (packing chip + baris preset/custom) & labor (baris generik) — bentuk v2.
+  // Edit-reload: record lama menyimpan packing di kolom `packingType`; record yang
+  // sudah dimigrasi/ditulis baru menyimpan sebagai baris "Packing X" di komponenKustom.
+  const initSplit = initial
+    ? splitPackingRow(initial.packingType ?? null, initial.komponenKustom)
+    : { rows: [] as { nama: string; harga: number; qty: number }[] }
+  const [packingType, setPackingType] = useState<PackingType | undefined>(initSplit.packingType)
+  const [komponenRows, setKomponenRows] = useState<KomponenRow[]>(
+    initSplit.rows.map((k, i) => ({ id: `kk-init-${i}`, nama: k.nama, harga: k.harga, qty: k.qty })))
+  const [laborRows, setLaborRows] = useState<LaborRow[]>(
+    (initial?.labor ?? []).map((l, i) => ({ id: `lb-init-${i}`, ...l })))
 
-  const [aksesori, setAksesori] = useState<AksesoriState>(
-    initial
-      ? {
-          packingType: initial.packingType,
-          gantunganType: initial.gantunganType ?? undefined,
-          switchQty: initial.switchQty,
-          hasLabel: initial.hasLabel,
-          komponenKustom: initial.komponenKustom.map(k => ({
-            id: k.id,
-            nama: k.nama,
-            harga: k.harga,
-            qty: k.qty,
-          })),
-        }
-      : DEFAULT_AKSESORI
-  )
+  // Dua varian plates: platesForSave (hanya filter ada isi — perilaku lama, durasi 0 boleh
+  // masuk save) dan platesForCalc (tambahan filter durasi>0, dipakai preview/RincianPanel).
+  const platesForSave = useMemo(() => plates.filter(hasPlateContent).map(toPlateInputApp), [plates])
+  const platesForCalc = useMemo(() => platesForSave.filter(p => p.durasiJam > 0), [platesForSave])
 
-  // Real-time calculation — no API call
-  const hasil: HasilKalkulasi | null = useMemo(() => {
-    if (!ratesData) return null
-    const validPlates = plates.filter(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0) && p.durasiJam > 0)
-    const hasKomponen = aksesori.komponenKustom.some(k => k.harga > 0)
-    if (validPlates.length === 0 && !hasKomponen) return null
+  // Builder input v2 tunggal — dipakai preview (buildHasilV2), RincianPanel, dan save.
+  const inputV2: KalkulasiInput = useMemo(() => ({
+    nama: nama.trim() || "-",
+    batch: Math.max(1, batch),
+    marginTier,
+    hargaShopeeAktual: (shopeeIsLocked ? linkedShopeePrice : hargaShopee) ?? undefined,
+    hargaOfflineAktual: hargaOffline && hargaOffline > 0 ? hargaOffline : undefined,
+    plates: platesForCalc,
+    komponen: composeKomponen(packingType, ratesData?.packing ?? {}, komponenRows),
+    labor: laborRows.filter(l => l.nama.trim() && ((l.jam ?? 0) * (l.ratePerJam ?? 0) > 0 || (l.flat ?? 0) > 0))
+                    .map(l => ({ nama: l.nama.trim(), jam: l.jam, ratePerJam: l.ratePerJam, flat: l.flat })),
+    customRiskPct: customRiskEnabled ? customRiskPct : undefined,
+  }), [nama, batch, marginTier, hargaShopee, shopeeIsLocked, linkedShopeePrice, hargaOffline,
+       platesForCalc, packingType, komponenRows, laborRows, ratesData, customRiskEnabled, customRiskPct])
+
+  // Input jalur v2 dipakai preview & RincianPanel — plates dibatasi ke yang punya durasi
+  // (platesForCalc); inputV2.plates sudah sama, tapi disatukan lewat memo agar buildHasilV2
+  // dan RincianPanel memakai referensi objek yang identik.
+  const calcInput = useMemo(() => ({ ...inputV2, plates: platesForCalc }), [inputV2, platesForCalc])
+
+  // Preview real-time — jalur v2 PERSIS (identik server: resolveInputV2 + hitungKalkulasiV2).
+  const computed = useMemo(() => {
+    if (!deps) return null
+    if (calcInput.plates.length === 0 && !calcInput.komponen?.some(k => k.harga > 0)) return null
+    try { return buildHasilV2(calcInput, deps) } catch { return null }
+  }, [deps, calcInput])
+  const hasil: HasilKalkulasi | null = computed
+
+  // Harga per channel — parse dari computed.hargaChannelJson (v2, snapshot channel aktif).
+  const hargaChannel = useMemo(() => {
+    if (!computed) return undefined
     try {
-      return hitungKalkulasi(
-        validPlates,
-        {
-          packingType: aksesori.packingType,
-          gantunganType: aksesori.gantunganType,
-          switchQty: aksesori.switchQty,
-          hasLabel: aksesori.hasLabel,
-          komponenKustom: aksesori.komponenKustom,
-        },
-        Math.max(1, batch),
-        ratesData,
-        // Use actual Shopee price from linked product if available, otherwise manual input
-        (shopeeIsLocked ? linkedShopeePrice : hargaShopee) ?? undefined,
-        customRiskEnabled ? customRiskPct : undefined,
-        produktType === 'HELM' ? {
-          finishType,
-          jamSanding,
-          jamPainting,
-          jamAssembly,
-          flatFinishingCost,
-          preparerRatePerJam: ratesData.preparerRatePerJam,
-          finisherRatePerJam: ratesData.finisherRatePerJam,
-        } : undefined
-      )
-    } catch { return null }
-  }, [plates, aksesori, batch, hargaShopee, shopeeIsLocked, linkedShopeePrice, ratesData, customRiskEnabled, customRiskPct, produktType, finishType, jamSanding, jamPainting, jamAssembly, flatFinishingCost])
+      const parsed = JSON.parse(computed.hargaChannelJson)
+      return Array.isArray(parsed) ? parsed : undefined
+    } catch {
+      return undefined
+    }
+  }, [computed])
+
+  // Perbandingan margin per printer — harga jual tetap dari mesin acuan, HPP per profil.
+  const printerComparison = useMemo(() => {
+    if (!deps || deps.printerProfiles.length < 2 || platesForCalc.length === 0) return undefined
+    try { return hitungPerbandinganPrinter({ ...inputV2, plates: platesForCalc }, deps, marginTier) } catch { return undefined }
+  }, [deps, inputV2, platesForCalc, marginTier])
 
   // Round up to nearest 5000 for placeholder suggestions
   function roundUp5000(n: number): number {
@@ -151,42 +173,8 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   const isEditing = !!initial
 
   async function handleSave() {
-    const hasPlates = plates.some(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0))
-    const hasKomponenVal = aksesori.komponenKustom.some(k => k.harga > 0)
-    if (!nama.trim() || (!hasPlates && !hasKomponenVal)) return
-    const input: KalkulasiInput = {
-      nama: nama.trim(),
-      batch: Math.max(1, batch),
-      marginTier,
-      hargaShopeeAktual: hargaShopee && hargaShopee > 0 ? hargaShopee : undefined,
-      hargaOfflineAktual: hargaOffline && hargaOffline > 0 ? hargaOffline : undefined,
-      packingType: aksesori.packingType,
-      gantunganType: aksesori.gantunganType,
-      switchQty: aksesori.switchQty,
-      hasLabel: aksesori.hasLabel,
-      plates: plates.filter(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0)).map(p => ({
-        namaPart: p.namaPart,
-        tipe: p.tipe,
-        printer: p.printer,
-        gramasi: p.gramasi ?? 0,
-        materials: p.materials,
-        durasiJam: p.durasiJam,
-      })),
-      komponenKustom: aksesori.komponenKustom
-        .filter(k => k.nama && k.harga > 0)
-        .map(k => ({
-          nama: k.nama,
-          harga: k.harga,
-          qty: k.qty,
-        })),
-      customRiskPct: customRiskEnabled ? customRiskPct : undefined,
-      produktType,
-      finishType,
-      jamSanding,
-      jamPainting,
-      jamAssembly,
-      flatFinishingCost,
-    }
+    if (!nama.trim() || (platesForSave.length === 0 && !inputV2.komponen?.some(k => k.harga > 0))) return
+    const input: KalkulasiInput = { ...inputV2, plates: platesForSave, nama: nama.trim() }
 
     let saved: KalkulasiData
     if (isEditing && initial) {
@@ -198,19 +186,12 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   }
 
   const isSaving = createMut.isPending || updateMut.isPending
-  const hasValidInput = nama.trim().length > 0 && (
-    plates.some(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0)) ||
-    aksesori.komponenKustom.some(k => k.harga > 0)
-  )
+  // Gate save ke ratesData: sebelum rates ter-load, composeKomponen menghargai packing
+  // dengan packingRates kosong (harga 0) — save di jendela itu bisa mem-persist harga
+  // understated. Preview/RincianPanel sudah ter-gate lewat `deps`.
+  const hasValidInput = !!ratesData && nama.trim().length > 0 &&
+    (platesForSave.length > 0 || !!inputV2.komponen?.some(k => k.harga > 0))
   const [showPrint, setShowPrint] = useState(false)
-
-  // Fallback rates for AksesoriSection while ratesData is loading
-  const aksesoriRates = ratesData ?? {
-    packing: { S: 1500, M: 2500, L: 5000, XL: 8000 },
-    gantungan: { kew_kew: 900, ring: 800, rantai: 350, tali: 400 },
-    switchPerPcs: 2500,
-    labelPerLembar: 750,
-  }
 
   return (
     <>
@@ -287,8 +268,15 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           <PlateTable plates={plates} onChange={setPlates} batch={Math.max(1, batch)} />
         </div>
 
-        {/* Aksesori */}
-        <AksesoriSection value={aksesori} onChange={setAksesori} rates={aksesoriRates} />
+        {/* Komponen (packing + preset/custom) & Labor */}
+        <KomponenSection
+          packingType={packingType}
+          onPackingChange={setPackingType}
+          rows={komponenRows}
+          onRowsChange={setKomponenRows}
+          packingRates={ratesData?.packing ?? { S: 1500, M: 2500, L: 5000, XL: 8000 }}
+        />
+        <LaborSection rows={laborRows} onRowsChange={setLaborRows} />
 
         {/* Harga Shopee */}
         <div>
@@ -383,205 +371,6 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           )}
         </div>
 
-        {/* ── Tipe Produk ─────────────────────────────────────────── */}
-        <div className="space-y-3 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-          <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.3)" }}>
-            Tipe Produk
-          </div>
-          <div className="flex gap-2">
-            {(['SIMPLE', 'HELM'] as const).map(t => (
-              <button
-                key={t}
-                type="button"
-                onClick={() => {
-                  setProduktType(t)
-                  if (t === 'SIMPLE') {
-                    setFinishType('RAW')
-                  } else if (t === 'HELM' && flatFinishingCost === 0) {
-                    setFlatFinishingCost(ratesData?.helmConsumablesDefault ?? 55000)
-                  }
-                }}
-                className="px-4 py-2 rounded-[8px] text-[12px] font-medium transition-all"
-                style={{
-                  background: produktType === t ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.04)",
-                  border: `1px solid ${produktType === t ? "rgba(99,102,241,0.4)" : "rgba(255,255,255,0.1)"}`,
-                  color: produktType === t ? "#a5b4fc" : "rgba(255,255,255,0.45)",
-                }}
-              >
-                {t === 'SIMPLE' ? '🧸 Mainan / Keychain' : '🪖 Helm / Topeng'}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* ── Helm Finishing (hanya muncul kalau HELM) ─────────────── */}
-        {produktType === 'HELM' && (
-          <div className="space-y-4 p-4 rounded-[12px]" style={{ background: "rgba(99,102,241,0.05)", border: "1px solid rgba(99,102,241,0.15)" }}>
-            {/* Finish Type */}
-            <div className="space-y-2">
-              <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "rgba(165,180,252,0.6)" }}>
-                Finish Type
-              </div>
-              <div className="flex gap-2">
-                {(['RAW', 'FINISHING'] as const).map(f => (
-                  <button
-                    key={f}
-                    type="button"
-                    onClick={() => setFinishType(f)}
-                    className="px-4 py-2 rounded-[8px] text-[12px] font-medium transition-all"
-                    style={{
-                      background: finishType === f ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.04)",
-                      border: `1px solid ${finishType === f ? "rgba(99,102,241,0.4)" : "rgba(255,255,255,0.1)"}`,
-                      color: finishType === f ? "#a5b4fc" : "rgba(255,255,255,0.45)",
-                    }}
-                  >
-                    {f === 'RAW' ? '🔩 RAW (as-is)' : '🎨 FINISHING'}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Labor sections — hanya kalau FINISHING */}
-            {finishType === 'FINISHING' && (
-              <div className="space-y-4">
-                {/* Tier quick-pick */}
-                <div className="space-y-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: "rgba(165,180,252,0.6)" }}>
-                    Tier Preset
-                  </div>
-                  <div className="flex gap-2 flex-wrap">
-                    {(['MINIMAL', 'LIGHT', 'MEDIUM', 'HEAVY'] as const).map(tier => (
-                      <button
-                        key={tier}
-                        type="button"
-                        onClick={() => {
-                          const d = HELM_TIER_DEFAULTS[tier]
-                          setJamSanding(d.jamSanding)
-                          setJamPainting(d.jamPainting)
-                          setJamAssembly(d.jamAssembly)
-                        }}
-                        className="px-3 py-1.5 rounded-[8px] text-[11px] font-medium transition-all hover:opacity-80"
-                        style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}
-                      >
-                        {tier}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="text-[10px]" style={{ color: "rgba(255,255,255,0.25)" }}>
-                    Klik tier untuk auto-fill jam. Angka bisa diedit bebas.
-                  </div>
-                </div>
-
-                {/* Labor inputs */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-medium mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>
-                      🪵 Preparer — Sanding (jam)
-                      <span className="ml-1.5 text-[10px]" style={{ color: "rgba(255,255,255,0.25)" }}>@Rp35.000</span>
-                    </label>
-                    <input
-                      type="number" min={0} step={0.25}
-                      value={jamSanding || ''}
-                      onChange={e => setJamSanding(Number(e.target.value))}
-                      className="glass-input w-full h-9 rounded-[10px] px-3 text-sm"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-medium mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>
-                      🎨 Finisher — Painting (jam)
-                      <span className="ml-1.5 text-[10px]" style={{ color: "rgba(255,255,255,0.25)" }}>@Rp75.000</span>
-                    </label>
-                    <input
-                      type="number" min={0} step={0.25}
-                      value={jamPainting || ''}
-                      onChange={e => setJamPainting(Number(e.target.value))}
-                      className="glass-input w-full h-9 rounded-[10px] px-3 text-sm"
-                      placeholder="0"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-medium mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>
-                      🔩 Preparer — Assembly (jam)
-                      <span className="ml-1.5 text-[10px]" style={{ color: "rgba(255,255,255,0.25)" }}>@Rp35.000</span>
-                    </label>
-                    <input
-                      type="number" min={0} step={0.25}
-                      value={jamAssembly || ''}
-                      onChange={e => setJamAssembly(Number(e.target.value))}
-                      className="glass-input w-full h-9 rounded-[10px] px-3 text-sm"
-                      placeholder="0"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-medium mb-1" style={{ color: "rgba(255,255,255,0.5)" }}>
-                      🎨 Consumables (Rp)
-                    </label>
-                    <input
-                      type="number" min={0} step={1000}
-                      value={flatFinishingCost || ''}
-                      onChange={e => setFlatFinishingCost(Number(e.target.value))}
-                      className="glass-input w-full h-9 rounded-[10px] px-3 text-sm"
-                      placeholder="55000"
-                    />
-                  </div>
-                </div>
-
-                {/* Warning: consumables = 0 */}
-                {flatFinishingCost === 0 && (
-                  <div className="flex items-center gap-2 px-3 py-2 rounded-[8px] text-[11px]"
-                    style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", color: "#fbbf24" }}>
-                    ⚠️ Biaya consumables (cat, primer) belum diisi — sudah di-include di tempat lain?
-                  </div>
-                )}
-
-                {/* Real-time breakdown */}
-                {(jamSanding > 0 || jamPainting > 0 || jamAssembly > 0 || flatFinishingCost > 0) && (
-                  <div className="rounded-[8px] p-3 space-y-1 text-[11px] font-mono"
-                    style={{ background: "rgba(10,8,40,0.6)", border: "1px solid rgba(99,102,241,0.15)" }}>
-                    {jamSanding > 0 && (
-                      <div className="flex justify-between">
-                        <span style={{ color: "rgba(255,255,255,0.4)" }}>Sanding {jamSanding}j × Rp35.000</span>
-                        <span style={{ color: "#a5b4fc" }}>Rp {(jamSanding * 35000).toLocaleString('id-ID')}</span>
-                      </div>
-                    )}
-                    {jamPainting > 0 && (
-                      <div className="flex justify-between">
-                        <span style={{ color: "rgba(255,255,255,0.4)" }}>Painting {jamPainting}j × Rp75.000</span>
-                        <span style={{ color: "#a5b4fc" }}>Rp {(jamPainting * 75000).toLocaleString('id-ID')}</span>
-                      </div>
-                    )}
-                    {jamAssembly > 0 && (
-                      <div className="flex justify-between">
-                        <span style={{ color: "rgba(255,255,255,0.4)" }}>Assembly {jamAssembly}j × Rp35.000</span>
-                        <span style={{ color: "#a5b4fc" }}>Rp {(jamAssembly * 35000).toLocaleString('id-ID')}</span>
-                      </div>
-                    )}
-                    {flatFinishingCost > 0 && (
-                      <div className="flex justify-between">
-                        <span style={{ color: "rgba(255,255,255,0.4)" }}>Consumables</span>
-                        <span style={{ color: "#a5b4fc" }}>Rp {flatFinishingCost.toLocaleString('id-ID')}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between pt-1" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
-                      <span style={{ color: "rgba(255,255,255,0.6)", fontWeight: 600 }}>Total Finishing</span>
-                      <span style={{ color: "#4ade80", fontWeight: 700 }}>
-                        Rp {(
-                          (jamSanding + jamAssembly) * 35000 +
-                          jamPainting * 75000 +
-                          flatFinishingCost
-                        ).toLocaleString('id-ID')}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-
         {/* Buttons row */}
         <div className="flex gap-2">
           {/* Print quote button — only when there are valid results */}
@@ -631,31 +420,16 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           hargaOfflineAktual={hargaOffline && hargaOffline > 0 ? hargaOffline : undefined}
           isLoading={!ratesData}
           marginTier={marginTier}
+          hargaChannel={hargaChannel}
+          channels={settingsV2?.channels}
+          printerComparison={printerComparison}
         />
-        {hasil && ratesData && (
+        {hasil && deps && (
           <RincianPanel
-            plates={plates.filter(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0) && p.durasiJam > 0)}
-            aksesori={{
-              packingType: aksesori.packingType,
-              gantunganType: aksesori.gantunganType,
-              switchQty: aksesori.switchQty,
-              hasLabel: aksesori.hasLabel,
-              komponenKustom: aksesori.komponenKustom,
-            }}
-            batch={Math.max(1, batch)}
-            rates={ratesData}
+            input={calcInput}
+            deps={deps}
             hasil={hasil}
             hargaShopeeAktual={(shopeeIsLocked ? linkedShopeePrice : hargaShopee) ?? undefined}
-            customRiskPct={customRiskEnabled ? customRiskPct : undefined}
-            helmOptions={produktType === 'HELM' ? {
-              finishType,
-              jamSanding,
-              jamPainting,
-              jamAssembly,
-              flatFinishingCost,
-              preparerRatePerJam: ratesData.preparerRatePerJam,
-              finisherRatePerJam: ratesData.finisherRatePerJam,
-            } : undefined}
           />
         )}
       </div>
@@ -667,7 +441,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
       <PrintableQuote
         nama={nama || "Kalkulasi"}
         batch={Math.max(1, batch)}
-        plates={plates.filter(p => ((p.gramasi ?? 0) > 0 || (p.materials?.length ?? 0) > 0))}
+        plates={plates.filter(hasPlateContent)}
         hasil={hasil}
         marginTier={marginTier}
         initialHargaShopee={shopeeIsLocked ? (linkedShopeePrice ?? undefined) : (hargaShopee && hargaShopee > 0 ? hargaShopee : undefined)}

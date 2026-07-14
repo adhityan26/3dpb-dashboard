@@ -192,9 +192,6 @@ model KalkulasiHarga {
   hargaShopeeAktual  Float?
   hargaOfflineAktual Float?
   packingType       String?
-  gantunganType     String?
-  switchQty         Int      @default(0)
-  hasLabel          Boolean  @default(false)
   hppProduksi       Float    @default(0)
   hppKomponen       Float    @default(0)
   hppTotal          Float    @default(0)
@@ -210,13 +207,6 @@ model KalkulasiHarga {
   marginOfflineA    Float    @default(0)
   marginShopeeA     Float    @default(0)
   status            String   @default("TIDAK_DISET")
-  // Helm/Topeng fields — default "SIMPLE"/"RAW" agar backward-compatible
-  produktType       String  @default("SIMPLE")   // "SIMPLE" | "HELM"
-  finishType        String  @default("RAW")       // "RAW" | "FINISHING"
-  jamSanding        Float   @default(0)           // Preparer hours (sanding + magnet)
-  jamPainting       Float   @default(0)           // Finisher hours (painting)
-  jamAssembly       Float   @default(0)           // Preparer hours (assembly)
-  flatFinishingCost Float   @default(0)           // cat, primer, consumables flat
   hppFinishing      Float   @default(0)           // computed: labor + consumables
   hargaChannelJson  String?                        // JSON HargaChannelV2[] snapshot saat save (v2)
   plates               KalkulasiPlate[]
@@ -242,6 +232,7 @@ model KalkulasiPlate {
   filamentHargaPerGram Float?                           // cached rate at time of save
   printerProfileId     String?                          // FK lunak ke KalkPrinterProfile (tanpa relasi — profil bisa dihapus)
   mesinPerJam          Float?                           // cache rate aktual saat save
+  materialProfileId    String?                          // FK lunak ke KalkMaterialProfile (single-material mode)
 }
 
 model KomponenKustom {

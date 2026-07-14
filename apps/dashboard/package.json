@@ -10,7 +10,6 @@
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx scripts/seed.ts",
     "db:seed-kalk-v2": "tsx scripts/seed-kalkulator-v2.ts",
-    "db:migrate-kalk-v2": "tsx scripts/migrate-kalkulasi-v2.ts",
     "db:studio": "prisma studio",
     "test": "vitest run --passWithNoTests",
     "db:import-ams": "tsx scripts/import-ams.ts"
