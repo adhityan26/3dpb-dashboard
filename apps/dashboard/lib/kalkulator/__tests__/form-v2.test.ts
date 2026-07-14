@@ -63,7 +63,7 @@ describe('hitungPerbandinganPrinter', () => {
 
   const input: KalkulasiInput = {
     nama: 'X', batch: 1, marginTier: 'A',
-    switchQty: 0, hasLabel: false, komponenKustom: [],
+    komponen: [], labor: [],
     plates: [{ tipe: 'FDM', gramasi: 100, durasiJam: 2, printerProfileId: 'a1' }],
   }
 

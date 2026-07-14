@@ -1,14 +1,13 @@
 export type {
-  PrintTipe, MarginTier, KalkulasiStatus, PackingType, ProduktType,
-  FinishType, HelmTier, HelmOptions, FilamentEntry, PlateInput,
+  PrintTipe, MarginTier, KalkulasiStatus, PackingType,
+  FilamentEntry, PlateInput,
   KomponenKustomInput, KalkulatorRates, HasilKalkulasi,
   KomponenItem, LaborItem,
 } from '@3pb/kalkulator-core'
-export { HELM_TIER_DEFAULTS } from '@3pb/kalkulator-core'
 
 import type {
   PlateInput, KomponenKustomInput, HasilKalkulasi, MarginTier,
-  PackingType, ProduktType, FinishType, KomponenItem, LaborItem,
+  PackingType, KomponenItem, LaborItem,
 } from '@3pb/kalkulator-core'
 
 /** PlateInput app-level — tambahan link ke printer/material profile (resolusi di resolve-v2.ts). */
@@ -34,23 +33,10 @@ export interface KalkulasiInput {
   marginTier: MarginTier
   hargaShopeeAktual?: number
   hargaOfflineAktual?: number
-  packingType?: PackingType
-  gantunganType?: string
-  switchQty: number
-  hasLabel: boolean
   plates: PlateInputApp[]
-  komponenKustom: KomponenKustomInput[]
+  komponen: KomponenItem[]
+  labor: LaborItem[]
   customRiskPct?: number  // override failure rate per job (high-risk jobs)
-  produktType?: ProduktType          // default: 'SIMPLE'
-  finishType?: FinishType            // only for HELM
-  jamSanding?: number
-  jamPainting?: number
-  jamAssembly?: number
-  flatFinishingCost?: number
-  /** Bentuk baru v2 — kalau diisi, menggantikan packing/gantungan/switch/label/komponenKustom */
-  komponen?: KomponenItem[]
-  /** Bentuk baru v2 — kalau diisi, menggantikan field helm (produktType/finishType/jam*) */
-  labor?: LaborItem[]
 }
 
 export interface KalkulasiData extends HasilKalkulasi {
@@ -62,19 +48,10 @@ export interface KalkulasiData extends HasilKalkulasi {
   marginTier: MarginTier
   hargaShopeeAktual?: number
   hargaOfflineAktual?: number
-  packingType?: PackingType
-  gantunganType?: string
-  switchQty: number
-  hasLabel: boolean
+  packingType?: PackingType | null
   plates: PlateData[]
   komponenKustom: KomponenKustomData[]
   produkLinks: KalkulasiProdukData[]
-  produktType: ProduktType
-  finishType: FinishType
-  jamSanding: number
-  jamPainting: number
-  jamAssembly: number
-  flatFinishingCost: number
   labor?: LaborItem[]
   hargaChannel?: { channelId: string; A: number; B: number; C: number }[]
 }

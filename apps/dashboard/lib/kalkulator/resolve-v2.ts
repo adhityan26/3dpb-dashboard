@@ -2,7 +2,7 @@ import {
   hitungKalkulasiV2,
   type KalkulatorRates, type SettingsV2, type KalkulasiInputV2, type HasilKalkulasiV2,
   type HasilKalkulasi, type KalkulasiStatus, type MaterialUsageV2, type PlateInputV2,
-  type KomponenItem, type LaborItem, type FilamentEntry,
+  type FilamentEntry,
 } from '@3pb/kalkulator-core'
 import type { KalkulasiInput, PlateInputApp } from './types'
 import type { PrinterProfileData, MaterialProfileData } from './profiles-service'
@@ -64,35 +64,12 @@ export function resolveMesinAktual(p: PlateInputApp, deps: ResolveDeps): number 
   return aktual?.mesinPerJam ?? deps.rates.mesinPerJam
 }
 
-export function legacyKomponen(input: KalkulasiInput, rates: KalkulatorRates): KomponenItem[] {
-  const items: KomponenItem[] = []
-  if (input.packingType && rates.packing[input.packingType] !== undefined) {
-    items.push({ nama: `Packing ${input.packingType}`, harga: rates.packing[input.packingType], qty: 1 })
-  }
-  if (input.gantunganType && rates.gantungan[input.gantunganType] !== undefined) {
-    items.push({ nama: `Gantungan ${input.gantunganType}`, harga: rates.gantungan[input.gantunganType], qty: 1 })
-  }
-  if (input.switchQty > 0) items.push({ nama: 'Switch', harga: rates.switchPerPcs, qty: input.switchQty })
-  if (input.hasLabel) items.push({ nama: 'Label', harga: rates.labelPerLembar, qty: 1 })
-  for (const k of input.komponenKustom ?? []) items.push({ nama: k.nama ?? 'Komponen', harga: k.harga, qty: k.qty })
-  return items
-}
-
-export function legacyLabor(input: KalkulasiInput, rates: KalkulatorRates): LaborItem[] {
-  if (input.produktType !== 'HELM' || input.finishType !== 'FINISHING') return []
-  return [
-    { nama: 'Preparer (sanding + assembly)', jam: (input.jamSanding ?? 0) + (input.jamAssembly ?? 0), ratePerJam: rates.preparerRatePerJam },
-    { nama: 'Finisher (painting)', jam: input.jamPainting ?? 0, ratePerJam: rates.finisherRatePerJam },
-    { nama: 'Consumables finishing', flat: input.flatFinishingCost ?? 0 },
-  ]
-}
-
 export function resolveInputV2(input: KalkulasiInput, deps: ResolveDeps): KalkulasiInputV2 {
   return {
     plates: input.plates.map(p => resolvePlate(p, deps)),
     batch: input.batch,
-    komponen: input.komponen ?? legacyKomponen(input, deps.rates),
-    labor: input.labor ?? legacyLabor(input, deps.rates),
+    komponen: input.komponen,
+    labor: input.labor,
     // Paritas wrapper: rate konstan selalu diteruskan supaya plate 0-gram tetap kena buffer.
     // HANYA saat semua material tanpa profil — profil membawa failure rate per jenis.
     customRiskPct: input.customRiskPct ?? (

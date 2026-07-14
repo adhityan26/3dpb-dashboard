@@ -125,8 +125,6 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
     marginTier,
     hargaShopeeAktual: (shopeeIsLocked ? linkedShopeePrice : hargaShopee) ?? undefined,
     hargaOfflineAktual: hargaOffline && hargaOffline > 0 ? hargaOffline : undefined,
-    // legacy wajib (masih required di type sampai Task 10) — nol semua:
-    switchQty: 0, hasLabel: false, komponenKustom: [],
     plates: platesForCalc,
     komponen: composeKomponen(packingType, ratesData?.packing ?? {}, komponenRows),
     labor: laborRows.filter(l => l.nama.trim() && ((l.jam ?? 0) * (l.ratePerJam ?? 0) > 0 || (l.flat ?? 0) > 0))

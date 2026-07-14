@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
   const body: KalkulasiInput = await req.json()
   if (!body.nama?.trim()) return NextResponse.json({ error: 'nama is required' }, { status: 400 })
   const hasPlates = body.plates?.length > 0
-  const hasKomponen = body.komponenKustom?.some((k: { harga: number }) => k.harga > 0)
+  const hasKomponen = body.komponen?.some((k: { harga: number }) => k.harga > 0)
   if (!hasPlates && !hasKomponen) return NextResponse.json({ error: 'isi minimal 1 plate atau 1 komponen' }, { status: 400 })
   const result = await createKalkulasi(body)
   return NextResponse.json(result, { status: 201 })
