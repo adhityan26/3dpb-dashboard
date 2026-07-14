@@ -13,7 +13,7 @@ import { useKatalogList } from "@/lib/hooks/use-katalog"
 import { useProducts } from "@/lib/hooks/use-products"
 import type { KalkulasiData, KalkulasiInput, MarginTier, HasilKalkulasi, PackingType, PlateInputApp } from "@/lib/kalkulator/types"
 import { buildHasilV2, type ResolveDeps } from "@/lib/kalkulator/resolve-v2"
-import { composeKomponen, splitPackingRow, type KomponenRow, type LaborRow } from "@/lib/kalkulator/form-v2"
+import { composeKomponen, splitPackingRow, hitungPerbandinganPrinter, type KomponenRow, type LaborRow } from "@/lib/kalkulator/form-v2"
 import { PrintableQuote } from "./PrintableQuote"
 import { RincianPanel } from "./RincianPanel"
 
@@ -147,6 +147,23 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
     try { return buildHasilV2(calcInput, deps) } catch { return null }
   }, [deps, calcInput])
   const hasil: HasilKalkulasi | null = computed
+
+  // Harga per channel — parse dari computed.hargaChannelJson (v2, snapshot channel aktif).
+  const hargaChannel = useMemo(() => {
+    if (!computed) return undefined
+    try {
+      const parsed = JSON.parse(computed.hargaChannelJson)
+      return Array.isArray(parsed) ? parsed : undefined
+    } catch {
+      return undefined
+    }
+  }, [computed])
+
+  // Perbandingan margin per printer — harga jual tetap dari mesin acuan, HPP per profil.
+  const printerComparison = useMemo(() => {
+    if (!deps || deps.printerProfiles.length < 2 || platesForCalc.length === 0) return undefined
+    try { return hitungPerbandinganPrinter({ ...inputV2, plates: platesForCalc }, deps, marginTier) } catch { return undefined }
+  }, [deps, inputV2, platesForCalc, marginTier])
 
   // Round up to nearest 5000 for placeholder suggestions
   function roundUp5000(n: number): number {
@@ -405,6 +422,9 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           hargaOfflineAktual={hargaOffline && hargaOffline > 0 ? hargaOffline : undefined}
           isLoading={!ratesData}
           marginTier={marginTier}
+          hargaChannel={hargaChannel}
+          channels={settingsV2?.channels}
+          printerComparison={printerComparison}
         />
         {hasil && deps && (
           <RincianPanel

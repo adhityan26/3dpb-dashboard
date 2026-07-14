@@ -1,6 +1,8 @@
 "use client"
 
 import type { HasilKalkulasi, KalkulasiStatus } from "@/lib/kalkulator/types"
+import type { ChannelDef } from "@3pb/kalkulator-core"
+import type { PrinterMarginRow } from "@/lib/kalkulator/form-v2"
 
 interface Props {
   hasil: HasilKalkulasi | null
@@ -8,6 +10,9 @@ interface Props {
   hargaOfflineAktual?: number
   isLoading?: boolean
   marginTier?: "A" | "B" | "C"
+  hargaChannel?: { channelId: string; A: number; B: number; C: number }[]
+  channels?: ChannelDef[]
+  printerComparison?: PrinterMarginRow[]
 }
 
 const STATUS_CONFIG: Record<KalkulasiStatus, { label: string; color: string; bg: string; border: string }> = {
@@ -30,7 +35,10 @@ function Row({ label, value, color, bold }: { label: string; value: string; colo
   )
 }
 
-export function HasilPanel({ hasil, hargaShopeeAktual, hargaOfflineAktual, isLoading, marginTier = "A" }: Props) {
+export function HasilPanel({
+  hasil, hargaShopeeAktual, hargaOfflineAktual, isLoading, marginTier = "A",
+  hargaChannel, channels, printerComparison,
+}: Props) {
   if (isLoading) {
     return (
       <div className="space-y-3 animate-pulse">
@@ -113,21 +121,68 @@ export function HasilPanel({ hasil, hargaShopeeAktual, hargaOfflineAktual, isLoa
       <div className="rounded-[10px] p-4" style={{ background: "var(--g-card)", border: "1px solid var(--g-card-border)" }}>
         <div className="text-xs font-semibold uppercase tracking-wider mb-3 g-accent">Harga Lengkap</div>
         <Row label="Floor Price" value={fmt(hasil.floorPrice)} color="#fbbf24" />
-        <Row label="Offline A · B · C"
-             value={`${fmt(hasil.offlineA)} · ${fmt(hasil.offlineB)} · ${fmt(hasil.offlineC)}`}
-             color="#34d399" />
-        <Row label="Shopee A · B · C"
-             value={`${fmt(hasil.shopeeA)} · ${fmt(hasil.shopeeB)} · ${fmt(hasil.shopeeC)}`}
-             color="#a5b4fc" />
-        <div style={{ borderTop: "1px solid var(--g-card-border)", marginTop: 4, paddingTop: 4 }}>
-          <Row label={`Margin Offline ${marginTier}`} value={fmtPct(marginOfflineTier)} color="#34d399" />
-          <Row label={`Margin Shopee ${marginTier} (net)`} value={fmtPct(marginShopeeTier)} color="#a5b4fc" />
-        </div>
+        {hargaChannel && channels ? (
+          <>
+            {hargaChannel.map(hc => {
+              const ch = channels.find(c => c.id === hc.channelId)
+              return (
+                <Row key={hc.channelId}
+                     label={`${ch?.nama ?? hc.channelId} A · B · C`}
+                     value={`${fmt(hc.A)} · ${fmt(hc.B)} · ${fmt(hc.C)}`}
+                     color={hc.channelId === "shopee" ? "#a5b4fc" : "#34d399"} />
+              )
+            })}
+            <div style={{ borderTop: "1px solid var(--g-card-border)", marginTop: 4, paddingTop: 4 }}>
+              {hargaChannel.map(hc => {
+                const ch = channels.find(c => c.id === hc.channelId)
+                const price = marginTier === "B" ? hc.B : marginTier === "C" ? hc.C : hc.A
+                const net = price / (ch?.feeMultiplier ?? 1)
+                const margin = net > 0 ? ((net - hasil.hppTotal) / net) * 100 : 0
+                return (
+                  <Row key={hc.channelId}
+                       label={`Margin ${ch?.nama ?? hc.channelId} ${marginTier}`}
+                       value={fmtPct(margin)}
+                       color={hc.channelId === "shopee" ? "#a5b4fc" : "#34d399"} />
+                )
+              })}
+            </div>
+          </>
+        ) : (
+          <>
+            <Row label="Offline A · B · C"
+                 value={`${fmt(hasil.offlineA)} · ${fmt(hasil.offlineB)} · ${fmt(hasil.offlineC)}`}
+                 color="#34d399" />
+            <Row label="Shopee A · B · C"
+                 value={`${fmt(hasil.shopeeA)} · ${fmt(hasil.shopeeB)} · ${fmt(hasil.shopeeC)}`}
+                 color="#a5b4fc" />
+            <div style={{ borderTop: "1px solid var(--g-card-border)", marginTop: 4, paddingTop: 4 }}>
+              <Row label={`Margin Offline ${marginTier}`} value={fmtPct(marginOfflineTier)} color="#34d399" />
+              <Row label={`Margin Shopee ${marginTier} (net)`} value={fmtPct(marginShopeeTier)} color="#a5b4fc" />
+            </div>
+          </>
+        )}
         <div style={{ borderTop: "1px solid var(--g-card-border)", marginTop: 4, paddingTop: 4 }}>
           <Row label="Reseller standard" value={fmt(hasil.resellerStd)} />
           <Row label="Reseller bulk" value={fmt(hasil.resellerBulk)} />
         </div>
       </div>
+
+      {/* Perbandingan Printer */}
+      {printerComparison && printerComparison.length >= 2 && (
+        <div className="rounded-[10px] p-4" style={{ background: "var(--g-card)", border: "1px solid var(--g-card-border)" }}>
+          <div className="text-xs font-semibold uppercase tracking-wider mb-1 g-accent">Perbandingan Printer</div>
+          <div className="text-[10px] g-t5 mb-2">Harga jual tetap (mesin acuan) — HPP & margin kalau semua plate dicetak di printer tsb.</div>
+          {printerComparison.map(r => (
+            <div key={r.id} className="flex items-center gap-2 py-1.5" style={{ borderBottom: "1px solid var(--g-row-border)" }}>
+              <span className="text-xs flex-1 g-t2">{r.nama}{r.isPricingReference ? " 🎯" : ""}</span>
+              <span className="text-[11px] font-mono g-t3">HPP {fmt(r.hppTotal)}</span>
+              <span className="text-[11px] font-mono w-16 text-right" style={{ color: r.marginOffline >= 0 ? "#34d399" : "#f87171" }}>{fmtPct(r.marginOffline)}</span>
+              <span className="text-[11px] font-mono w-16 text-right" style={{ color: r.marginShopee >= 0 ? "#a5b4fc" : "#f87171" }}>{fmtPct(r.marginShopee)}</span>
+            </div>
+          ))}
+          <div className="flex justify-end gap-2 pt-1 text-[9px] g-t5"><span className="w-16 text-right">offline {marginTier}</span><span className="w-16 text-right">shopee net</span></div>
+        </div>
+      )}
 
       {/* Status vs Shopee Aktual */}
       {hargaShopeeAktual !== undefined && hargaShopeeAktual > 0 && (
