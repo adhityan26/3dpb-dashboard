@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { KalkulatorRates, SettingsV2 } from '@3pb/kalkulator-core'
 import { composeKomponen, splitPackingRow, hitungPerbandinganPrinter } from '../form-v2'
-import type { ResolveDeps } from '../resolve-v2'
+import { buildHasilV2, type ResolveDeps } from '../resolve-v2'
 import type { KalkulasiInput } from '../types'
 
 const packing = { S: 1500, M: 2500, L: 5000, XL: 8000 }
@@ -73,6 +73,21 @@ describe('hitungPerbandinganPrinter', () => {
     expect(x1c.isPricingReference).toBe(true)
     expect(a1.hppTotal).toBeLessThan(x1c.hppTotal)
     expect(a1.marginOffline).toBeGreaterThan(x1c.marginOffline)
+  })
+
+  it('SEMUA baris memakai basis harga jual yang SAMA (harga offline dari mesin acuan)', () => {
+    const rows = hitungPerbandinganPrinter(input, DEPS, 'A')
+    const a1 = rows.find(r => r.nama === 'A1')!, x1c = rows.find(r => r.nama === 'X1C')!
+    // PrinterMarginRow tidak mengekspos harga — back-compute dari margin:
+    // margin = (price - hpp) / price × 100  →  price = hpp / (1 - margin/100)
+    const priceA1 = a1.hppTotal / (1 - a1.marginOffline / 100)
+    const priceX1C = x1c.hppTotal / (1 - x1c.marginOffline / 100)
+    // Basis yang diharapkan: harga offline tier A dari input apa adanya (mesin acuan).
+    const expected = buildHasilV2(input, DEPS).offlineA
+    // Margin dibulatkan 1 desimal → toleransi relatif 1%.
+    expect(Math.abs(priceA1 - expected) / expected).toBeLessThan(0.01)
+    expect(Math.abs(priceX1C - expected) / expected).toBeLessThan(0.01)
+    expect(Math.abs(priceA1 - priceX1C) / priceX1C).toBeLessThan(0.01)
   })
 
   it('tanpa profil atau tanpa plate → []', () => {
