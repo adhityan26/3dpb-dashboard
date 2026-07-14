@@ -143,7 +143,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   // Preview real-time — jalur v2 PERSIS (identik server: resolveInputV2 + hitungKalkulasiV2).
   const computed = useMemo(() => {
     if (!deps) return null
-    if (calcInput.plates.length === 0 && !calcInput.komponen!.some(k => k.harga > 0)) return null
+    if (calcInput.plates.length === 0 && !calcInput.komponen?.some(k => k.harga > 0)) return null
     try { return buildHasilV2(calcInput, deps) } catch { return null }
   }, [deps, calcInput])
   const hasil: HasilKalkulasi | null = computed
@@ -158,7 +158,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   const isEditing = !!initial
 
   async function handleSave() {
-    if (!nama.trim() || (platesForSave.length === 0 && !inputV2.komponen!.some(k => k.harga > 0))) return
+    if (!nama.trim() || (platesForSave.length === 0 && !inputV2.komponen?.some(k => k.harga > 0))) return
     const input: KalkulasiInput = { ...inputV2, plates: platesForSave, nama: nama.trim() }
 
     let saved: KalkulasiData
@@ -171,7 +171,11 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   }
 
   const isSaving = createMut.isPending || updateMut.isPending
-  const hasValidInput = nama.trim().length > 0 && (platesForSave.length > 0 || !!inputV2.komponen?.some(k => k.harga > 0))
+  // Gate save ke ratesData: sebelum rates ter-load, composeKomponen menghargai packing
+  // dengan packingRates kosong (harga 0) — save di jendela itu bisa mem-persist harga
+  // understated. Preview/RincianPanel sudah ter-gate lewat `deps`.
+  const hasValidInput = !!ratesData && nama.trim().length > 0 &&
+    (platesForSave.length > 0 || !!inputV2.komponen?.some(k => k.harga > 0))
   const [showPrint, setShowPrint] = useState(false)
 
   return (
