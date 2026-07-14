@@ -1,6 +1,6 @@
 # Formula Kalkulator HPP — Dokumentasi & Rencana Perubahan
 
-> **Status:** Fase 0 selesai (formula di `packages/kalkulator-core`; legacy `hitungKalkulasi` = wrapper di atas `hitungKalkulasiV2`). **Fase 0b-1 selesai** — backend v2 internal siap: tabel `KalkPrinterProfile`/`KalkMaterialProfile`/`KomponenPreset`/`LaborPreset` (+seed `db:seed-kalk-v2`), `loadSettingsV2()` (channel via Config `kalk.channel.<id>`), API CRUD di `/api/kalkulator/{printer-profiles,material-profiles,komponen-presets,labor-presets,settings-v2}`. **Fase 0b-2a selesai** — Settings UI live: card "Kalkulator v2 — Profiles & Presets" di halaman Settings (printer/material/komponen/labor/channel+margin). **Fase 0b-2b-1 selesai** — service kalkulasi jalur v2: resolusi printer/material profile, mesin acuan harga (`mesinPerJamJual` di core; flag `isPricingReference`), input diperluas (labor[]/komponen[]/printerProfileId/materialProfileId, paritas legacy terjaga via test), `KalkulasiLabor` + kolom plate v2 + `hargaChannelJson`, pagination `listKalkulasi`, script `db:migrate-kalk-v2`. Menyusul Fase 0b-2b-2: UI form/panel/history pindah v2 + total per unit + pagination UI + drop kolom legacy.
+> **Status:** Fase 0 selesai (formula di `packages/kalkulator-core`; legacy `hitungKalkulasi` = wrapper di atas `hitungKalkulasiV2`). **Fase 0b-1 selesai** — backend v2 internal siap: tabel `KalkPrinterProfile`/`KalkMaterialProfile`/`KomponenPreset`/`LaborPreset` (+seed `db:seed-kalk-v2`), `loadSettingsV2()` (channel via Config `kalk.channel.<id>`), API CRUD di `/api/kalkulator/{printer-profiles,material-profiles,komponen-presets,labor-presets,settings-v2}`. **Fase 0b-2a selesai** — Settings UI live: card "Kalkulator v2 — Profiles & Presets" di halaman Settings (printer/material/komponen/labor/channel+margin). **Fase 0b-2b-1 selesai** — service kalkulasi jalur v2: resolusi printer/material profile, mesin acuan harga (`mesinPerJamJual` di core; flag `isPricingReference`), input diperluas (labor[]/komponen[]/printerProfileId/materialProfileId, paritas legacy terjaga via test), `KalkulasiLabor` + kolom plate v2 + `hargaChannelJson`, pagination `listKalkulasi`, script `db:migrate-kalk-v2`. **Fase 0b-2b-2 selesai** (kode) — UI kalkulator dashboard internal sepenuhnya pindah ke input v2: form (komponen[] + labor[] generik, packing sebagai baris komponen), PlateTable pakai printer/material profile DB, HasilPanel harga per channel + perbandingan margin per printer, RincianPanel jalur v2, pagination history, badge acuan harga di settings, dan 9 kolom legacy (helm + gantungan/switch/label) di-drop dari schema/service/UI. Detail di §4 "Hasil implementasi 0b-2b-2" di bawah. Menunggu final review + merge + deploy penutup Fase 0b, lalu **Fase 1** (apps/saas).
 
 **Sumber:** `shopee-dashboard/lib/kalkulator/formula.ts` + `rates.ts` (per 2026-07-08)
 **Konteks:** acuan refactor ke `packages/kalkulator-core` (Fase 0 SaaS — lihat `docs/superpowers/specs/2026-07-08-saas-3pb-design.md`)
@@ -109,11 +109,11 @@ Output print bersifat fungible — customer tidak tahu/tidak peduli mesin mana y
 - Konsekuensi UI 0b-2b: HasilPanel bisa menampilkan perbandingan margin per printer profile untuk job yang sama.
 - Menggantikan ide `jualPerJam` per printer (dibatalkan).
 
-### Permintaan UI kalkulator untuk Fase 0b-2b (2026-07-12)
+### Permintaan UI kalkulator untuk Fase 0b-2b (2026-07-12) — ✅ terimplementasi (0b-2b-2)
 
-1. **Total per unit di baris TOTAL part/plate**: selain total gram & durasi seluruh part, tampilkan juga hasil bagi per unit (`total gram ÷ batch`, `total durasi ÷ batch`). Kebutuhan: membandingkan mekanisme produksi batch vs satuan — gram/waktu per unit berbeda antara print sekaligus vs print satuan, dan angka ini jadi penentu mekanisme akhir. Contoh: batch 26, total 317,5 g / 11j53m → per unit 12,2 g / ±27 m.
-2. **Pagination di list history kalkulasi** (KalkulasiHistory) — data sudah banyak; tambahkan pagination (page size ±10) di UI + dukungan `page/limit` di API/service `listKalkulasi` (✅ backend selesai di 0b-2b-1; UI menyusul).
-3. **Panel "Rincian Perhitungan" (debug trace)** — user perlu bisa membaca perhitungan langkah demi langkah untuk debugging. Desain:
+1. ✅ **Total per unit di baris TOTAL part/plate**: selain total gram & durasi seluruh part, tampilkan juga hasil bagi per unit (`total gram ÷ batch`, `total durasi ÷ batch`). Kebutuhan: membandingkan mekanisme produksi batch vs satuan — gram/waktu per unit berbeda antara print sekaligus vs print satuan, dan angka ini jadi penentu mekanisme akhir. Contoh: batch 26, total 317,5 g / 11j53m → per unit 12,2 g / ±27 m. (Dibuat inline di commit `6df7216`, sebelum plan 0b-2b-2 ditulis.)
+2. ✅ **Pagination di list history kalkulasi** (KalkulasiHistory) — data sudah banyak; tambahkan pagination (page size ±10) di UI + dukungan `page/limit` di API/service `listKalkulasi` (backend selesai di 0b-2b-1; UI selesai di 0b-2b-2 — 10/halaman, search tetap lintas halaman).
+3. ✅ **Panel "Rincian Perhitungan" (debug trace)** — user perlu bisa membaca perhitungan langkah demi langkah untuk debugging. Desain:
    - **Core**: `hitungKalkulasiV2` mengembalikan field opsional tambahan `rincian` — per plate: setiap material entry (`gramasi × hppPerGram = matHpp`, idem jual), `mesin = durasiJam × mesinPerJam`, `mesinJual` (bila beda), `failureRatePct` efektif + `failureCost` + pembagiannya (owner/customer via spread), `testCost`, subtotal `plateHpp/plateJual`. Additive — golden test tak tersentuh.
    - **Resolve (app)**: lampirkan metadata sumber tiap angka — printer profile mana (nama, aktual vs acuan), sumber harga material (override manual / katalog FilamentHarga / material profile / default rates), sumber failure rate.
    - **UI**: seksi collapsible di HasilPanel (atau modal 🔍) menampilkan trace dengan formula terisi angka nyata, urut: per plate → agregasi ÷ batch (sekalian total per-unit dari poin sebelumnya) → komponen rows → labor rows → floor → margin A/B/C → fee per channel → status. Live di form (client-side) dan tersedia juga untuk kalkulasi tersimpan.
@@ -168,6 +168,51 @@ Semantik v2 vs legacy:
 
 Plate **SLA multi-material** kini memakai rate SLA (dulu bug: fallback FDM, 300/g vs 1.750/g).
 
-### Belum berubah (menunggu Fase 0b)
+### Belum berubah (status s/d Fase 0b-2b-1)
 
-Dashboard internal masih memanggil wrapper legacy dengan field gantungan/switch/label & mode HELM. Fase 0b: migrasi DB + UI ke v2 (settings printer/material profile, komponen preset, labor cost).
+Dashboard internal masih memanggil wrapper legacy dengan field gantungan/switch/label & mode HELM. Fase 0b: migrasi DB + UI ke v2 (settings printer/material profile, komponen preset, labor cost). *(Selesai di 0b-2b-2 — lihat bagian di bawah.)*
+
+## 5. Hasil implementasi 0b-2b-2 — UI kalkulator dashboard internal pindah v2 (2026-07-14)
+
+Menutup Fase 0b: dashboard internal (`apps/dashboard`) berhenti memanggil wrapper legacy dan sepenuhnya konsumsi `hitungKalkulasiV2` + profil DB. Branch `fase0b2b2-kalkulator-v2-ui`, commits `0a4b3a7..ed74a73`.
+
+### Bentuk `KalkulasiInputV2` final yang dipakai form
+
+Form (`KalkulasiForm.tsx`) sekarang membangun `KalkulasiInputV2` langsung:
+
+- `plates[]` — tiap plate: `printerProfileId` (dari `KalkPrinterProfile`), `materials[]` dengan `materialProfileId` per entry (single-mode maupun multi-material).
+- `komponen[]` — generik `{nama, harga, qty}`, sumber: preset (`KomponenPreset`, termasuk preset "Packing S/M/L/XL" bawaan) atau baris custom di form.
+- `labor[]` — generik `{nama, jam?, ratePerJam?, flat?}`, sumber: preset (`LaborPreset`, termasuk tier Helm lama sebagai preset) atau baris custom.
+- `batch`, `customRiskPct?`, `hargaAktual?: {channelId, harga}` — tidak berubah dari sebelumnya (hanya bentuk pembungkusnya kini v2, bukan legacy `PlateInput`/`Aksesori`).
+
+### Keputusan: packing hidup sebagai baris komponen, bukan field terpisah
+
+`hppKomponen` di formula v2 sudah generik (`Σ komponen.harga × qty`) sejak Fase 0 — tidak ada slot "packing" khusus. Alih-alih menambah field baru di `KalkulasiInputV2` untuk packing (yang akan memecah model generik lagi), keputusan 0b-2b-2: **packing tetap tampil sebagai UI chip/picker familiar (S/M/L/XL) di form, tapi disimpan sebagai baris komponen biasa** dengan nama berpola `"Packing {S|M|L|XL}"`, dicocokkan via regex `/^Packing (S|M|L|XL)$/`. Regex ini didefinisikan dua kali secara sengaja (brief-mandated, bukan util bersama karena beda siklus hidup): `PACKING_RE` di `lib/kalkulator/form-v2.ts` (dipakai `splitPackingRow`) dan inline di `components/kalkulator/KomponenSection.tsx` (untuk membaca harga packing aktif dari `komponenKustom`).
+
+Konsekuensi: kalau kolom `packingType` (legacy) bernilai non-null saat form dibuka (record lama sebelum kolom di-drop), `splitPackingRow(initial.packingType, initial.komponenKustom)` mengangkat nilai itu jadi baris komponen `"Packing {type}"` (harga dari `packingRates` settings saat itu) digabung ke baris komponen yang sudah ada, supaya representasi konsisten dengan record baru. Setelah itu packing hanya hidup sebagai baris komponen; form baru tidak pernah menulis `packingType`.
+
+### Kolom `packingType` = metadata record lama
+
+Kolom `packingType` di tabel `Kalkulasi` **dipertahankan di schema** (tidak di-drop) tapi statusnya berubah jadi metadata historis:
+- Record lama (dibuat sebelum 0b-2b-2 / migrasi `db:migrate-kalk-v2`) masih bisa punya nilai di kolom ini.
+- **Create/update baru selalu menulis `null`** — service tidak lagi membaca/menulis `packingType` sebagai sumber kebenaran; satu-satunya sumber kebenaran adalah baris komponen `"Packing X"`.
+- Alasan mempertahankan (bukan drop total): field ini masih dipakai sebagai fallback baca untuk record lama yang belum punya baris komponen "Packing X" — dua tempat: `duplicateKalkulasi()` di `service.ts` (mem-backfill baris komponen dari `source.packingType` kalau belum ada) dan `KalkulasiForm`/`KomponenSection` saat edit-reload (`splitPackingRow`, lihat di atas).
+
+Kolom legacy lain — **9 kolom di-drop total** dari schema di Task 10 (`ed74a73`): field mode HELM (jam sanding/painting/assembly, rate preparer/finisher, consumables) + `gantunganType`, `switchQty`, `hasLabel`. Script migrasi (`scripts/migrate-kalkulasi-v2.ts`, dipakai sekali untuk migrasi produksi 2026-07-12) dipensiunkan setelah drop — tidak ada lagi kolom sumber untuk dibaca ulang.
+
+### Fitur perbandingan printer (bonus 0b-2b-2)
+
+`HasilPanel` menambah card "Perbandingan Printer" (`hitungPerbandinganPrinter`, di-cover test invarian `2d5d147`): untuk job yang sama, hitung HPP per printer profile yang tersedia (pakai `mesinPerJam` aktual masing-masing) sambil **menahan floor price/harga jual tetap dari mesin acuan harga** (`isPricingReference`) — sesuai keputusan §3 "mesin acuan harga". User bisa lihat margin berubah per mesin produksi tanpa harga jual ikut naik-turun.
+
+### Bagian lain yang ikut pindah v2
+
+- **PlateTable**: dropdown printer & material profile dari DB (ganti hardcoded `PRINTERS`), warning kalau profil yang tersimpan di record sudah terhapus (stale reference).
+- **RincianPanel** (debug trace): jalur v2 penuh — `resolveInputV2` menampilkan sumber tiap angka (printer aktual vs acuan, sumber harga material) alih-alih trace manual legacy.
+- **Settings**: badge/tombol 🎯 "acuan harga" (`isPricingReference`) di `PrinterProfilesSection`.
+- **KalkulatorSettingsCard**: grup gantungan/switch/label/helm dihapus (tidak relevan lagi — semua jadi preset komponen/labor generik).
+- **Pagination UI** di `KalkulasiHistory` (10/halaman, search tetap lintas halaman berkat backend 0b-2b-1).
+
+### Yang TIDAK berubah
+
+- Bot Telegram (`app/api/bot/kalkulator/`) tetap memanggil wrapper legacy `hitungKalkulasi` — di luar scope 0b-2b-2 (fitur baca-saja, bukan form input).
+- 14 golden test paritas legacy (`packages/kalkulator-core/src/formula.test.ts`) tidak disentuh.
