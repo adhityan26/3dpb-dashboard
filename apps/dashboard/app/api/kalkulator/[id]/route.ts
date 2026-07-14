@@ -17,6 +17,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   const body: KalkulasiInput = await req.json()
+  if (!Array.isArray(body.komponen) || !Array.isArray(body.labor)) {
+    return NextResponse.json({ error: 'form kadaluarsa — refresh halaman' }, { status: 400 })
+  }
   const result = await updateKalkulasi(id, body)
   return NextResponse.json(result)
 }

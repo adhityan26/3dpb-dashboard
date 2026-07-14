@@ -16,6 +16,9 @@ export async function POST(req: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body: KalkulasiInput = await req.json()
   if (!body.nama?.trim()) return NextResponse.json({ error: 'nama is required' }, { status: 400 })
+  if (!Array.isArray(body.komponen) || !Array.isArray(body.labor)) {
+    return NextResponse.json({ error: 'form kadaluarsa — refresh halaman' }, { status: 400 })
+  }
   const hasPlates = body.plates?.length > 0
   const hasKomponen = body.komponen?.some((k: { harga: number }) => k.harga > 0)
   if (!hasPlates && !hasKomponen) return NextResponse.json({ error: 'isi minimal 1 plate atau 1 komponen' }, { status: 400 })
