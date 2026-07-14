@@ -41,6 +41,7 @@ function toKalkulasiData(raw: any): KalkulasiData {
       filamentHargaId: p.filamentHargaId ?? undefined,
       hargaPerGram: p.filamentHargaPerGram ?? undefined,
       printerProfileId: p.printerProfileId ?? undefined,
+      materialProfileId: p.materialProfileId ?? undefined,
       mesinPerJam: p.mesinPerJam ?? undefined,
     })),
     komponenKustom: raw.komponenKustom ?? [],
@@ -98,6 +99,7 @@ function platesCreate(input: KalkulasiInput, deps: ResolveDeps) {
     filamentHargaId: p.filamentHargaId ?? null,
     filamentHargaPerGram: p.hargaPerGram ?? null,
     printerProfileId: p.printerProfileId ?? null,
+    materialProfileId: p.materialProfileId ?? null,
     mesinPerJam: resolveMesinAktual(p, deps),
   }))
 }
@@ -210,7 +212,7 @@ export async function duplicateKalkulasi(id: string, newNama: string, newBatch?:
     gantunganType: source.gantunganType ?? undefined,
     switchQty: source.switchQty,
     hasLabel: source.hasLabel,
-    plates: source.plates.map(p => ({ namaPart: p.namaPart ?? undefined, tipe: p.tipe as 'FDM' | 'SLA', printer: p.printer ?? undefined, gramasi: p.gramasi, materials: p.materials, durasiJam: p.durasiJam, filamentHargaId: p.filamentHargaId, hargaPerGram: p.hargaPerGram, printerProfileId: p.printerProfileId ?? undefined })),
+    plates: source.plates.map(p => ({ namaPart: p.namaPart ?? undefined, tipe: p.tipe as 'FDM' | 'SLA', printer: p.printer ?? undefined, gramasi: p.gramasi, materials: p.materials, durasiJam: p.durasiJam, filamentHargaId: p.filamentHargaId, hargaPerGram: p.hargaPerGram, printerProfileId: p.printerProfileId ?? undefined, materialProfileId: p.materialProfileId ?? undefined })),
     komponenKustom: source.komponenKustom.map(k => ({ nama: k.nama, harga: k.harga, qty: k.qty })),
     produktType: source.produktType as import('./types').ProduktType,
     finishType: source.finishType as import('./types').FinishType,

@@ -11,14 +11,15 @@ import type {
   PackingType, ProduktType, FinishType, KomponenItem, LaborItem,
 } from '@3pb/kalkulator-core'
 
-/** PlateInput app-level — tambahan link ke printer profile (resolusi di resolve-v2.ts). */
-export type PlateInputApp = PlateInput & { printerProfileId?: string }
+/** PlateInput app-level — tambahan link ke printer/material profile (resolusi di resolve-v2.ts). */
+export type PlateInputApp = PlateInput & { printerProfileId?: string; materialProfileId?: string }
 
 export interface PlateData extends PlateInput {
   id: string
   urutan: number
   kalkulasiId: string
   printerProfileId?: string | null
+  materialProfileId?: string | null
   mesinPerJam?: number | null
 }
 

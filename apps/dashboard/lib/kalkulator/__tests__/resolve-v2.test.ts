@@ -138,6 +138,14 @@ describe('resolusi profil', () => {
     expect(v2.plates[0].materials[0]).toMatchObject({ hppPerGram: 250, jualPerGram: 800, failureRatePct: 8 })
   })
 
+  it('plate single-material dengan materialProfileId (bukan di materials[]) resolve hpp/jual/failure dari profil', () => {
+    const input = legacyInput({
+      plates: [{ tipe: 'FDM', gramasi: 10, durasiJam: 1, materialProfileId: 'm1' }],
+    })
+    const v2 = resolveInputV2(input, DEPS)
+    expect(v2.plates[0].materials[0]).toMatchObject({ hppPerGram: 250, jualPerGram: 800, failureRatePct: 8, materialProfileId: 'm1' })
+  })
+
   it('override hargaPerGram menang atas material profile (hpp saja, jual tetap profil)', () => {
     const input = legacyInput({
       plates: [{ tipe: 'FDM', durasiJam: 1, materials: [{ brand: 'X', material: 'PLA', color: 'R', gramasi: 10, hargaPerGram: 280, materialProfileId: 'm1' }] }],

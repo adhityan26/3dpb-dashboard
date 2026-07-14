@@ -47,7 +47,7 @@ function resolvePlate(p: PlateInputApp, deps: ResolveDeps): PlateInputV2 & { pri
     : undefined
   const materials = (p.materials && p.materials.length > 0)
     ? p.materials.map(m => resolveMaterial(m, tipe, deps))
-    : [resolveMaterial({ gramasi: p.gramasi ?? 0, hargaPerGram: p.hargaPerGram, materialProfileId: undefined }, tipe, deps)]
+    : [resolveMaterial({ gramasi: p.gramasi ?? 0, hargaPerGram: p.hargaPerGram, materialProfileId: p.materialProfileId }, tipe, deps)]
   return {
     namaPart: p.namaPart,
     durasiJam: p.durasiJam,
@@ -96,7 +96,7 @@ export function resolveInputV2(input: KalkulasiInput, deps: ResolveDeps): Kalkul
     // Paritas wrapper: rate konstan selalu diteruskan supaya plate 0-gram tetap kena buffer.
     // HANYA saat semua material tanpa profil — profil membawa failure rate per jenis.
     customRiskPct: input.customRiskPct ?? (
-      input.plates.some(p => p.printerProfileId || p.materials?.some(m => m.materialProfileId))
+      input.plates.some(p => p.printerProfileId || p.materialProfileId || p.materials?.some(m => m.materialProfileId))
         ? undefined
         : deps.rates.failureRatePct
     ),

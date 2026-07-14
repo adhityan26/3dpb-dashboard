@@ -242,6 +242,7 @@ model KalkulasiPlate {
   filamentHargaPerGram Float?                           // cached rate at time of save
   printerProfileId     String?                          // FK lunak ke KalkPrinterProfile (tanpa relasi — profil bisa dihapus)
   mesinPerJam          Float?                           // cache rate aktual saat save
+  materialProfileId    String?                          // FK lunak ke KalkMaterialProfile (single-material mode)
 }
 
 model KomponenKustom {

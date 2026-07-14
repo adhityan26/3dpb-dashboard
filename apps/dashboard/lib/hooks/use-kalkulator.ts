@@ -35,8 +35,14 @@ async function apiFetch<T>(url: string, opts?: RequestInit): Promise<T> {
   return JSON.parse(text) as T
 }
 
-export function useKalkulasiList() {
-  return useQuery({ queryKey: KALK_KEY, queryFn: () => apiFetch<KalkulasiListResponse>('/api/kalkulator') })
+export function useKalkulasiList(opts?: { page?: number; limit?: number; enabled?: boolean }) {
+  const paged = opts?.page !== undefined
+  const limit = opts?.limit ?? 10
+  return useQuery({
+    queryKey: paged ? [...KALK_KEY, 'page', opts!.page, limit] : KALK_KEY,
+    queryFn: () => apiFetch<KalkulasiListResponse>(paged ? `/api/kalkulator?page=${opts!.page}&limit=${limit}` : '/api/kalkulator'),
+    enabled: opts?.enabled ?? true,
+  })
 }
 
 export function useKalkulasi(id: string) {
@@ -218,6 +224,14 @@ export function useSetDefaultPrinterProfile() {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (id: string) => apiFetch<void>(`/api/kalkulator/printer-profiles/${id}/default`, { method: 'PUT' }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: PRINTER_PROFILES_KEY }),
+  })
+}
+
+export function useSetPricingReferencePrinterProfile() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) => apiFetch<void>(`/api/kalkulator/printer-profiles/${id}/pricing-reference`, { method: 'PUT' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: PRINTER_PROFILES_KEY }),
   })
 }
