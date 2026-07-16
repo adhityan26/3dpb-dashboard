@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { Engine, type Reporter, type Notifier } from '../engine'
 import { normalizeBambu } from '../normalize-bambu'
+import { BambuMqttConnector } from '../connectors/bambu-mqtt'
 import type { DeviceConfig, PrintersPayload, PrinterEvent } from '../types'
 
 const mars: DeviceConfig = { id: 'mars', name: 'Mars', type: 'P1P', connector: 'bambu', ip: 'x', serial: 's', accessCode: 'a' }
@@ -52,5 +53,41 @@ describe('Engine', () => {
     expect(published.length).toBeGreaterThanOrEqual(1)
     await engine.stop()
     vi.useRealTimers()
+  })
+
+  it('connector printer mati (connection refused) tidak menggagalkan engine.start(); snapshot OFFLINE', async () => {
+    const reporter: Reporter = { publishStatus: () => {}, emitEvent: () => {} }
+    const connector = new BambuMqttConnector(mars, { urlOverride: 'mqtt://127.0.0.1:1' })
+    const engine = new Engine({
+      devices: [mars], connectors: [connector], reporters: [reporter],
+      now: () => Date.parse('2026-07-16T01:00:00Z'),
+    })
+    await expect(engine.start()).resolves.toBeUndefined()
+    expect(engine.snapshot().payload[0]).toMatchObject({ name: 'Mars', state: 'OFFLINE' })
+    await engine.stop()
+  })
+
+  it('reporter yang throw (emitEvent/publishStatus) tidak menghentikan engine — reporter lain & status berikutnya tetap diproses', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const published: PrintersPayload[] = []
+    const events: PrinterEvent[] = []
+    const badReporter: Reporter = {
+      emitEvent: () => { throw new Error('boom-event') },
+      publishStatus: () => { throw new Error('boom-publish') },
+    }
+    const goodReporter: Reporter = {
+      emitEvent: (e) => void events.push(e),
+      publishStatus: (p) => void published.push(p),
+    }
+    const engine = new Engine({
+      devices: [mars], connectors: [], reporters: [badReporter, goodReporter],
+      now: () => Date.parse('2026-07-16T01:00:00Z'),
+    })
+    await engine.handleStatus(mk('RUNNING'))
+    await engine.handleStatus(mk('RUNNING', { mc_percent: 50 }))
+    expect(errSpy).toHaveBeenCalledWith('[reporter]', expect.any(Error))
+    errSpy.mockRestore()
+    expect(events.map((e) => e.kind)).toEqual(['started'])
+    expect(published).toHaveLength(2)
   })
 })

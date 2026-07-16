@@ -22,6 +22,9 @@ export function loadConfig(raw: unknown): { config: AppConfig; skipped: { id: st
   const devices: DeviceConfig[] = []
   for (const d of r.devices ?? []) {
     if (!d.id || !d.name || !d.connector) { skipped.push({ id: d.id ?? '?', reason: 'field id/name/connector kurang' }); continue }
+    if (d.connector !== 'bambu' && d.connector !== 'moonraker') {
+      skipped.push({ id: d.id, reason: `connector tidak dikenal: ${d.connector}` }); continue
+    }
     if (d.connector === 'bambu' && (!d.ip || !d.serial || !d.accessCode)) {
       skipped.push({ id: d.id, reason: 'bambu butuh ip+serial+accessCode (isi manual di config.json)' }); continue
     }

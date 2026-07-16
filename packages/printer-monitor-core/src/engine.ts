@@ -53,7 +53,10 @@ export class Engine {
     if (event) {
       const e: PrinterEvent = { deviceId: device.id, kind: event, status: s, prevState: prev?.last_state ?? 'idle' }
       const hmsText = (this.opts.hms ?? new HmsLookup()).translate(s.hms)
-      for (const r of this.opts.reporters) await r.emitEvent(e)
+      for (const r of this.opts.reporters) {
+        try { await r.emitEvent(e) }
+        catch (err) { console.error('[reporter]', err) }
+      }
       for (const n of this.opts.notifiers ?? []) {
         try { await n.notify(e, { printerName: device.name, hmsText }) }
         catch (err) { console.error('[notifier]', err) }
@@ -64,7 +67,10 @@ export class Engine {
 
   private async publish(): Promise<void> {
     const p = this.snapshot()
-    for (const r of this.opts.reporters) await r.publishStatus(p)
+    for (const r of this.opts.reporters) {
+      try { await r.publishStatus(p) }
+      catch (err) { console.error('[reporter]', err) }
+    }
   }
 
   async start(): Promise<void> {

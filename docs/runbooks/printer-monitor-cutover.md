@@ -18,6 +18,12 @@ SEMUA langkah eksekusi produksi GATED persetujuan user. Jangan jalankan tanpa pe
   (state OFFLINE di-skip karena beda timing; last_seen/progress memang beda wajar)
 - Biarkan >15 menit: pastikan tidak ada printer online yang jadi OFFLINE
   (bukti pushall keepalive bekerja).
+- Subscribe `3dpb/printer-events` selama periode paralel (mis. `mosquitto_sub -h <broker> -t 3dpb/printer-events -v`)
+  dan verifikasi event `finished` benar-benar muncul saat satu print selesai.
+  Catatan: state-machine port n8n (capture-event.ts) mendeteksi `finished` hanya lewat transisi
+  running→idle; transisi Bambu RUNNING→FINISH mungkin tidak memicu event ini. Kalau `finished`
+  tidak muncul untuk print yang selesai normal, catat sebagai isu paritas dan putuskan sebelum
+  Fase 3 (push-notif) — jangan asumsikan sudah paritas hanya dari langkah ini.
 
 ## 3. Deploy container di .113 (gated user)
 docker build -f services/printer-monitor/Dockerfile -t printer-monitor:latest .

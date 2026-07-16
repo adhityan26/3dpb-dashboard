@@ -21,4 +21,10 @@ describe('loadConfig', () => {
   it('broker.url wajib', () => {
     expect(() => loadConfig({ devices: [] })).toThrow(/broker\.url/)
   })
+  it('connector tak dikenal (typo) → SKIP dgn reason, TIDAK lolos jadi moonraker', () => {
+    const raw = { ...example, devices: [{ id: 'x', name: 'X', type: 'P1P', connector: 'bambuu', ip: '10.0.0.9' }] }
+    const { config, skipped } = loadConfig(raw)
+    expect(config.devices).toHaveLength(0)
+    expect(skipped).toEqual([{ id: 'x', reason: 'connector tidak dikenal: bambuu' }])
+  })
 })

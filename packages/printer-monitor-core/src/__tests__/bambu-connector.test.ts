@@ -50,4 +50,14 @@ describe('BambuMqttConnector', () => {
     await c.stop()
     expect(got).toHaveLength(0)
   })
+
+  it('printer mati (connection refused) → start() resolve cepat tanpa throw/hang; stop() bersih', async () => {
+    // port 1 = reserved, tidak ada listener → ECONNREFUSED. Sebelum fix, start() reject
+    // di sini (unhandled rejection di Engine.start → proses exit / crash-loop).
+    const c = new BambuMqttConnector(mars, { urlOverride: 'mqtt://127.0.0.1:1', pushallIntervalMs: 50 })
+    const startedAt = Date.now()
+    await expect(c.start(() => {})).resolves.toBeUndefined()
+    expect(Date.now() - startedAt).toBeLessThan(1000)
+    await c.stop()
+  })
 })

@@ -23,7 +23,17 @@ export function buildFromConfig(config: AppConfig): { engine: Engine; reporter: 
 
 async function main() {
   const path = process.env.CONFIG_PATH ?? new URL('../config.json', import.meta.url).pathname
-  const { config, skipped } = loadConfig(JSON.parse(readFileSync(path, 'utf8')))
+  let raw: unknown
+  try {
+    raw = JSON.parse(readFileSync(path, 'utf8'))
+  } catch {
+    console.error(
+      `[config] tidak ditemukan/invalid di ${path} — ` +
+      `cp services/printer-monitor/config.example.json ke config.json lalu isi ip+accessCode`,
+    )
+    process.exit(1)
+  }
+  const { config, skipped } = loadConfig(raw)
   for (const s of skipped) console.warn(`[config] SKIP device ${s.id}: ${s.reason}`)
   console.log(`[printer-monitor] ${config.devices.length} device aktif → ${config.broker.url} topic ${config.topics.status}`)
 

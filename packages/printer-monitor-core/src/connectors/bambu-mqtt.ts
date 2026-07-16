@@ -21,43 +21,48 @@ export class BambuMqttConnector implements Connector {
 
   start(onStatus: (s: NormalizedStatus) => void): Promise<void> {
     const url = this.opts.urlOverride ?? `mqtts://${this.device.ip}:8883`
-    return new Promise((res, rej) => {
-      this.client = mqtt.connect(url, {
-        username: 'bblp', password: this.device.accessCode,
-        rejectUnauthorized: false, reconnectPeriod: 5000,
-      })
-      const reportTopic = `device/${this.device.serial}/report`
-      const requestTopic = `device/${this.device.serial}/request`
-      const pushall = () => this.client?.publish(requestTopic, PUSHALL)
-
-      // Set up message handler first
-      this.client.on('message', (_t, msg) => {
-        try { onStatus(normalizeBambu(this.device.id, JSON.parse(msg.toString()))) }
-        catch { /* frame non-JSON: abaikan */ }
-      })
-
-      // Set up connection handlers
-      this.client.on('connect', () => {
-        this.client!.subscribe(reportTopic)
-        pushall()
-      })
-      this.client.once('connect', () => {
-        this.timer = setInterval(pushall, this.opts.pushallIntervalMs ?? 300_000)
-        res()
-      })
-
-      // Set up error handlers
-      this.client.once('error', (e) => rej(e))
-      this.client.on('error', (err) => {
-        console.error(`[bambu-mqtt ${this.device.id}]`, err.message)
-      })
+    this.client = mqtt.connect(url, {
+      username: 'bblp', password: this.device.accessCode,
+      rejectUnauthorized: false, reconnectPeriod: 5000,
     })
+    const reportTopic = `device/${this.device.serial}/report`
+    const requestTopic = `device/${this.device.serial}/request`
+    const pushall = () => this.client?.publish(requestTopic, PUSHALL)
+
+    // Set up message handler first
+    this.client.on('message', (_t, msg) => {
+      try { onStatus(normalizeBambu(this.device.id, JSON.parse(msg.toString()))) }
+      catch { /* frame non-JSON: abaikan */ }
+    })
+
+    // Subscribe + pushall pada SETIAP event 'connect' (termasuk reconnect setelah printer nyala lagi)
+    this.client.on('connect', () => {
+      this.client!.subscribe(reportTopic)
+      pushall()
+    })
+
+    // Printer mati/unreachable TIDAK BOLEH menggagalkan start() (ECONNREFUSED) atau
+    // menggantungnya (TCP timeout) — mqtt.js sudah reconnectPeriod:5000 dan akan terus
+    // mencoba di background. Staleness→OFFLINE (payload.ts) yang menangani printer mati,
+    // bukan crash proses. Error cukup di-log, jangan reject.
+    this.client.on('error', (err) => {
+      console.error(`[bambu-mqtt ${this.device.id}]`, err.message)
+    })
+
+    // Timer pushall independen dari status koneksi saat ini (guard: publish hanya kalau connected)
+    this.timer = setInterval(() => {
+      if (this.client?.connected) pushall()
+    }, this.opts.pushallIntervalMs ?? 300_000)
+
+    return Promise.resolve()
   }
 
   async stop(): Promise<void> {
     if (this.timer) clearInterval(this.timer)
     this.timer = null
-    await this.client?.endAsync()
+    // force=true: hentikan reconnect loop mqtt.js segera meski koneksi belum pernah sukses
+    // (mis. sedang mencoba connect ke printer mati) — cegah handle tersisa setelah stop().
+    await this.client?.endAsync(true)
     this.client = null
   }
 }
