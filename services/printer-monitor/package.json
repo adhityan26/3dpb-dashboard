@@ -7,6 +7,7 @@
     "start": "tsx src/main.ts",
     "dev": "tsx watch src/main.ts",
     "status": "tsx src/status.ts",
+    "parity": "tsx scripts/parity-check.ts",
     "test": "vitest run"
   },
   "dependencies": {
