@@ -1,0 +1,21 @@
+{
+  "broker": { "url": "mqtt://192.168.88.113:1883" },
+  "topics": { "status": "3dpb/printers-v2", "events": "3dpb/printer-events" },
+  "staleAfterMs": 600000,
+  "pushallIntervalMs": 300000,
+  "moonrakerPollMs": 60000,
+  "republishIntervalMs": 60000,
+  "notifications": null,
+  "devices": [
+    { "id": "jupiter", "name": "Jupiter", "type": "X1C", "connector": "bambu", "serial": "00M09D562001206", "ip": "", "accessCode": "" },
+    { "id": "moon", "name": "Moon", "type": "P2S", "connector": "bambu", "serial": "22E8BJ612404007", "ip": "", "accessCode": "" },
+    { "id": "uranus", "name": "Uranus", "type": "P1S", "connector": "bambu", "serial": "01P00C572300783", "ip": "", "accessCode": "" },
+    { "id": "neptune", "name": "Neptune", "type": "P1S", "connector": "bambu", "serial": "01P00C572502172", "ip": "", "accessCode": "" },
+    { "id": "saturn", "name": "Saturn", "type": "P1S", "connector": "bambu", "serial": "01P09C4B2000180", "ip": "", "accessCode": "" },
+    { "id": "mars", "name": "Mars", "type": "P1P", "connector": "bambu", "serial": "01S00A2C0502433", "ip": "", "accessCode": "" },
+    { "id": "mercury", "name": "Mercury", "type": "A1Mini", "connector": "bambu", "serial": "03090A481400312", "ip": "", "accessCode": "" },
+    { "id": "venus", "name": "Venus", "type": "A1", "connector": "bambu", "serial": "03919E462800737", "ip": "", "accessCode": "" },
+    { "id": "earth", "name": "Earth", "type": "A1", "connector": "bambu", "serial": "03919D562403184", "ip": "", "accessCode": "" },
+    { "id": "ganymede", "name": "Ganymede", "type": "U1", "connector": "moonraker", "ip": "192.168.88.40" }
+  ]
+}

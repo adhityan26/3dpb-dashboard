@@ -19,3 +19,6 @@ apps/dashboard/nginx-proxy-manager
 **/.env
 **/.env.local
 **/.env.deploy
+
+# config.json printer-monitor berisi accessCode Bambu (secret) — jangan pernah masuk build context.
+services/printer-monitor/config.json
