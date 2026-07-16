@@ -15,8 +15,11 @@ export class MqttReporter implements Reporter {
   connect(): Promise<void> {
     return new Promise((res, rej) => {
       this.client = mqtt.connect(this.opts.url, { reconnectPeriod: 5000 })
+      this.client.on('error', (err) => {
+        console.error('[mqtt-reporter]', err.message)
+        rej(err)
+      })
       this.client.once('connect', () => res())
-      this.client.once('error', rej)
     })
   }
   async publishStatus(p: PrintersPayload): Promise<void> {
