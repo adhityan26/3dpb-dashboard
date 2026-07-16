@@ -15,4 +15,13 @@ describe('renderTable', () => {
     expect(out).toContain('58m'); expect(out).toContain('30s ago')
     expect(out).toContain('Jupiter'); expect(out).toContain('OFFLINE'); expect(out).toContain('3h ago')
   })
+
+  it('progress out-of-range & last_seen null tidak crash', () => {
+    const p = { payload: [
+      { name: 'X', type: 'P1P', state: 'running', progress: 150, remaining_min: 0, filename: '', error_msg: '', last_seen: null },
+      { name: 'Y', type: 'A1', state: 'idle', progress: -15, remaining_min: 0, filename: '', error_msg: '', last_seen: null },
+    ] }
+    const out = renderTable(p, T0)
+    expect(out).toContain('150%'); expect(out).toContain('-15%'); expect(out).toContain('-')
+  })
 })

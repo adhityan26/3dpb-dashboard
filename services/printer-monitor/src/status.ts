@@ -10,6 +10,9 @@ client.on('connect', () => {
   client.subscribe(topic)
   console.log(`subscribe ${topic} @ ${url} — menunggu payload retained…`)
 })
+client.on('error', (err) => {
+  console.error(`[status] MQTT error: ${err.message} — reconnecting…`)
+})
 client.on('message', (_t, msg) => {
   try {
     const p = JSON.parse(msg.toString()) as PrintersPayload

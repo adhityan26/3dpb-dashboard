@@ -15,7 +15,8 @@ export function age(nowMs: number, iso: string | null): string {
 }
 
 const bar = (pct: number) => {
-  const filled = Math.round(pct / 10)
+  const safe = Number.isFinite(pct) ? Math.min(100, Math.max(0, pct)) : 0
+  const filled = Math.round(safe / 10)
   return `[${'█'.repeat(filled)}${'░'.repeat(10 - filled)}] ${pct}%`
 }
 
