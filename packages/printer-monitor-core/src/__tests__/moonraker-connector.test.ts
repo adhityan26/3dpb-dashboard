@@ -30,4 +30,13 @@ describe('MoonrakerConnector', () => {
     await c.stop()
     expect(got).toHaveLength(0)
   })
+
+  it('respons non-2xx → tidak emit (dianggap poll gagal)', async () => {
+    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ error: 'boom' }), { status: 500 }))
+    const got: NormalizedStatus[] = []
+    const c = new MoonrakerConnector(gany, { fetchImpl: fetchImpl as unknown as typeof fetch })
+    await c.start((s) => void got.push(s))
+    await c.stop()
+    expect(got).toHaveLength(0)
+  })
 })

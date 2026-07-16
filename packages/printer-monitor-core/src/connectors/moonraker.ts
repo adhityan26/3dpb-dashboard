@@ -16,6 +16,7 @@ export class MoonrakerConnector implements Connector {
     const tick = async () => {
       try {
         const res = await f(url)
+        if (!res.ok) throw new Error(`moonraker ${res.status}`)
         onStatus(normalizeMoonraker(this.device.id, await res.json()))
       } catch { /* printer/moonraker mati: staleness yang menandai OFFLINE */ }
     }
