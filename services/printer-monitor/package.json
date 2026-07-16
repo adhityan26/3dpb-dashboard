@@ -1,0 +1,18 @@
+{
+  "name": "@3pb/printer-monitor",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "dev": "tsx watch src/main.ts",
+    "status": "tsx src/status.ts",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@3pb/printer-monitor-core": "workspace:*",
+    "mqtt": "^5.10.1",
+    "tsx": "^4.19.2"
+  },
+  "devDependencies": { "typescript": "^5", "vitest": "^1.6.1", "@types/node": "^22" }
+}

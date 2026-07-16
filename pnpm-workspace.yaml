@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - services/*
 
 # pnpm 10 memblokir postinstall script by default — izinkan yang dibutuhkan
 onlyBuiltDependencies:

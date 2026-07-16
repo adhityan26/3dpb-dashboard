@@ -20,3 +20,6 @@ node_modules/
 !.env.*.example
 !.env.production.example
 !.env.deploy.example
+
+# Printer monitor config (secrets)
+services/printer-monitor/config.json
