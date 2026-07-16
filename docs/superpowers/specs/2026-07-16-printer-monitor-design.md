@@ -108,7 +108,7 @@ Semua di `packages/printer-monitor-core/` (framework-free, unit-testable):
   - `MoonrakerConnector` — poll HTTP `/printer/objects/query?...` interval N detik.
 - **`normalize(raw, device)` → `NormalizedStatus`** — port dari n8n `Normalize Message` (state map, progress, file, remaining, print_error hex, hms[], error_details).
 - **`StateMachine`** — port dari `Capture Event`: transisi → event `started`/`error`/`finished` berbasis last-state.
-- **`HmsLookup`** — fetch `codes.json` berkala + cache; `translate(hms[]) → string[]`.
+- **`HmsLookup`** — `codes.json` **di-bundle ke build (vendored)** supaya internal zero-internet; refresh online opsional saat tersedia; `translate(hms[]) → string[]`.
 - **`Aggregator`** — gabung semua device jadi payload `3dpb/printers`; `TYPE_MAP`; **staleness >10 menit → OFFLINE**.
 - **`StateStore`** — abstrak (in-memory default; adapter persist opsional untuk history).
 - **`Reporter`** — `interface { publishStatus(payload), emitEvent(event) }`; impl `MqttReporter`, `SupabaseReporter`.
@@ -120,6 +120,8 @@ Semua di `packages/printer-monitor-core/` (framework-free, unit-testable):
 |---|---|---|---|---|
 | **Internal (homelab)** | API dashboard (lokal) | **MQTT lokal** (mosquitto `.113`) → dashboard subscribe | mosquitto `.113` `3dpb/printers` | file lokal di container |
 | **Produk (customer)** | **Supabase Realtime** (`devices` mirror) | **Supabase** (upsert `printer_status`, insert `printer_events`) | broker **lokal** agent (offline-capable) | OS keychain / file |
+
+**Internal = zero dependensi internet (requirement eksplisit):** semua komponen lokal (mosquitto, dashboard, service di `.113`), tanpa Supabase, tanpa license check (mode internal → modul licensing non-aktif, entitlement unlimited), HMS di-bundle (§6), dan service **men-cache daftar device lokal** sehingga tetap boot saat dashboard mati. Hanya jalur SaaS yang phone-home (license + Supabase).
 
 **Penempatan data (produk, model A "Supabase tipis"):**
 - **Agent lokal:** `ip`/`accessCode` — tak pernah ke cloud.
@@ -143,7 +145,7 @@ Semua di `packages/printer-monitor-core/` (framework-free, unit-testable):
 
 ## 10. Risiko & catatan terbuka
 
-- **Secrets belum di tangan:** `ip`+`accessCode` per printer ada di credential terenkripsi n8n (API n8n tak mengekspos). Saat implementasi: ambil dari DB n8n langsung atau isi manual dari Bambu Handy/router. **Serial Mercury** beda antara node Keepalive (`03090A481400312`) dan spec lama n8n (`0309DA4B1400312`) — verifikasi saat isi config.
+- **Secrets:** `ip`+`accessCode` per printer ada di credential terenkripsi n8n (API tak mengekspos) — **keputusan: user isi manual sambil testing** (dari Bambu Handy/router). **Serial Mercury** beda antara node Keepalive (`03090A481400312`) dan spec lama n8n (`0309DA4B1400312`) — verifikasi saat isi config.
 - **Inkonsistensi payload existing:** jalur Bambu publish `payload` sebagai array; jalur Ganymede sebagai string JSON. Service baru harus **seragamkan** (satu format; uji CYD menerima). Casing state juga campur (`finish` vs `FINISH` vs `OFFLINE`) — normalisasi.
 - **Snapmaker U1 via Moonraker** IP `192.168.88.40` — konektor kedua wajib ada sejak v1 (bukan opsional).
 - **Race data-plane vs banyak printer** — satu koneksi MQTT per printer; uji reconnect & pushall.
@@ -163,7 +165,16 @@ Semua di `packages/printer-monitor-core/` (framework-free, unit-testable):
 - **Connector:** integrasi dgn mock MQTT broker + mock Moonraker HTTP.
 - **Reporter:** kontrak `publishStatus`/`emitEvent` (MQTT & Supabase) via double.
 
-## 13. Tata letak monorepo
+## 13. Kontrak keselarasan CYD (mengikat sub-proyek firmware / web-flasher / layout editor)
+
+Keputusan user 2026-07-16 — sub-proyek CYD berikutnya WAJIB align dengan ini:
+
+1. **Firmware sekali flash.** Flash via USB/web-serial hanya sekali di awal (atau saat brick). Update versi firmware selanjutnya via **OTA lewat WiFi** (esp_https_ota / ArduinoOTA), bukan flash ulang.
+2. **Provisioning tanpa flash.** First boot → ESP32 **AP mode + captive portal**: user pilih SSID WiFi, password, dan **IP broker MQTT** dari HP. Tidak ada kredensial di-compile ke firmware. (Evolusi opsional nanti: on-screen picker + keyboard LVGL memanfaatkan touch CYD.)
+3. **Layout dinamis tanpa flash.** Firmware = **renderer generik**; layout = **JSON** (widget, posisi, urutan, binding topic/field) di-publish **retained MQTT** ke topic per-device (mis. `3dpb/cyd/<deviceId>/layout`). CYD subscribe → re-render seketika → **cache di NVS/LittleFS** (survive reboot, jalan offline). Editor drag-and-drop di dashboard hanya menulis JSON ini.
+4. **Batas yang disadari:** *jenis* widget fix per versi firmware; menambah jenis widget baru = update firmware (via OTA, tetap tanpa USB).
+
+## 14. Tata letak monorepo
 
 ```
 packages/printer-monitor-core/   # @3pb/printer-monitor-core — engine (Fase 1)
