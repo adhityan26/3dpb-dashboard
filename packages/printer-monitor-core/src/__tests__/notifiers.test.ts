@@ -42,3 +42,33 @@ describe('PushoverNotifier', () => {
     expect(fetchImpl).toHaveBeenCalledWith('https://api.pushover.net/1/messages.json', expect.anything())
   })
 })
+
+describe('TelegramNotifier — finished & code-span escaping', () => {
+  it('finished template: jam WIB (+7) benar', async () => {
+    const calls: { body: Record<string, unknown> }[] = []
+    const fetchImpl = vi.fn(async (_url: string, init: RequestInit) => {
+      calls.push({ body: JSON.parse(String(init.body)) })
+      return new Response('{}')
+    })
+    const n = new TelegramNotifier({ botToken: 'T', chatIds: ['1'], fetchImpl: fetchImpl as unknown as typeof fetch })
+    const status = normalizeBambu('mars', { print: { gcode_state: 'IDLE', subtask_name: 'file_a.3mf', task_id: 't1' } })
+    status.eventTime = '2026-07-16T17:30:00.000Z' // 00:30 WIB (next day)
+    await n.notify({ deviceId: 'mars', kind: 'finished', prevState: 'running', status }, { printerName: 'Mars', hmsText: [] })
+    const text = String(calls[0].body.text)
+    expect(text).toContain('00:30 WIB')
+  })
+
+  it('started template: file dalam code-span escape hanya backtick & backslash (bukan penuh MarkdownV2)', async () => {
+    const calls: { body: Record<string, unknown> }[] = []
+    const fetchImpl = vi.fn(async (_url: string, init: RequestInit) => {
+      calls.push({ body: JSON.parse(String(init.body)) })
+      return new Response('{}')
+    })
+    const n = new TelegramNotifier({ botToken: 'T', chatIds: ['1'], fetchImpl: fetchImpl as unknown as typeof fetch })
+    const status = normalizeBambu('mars', { print: { gcode_state: 'RUNNING', subtask_name: 'file_a.3mf', task_id: 't1', mc_percent: 0 } })
+    await n.notify({ deviceId: 'mars', kind: 'started', prevState: 'idle', status }, { printerName: 'Mars', hmsText: [] })
+    const text = String(calls[0].body.text)
+    expect(text).toContain('`file_a.3mf`') // file dalam code-span tanpa backslash escape
+    expect(text).not.toContain('`file\\_a\\.3mf`') // bukan di-escape penuh ala MarkdownV2
+  })
+})
