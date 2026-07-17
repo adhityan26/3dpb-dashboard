@@ -2,7 +2,13 @@
 
 **Tanggal:** 2026-07-16
 **Status:** Disetujui (brainstorming lanjutan sesi induk)
-**Scope:** Lapisan teknis di bawah produk SaaS **Slizebiz** untuk milestone **Free live** — scaffold `apps/saas`, `packages/ui`, auth magic-link, data model (auth + entitlement komposit + Config + Waitlist), primitif gating, engine + **teaser kalkulator yang fungsional**, PWA shell, dan deploy ke homelab. **Bukan** implementasi; output = spec yang jadi masukan `writing-plans`.
+**Scope:** Lapisan teknis **aplikasi** SaaS **Slizebiz** (`app.slizebiz.com`) — scaffold `apps/saas`, auth magic-link, data model (auth + entitlement komposit + Config + Waitlist), primitif gating, kalkulator penuh, admin-mini, dan deploy ke **VPS**. **Bukan** implementasi; output = spec yang jadi masukan `writing-plans`.
+
+> **⚠️ RE-SCOPE 2026-07-16 (baca dulu):** 1a dipecah jadi **dua properti terpisah**, bukan satu app:
+> - **`www.slizebiz.com`** = landing + teaser + waitlist → **Cloudflare Pages** (statik, gratis, permanen). Spec sendiri: `2026-07-16-fase1a-landing-design.md`. **Dibangun DULUAN.**
+> - **`app.slizebiz.com`** = aplikasi ber-auth/DB (spec INI) → **VPS** (SumoPod/apa pun), dibangun setelah landing.
+>
+> Akibatnya spec ini di-retarget: **deploy = VPS + `app.slizebiz.com`** (bukan homelab); **teaser DIHAPUS dari sini** (teaser hidup di landing) — app punya kalkulator PENUH (login-gated + Beli); **PWA/offline-first pindah ke 1b** (bukan 1a). Sisi auth/entitlement/Config/admin/gating di bawah tetap valid sebagai desain app. Detail app di-refine saat writing-plans app (setelah landing landas).
 
 **Relasi dokumen:**
 - **Pasangan wajib:** [`2026-07-16-fase1a-funnel-ux-design.md`](2026-07-16-fase1a-funnel-ux-design.md) — mendesain permukaan produk (teaser, landing, gating, modal, legal). Spec ini mengimplementasikan **5 input wajib** di §11 funnel (entitlement komposit, Config+admin-mini, offline-first PWA, magic-link reveal in-place, waitlist). Gabungan kedua spec = build "Free live".
