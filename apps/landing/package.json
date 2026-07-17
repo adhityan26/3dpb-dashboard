@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "tsc --noEmit && tsc -p functions/tsconfig.json --noEmit"
   },
   "dependencies": {
     "@3pb/kalkulator-core": "workspace:*",

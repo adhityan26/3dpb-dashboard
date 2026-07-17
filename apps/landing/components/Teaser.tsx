@@ -1,17 +1,18 @@
 "use client";
 import { useState, useMemo } from "react";
 import { GlassCard, GlassInput } from "@3pb/ui";
-import { teaserView, type TeaserInput } from "@/lib/teaser";
+import { teaserView } from "@/lib/teaser";
 
 const rp = (n: number) => `Rp ${n.toLocaleString("id-ID")}`;
 
 export function Teaser({ onWaitlist }: { onWaitlist: (i: "beli" | "subscribe") => void }) {
-  const [gramasi, setGramasi] = useState(100);
-  const [durasi, setDurasi] = useState(2);
+  const [gramasi, setGramasi] = useState("100");
+  const [durasi, setDurasi] = useState("2");
   const [tipe, setTipe] = useState<"FDM" | "SLA">("FDM");
   const view = useMemo(() => {
-    if (gramasi <= 0 || durasi <= 0) return null;
-    try { return teaserView({ gramasi, durasiJam: durasi, tipe }); } catch { return null; }
+    const g = Number(gramasi), d = Number(durasi);
+    if (!Number.isFinite(g) || !Number.isFinite(d) || g <= 0 || d <= 0) return null;
+    try { return teaserView({ gramasi: g, durasiJam: d, tipe }); } catch { return null; }
   }, [gramasi, durasi, tipe]);
 
   return (
@@ -20,14 +21,14 @@ export function Teaser({ onWaitlist }: { onWaitlist: (i: "beli" | "subscribe") =
       <div className="space-y-3">
         <div>
           <label className="text-[11px] uppercase tracking-wide g-accent">Berat (gram)</label>
-          <GlassInput type="number" min={0} value={gramasi || ""} onChange={e => setGramasi(+e.target.value)} className="w-full" />
+          <GlassInput type="number" min={0} value={gramasi} onChange={e => setGramasi(e.target.value)} className="w-full" />
         </div>
         <div>
           <label className="text-[11px] uppercase tracking-wide g-accent">Durasi print (jam)</label>
-          <GlassInput type="number" min={0} step={0.1} value={durasi || ""} onChange={e => setDurasi(+e.target.value)} className="w-full" />
+          <GlassInput type="number" min={0} step={0.1} value={durasi} onChange={e => setDurasi(e.target.value)} className="w-full" />
         </div>
         <div>
-          <label className="text-[11px] uppercase tracking-wide g-accent">Jenis filament</label>
+          <label className="text-[11px] uppercase tracking-wide g-accent">Jenis material</label>
           <div className="flex gap-2 mt-1">
             {(["FDM", "SLA"] as const).map(t => (
               <button key={t} onClick={() => setTipe(t)}

@@ -14,4 +14,8 @@ describe("validateWaitlist", () => {
   it("body kosong → error", () => {
     expect(validateWaitlist(null)).toEqual({ ok: false, error: "email tidak valid" });
   });
+  it("email terlalu panjang (255+ char) → error", () => {
+    const email = "a".repeat(250) + "@b.com";
+    expect(validateWaitlist({ email, interest: "beli" })).toEqual({ ok: false, error: "email tidak valid" });
+  });
 });

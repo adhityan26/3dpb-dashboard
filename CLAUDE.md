@@ -5,7 +5,9 @@ Monorepo pnpm + Turborepo (sejak 2026-07-08, merge `d74affb`). Sebelumnya repo i
 ```
 apps/dashboard/        → dashboard ops internal 3DPB (Next.js 16, punya CLAUDE.md/AGENTS.md sendiri — BACA itu sebelum menyentuh kode Next)
 apps/saas/             → (belum ada — Fase 1 SaaS, lihat docs/superpowers/specs/2026-07-08-saas-3pb-design.md)
+apps/landing/          → situs marketing statik Slizebiz (www.slizebiz.com, Next static export → Cloudflare Pages; teaser kalkulator + waitlist D1)
 packages/kalkulator-core/ → formula HPP: hitungKalkulasi (legacy wrapper) + hitungKalkulasiV2 + hitungMesinPerJam
+packages/ui/           → tema Glass (glass.css) + primitives, dipakai landing (dan bisa dashboard)
 docs/                  → spec & plan level project; docs/kalkulator-formula.md = before/after formula + catatan paritas
 ```
 
