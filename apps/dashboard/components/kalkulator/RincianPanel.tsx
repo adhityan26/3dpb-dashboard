@@ -192,7 +192,7 @@ export function RincianPanel({ input, deps, hasil, hargaShopeeAktual }: Props) {
             value={`${rp(hasil.resellerStd)} · ${rp(hasil.resellerBulk)}`} />
           {hargaShopeeAktual !== undefined && (
             <Row label={`Status ${hasil.status}`}
-              formula={`harga aktual ${rp(hargaShopeeAktual)} vs Shopee A ${rp(hasil.shopeeA)} & floor ${rp(hasil.floorPrice)}`}
+              formula={`harga aktual ${rp(hargaShopeeAktual)} vs Shopee Kompetitif ${rp(hasil.shopeeA)} & floor ${rp(hasil.floorPrice)}`}
               value="" />
           )}
         </div>

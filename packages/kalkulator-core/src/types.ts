@@ -1,5 +1,6 @@
 export type PrintTipe = 'FDM' | 'SLA'
 export type MarginTier = 'A' | 'B' | 'C'
+export const MARGIN_TIER_LABEL: Record<MarginTier, string> = { A: 'Kompetitif', B: 'Standard', C: 'Premium' }
 export type KalkulasiStatus = 'AMAN' | 'BAWAH_REKM' | 'RUGI' | 'TIDAK_DISET'
 export type PackingType = 'S' | 'M' | 'L' | 'XL'
 export type ProduktType = 'SIMPLE' | 'HELM'

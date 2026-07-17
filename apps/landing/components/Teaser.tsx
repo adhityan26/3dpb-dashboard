@@ -51,17 +51,17 @@ export function Teaser({ onWaitlist }: { onWaitlist: (i: "beli" | "subscribe") =
             <div className="rounded-[10px] p-3" style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.25)" }}>
               <div className="text-[10px] uppercase tracking-wide" style={{ color: "rgba(165,180,252,0.7)" }}>Rekomendasi harga jual</div>
               <div className="text-2xl font-bold" style={{ color: "#a5b4fc" }}>{rp(view.rekomendasi)}</div>
-              <div className="text-[11px] g-t4">margin standar (B)</div>
+              <div className="text-[11px] g-t4">margin Standard</div>
             </div>
             {/* Preview terkunci */}
             <div className="relative rounded-[10px] p-3 overflow-hidden" style={{ border: "1px solid var(--g-inner-border)" }}>
               <div style={{ filter: "blur(5px)", opacity: 0.5 }} className="space-y-1 select-none pointer-events-none">
-                <div className="text-xs g-t2">Margin A · B · C — Offline {view.offlineABC.map(rp).join(" · ")}</div>
+                <div className="text-xs g-t2">Margin Kompetitif · Standard · Premium — Offline {view.offlineABC.map(rp).join(" · ")}</div>
                 <div className="text-xs g-t2">Shopee {view.shopeeABC.map(rp).join(" · ")}</div>
                 <div className="text-xs g-t2">Status vs harga pasar · untung/rugi</div>
               </div>
               <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-3">
-                <p className="text-[11px] g-t2 mb-2">Banding margin A/B/C, untung/rugi vs harga pasar & per channel — <b>segera hadir di app</b></p>
+                <p className="text-[11px] g-t2 mb-2">Banding margin Kompetitif/Standard/Premium, untung/rugi vs harga pasar & per channel — <b>segera hadir di app</b></p>
                 <button onClick={() => onWaitlist("beli")} className="h-8 px-4 rounded-[8px] text-xs font-semibold text-white" style={{ background: "linear-gradient(135deg,#5055e8,#7c84f8)" }}>Beri tahu saya saat rilis</button>
               </div>
             </div>

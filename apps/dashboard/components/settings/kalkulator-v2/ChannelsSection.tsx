@@ -103,7 +103,7 @@ export function ChannelsSection() {
 
       <div className="text-[10px] g-t5 mb-3">Margin tier & reseller bulk (dikali floor price):</div>
       <div className="grid grid-cols-4 gap-2 mb-3">
-        {([['a', 'Margin A ×'], ['b', 'Margin B ×'], ['c', 'Margin C ×'], ['reseller', 'Reseller bulk ×']] as const).map(([key, label]) => (
+        {([['a', 'Margin Kompetitif ×'], ['b', 'Margin Standard ×'], ['c', 'Margin Premium ×'], ['reseller', 'Reseller bulk ×']] as const).map(([key, label]) => (
           <div key={key}>
             <label className="block text-[10px] g-t4 uppercase tracking-wide mb-1">{label}</label>
             <input type="number" min="1" step="0.05" value={margins[key]}
