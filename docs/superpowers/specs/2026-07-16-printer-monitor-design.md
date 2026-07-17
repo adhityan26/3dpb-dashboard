@@ -174,7 +174,33 @@ Keputusan user 2026-07-16 — sub-proyek CYD berikutnya WAJIB align dengan ini:
 3. **Layout dinamis tanpa flash.** Firmware = **renderer generik**; layout = **JSON** (widget, posisi, urutan, binding topic/field) di-publish **retained MQTT** ke topic per-device (mis. `3dpb/cyd/<deviceId>/layout`). CYD subscribe → re-render seketika → **cache di NVS/LittleFS** (survive reboot, jalan offline). Editor drag-and-drop di dashboard hanya menulis JSON ini.
 4. **Batas yang disadari:** *jenis* widget fix per versi firmware; menambah jenis widget baru = update firmware (via OTA, tetap tanpa USB).
 
-## 14. Tata letak monorepo
+## 14. Peta sistem (siapa jalan di mana, siapa bicara ke siapa)
+
+Tujuan: satu tempat rujukan biar tidak perlu hafal — terutama beda perlakuan **Service (internal)** vs **Agent (produk)**, lihat istilah di README/memory proyek.
+
+**Internal (homelab) — SEMUA infra sudah ada, tak ada yang baru diinstall:**
+
+| Komponen | Jalan di mana | Baru? |
+|---|---|---|
+| Broker relay (mosquitto) | `.113:1883` | Sudah ada — dipakai n8n hari ini, akan dipakai Service & (Fase 2) dashboard juga. **Satu broker, dipakai bersama — jangan duplikasi.** |
+| Printer Bambu (broker bawaan tiap unit) | tiap printer, port 8883 | Sudah ada — bawaan LAN Only Mode |
+| Snapmaker U1 / Moonraker | `192.168.88.40`, HTTP | Sudah ada |
+| **Service** (`services/printer-monitor`) | testing: Mac lokal → produksi: container di `.113` | **Baru (Fase 1)** — connect KELUAR ke semua di atas, tak buka port apa pun |
+| CYD | fisik, di rak printer | Sudah ada — subscribe ke broker `.113` (topic tetap sama, tak disentuh) |
+| Dashboard | container `.113`, port 3100 | Sudah ada — Fase 2 akan subscribe broker `.113` juga utk halaman Printer Status |
+
+**Produk (Agent, install customer) — SEMUA baru, satu app, nol setup tambahan:**
+
+| Komponen | Jalan di mana | Baru? |
+|---|---|---|
+| **Agent** (shell yang sama dgn Service, konteks beda) | mesin customer (CLI/Desktop) | Fase 3/4, belum dibangun |
+| Broker relay | **embedded DI DALAM Agent** (aedes, in-process) | Customer tak install apa pun terpisah |
+| CYD customer | rak printer customer | subscribe ke Agent (broker embedded), bukan ke `.113` |
+| Supabase | cloud | jalur laporan Agent → dashboard/SaaS (Fase 3) |
+
+**Prinsip:** internal = *reuse* infra yang sudah ada (nol instalasi baru). Produk = *embed* karena nol infra di sisi customer (nol instalasi tambahan bagi mereka). Dua solusi beda untuk masalah beda — bukan diseragamkan demi konsistensi kosong.
+
+## 15. Tata letak monorepo
 
 ```
 packages/printer-monitor-core/   # @3pb/printer-monitor-core — engine (Fase 1)
