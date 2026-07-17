@@ -1,0 +1,8 @@
+name = "slizebiz-landing"
+compatibility_date = "2024-11-01"
+pages_build_output_dir = "out"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "slizebiz-waitlist"
+database_id = "PLACEHOLDER-isi-setelah-d1-create"
