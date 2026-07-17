@@ -5,4 +5,4 @@ pages_build_output_dir = "out"
 [[d1_databases]]
 binding = "DB"
 database_name = "slizebiz-waitlist"
-database_id = "PLACEHOLDER-isi-setelah-d1-create"
+database_id = "fc76ff99-d167-4570-a8ae-58923ab31e4d"
