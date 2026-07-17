@@ -1,7 +1,7 @@
 "use client"
 
 import type { HasilKalkulasi, KalkulasiStatus } from "@/lib/kalkulator/types"
-import type { ChannelDef } from "@3pb/kalkulator-core"
+import { MARGIN_TIER_LABEL, type ChannelDef } from "@3pb/kalkulator-core"
 import type { PrinterMarginRow } from "@/lib/kalkulator/form-v2"
 
 interface Props {
@@ -93,7 +93,7 @@ export function HasilPanel({
         <div className="rounded-[10px] p-4 text-center"
              style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.25)" }}>
           <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5"
-               style={{ color: "rgba(165,180,252,0.7)" }}>Rekm. Shopee {marginTier}</div>
+               style={{ color: "rgba(165,180,252,0.7)" }}>Rekm. Shopee {MARGIN_TIER_LABEL[marginTier]}</div>
           <div className="text-xl font-bold" style={{ color: "#a5b4fc" }}>
             {fmt(shopeeRekm)}
           </div>
@@ -127,7 +127,7 @@ export function HasilPanel({
               const ch = channels.find(c => c.id === hc.channelId)
               return (
                 <Row key={hc.channelId}
-                     label={`${ch?.nama ?? hc.channelId} A · B · C`}
+                     label={`${ch?.nama ?? hc.channelId} Kompetitif · Standard · Premium`}
                      value={`${fmt(hc.A)} · ${fmt(hc.B)} · ${fmt(hc.C)}`}
                      color={hc.channelId === "shopee" ? "#a5b4fc" : "#34d399"} />
               )
@@ -140,7 +140,7 @@ export function HasilPanel({
                 const margin = net > 0 ? ((net - hasil.hppTotal) / net) * 100 : 0
                 return (
                   <Row key={hc.channelId}
-                       label={`Margin ${ch?.nama ?? hc.channelId} ${marginTier}`}
+                       label={`Margin ${ch?.nama ?? hc.channelId} ${MARGIN_TIER_LABEL[marginTier]}`}
                        value={fmtPct(margin)}
                        color={hc.channelId === "shopee" ? "#a5b4fc" : "#34d399"} />
                 )
@@ -149,15 +149,15 @@ export function HasilPanel({
           </>
         ) : (
           <>
-            <Row label="Offline A · B · C"
+            <Row label="Offline Kompetitif · Standard · Premium"
                  value={`${fmt(hasil.offlineA)} · ${fmt(hasil.offlineB)} · ${fmt(hasil.offlineC)}`}
                  color="#34d399" />
-            <Row label="Shopee A · B · C"
+            <Row label="Shopee Kompetitif · Standard · Premium"
                  value={`${fmt(hasil.shopeeA)} · ${fmt(hasil.shopeeB)} · ${fmt(hasil.shopeeC)}`}
                  color="#a5b4fc" />
             <div style={{ borderTop: "1px solid var(--g-card-border)", marginTop: 4, paddingTop: 4 }}>
-              <Row label={`Margin Offline ${marginTier}`} value={fmtPct(marginOfflineTier)} color="#34d399" />
-              <Row label={`Margin Shopee ${marginTier} (net)`} value={fmtPct(marginShopeeTier)} color="#a5b4fc" />
+              <Row label={`Margin Offline ${MARGIN_TIER_LABEL[marginTier]}`} value={fmtPct(marginOfflineTier)} color="#34d399" />
+              <Row label={`Margin Shopee ${MARGIN_TIER_LABEL[marginTier]} (net)`} value={fmtPct(marginShopeeTier)} color="#a5b4fc" />
             </div>
           </>
         )}
@@ -180,7 +180,7 @@ export function HasilPanel({
               <span className="text-[11px] font-mono w-16 text-right" style={{ color: r.marginShopee >= 0 ? "#a5b4fc" : "#f87171" }}>{fmtPct(r.marginShopee)}</span>
             </div>
           ))}
-          <div className="flex justify-end gap-2 pt-1 text-[9px] g-t5"><span className="w-16 text-right">offline {marginTier}</span><span className="w-16 text-right">shopee net</span></div>
+          <div className="flex justify-end gap-2 pt-1 text-[9px] g-t5"><span className="w-16 text-right">offline {MARGIN_TIER_LABEL[marginTier]}</span><span className="w-16 text-right">shopee net</span></div>
         </div>
       )}
 
@@ -197,16 +197,16 @@ export function HasilPanel({
                value={`${hargaShopeeAktual >= hasil.floorPrice ? "+" : ""}${fmt(hargaShopeeAktual - hasil.floorPrice)}`}
                color={hargaShopeeAktual >= hasil.floorPrice ? "#34d399" : "#f87171"} />
           {marginTier === "A" && (
-            <Row label="vs Rekm. Shopee A"
+            <Row label="vs Rekm. Shopee Kompetitif"
                  value={`${hargaShopeeAktual >= hasil.shopeeA ? "+" : ""}${fmt(hargaShopeeAktual - hasil.shopeeA)}`}
                  color={hargaShopeeAktual >= hasil.shopeeA ? "#34d399" : "#f87171"} />
           )}
           {marginTier !== "A" && (
             <>
-              <Row label="vs Rekm. Shopee A"
+              <Row label="vs Rekm. Shopee Kompetitif"
                    value={`${hargaShopeeAktual >= hasil.shopeeA ? "+" : ""}${fmt(hargaShopeeAktual - hasil.shopeeA)}`}
                    color={hargaShopeeAktual >= hasil.shopeeA ? "#34d399" : "#f87171"} />
-              <Row label={`vs Rekm. Shopee ${marginTier}`}
+              <Row label={`vs Rekm. Shopee ${MARGIN_TIER_LABEL[marginTier]}`}
                    value={`${hargaShopeeAktual >= shopeeRekm ? "+" : ""}${fmt(hargaShopeeAktual - shopeeRekm)}`}
                    color={hargaShopeeAktual >= shopeeRekm ? "#34d399" : "#f87171"} />
             </>
@@ -226,11 +226,11 @@ export function HasilPanel({
           <Row label="vs Floor Price"
                value={`${hargaOfflineAktual >= hasil.floorPrice ? "+" : ""}${fmt(hargaOfflineAktual - hasil.floorPrice)}`}
                color={hargaOfflineAktual >= hasil.floorPrice ? "#34d399" : "#f87171"} />
-          <Row label="vs Rekm. Offline A"
+          <Row label="vs Rekm. Offline Kompetitif"
                value={`${hargaOfflineAktual >= hasil.offlineA ? "+" : ""}${fmt(hargaOfflineAktual - hasil.offlineA)}`}
                color={hargaOfflineAktual >= hasil.offlineA ? "#34d399" : "#f87171"} />
           {marginTier !== "A" && (
-            <Row label={`vs Rekm. Offline ${marginTier}`}
+            <Row label={`vs Rekm. Offline ${MARGIN_TIER_LABEL[marginTier]}`}
                  value={`${hargaOfflineAktual >= offlineRekm ? "+" : ""}${fmt(hargaOfflineAktual - offlineRekm)}`}
                  color={hargaOfflineAktual >= offlineRekm ? "#34d399" : "#f87171"} />
           )}

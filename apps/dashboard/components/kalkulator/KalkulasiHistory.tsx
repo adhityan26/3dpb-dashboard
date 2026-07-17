@@ -4,6 +4,7 @@ import { useState } from "react"
 import { useKalkulasiList, useDeleteKalkulasi, useDuplicateKalkulasi } from "@/lib/hooks/use-kalkulator"
 import { KatalogForm } from "@/components/katalog/KatalogForm"
 import type { KalkulasiData, KalkulasiStatus } from "@/lib/kalkulator/types"
+import { MARGIN_TIER_LABEL } from "@3pb/kalkulator-core"
 
 const STATUS_COLOR: Record<KalkulasiStatus, string> = {
   AMAN:        "#34d399",
@@ -131,7 +132,7 @@ export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
                     <span>{k.plates.length} part · {k.batch}×</span>
                     <span className="text-[9px] px-1.5 py-0.5 rounded g-accent"
                           style={{ background: "rgba(99,102,241,0.1)", fontSize: 9 }}>
-                      Tier {tier}
+                      Tier {MARGIN_TIER_LABEL[tier]}
                     </span>
                     <span>{new Date(k.createdAt).toLocaleDateString("id-ID", { day: "numeric", month: "short" })}</span>
                   </div>
@@ -140,7 +141,7 @@ export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
                 {/* Prices: offline, shopee, floor + actuals */}
                 <div className="text-right flex-shrink-0 space-y-0.5">
                   <div className="flex items-center justify-end gap-1.5">
-                    <span className="text-[9px] g-t4">Off {tier}</span>
+                    <span className="text-[9px] g-t4">Off {MARGIN_TIER_LABEL[tier]}</span>
                     <span className="text-[11px] font-bold" style={{ color: "#6ee7b7" }}>{fmt(offlinePrice)}</span>
                   </div>
                   {k.hargaOfflineAktual != null && k.hargaOfflineAktual > 0 && (
@@ -153,7 +154,7 @@ export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
                     </div>
                   )}
                   <div className="flex items-center justify-end gap-1.5">
-                    <span className="text-[9px] g-t4">Shopee {tier}</span>
+                    <span className="text-[9px] g-t4">Shopee {MARGIN_TIER_LABEL[tier]}</span>
                     <span className="text-[11px] font-bold" style={{ color: "#a5b4fc" }}>{fmt(shopeePrice)}</span>
                   </div>
                   {k.hargaShopeeAktual != null && k.hargaShopeeAktual > 0 && (
@@ -181,13 +182,13 @@ export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
                   {/* Price details — full A/B/C breakdown */}
                   <div className="grid grid-cols-3 gap-x-3 gap-y-1 text-[10px]">
                     <div>
-                      <div className="g-t4 mb-0.5">Offline A · B · C</div>
+                      <div className="g-t4 mb-0.5">Offline Kompetitif · Standard · Premium</div>
                       <div style={{ color: "#6ee7b7" }}>
                         {fmt(k.offlineA)} · {fmt(k.offlineB)} · {fmt(k.offlineC)}
                       </div>
                     </div>
                     <div>
-                      <div className="g-t4 mb-0.5">Shopee A · B · C</div>
+                      <div className="g-t4 mb-0.5">Shopee Kompetitif · Standard · Premium</div>
                       <div style={{ color: "#a5b4fc" }}>
                         {fmt(k.shopeeA)} · {fmt(k.shopeeB)} · {fmt(k.shopeeC)}
                       </div>

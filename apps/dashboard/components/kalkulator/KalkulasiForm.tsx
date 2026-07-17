@@ -12,6 +12,7 @@ import {
 import { useKatalogList } from "@/lib/hooks/use-katalog"
 import { useProducts } from "@/lib/hooks/use-products"
 import type { KalkulasiData, KalkulasiInput, MarginTier, HasilKalkulasi, PackingType, PlateInputApp } from "@/lib/kalkulator/types"
+import { MARGIN_TIER_LABEL } from "@3pb/kalkulator-core"
 import { buildHasilV2, type ResolveDeps } from "@/lib/kalkulator/resolve-v2"
 import { composeKomponen, splitPackingRow, hitungPerbandinganPrinter, type KomponenRow, type LaborRow } from "@/lib/kalkulator/form-v2"
 import { PrintableQuote } from "./PrintableQuote"
@@ -237,7 +238,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
                   <button
                     key={tier}
                     onClick={() => setMarginTier(tier)}
-                    className="flex-1 h-10 rounded-[8px] text-sm font-bold transition-all"
+                    className="flex-1 h-10 rounded-[8px] text-[11px] font-bold transition-all px-1"
                     style={
                       marginTier === tier
                         ? {
@@ -252,7 +253,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
                           }
                     }
                   >
-                    {tier}
+                    {MARGIN_TIER_LABEL[tier]}
                   </button>
                 ))}
               </div>
