@@ -3,6 +3,7 @@ import { useState } from "react";
 import { GlassInput } from "@3pb/ui";
 export function WaitlistForm({ interest, onDone }: { interest: "beli" | "subscribe"; onDone?: () => void }) {
   const [email, setEmail] = useState("");
+  const [consent, setConsent] = useState(false);
   const [state, setState] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [msg, setMsg] = useState("");
   async function submit() {
@@ -19,9 +20,9 @@ export function WaitlistForm({ interest, onDone }: { interest: "beli" | "subscri
     <div className="space-y-2">
       <GlassInput type="email" placeholder="email@kamu.com" value={email} onChange={e => setEmail(e.target.value)} className="w-full" />
       <label className="flex items-start gap-2 text-[10px] g-t4">
-        <input type="checkbox" required /> Setuju email disimpan sesuai <a href="/privasi" className="underline">Kebijakan Privasi</a>.
+        <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} /> Setuju email disimpan sesuai <a href="/privasi" className="underline">Kebijakan Privasi</a>.
       </label>
-      <button onClick={submit} disabled={state === "loading"} className="w-full h-9 rounded-[8px] text-sm font-semibold text-white disabled:opacity-50" style={{ background: "linear-gradient(135deg,#5055e8,#7c84f8)" }}>
+      <button onClick={submit} disabled={state === "loading" || !email || !consent} className="w-full h-9 rounded-[8px] text-sm font-semibold text-white disabled:opacity-50" style={{ background: "linear-gradient(135deg,#5055e8,#7c84f8)" }}>
         {state === "loading" ? "..." : "Daftar waitlist"}
       </button>
       {state === "error" && <p className="text-[11px] text-red-400">{msg}</p>}
