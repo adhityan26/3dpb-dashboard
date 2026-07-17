@@ -1,0 +1,8 @@
+# node_modules, .next, .turbo, .DS_Store, .idea sudah dicover root .gitignore
+
+# next.js static export output
+/out/
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
