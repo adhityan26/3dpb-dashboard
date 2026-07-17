@@ -153,7 +153,7 @@ Semua di `packages/printer-monitor-core/` (framework-free, unit-testable):
 ## 11. Roadmap implementasi (difase)
 
 - **Fase 1 — Core + shell server/CLI + cutover internal** (spec ini, prioritas sekarang): `packages/printer-monitor-core` + `services/printer-monitor` (daemon Docker + TUI, `MqttReporter`), reproduksi Bambu+Moonraker+pushall+HMS, cutover dari n8n. Selesai = n8n printer-workflow mati, CYD tetap jalan, Jupiter hidup lagi.
-- **Fase 2 — Integrasi dashboard**: device registry API/UI + halaman Printer Status live (ganti statis) + entitlement seam (unlimited internal).
+- **Fase 2 — Integrasi dashboard**: device registry API/UI + halaman Printer Status live (ganti statis, ini adalah web interface-nya — service sendiri TETAP tanpa web UI) + entitlement seam (unlimited internal) + **distribusi CLI sebagai single binary** (`bun build --compile`, target macOS/Linux/Windows) supaya advanced-user self-host tak perlu install Node/pnpm — tanpa rewrite core TS yang sudah ada.
 - **Fase 3 — Transport produk**: `SupabaseReporter` + skema Supabase (`printer_status`/`printer_events`/`devices`) + RLS + push notif.
 - **Fase 4 — Shell desktop**: Tauri Mac/Win, GUI + keychain, embed provisioning.
 - **Fase 5 — Licensing**: gate limit device di control-plane (model A).
