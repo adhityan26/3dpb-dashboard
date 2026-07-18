@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Migrate CYD internal firmware to its own repo, make its 3 printer screens JSON-driven (grid layout, configurable fields, no reflash to rearrange), add a dashboard editor + confirmation loop, then add WiFi/broker captive-portal provisioning (no reflash to reconfigure network).
+**Goal:** Migrate CYD internal firmware to its own repo, make its 3 printer screens JSON-driven (grid layout, configurable fields, no reflash to rearrange), add a dashboard editor + confirmation loop, add WiFi/broker captive-portal provisioning (no reflash to reconfigure network), and add wireless firmware upload (no USB cable for routine code updates).
 
-**Architecture:** One generic grid+fields renderer (`layout_*` files) replaces 3 hardcoded C++ screens. Config arrives as JSON over MQTT retained (`3dpb/cyd/internal-rack/layout`), cached to LittleFS, with a baked-in default fallback. Dashboard (`apps/dashboard`, shopee-analysis) authors the JSON via a fixed-grid form and confirms application via a readback topic. WiFi/broker config moves from compile-time `#define` to WiFiManager-driven runtime provisioning (AP-mode captive portal), stored in NVS.
+**Architecture:** One generic grid+fields renderer (`layout_*` files) replaces 3 hardcoded C++ screens. Config arrives as JSON over MQTT retained (`3dpb/cyd/internal-rack/layout`), cached to LittleFS, with a baked-in default fallback. Dashboard (`apps/dashboard`, shopee-analysis) authors the JSON via a fixed-grid form and confirms application via a readback topic. WiFi/broker config moves from compile-time `#define` to WiFiManager-driven runtime provisioning (AP-mode captive portal), stored in NVS. Firmware code updates (not just config) go over WiFi too, via `ArduinoOTA` — same `pio run -t upload` command the dev already uses, just targeting the device's network address instead of a USB port.
 
 **Tech Stack:** PlatformIO/Arduino (ESP32), TFT_eSPI, ArduinoJson v7, PubSubClient, WiFiManager (tzapu), LittleFS, `Preferences` (NVS). Dashboard: Next.js 16 (`apps/dashboard`), `mqtt` npm package. `packages/printer-monitor-core` (TypeScript, small addendum).
 
@@ -2081,6 +2081,110 @@ git commit -m "feat(provisioning): WiFiManager captive portal + broker IP param 
 
 ---
 
+### Task 13: `ArduinoOTA` — upload firmware via WiFi (ganti USB utk update rutin)
+
+**Files:**
+- Modify: `apps/internal/platformio.ini` (env baru `cyd_ota`, extends `cyd`)
+- Modify: `apps/internal/src/config.h` dan `config.h.example` (tambah `OTA_PASSWORD`)
+- Modify: `apps/internal/src/main.cpp` (setup+handle `ArduinoOTA`)
+
+**Interfaces:**
+- Consumes: `ArduinoOTA` (bawaan ESP32 core, tak perlu `lib_deps`), `gMqttBrokerIp`/WiFi sudah connect (Task 12 — OTA butuh WiFi aktif, urutan setelah Task 12 di `setup()`).
+- Produces: `pio run -e cyd_ota -t upload` bekerja dari Mac tanpa kabel USB, selama device sudah pernah di-flash sekali via USB (Task 1/12) dan terhubung ke WiFi yang sama dgn Mac.
+
+- [ ] **Step 1: Tambah `OTA_PASSWORD` ke config** (dev-only secret, TETAP compile-time `#define` — beda dari WiFi/broker Task 12 yg jadi runtime, krn ini bukan sesuatu yg diisi lewat captive portal, cukup dev-time constant di file gitignored)
+
+`config.h.example` — tambah baris:
+```cpp
+// OTA (upload firmware via WiFi, ganti USB) — password wajib, sync dgn env var
+// PIO_OTA_PASSWORD yg dipakai `pio run -e cyd_ota -t upload` (lihat platformio.ini)
+#define OTA_PASSWORD "gantidenganpasswordsendiri"
+```
+`config.h` (real, gitignored) — isi dengan password sungguhan pilihan dev (bukan file yang di-commit).
+
+- [ ] **Step 2: Tambah env `cyd_ota` di `platformio.ini`**
+
+```ini
+[env:cyd_ota]
+extends = env:cyd
+upload_protocol = espota
+upload_port = cyd-internal-rack.local
+upload_flags =
+  --auth=${sysenv.PIO_OTA_PASSWORD}
+```
+Dev perlu `export PIO_OTA_PASSWORD=<sama persis isi OTA_PASSWORD di config.h>` di shell profile sebelum pakai `-e cyd_ota`. `[env:cyd]` (USB) tetap ada tak berubah — dipakai utk flash pertama kali / recovery kalau OTA gagal.
+
+- [ ] **Step 3: Setup + handle `ArduinoOTA` di `main.cpp`**
+
+Tambah include dan fungsi setup:
+```cpp
+#include <ArduinoOTA.h>
+
+static void setupOTA() {
+  ArduinoOTA.setHostname("cyd-internal-rack");
+  ArduinoOTA.setPassword(OTA_PASSWORD);
+  ArduinoOTA.onStart([]() {
+    Serial.println("[OTA] Start");
+    tft.fillScreen(C_BG);
+    tft.setTextColor(C_YELLOW, C_BG);
+    tft.setTextSize(2);
+    tft.setCursor(10, 100);
+    tft.print("Updating firmware...");
+  });
+  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
+    tft.fillRect(10, 140, 300, 10, tft.color565(25,25,35));
+    int fillW = (int)((float)progress / total * 300);
+    tft.fillRect(10, 140, fillW, 10, C_GREEN);
+  });
+  ArduinoOTA.onError([](ota_error_t error) {
+    Serial.printf("[OTA] Error[%u]\n", error);
+  });
+  ArduinoOTA.begin();
+  Serial.println("[OTA] ready");
+}
+```
+Panggil `setupOTA();` di `setup()`, **setelah** `wifiConnect()` (butuh WiFi aktif) dan setelah `wifiResetIfBootHeld()`:
+```cpp
+  wifiResetIfBootHeld();
+  ...
+  wifiConnect();
+  setupOTA();   // NEW
+```
+Panggil `ArduinoOTA.handle();` di baris pertama `loop()`:
+```cpp
+void loop() {
+  ArduinoOTA.handle();   // NEW — cek incoming upload tiap iterasi
+  static time_t lastUpdatedAt = 0;
+  ...
+```
+
+- [ ] **Step 4: Compile check (USB env, tak berubah)**
+
+```bash
+cd apps/internal
+pio run -e cyd
+```
+Expected: `SUCCESS`.
+
+- [ ] **Step 5: Verifikasi manual (butuh hardware + jaringan, tak ada automated test)**
+
+Flash sekali via USB (`pio run -e cyd -t upload`) supaya firmware ber-OTA ini sudah terpasang. Ubah 1 baris kecil (mis. `Serial.println` baru), lalu:
+```bash
+export PIO_OTA_PASSWORD=<isi sama dgn config.h>
+cd apps/internal
+pio run -e cyd_ota -t upload
+```
+Expected: PlatformIO menemukan device via mDNS (`cyd-internal-rack.local`), upload berjalan **tanpa kabel USB**, layar tampilkan progress bar "Updating firmware...", device reboot otomatis dgn kode baru.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add platformio.ini src/config.h.example src/main.cpp
+git commit -m "feat(ota): ArduinoOTA — upload firmware via WiFi (env cyd_ota), USB tetap tersedia utk flash pertama/recovery"
+```
+
+---
+
 ## Self-Review (dijalankan penulis plan)
 
 1. **Spec coverage — layout-dinamis:** §3.1 migrasi → Task 1. §3.2 skema (grid/rowWeights/fields/label/id-stabil) → Task 2-3. §3.3 kontrak MQTT (config+readback) → Task 7. §3.4 renderer+cache+fallback+paging dinamis → Task 4-6. §3.5 editor dashboard (form+auto-generate-detail+konfirmasi) → Task 10-11. Prasyarat `id` di `printer-monitor-core` → Task 8-9. Semua tercakup.
@@ -2088,3 +2192,4 @@ git commit -m "feat(provisioning): WiFiManager captive portal + broker IP param 
 3. **Placeholder scan:** tidak ada TBD/TODO; setiap step berisi kode konkret. Satu catatan jujur ditinggalkan eksplisit (Task 6 Step 3: fitur "pause rotasi" UI lama didrop, ditandai bukan blocker — bukan placeholder, keputusan scope terdokumentasi).
 4. **Type consistency:** `LayoutConfig`/`LayoutPage`/`LayoutCell`/`FieldRow`/`FieldEntry`/`FieldId` (Task 2) dipakai identik di Task 3 (parser), 4 (renderer), 5 (store), 6 (screen). `applyLayout`/`applyLayoutAndCache` signature disepakati ulang di Task 7 Step 3 (menambah param `rawJson`/`len`) — perubahan ini eksplisit ditulis sbg revisi Task 5's forward declaration, bukan kontradiksi diam-diam. `PrinterData.id` (Task 9) dipakai `findPrinterById` yg sudah ditulis Task 6 dgn catatan "Task 9 akan ganti" — konsisten, bukan bug.
 5. **Sequencing (spec WiFi §5):** Task 1-11 (layout) dieksekusi penuh dan di-commit sebelum Task 12 (provisioning) mulai — keduanya menyentuh `main.cpp`, urutan linear plan ini sudah menjamin itu (bukan paralel).
+6. **Task 13 (OTA, ditambah setelah user review pertama):** di luar 2 spec tertulis (bukan §13-poin-1 lama sepenuhnya — cuma mekanisme upload wireless via `ArduinoOTA`, bukan sistem OTA hosting/versioning penuh, sesuai konfirmasi user). Ditaruh terakhir krn butuh WiFi aktif (Task 12) dan bukan blocker utk Task 1-12 manapun — aman ditambah di akhir linear plan tanpa reorder.
