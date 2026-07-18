@@ -17,6 +17,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   entitlement   Entitlement?
+  payments      Payment[]
   createdAt     DateTime     @default(now())
 }
 
@@ -82,4 +83,22 @@ model WaOtp {
   lastSentAt  DateTime @default(now())
   sentCount   Int      @default(0)
   windowStart DateTime @default(now())
+}
+
+model Payment {
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tier         String
+  displayPrice Int
+  amount       Int
+  uniqueCode   Int
+  qrPayload    String
+  status       String    @default("PENDING")
+  paidMarkedAt DateTime?
+  verifiedAt   DateTime?
+  verifiedBy   String?
+  createdAt    DateTime  @default(now())
+
+  @@index([status, createdAt])
 }
