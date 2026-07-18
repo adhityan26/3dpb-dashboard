@@ -43,20 +43,42 @@ Migrasi: `git subtree split --prefix=apps/claude-monitor` di `3dpb-app` → impo
 
 ### 3.2 Skema JSON layout
 
+Direview via konsultasi UX (Fable) + review Product — hasil final (grid, bukan pixel; `fields` array-of-rows, bukan preset kaku):
+
 ```typescript
-interface LayoutConfig { pages: LayoutPage[] }
-interface LayoutPage {
-  id: string                              // mis. "rack", "detail-1"
-  style: "compact" | "detail" | "mini"    // compact=Rack, detail=3-card, mini=grid 2 kolom
-  durationSec: number                     // 0 = halaman manual (spt Rack skrg); >0 = auto-rotate saat diparkir (spt Detail skrg, 8s)
-  cells: LayoutCell[]
+interface LayoutConfig {
+  schemaVersion: 1
+  pages: LayoutPage[]           // maks 8 halaman
 }
+interface LayoutPage {
+  id: string                    // mis. "rack", "detail-1"
+  grid: { cols: number; rows: number; rowWeights?: number[] }  // rowWeights: proporsi relatif tinggi tiap baris (default seragam kalau tak diisi)
+  fields: FieldRow[]             // default field per cell, bisa di-override per cell (lihat cells[].fields)
+  durationSec: number            // 0 = halaman manual (spt Rack skrg); >0 = auto-rotate saat diparkir (spt Detail skrg, 8s)
+  cells: LayoutCell[]            // maks 24 cell/halaman
+}
+type FieldRow = FieldEntry[]                    // satu baris visual; >1 entry = dibagi rata kiri-kanan dlm baris itu
+type FieldEntry = FieldId | { id: FieldId; label?: string }   // string = pakai label bawaan; object = override label
+type FieldId = "name" | "type" | "state" | "progress" | "progressBar"
+             | "timeLeft" | "eta" | "filename" | "error"
 interface LayoutCell {
-  x: number; y: number; w: number; h: number   // piksel, origin kiri-atas 320×240
-  printer: string                               // match field `name` di payload 3dpb/printers
+  type?: "printer" | "label"    // default "printer"
+  printer?: string              // WAJIB kalau type=printer — id STABIL printer (bukan display name, lihat catatan di bawah)
+  text?: string                 // WAJIB kalau type=label — teks statis (mis. "RAK KIRI")
+  col: number; row: number; colSpan?: number; rowSpan?: number   // default span=1
+  fields?: FieldRow[]           // override fields default halaman, khusus cell ini (mis. Ganymede tampilkan filename)
 }
 ```
-Field `printer` yang tak match printer manapun di payload live → cell digambar kosong (state implisit OFFLINE, tanpa error). Tidak ada validasi skema di firmware selain field wajib ada — payload malformed → `deserializeJson` gagal → **pertahankan layout lama** (retained sebelumnya / cache), jangan crash/blank.
+
+**Referensi printer via `id` stabil, bukan `name` tampilan** — rename printer di masa depan tak boleh merusak layout. **Prasyarat kecil di luar spec ini:** payload `3dpb/printers` (`packages/printer-monitor-core`, sudah live sejak Fase 1) sekarang cuma expose `name`; perlu tambahan field `id` (aditif, backward-compatible — `id` sudah ada di `DeviceConfig` tiap device, tinggal di-passthrough ke `PrinterRow`).
+
+**`progressBar`** dirender sebagai bar visual (track abu-abu + isi warna sesuai state, `fillRect`), BUKAN teks — beda dari `progress` (teks `"45%"`). Baris berisi `progressBar` pakai tinggi lebih pendek (~10px) daripada baris teks (~16px) di tabel statis firmware.
+
+**Graceful degradation:** firmware gambar `fields` baris demi baris (top→bottom) sampai tinggi cell habis, lalu berhenti (baris yang tak muat di-skip, bukan error). Sel kecil (rack) otomatis cuma tampil `name+state+progress`; sel besar (detail) otomatis tampil semua field yang dikonfigurasi.
+
+**Cell `type:"label"`** — teks statis, tak terikat printer manapun (ganti hardcode "RAK KIRI"/"RAK KANAN" di kode lama).
+
+**Validasi & fallback:** `printer` yang tak match id manapun di payload live → cell digambar kosong (state implisit OFFLINE). Payload malformed atau `pages`/`cells` melebihi limit (8 halaman / 24 cell) → `deserializeJson`/validasi gagal → **pertahankan layout lama** (retained sebelumnya / cache), jangan crash/blank. Limit di atas dipilih supaya ukuran `JsonDocument` ArduinoJson bisa di-bound statis (device RAM terbatas).
 
 ### 3.3 Kontrak MQTT
 
@@ -68,13 +90,16 @@ Field `printer` yang tak match printer manapun di payload live → cell digambar
 
 Fungsi baru menggantikan 3 fungsi lama (`screens/printers.cpp`):
 ```cpp
-void screenLayoutDraw(int pageIndex);                 // baca gLayout.pages[pageIndex], loop cells, gambar tiap cell sesuai style
-void drawGenericCell(int x,int y,int w,int h, const PrinterData& p, CellStyle style);  // style-parameterized: refactor drawCell()+drawRow() jadi satu, param style menentukan densitas info (compact=nama+tipe+state+bar kecil spt drawCell skrg; detail=full spt drawRow skrg; mini=nama+state saja)
-void onLayoutMessage(const char* topic, byte* payload, unsigned int len);  // MQTT callback: parse, simpan ke gLayout in-memory, tulis ke LittleFS, invalidate redraw
+void screenLayoutDraw(int pageIndex);   // hitung geometri grid (cellW=screenW/cols, cellH=screenH*rowWeight/sum), loop cells, panggil drawCell per cell
+void drawLabelCell(int x,int y,int w,int h, const char* text);        // cell type=label
+void drawPrinterCell(int x,int y,int w,int h, const PrinterData& p, const FieldRow* fields, int fieldCount);  // loop fields baris demi baris, dispatch per FieldId ke drawTextField()/drawProgressBar(), stop saat tinggi habis (graceful degradation)
+void onLayoutMessage(const char* topic, byte* payload, unsigned int len);  // MQTT callback: parse+validasi (schemaVersion, limit 8 halaman/24 cell), simpan ke gLayout in-memory, tulis ke LittleFS, invalidate redraw. Gagal parse/validasi → gLayout TAK diubah (layout lama tetap dipakai)
 void loadLayoutFromCache();    // baca /layout.json dari LittleFS saat boot (sebelum WiFi/MQTT connect) — offline-capable
-void applyDefaultLayout();     // fallback baked-in, ISI PERSIS tampilan Rack+Detail hardcode sekarang (10 printer di posisi sama) — dipakai kalau LittleFS kosong DAN belum pernah terima MQTT
+void applyDefaultLayout();     // fallback baked-in sederhana (grid 6×4 cocok topologi 10-printer sekarang) — dipakai kalau LittleFS kosong DAN belum pernah terima MQTT. Auto-layout generik dari printer manapun (utk CYD-produk) DITUNDA ke Fase 4 — bukan scope sesi ini.
 ```
-Differential-redraw (`namedCellChanged`/`sForceAll`) **dipertahankan**, digeneralisasi jadi bekerja per-cell-index (bukan per-nama-hardcode) dalam halaman aktif.
+Tabel statis `FieldId → {tinggiPx, renderer}` (dipakai `drawPrinterCell`) — satu-satunya bagian yang butuh kehati-hatian, sisanya integer math sederhana (bukan layout engine).
+
+Differential-redraw (`namedCellChanged`/`sForceAll`) **dipertahankan**, digeneralisasi jadi bekerja per-cell-index (bukan per-nama-hardcode) dalam halaman aktif — kunci pembanding sekarang `(col,row)` bukan nama printer literal.
 
 **`main.cpp` — navigasi jadi dinamis:** halaman printer (dulu index 1-5 tetap) sekarang index `1 .. 1+gLayout.pages.size()-1`, dihitung dari jumlah `pages` yang termuat. Index Claude (0) tetap 0. Index Gold/Orders bergeser mengikuti `1 + pageCount` (bukan `#define` tetap lagi — dihitung saat boot setelah layout termuat, sebelum loop pertama). Auto-rotate (spt Detail sekarang) aktif untuk halaman dgn `durationSec > 0`.
 
@@ -83,14 +108,14 @@ Differential-redraw (`namedCellChanged`/`sForceAll`) **dipertahankan**, digenera
 **Bukan** app terpisah, **bukan** di `apps/saas` (itu tugas sesi SaaS nanti, produk customer, ikut kontrak yang sama). Dibangun di `apps/dashboard` sesi ini karena tidak overlap dgn kerjaan sesi SaaS aktif (`apps/saas`, terverifikasi 2026-07-18: semua commit SaaS confined ke foldernya sendiri).
 
 **Scope MVP** — satu halaman `app/(dashboard)/cyd-layout/page.tsx`:
-- Form grid TETAP (bukan drag-drop bebas) — 10 slot rack + 1 slot Ganymede-lebar, cocok topologi fisik sekarang. Tiap slot = `<select>` isi printer, opsi diambil live dari `3dpb/printers` (API route baru `GET /api/cyd-layout/printers` — subscribe sesaat ke broker, baca retained, return daftar nama).
-- Tombol Simpan → `POST /api/cyd-layout` — server membentuk `LayoutConfig` LENGKAP (bukan cuma page rack): page `"rack"` dari assignment form; page `"detail-1"` dst di-**generate otomatis** di server dengan mengelompokkan printer yang sama (urutan sesuai assignment rack) jadi grup-3 gaya `detail`. Publish retained ke topic §3.3.
-- **Kenapa detail di-generate otomatis, bukan diedit manual:** MVP fokus pada masalah nyata (rearrange fisik rak tanpa reflash); skema JSON tetap genuinely multi-page (membuktikan fondasi utk Fase 4/produk yang nanti bisa expose UI penuh per-halaman), tapi UI-nya sengaja tak melebar ke drag-drop bebas (itu scope dashboard/SaaS lanjutan, bukan sesi ini).
+- Form grid TETAP (bukan drag-drop bebas) — 10 slot rack (grid 6×4 sesuai §3.2) + 2 slot label ("RAK KIRI"/"RAK KANAN", teks tetap) + 1 slot Ganymede-lebar (colSpan 6), cocok topologi fisik sekarang. Tiap slot printer = `<select>` isi printer, opsi diambil live dari `3dpb/printers` (API route baru `GET /api/cyd-layout/printers` — subscribe sesaat ke broker, baca retained, return daftar `{id,name}`; **butuh field `id`** dari payload — lihat prasyarat §3.2).
+- Tombol Simpan → `POST /api/cyd-layout` — server membentuk `LayoutConfig` LENGKAP (bukan cuma page rack): page `"rack"` dari assignment form (grid+cells+fields default `["name"],["state","progress"],["progressBar"]`); page `"detail-1"` dst di-**generate otomatis** di server dengan mengelompokkan printer yang sama (urutan sesuai assignment rack) jadi grid 1×3 per halaman, fields lengkap (`name/type`, `state+progress`, `progressBar`, `timeLeft+eta`, `filename`). Publish retained ke topic §3.3.
+- **Kenapa detail di-generate otomatis, bukan diedit manual:** MVP fokus pada masalah nyata (rearrange fisik rak tanpa reflash); skema JSON tetap genuinely multi-page multi-field (membuktikan fondasi utk Fase 4/produk yang nanti bisa expose UI penuh per-halaman/per-field), tapi UI-nya sengaja tak melebar ke drag-drop/field-picker bebas (itu scope dashboard/SaaS lanjutan, bukan sesi ini).
 
 ## 4. Testing
 
-- **Firmware (native/unit, kalau ada test harness PlatformIO):** `drawGenericCell` per style (dimensi/warna benar per state), parse `LayoutConfig` dari sample JSON (termasuk malformed → fallback lama dipertahankan), `applyDefaultLayout()` cocok pixel-for-pixel dgn `screenPrintersRackDraw()` lama (regression guard).
-- **Dashboard:** test route `POST /api/cyd-layout` (bentuk JSON valid, page detail ter-generate benar dari assignment) + `GET /api/cyd-layout/printers` (parse retained payload).
+- **Firmware (native/unit, kalau ada test harness PlatformIO):** geometri grid (`cellW/cellH` benar dari `cols/rows/rowWeights`, termasuk kasus tanpa `rowWeights` = seragam), `drawPrinterCell` per `FieldId` (dimensi/warna/label benar, termasuk override `label`), graceful-degradation (baris terakhir yg tak muat ter-skip, bukan overflow/crash), parse `LayoutConfig` dari sample JSON (termasuk malformed/melebihi limit → fallback lama dipertahankan), `applyDefaultLayout()` cocok proporsi visual dgn `screenPrintersRackDraw()` lama (regression guard — **bukan lagi pixel-identik**, krn grid seragam per-baris beda dari pixel bebas asli; verifikasi visual, bukan diff pixel exact).
+- **Dashboard:** test route `POST /api/cyd-layout` (bentuk `LayoutConfig` valid sesuai skema §3.2, page detail ter-generate benar dari assignment) + `GET /api/cyd-layout/printers` (parse retained payload, includes `id`).
 - **Manual end-to-end (tak ada hardware-in-loop otomatis):** publish dari dashboard MVP → verifikasi log serial firmware (`Serial.printf`) menerima & re-render → foto/screenshot layar fisik sbg bukti (user, seperti pola verifikasi CYD di printer-monitor Fase 1).
 
 ## 5. Risiko & catatan terbuka
@@ -99,6 +124,9 @@ Differential-redraw (`namedCellChanged`/`sForceAll`) **dipertahankan**, digenera
 - **Refactor `main.cpp` paging** — index Gold/Orders yang tadinya `#define` tetap jadi dihitung dinamis; risiko regresi navigasi ke halaman non-printer kalau perhitungan offset salah. Test manual: cek semua 11(+) halaman bisa dicapai post-migrasi.
 - **`durationSec` pada page pertama (Rack)** — di firmware lama, Rack (page 1) TIDAK auto-rotate (halaman statis, cuma Detail yg rotate). Skema baru: `durationSec:0` untuk Rack mempertahankan perilaku ini eksplisit.
 - **Dashboard butuh MQTT client baru** — `apps/dashboard` belum pernah connect MQTT sebelumnya (selalu lewat CYD/n8n langsung). Tambah dependency `mqtt` (sudah dipakai stabil di `printer-monitor-core`, low risk).
+- **Prasyarat kecil di `printer-monitor-core` (Fase 1, sudah live)** — tambah field `id` stabil ke `PrinterRow`/payload `3dpb/printers` (aditif, backward-compatible; `id` sudah ada di `DeviceConfig` internal, tinggal di-passthrough). Task kecil terpisah, dikerjakan sebelum/bersamaan dashboard editor krn editor butuh `id` utk populate dropdown.
+- **Grid seragam vs pixel bebas asli** — baris grid (`rowWeights`) tidak akan 100% pixel-identik dgn tata letak custom asli (mis. lebar cell `Ganymede` dulu beda dari cell printer biasa via pixel manual; sekarang harus colSpan penuh dlm grid yg sama). Visualnya SANGAT mirip (sudah divalidasi via mockup), bukan pixel-exact — dicatat eksplisit supaya tak jadi kejutan saat regression-check.
+- **Bug terpisah, sudah dicatat di memory `project_printer_monitoring_cyd`, TIDAK termasuk scope spec ini:** `Engine.publish()` di `printer-monitor-core` tak di-debounce (~2 publish/detik ke `3dpb/printers`) → CYD flicker tiap update. Prioritas tinggi, kerjakan terpisah dari migrasi/plan spec ini.
 
 ## 6. Roadmap lanjutan (di luar spec ini)
 
