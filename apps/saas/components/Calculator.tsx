@@ -1,7 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MARGIN_TIER_LABEL, type MarginTier } from "@3pb/kalkulator-core";
 import { fullView } from "@/lib/kalkulator/compute";
+import { DEFAULT_LOCAL_SETTINGS, type LocalSettings } from "@/lib/kalkulator/local-settings";
+import { loadSettings } from "@/lib/store/local-settings";
 import { GlassCard, GlassInput } from "@3pb/ui";
 import { LockedBlock } from "./LockedBlock";
 import { LogoutButton } from "./LogoutButton";
@@ -9,15 +11,22 @@ import { LogoutButton } from "./LogoutButton";
 const rupiah = (n: number) => "Rp" + n.toLocaleString("id-ID");
 const TIERS: MarginTier[] = ["A", "B", "C"];
 
-export function Calculator({ authenticated }: { authenticated: boolean }) {
+export function Calculator({ authenticated, paidCore = false, userId = null }: { authenticated: boolean; paidCore?: boolean; userId?: string | null }) {
   const [gramasi, setGramasi] = useState("50");
   const [durasi, setDurasi] = useState("3");
   const [tipe, setTipe] = useState<"FDM" | "SLA">("FDM");
+  const [settings, setSettings] = useState<LocalSettings>(DEFAULT_LOCAL_SETTINGS);
+
+  useEffect(() => {
+    if (paidCore && userId) {
+      loadSettings(userId).then(setSettings);
+    }
+  }, [paidCore, userId]);
 
   const g = Number(gramasi);
   const d = Number(durasi);
   const valid = Number.isFinite(g) && g > 0 && Number.isFinite(d) && d > 0;
-  const view = valid ? fullView({ gramasi: g, durasiJam: d, tipe }) : null;
+  const view = valid ? fullView({ gramasi: g, durasiJam: d, tipe }, settings) : null;
 
   return (
     <main className="max-w-3xl mx-auto p-6">
@@ -25,7 +34,8 @@ export function Calculator({ authenticated }: { authenticated: boolean }) {
         <img src="/logo.svg" alt="" width={28} height={28} />
         <span className="font-bold text-lg g-t1">Slizebiz</span>
         <span className="text-xl font-semibold g-t3">· Kalkulator harga jual</span>
-        {authenticated && <LogoutButton className="ml-auto" />}
+        {authenticated && <a href="/settings" className="text-[12px] g-t4 underline ml-auto" title="Setting kalkulator">⚙ Setting</a>}
+        {authenticated && <LogoutButton />}
       </div>
       <div className="grid md:grid-cols-2 gap-5">
         {/* Input */}
