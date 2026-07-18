@@ -61,7 +61,7 @@ export async function markPaid(id: string, userId: string, now = new Date()): Pr
 export async function listPending(now = new Date()): Promise<Payment[]> {
   const rows = await prisma.payment.findMany({
     where: { status: "PENDING", createdAt: { gt: liveSince(now) } },
-    orderBy: [{ paidMarkedAt: "desc" }, { createdAt: "desc" }],
+    orderBy: [{ paidMarkedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
   });
   return rows;
 }

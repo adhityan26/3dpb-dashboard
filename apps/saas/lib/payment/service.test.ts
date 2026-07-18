@@ -108,6 +108,19 @@ describe("markPaid", () => {
   });
 });
 
+describe("listPending", () => {
+  it("query PENDING + live window, orderBy paidMarkedAt desc nulls-last then createdAt desc", async () => {
+    (prisma.payment.findMany as any).mockResolvedValue([]);
+    await listPending(NOW);
+    expect(prisma.payment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: "PENDING", createdAt: { gt: expect.any(Date) } }),
+        orderBy: [{ paidMarkedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
+      }),
+    );
+  });
+});
+
 describe("activate", () => {
   it("status bukan PENDING → no-op null (idempoten)", async () => {
     (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", status: "PAID" });
