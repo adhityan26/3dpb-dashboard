@@ -13,6 +13,7 @@ export function buildPrintersPayload(
       const lastSeen = r?.last_seen_at ? Date.parse(r.last_seen_at) : null
       const isStale = lastSeen === null || nowMs - lastSeen > staleAfterMs
       return {
+        id: d.id,
         name: d.name, type: d.type,
         state: isStale ? 'OFFLINE' : (r!.last_state || 'idle'),
         progress: r?.last_progress ?? 0,

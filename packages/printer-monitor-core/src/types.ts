@@ -53,6 +53,7 @@ export interface StoredState {
 
 // Kontrak CYD — JANGAN diubah (spec §2)
 export interface PrinterRow {
+  id: string
   name: string
   type: string
   state: string             // PrinterState | 'OFFLINE'

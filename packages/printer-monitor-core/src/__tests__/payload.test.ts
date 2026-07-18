@@ -13,6 +13,7 @@ describe('StateStore + buildPrintersPayload', () => {
   it('device tanpa data → OFFLINE, field default', () => {
     const p = buildPrintersPayload([mars], new StateStore(), T0)
     expect(p.payload).toEqual([{
+      id: 'mars',
       name: 'Mars', type: 'P1P', state: 'OFFLINE', progress: 0,
       remaining_min: 0, filename: '', error_msg: '', last_seen: null,
     }])
@@ -50,5 +51,13 @@ describe('StateStore + buildPrintersPayload', () => {
     const cur = normalizeBambu('mars', { print: { gcode_state: 'IDLE', mc_percent: 100 } })
     store.upsertFromStatus(mars, cur, 'finished')
     expect(store.get('mars')!.last_state).toBe('finish')
+  })
+
+  it('payload includes stable device id (bukan cuma display name)', () => {
+    const store = new StateStore()
+    store.upsertFromStatus(mars, normalizeBambu('mars', { print: { gcode_state: 'IDLE' } }), null)
+    const p = buildPrintersPayload([mars], store, T0)
+    expect(p.payload[0].id).toBe('mars')
+    expect(p.payload[0].name).toBe('Mars')
   })
 })
