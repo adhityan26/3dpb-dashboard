@@ -25,7 +25,7 @@ export function publishRetained(topic: string, payload: string): Promise<boolean
         resolve(!err)
       })
     })
-    client.on('error', () => resolve(false))
+    client.on('error', () => { client.end(true); resolve(false) })
   })
 }
 
