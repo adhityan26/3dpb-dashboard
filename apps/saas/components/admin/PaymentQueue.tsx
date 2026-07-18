@@ -14,13 +14,17 @@ export function PaymentQueue({ rows }: { rows: PendingRow[] }) {
   }
   if (rows.length === 0) return <p className="text-[12px] g-t4">Tidak ada pembayaran pending.</p>;
   return (
-    <div className="overflow-x-auto">
+    <div className="flex flex-col gap-2">
+      <p className="text-[11px]" style={{ color: "#dc2626" }}>
+        ⚠️ "Diklaim" cuma tanda user meng-klik sudah bayar — <b>bukan bukti</b>. Cek mutasi bank untuk nominal <b>PERSIS</b> sebelum Aktifkan.
+      </p>
+      <div className="overflow-x-auto">
       <table className="text-[12px] g-t2 w-full">
         <thead><tr className="g-t4 text-left"><th className="pr-3">Nominal</th><th className="pr-3">User</th><th className="pr-3">Umur</th><th>Aksi</th></tr></thead>
         <tbody>
           {rows.map((r) => (
             <tr key={r.id}>
-              <td className="pr-3 font-medium">{"Rp" + r.amount.toLocaleString("id-ID")} {r.marked && <span title="user tandai sudah bayar">✅</span>}</td>
+              <td className="pr-3 font-medium">{"Rp" + r.amount.toLocaleString("id-ID")} {r.marked && <span className="text-[10px]" style={{ color: "#d97706" }} title="user meng-klik sudah bayar — belum diverifikasi">diklaim</span>}</td>
               <td className="pr-3">{r.who}</td>
               <td className="pr-3">{r.ageMin}m</td>
               <td className="flex gap-2 py-1">
@@ -31,6 +35,7 @@ export function PaymentQueue({ rows }: { rows: PendingRow[] }) {
           ))}
         </tbody>
       </table>
+      </div>
     </div>
   );
 }
