@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Migrate CYD internal firmware to its own repo, make its 3 printer screens JSON-driven (grid layout, configurable fields, no reflash to rearrange), add a dashboard editor + confirmation loop, add WiFi/broker captive-portal provisioning (no reflash to reconfigure network), and add wireless firmware upload (no USB cable for routine code updates).
+**Goal:** Migrate CYD internal firmware to its own repo, make its 3 printer screens JSON-driven (grid layout, configurable fields, no reflash to rearrange), add a dashboard editor + confirmation loop, add WiFi/broker captive-portal provisioning (no reflash to reconfigure network), and add dashboard-triggered wireless firmware updates (no USB cable for routine code updates).
 
-**Architecture:** One generic grid+fields renderer (`layout_*` files) replaces 3 hardcoded C++ screens. Config arrives as JSON over MQTT retained (`3dpb/cyd/internal-rack/layout`), cached to LittleFS, with a baked-in default fallback. Dashboard (`apps/dashboard`, shopee-analysis) authors the JSON via a fixed-grid form and confirms application via a readback topic. WiFi/broker config moves from compile-time `#define` to WiFiManager-driven runtime provisioning (AP-mode captive portal), stored in NVS. Firmware code updates (not just config) go over WiFi too, via `ArduinoOTA` — same `pio run -t upload` command the dev already uses, just targeting the device's network address instead of a USB port.
+**Architecture:** One generic grid+fields renderer (`layout_*` files) replaces 3 hardcoded C++ screens. Config arrives as JSON over MQTT retained (`3dpb/cyd/internal-rack/layout`), cached to LittleFS, with a baked-in default fallback. Dashboard (`apps/dashboard`, shopee-analysis) authors the JSON via a fixed-grid form and confirms application via a readback topic. WiFi/broker config moves from compile-time `#define` to WiFiManager-driven runtime provisioning (AP-mode captive portal), stored in NVS. Firmware code updates go over WiFi too, but dashboard-initiated rather than dev-CLI-initiated: firmware is built inside a Docker image (produces `firmware.bin`), the dashboard reads that artifact and HTTP-POSTs it to a custom `/ota-upload` endpoint the device exposes, discovering the device's current IP/version via a retained MQTT status topic.
 
 **Tech Stack:** PlatformIO/Arduino (ESP32), TFT_eSPI, ArduinoJson v7, PubSubClient, WiFiManager (tzapu), LittleFS, `Preferences` (NVS). Dashboard: Next.js 16 (`apps/dashboard`), `mqtt` npm package. `packages/printer-monitor-core` (TypeScript, small addendum).
 
@@ -14,7 +14,8 @@
 - **PlatformIO env:** `[env:cyd]`, `platform = espressif32`, `board = esp32dev`, `framework = arduino`. Existing `lib_deps`: `bodmer/TFT_eSPI@^2.5.43`, `bblanchon/ArduinoJson@^7.0.0`, `PaulStoffregen/XPT2046_Touchscreen`, `arduino-libraries/NTPClient@^3.2.1`, `knolleary/PubSubClient@^2.8`. New: `tzapu/WiFiManager@^2.0.17`. `LittleFS`/`Preferences` ship with the ESP32 Arduino core — no `lib_deps` entry needed.
 - **Screen:** 320×240 (`SCREEN_W`/`SCREEN_H` in `display.h`, rotation-dependent).
 - **MQTT broker (default, provisionable from Task 12 onward):** `192.168.88.113:1883`.
-- **MQTT topics:** printer status `3dpb/printers` (unchanged, existing). Layout config `3dpb/cyd/internal-rack/layout` (retained). Layout readback `3dpb/cyd/internal-rack/layout/current` (retained).
+- **MQTT topics:** printer status `3dpb/printers` (unchanged, existing). Layout config `3dpb/cyd/internal-rack/layout` (retained). Layout readback `3dpb/cyd/internal-rack/layout/current` (retained). Device status/IP `3dpb/cyd/internal-rack/status` (retained, Task 13) — `{"ip":"...","firmwareVersion":"..."}`.
+- **OTA (Task 13-15):** device HTTP endpoint `POST http://<device-ip>/ota-upload` (header `X-OTA-Password`, multipart field `firmware`) — no new firmware `lib_deps` (`WebServer.h`/`Update.h` ship with ESP32 core). Firmware build artifact path on `.113`: `/opt/stacks/cyd-firmware/latest/{firmware.bin,version.txt}`.
 - **Schema limits:** max 8 pages, max 24 cells/page, max 3 fields/row, max 8 field-rows/cells-or-page-default (`MAX_PAGES`, `MAX_CELLS_PER_PAGE`, `MAX_FIELDS_PER_ROW`, `MAX_ROWS_PER_FIELDS` — defined once in `layout_types.h`, Task 2).
 - **`schemaVersion`:** must be `1`. Any other value or malformed JSON → parse returns `false`, caller keeps existing config (never crash, never blank screen).
 - **Firmware pure-logic test convention (existing, matched exactly):** standalone C++ file under `test/`, plain `assert()`+`printf()` (no PlatformIO test env configured), compiled directly with system `g++`, no Arduino framework dependency for files that don't need it (`layout_types.h`, `grid_geometry.*` — see Task 2). Files needing `ArduinoJson.h` (Task 3) compile against the PlatformIO-fetched copy at `.pio/libdeps/cyd/ArduinoJson/src`.
@@ -2081,106 +2082,386 @@ git commit -m "feat(provisioning): WiFiManager captive portal + broker IP param 
 
 ---
 
-### Task 13: `ArduinoOTA` — upload firmware via WiFi (ganti USB utk update rutin)
+### Task 13: HTTP OTA upload endpoint di device + status/IP publish
+
+Revisi dari draft awal (`ArduinoOTA` CLI-push) — user klarifikasi maunya **dashboard yang trigger update**, bukan `pio` CLI dari Mac. Device jadi menyediakan endpoint HTTP `/ota-upload` (custom, pakai `WebServer.h`+`Update.h` bawaan ESP32 core — bukan library pihak ketiga, supaya format request 100% terkontrol & konsisten dgn Task 15 yang mengirimnya).
 
 **Files:**
-- Modify: `apps/internal/platformio.ini` (env baru `cyd_ota`, extends `cyd`)
+- Modify: `apps/internal/src/main.cpp` (WebServer + endpoint `/ota-upload`, publish status/IP)
 - Modify: `apps/internal/src/config.h` dan `config.h.example` (tambah `OTA_PASSWORD`)
-- Modify: `apps/internal/src/main.cpp` (setup+handle `ArduinoOTA`)
+- Modify: `apps/internal/platformio.ini` (`build_flags` inject `FIRMWARE_VERSION` dari env — dipakai Task 14)
 
 **Interfaces:**
-- Consumes: `ArduinoOTA` (bawaan ESP32 core, tak perlu `lib_deps`), `gMqttBrokerIp`/WiFi sudah connect (Task 12 — OTA butuh WiFi aktif, urutan setelah Task 12 di `setup()`).
-- Produces: `pio run -e cyd_ota -t upload` bekerja dari Mac tanpa kabel USB, selama device sudah pernah di-flash sekali via USB (Task 1/12) dan terhubung ke WiFi yang sama dgn Mac.
+- Consumes: WiFi sudah connect (Task 12, urutan setelah `wifiConnect()`), `mqttPublishRetained` (Task 7).
+- Produces: `POST http://<device-ip>/ota-upload` (header `X-OTA-Password`, body multipart field `firmware`) — dipakai Task 15. Topic MQTT retained BARU `3dpb/cyd/internal-rack/status` (`{"ip":"...","firmwareVersion":"..."}`) — dipakai Task 15 utk device-discovery & version compare.
 
-- [ ] **Step 1: Tambah `OTA_PASSWORD` ke config** (dev-only secret, TETAP compile-time `#define` — beda dari WiFi/broker Task 12 yg jadi runtime, krn ini bukan sesuatu yg diisi lewat captive portal, cukup dev-time constant di file gitignored)
+- [ ] **Step 1: Tambah `OTA_PASSWORD` ke config** (dev-only secret, compile-time `#define`, sama pola spt sebelumnya)
 
 `config.h.example` — tambah baris:
 ```cpp
-// OTA (upload firmware via WiFi, ganti USB) — password wajib, sync dgn env var
-// PIO_OTA_PASSWORD yg dipakai `pio run -e cyd_ota -t upload` (lihat platformio.ini)
+// OTA (upload firmware via HTTP dari dashboard) — password wajib, sync dgn
+// env CYD_OTA_PASSWORD yg dipakai dashboard (lihat apps/dashboard/.env.deploy.example)
 #define OTA_PASSWORD "gantidenganpasswordsendiri"
 ```
-`config.h` (real, gitignored) — isi dengan password sungguhan pilihan dev (bukan file yang di-commit).
+`config.h` (real, gitignored) — isi password sungguhan.
 
-- [ ] **Step 2: Tambah env `cyd_ota` di `platformio.ini`**
+- [ ] **Step 2: Tambah `FIRMWARE_VERSION` build flag di `platformio.ini`**
 
+`[env:cyd]`'s `build_flags` sekarang kosong (`build_flags =`) — isi:
 ```ini
-[env:cyd_ota]
-extends = env:cyd
-upload_protocol = espota
-upload_port = cyd-internal-rack.local
-upload_flags =
-  --auth=${sysenv.PIO_OTA_PASSWORD}
+build_flags =
+  -D FIRMWARE_VERSION=\"${sysenv.FIRMWARE_VERSION}\"
 ```
-Dev perlu `export PIO_OTA_PASSWORD=<sama persis isi OTA_PASSWORD di config.h>` di shell profile sebelum pakai `-e cyd_ota`. `[env:cyd]` (USB) tetap ada tak berubah — dipakai utk flash pertama kali / recovery kalau OTA gagal.
+Dev lokal tanpa env var ini: PlatformIO substitusi string kosong — tambahkan default via `pio run` command yg selalu set `FIRMWARE_VERSION=dev` kalau tak di-export (didokumentasikan di Task 14, bukan berubah di sini).
 
-- [ ] **Step 3: Setup + handle `ArduinoOTA` di `main.cpp`**
+- [ ] **Step 3: WebServer + endpoint OTA + publish status, di `main.cpp`**
 
-Tambah include dan fungsi setup:
+Tambah include:
 ```cpp
-#include <ArduinoOTA.h>
+#include <WebServer.h>
+#include <Update.h>
+```
+Tambah state + fungsi (sebelum `setup()`):
+```cpp
+static WebServer otaServer(80);
+static bool otaAuthOk = false;
 
-static void setupOTA() {
-  ArduinoOTA.setHostname("cyd-internal-rack");
-  ArduinoOTA.setPassword(OTA_PASSWORD);
-  ArduinoOTA.onStart([]() {
-    Serial.println("[OTA] Start");
+static void publishDeviceStatus() {
+  char payload[96];
+  snprintf(payload, sizeof(payload), "{\"ip\":\"%s\",\"firmwareVersion\":\"%s\"}",
+           WiFi.localIP().toString().c_str(), FIRMWARE_VERSION);
+  mqttPublishRetained("3dpb/cyd/internal-rack/status", payload, strlen(payload));
+}
+
+static void handleOtaUploadData() {
+  HTTPUpload& upload = otaServer.upload();
+  if (upload.status == UPLOAD_FILE_START) {
+    otaAuthOk = (otaServer.header("X-OTA-Password") == String(OTA_PASSWORD));
+    if (!otaAuthOk) { Serial.println("[OTA] auth gagal"); return; }
+    Serial.printf("[OTA] Start: %s\n", upload.filename.c_str());
     tft.fillScreen(C_BG);
-    tft.setTextColor(C_YELLOW, C_BG);
-    tft.setTextSize(2);
-    tft.setCursor(10, 100);
-    tft.print("Updating firmware...");
-  });
-  ArduinoOTA.onProgress([](unsigned int progress, unsigned int total) {
-    tft.fillRect(10, 140, 300, 10, tft.color565(25,25,35));
-    int fillW = (int)((float)progress / total * 300);
-    tft.fillRect(10, 140, fillW, 10, C_GREEN);
-  });
-  ArduinoOTA.onError([](ota_error_t error) {
-    Serial.printf("[OTA] Error[%u]\n", error);
-  });
-  ArduinoOTA.begin();
-  Serial.println("[OTA] ready");
+    tft.setTextColor(C_YELLOW, C_BG); tft.setTextSize(2);
+    tft.setCursor(10, 100); tft.print("Updating firmware...");
+    if (!Update.begin(UPDATE_SIZE_UNKNOWN)) Update.printError(Serial);
+  } else if (upload.status == UPLOAD_FILE_WRITE) {
+    if (!otaAuthOk) return;
+    if (Update.write(upload.buf, upload.currentSize) != upload.currentSize) Update.printError(Serial);
+  } else if (upload.status == UPLOAD_FILE_END) {
+    if (!otaAuthOk) return;
+    if (Update.end(true)) Serial.printf("[OTA] Success, size=%u\n", upload.totalSize);
+    else Update.printError(Serial);
+  }
+}
+
+static void handleOtaUploadDone() {
+  if (!otaAuthOk) { otaServer.send(403, "text/plain", "FORBIDDEN"); return; }
+  bool ok = !Update.hasError();
+  otaServer.send(200, "text/plain", ok ? "OK" : "FAIL");
+  if (ok) { delay(500); ESP.restart(); }
+}
+
+static void setupOtaServer() {
+  otaServer.on("/ota-upload", HTTP_POST, handleOtaUploadDone, handleOtaUploadData);
+  otaServer.begin();
+  Serial.println("[OTA] HTTP server ready on :80/ota-upload");
 }
 ```
-Panggil `setupOTA();` di `setup()`, **setelah** `wifiConnect()` (butuh WiFi aktif) dan setelah `wifiResetIfBootHeld()`:
+
+- [ ] **Step 4: Wire ke `setup()`/`loop()`**
+
+Di `setup()`, setelah `wifiConnect()`:
 ```cpp
-  wifiResetIfBootHeld();
-  ...
   wifiConnect();
-  setupOTA();   // NEW
+  setupOtaServer();      // NEW
+  publishDeviceStatus(); // NEW — device langsung lapor ip+version begitu WiFi & MQTT siap
 ```
-Panggil `ArduinoOTA.handle();` di baris pertama `loop()`:
+`publishDeviceStatus()` butuh `mqtt.connected()` — panggil ini SETELAH `fetchUsageData(usage)` (baris yg sudah memicu `mqttReconnect()` pertama kali), bukan sebelum `fetchUsageData`. Susun ulang urutan:
+```cpp
+  wifiConnect();
+  setupOtaServer();
+
+  tft.fillScreen(C_BG);
+  tft.setCursor(10, 110);
+  tft.print("Connecting MQTT...");
+  fetchUsageData(usage);
+  publishDeviceStatus();   // NEW — taruh di sini, setelah MQTT connect
+```
+Di `loop()`, tambah baris pertama:
 ```cpp
 void loop() {
-  ArduinoOTA.handle();   // NEW — cek incoming upload tiap iterasi
+  otaServer.handleClient();   // NEW
   static time_t lastUpdatedAt = 0;
   ...
 ```
+Republish status tiap WiFi reconnect (opsional tapi murah) — tambahkan panggilan `publishDeviceStatus()` di akhir `wifiEnsureConnected()` kalau status berubah dari disconnect ke connect; **cukup skip ini utk MVP** (retained topic tetap valid selama IP tak berubah, DHCP lease biasanya stabil) — catat sbg simplifikasi sadar, bukan bug.
 
-- [ ] **Step 4: Compile check (USB env, tak berubah)**
+- [ ] **Step 5: Compile check**
 
 ```bash
 cd apps/internal
-pio run -e cyd
+FIRMWARE_VERSION=dev pio run -e cyd
 ```
 Expected: `SUCCESS`.
-
-- [ ] **Step 5: Verifikasi manual (butuh hardware + jaringan, tak ada automated test)**
-
-Flash sekali via USB (`pio run -e cyd -t upload`) supaya firmware ber-OTA ini sudah terpasang. Ubah 1 baris kecil (mis. `Serial.println` baru), lalu:
-```bash
-export PIO_OTA_PASSWORD=<isi sama dgn config.h>
-cd apps/internal
-pio run -e cyd_ota -t upload
-```
-Expected: PlatformIO menemukan device via mDNS (`cyd-internal-rack.local`), upload berjalan **tanpa kabel USB**, layar tampilkan progress bar "Updating firmware...", device reboot otomatis dgn kode baru.
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add platformio.ini src/config.h.example src/main.cpp
-git commit -m "feat(ota): ArduinoOTA — upload firmware via WiFi (env cyd_ota), USB tetap tersedia utk flash pertama/recovery"
+git commit -m "feat(ota): endpoint HTTP /ota-upload di device (WebServer+Update.h) + publish status ip/version ke MQTT"
+```
+
+---
+
+### Task 14: Docker build image firmware (`.bin` + versi)
+
+**Files:**
+- Create: `apps/internal/Dockerfile`
+- Create: `apps/internal/scripts/build-and-publish-firmware.sh`
+
+**Interfaces:**
+- Consumes: Task 13's `FIRMWARE_VERSION` build flag.
+- Produces: `firmware.bin` + `version.txt` di host `.113` path `/opt/stacks/cyd-firmware/latest/` — dibaca Task 15.
+
+- [ ] **Step 1: Tulis `Dockerfile`**
+
+```dockerfile
+FROM python:3.11-slim AS builder
+RUN pip install --no-cache-dir platformio
+WORKDIR /build
+COPY . .
+ARG FIRMWARE_VERSION=dev
+ENV FIRMWARE_VERSION=$FIRMWARE_VERSION
+RUN pio run -e cyd
+CMD ["sh", "-c", "cp /build/.pio/build/cyd/firmware.bin /out/firmware.bin && echo -n \"$FIRMWARE_VERSION\" > /out/version.txt"]
+```
+`copy_user_setup.py`/`embed_default_layout.py` (Task 5's pre-build script) jalan otomatis lewat PlatformIO `extra_scripts` — tak perlu langkah tambahan di Dockerfile.
+
+- [ ] **Step 2: Tulis `scripts/build-and-publish-firmware.sh`** (pola sama seperti `apps/dashboard/deploy.sh` — target `DOCKER_HOST` remote, bukan lokal)
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+DOCKER_HOST="${DOCKER_HOST:-tcp://192.168.88.113:2375}"
+export DOCKER_HOST
+VERSION=$(git rev-parse --short=7 HEAD)
+IMAGE="cyd-internal-firmware:latest"
+
+echo "🔨 Building firmware $VERSION di $DOCKER_HOST..."
+docker build --build-arg FIRMWARE_VERSION="$VERSION" -t "$IMAGE" "$(dirname "$0")/.."
+
+echo "📦 Publish .bin ke /opt/stacks/cyd-firmware/latest/ ..."
+docker run --rm -v /opt/stacks/cyd-firmware/latest:/out "$IMAGE"
+
+echo "✅ Firmware $VERSION siap. Trigger update via dashboard /firmware-update."
+```
+
+```bash
+chmod +x apps/internal/scripts/build-and-publish-firmware.sh
+```
+
+- [ ] **Step 3: Verifikasi build lokal** (build image, TIDAK publish ke `.113` — itu gated, dijalankan user)
+
+```bash
+cd apps/internal
+docker build --build-arg FIRMWARE_VERSION=test-local -t cyd-internal-firmware:test .
+```
+Expected: `Successfully tagged cyd-internal-firmware:test`. **Jangan** jalankan `docker run ... /out` ke path produksi tanpa persetujuan eksplisit user (itu menulis ke host `.113`).
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add Dockerfile scripts/build-and-publish-firmware.sh
+git commit -m "feat(ota): Docker build image firmware — hasilkan firmware.bin+version.txt, publish ke .113 via script gated"
+```
+
+---
+
+### Task 15: Dashboard — halaman & API `/firmware-update`
+
+**Files:**
+- Create: `apps/dashboard/lib/firmware-update/device-status.ts`
+- Create: `apps/dashboard/app/api/firmware-update/status/route.ts`
+- Create: `apps/dashboard/app/api/firmware-update/trigger/route.ts`
+- Create: `apps/dashboard/app/(dashboard)/firmware-update/page.tsx`
+- Modify: `apps/dashboard/deploy.sh` (mount volume firmware, tambah env `CYD_OTA_PASSWORD`)
+
+**Interfaces:**
+- Consumes: `readRetained` (Task 11's `mqtt-client.ts`), Task 13's topic `3dpb/cyd/internal-rack/status`, Task 14's `/opt/stacks/cyd-firmware/latest/{firmware.bin,version.txt}` (mounted read-only ke container dashboard di `/app/firmware`).
+- Produces: `GET /api/firmware-update/status` → `{latestVersion, deviceVersion, deviceIp, upToDate}`. `POST /api/firmware-update/trigger` → `{success, message}`. Halaman `/firmware-update`.
+
+- [ ] **Step 1: Tambah mount volume + env var di `deploy.sh`**
+
+`DATA_VOLUME` sudah ada di `deploy.sh` (`/opt/stacks/shopee-dashboard/data`) — tambah satu volume lagi ke `docker run` shopee-dashboard (read-only, dashboard cuma baca, tak pernah tulis firmware):
+```bash
+  -v "$DATA_VOLUME:/app/data" \
+  -v "/opt/stacks/cyd-firmware/latest:/app/firmware:ro" \
+```
+Tambah `CYD_OTA_PASSWORD` ke `-e` list (sama pola env var lain) dan ke `REQUIRED_VARS` array kalau firmware-update dianggap wajib (opsional — kalau mau fitur ini boleh absen dulu, jangan tambah ke `REQUIRED_VARS`, cukup `-e CYD_OTA_PASSWORD="${CYD_OTA_PASSWORD:-}"`).
+
+- [ ] **Step 2: Tulis `lib/firmware-update/device-status.ts`**
+
+```ts
+import { readRetained } from '@/lib/cyd-layout/mqtt-client'
+
+export interface DeviceStatus { ip: string; firmwareVersion: string }
+
+export async function getDeviceStatus(): Promise<DeviceStatus | null> {
+  const raw = await readRetained('3dpb/cyd/internal-rack/status')
+  if (!raw) return null
+  try {
+    return JSON.parse(raw) as DeviceStatus
+  } catch {
+    return null
+  }
+}
+```
+
+- [ ] **Step 3: Tulis `app/api/firmware-update/status/route.ts`**
+
+```ts
+import { NextResponse } from 'next/server'
+import { readFile } from 'node:fs/promises'
+import { auth } from '@/lib/auth'
+import { getDeviceStatus } from '@/lib/firmware-update/device-status'
+
+export async function GET() {
+  const session = await auth()
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  let latestVersion = 'unknown'
+  try {
+    latestVersion = (await readFile('/app/firmware/version.txt', 'utf8')).trim()
+  } catch {
+    // belum pernah di-build — biarkan 'unknown'
+  }
+
+  const device = await getDeviceStatus()
+
+  return NextResponse.json({
+    latestVersion,
+    deviceVersion: device?.firmwareVersion ?? null,
+    deviceIp: device?.ip ?? null,
+    upToDate: device !== null && device.firmwareVersion === latestVersion,
+  })
+}
+```
+
+- [ ] **Step 4: Tulis `app/api/firmware-update/trigger/route.ts`**
+
+```ts
+import { NextResponse } from 'next/server'
+import { readFile } from 'node:fs/promises'
+import { auth } from '@/lib/auth'
+import { getDeviceStatus } from '@/lib/firmware-update/device-status'
+
+export async function POST() {
+  const session = await auth()
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const device = await getDeviceStatus()
+  if (!device) {
+    return NextResponse.json({ success: false, message: 'Device tidak terdeteksi (belum publish status via MQTT)' }, { status: 400 })
+  }
+
+  let bin: Buffer
+  try {
+    bin = await readFile('/app/firmware/firmware.bin')
+  } catch {
+    return NextResponse.json({ success: false, message: 'Belum ada firmware ter-build — jalankan build-and-publish-firmware.sh dulu' }, { status: 400 })
+  }
+
+  const form = new FormData()
+  form.append('firmware', new Blob([bin]), 'firmware.bin')
+
+  try {
+    const res = await fetch(`http://${device.ip}/ota-upload`, {
+      method: 'POST',
+      headers: { 'X-OTA-Password': process.env.CYD_OTA_PASSWORD ?? '' },
+      body: form,
+      signal: AbortSignal.timeout(30000),
+    })
+    const text = await res.text()
+    return NextResponse.json({ success: res.ok && text === 'OK', message: text })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'gagal connect ke device'
+    return NextResponse.json({ success: false, message: msg }, { status: 502 })
+  }
+}
+```
+
+- [ ] **Step 5: Tulis `app/(dashboard)/firmware-update/page.tsx`**
+
+```tsx
+'use client'
+
+import { useEffect, useState } from 'react'
+
+interface Status { latestVersion: string; deviceVersion: string | null; deviceIp: string | null; upToDate: boolean }
+
+export default function FirmwareUpdatePage() {
+  const [status, setStatus] = useState<Status | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [result, setResult] = useState<{ success: boolean; message: string } | null>(null)
+
+  function refresh() {
+    fetch('/api/firmware-update/status').then((r) => r.json()).then(setStatus)
+  }
+
+  useEffect(refresh, [])
+
+  async function handleUpdate() {
+    setBusy(true)
+    setResult(null)
+    const res = await fetch('/api/firmware-update/trigger', { method: 'POST' })
+    const body = await res.json()
+    setResult(body)
+    setBusy(false)
+    if (body.success) setTimeout(refresh, 3000)  // device reboot ~beberapa detik
+  }
+
+  if (!status) return <div className="p-6">Memuat status...</div>
+
+  return (
+    <div className="p-6 max-w-lg">
+      <h1 className="text-xl font-semibold mb-4">Update Firmware CYD</h1>
+      <div className="text-sm space-y-1 mb-4">
+        <p>Versi ter-build: <code>{status.latestVersion}</code></p>
+        <p>Versi di device: <code>{status.deviceVersion ?? 'tidak terdeteksi'}</code></p>
+        <p>IP device: <code>{status.deviceIp ?? '-'}</code></p>
+        <p>Status: {status.upToDate ? '✅ Sudah versi terbaru' : '⚠️ Ada update tersedia'}</p>
+      </div>
+      <button
+        onClick={handleUpdate}
+        disabled={busy || status.upToDate || !status.deviceIp}
+        className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+      >
+        {busy ? 'Mengupdate... (device restart otomatis)' : 'Update CYD'}
+      </button>
+      {result && (
+        <p className={`mt-3 ${result.success ? 'text-green-600' : 'text-red-600'}`}>
+          {result.success ? '✅ ' : '❌ '}{result.message}
+        </p>
+      )}
+    </div>
+  )
+}
+```
+
+- [ ] **Step 6: Build check**
+
+```bash
+export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH"
+cd /Users/adhityatangahu/Documents/shopee-analysis
+pnpm --filter shopee-dashboard build
+```
+Expected: `SUCCESS`.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add apps/dashboard/lib/firmware-update apps/dashboard/app/api/firmware-update apps/dashboard/app/\(dashboard\)/firmware-update apps/dashboard/deploy.sh
+git commit -m "feat(ota): dashboard /firmware-update — baca version.txt+status MQTT, trigger push ke device via HTTP"
 ```
 
 ---
@@ -2192,4 +2473,4 @@ git commit -m "feat(ota): ArduinoOTA — upload firmware via WiFi (env cyd_ota),
 3. **Placeholder scan:** tidak ada TBD/TODO; setiap step berisi kode konkret. Satu catatan jujur ditinggalkan eksplisit (Task 6 Step 3: fitur "pause rotasi" UI lama didrop, ditandai bukan blocker — bukan placeholder, keputusan scope terdokumentasi).
 4. **Type consistency:** `LayoutConfig`/`LayoutPage`/`LayoutCell`/`FieldRow`/`FieldEntry`/`FieldId` (Task 2) dipakai identik di Task 3 (parser), 4 (renderer), 5 (store), 6 (screen). `applyLayout`/`applyLayoutAndCache` signature disepakati ulang di Task 7 Step 3 (menambah param `rawJson`/`len`) — perubahan ini eksplisit ditulis sbg revisi Task 5's forward declaration, bukan kontradiksi diam-diam. `PrinterData.id` (Task 9) dipakai `findPrinterById` yg sudah ditulis Task 6 dgn catatan "Task 9 akan ganti" — konsisten, bukan bug.
 5. **Sequencing (spec WiFi §5):** Task 1-11 (layout) dieksekusi penuh dan di-commit sebelum Task 12 (provisioning) mulai — keduanya menyentuh `main.cpp`, urutan linear plan ini sudah menjamin itu (bukan paralel).
-6. **Task 13 (OTA, ditambah setelah user review pertama):** di luar 2 spec tertulis (bukan §13-poin-1 lama sepenuhnya — cuma mekanisme upload wireless via `ArduinoOTA`, bukan sistem OTA hosting/versioning penuh, sesuai konfirmasi user). Ditaruh terakhir krn butuh WiFi aktif (Task 12) dan bukan blocker utk Task 1-12 manapun — aman ditambah di akhir linear plan tanpa reorder.
+6. **Task 13-15 (OTA, ditambah setelah user review — direvisi sekali dari draft `ArduinoOTA` CLI-push ke HTTP push dari dashboard setelah klarifikasi):** di luar 2 spec tertulis (bukan §13-poin-1 lama sepenuhnya — cuma mekanisme upload wireless dashboard-triggered, bukan device auto-update berkala, sesuai konfirmasi user). Task 13 (device endpoint) butuh WiFi aktif (Task 12) dan `mqttPublishRetained` (Task 7) — urutan linear plan sudah menjamin dependency ini. Task 14 (Docker build) independen, bisa jalan kapan saja setelah Task 13 (butuh `FIRMWARE_VERSION` build flag-nya). Task 15 (dashboard) konsumsi Task 11's `mqtt-client.ts` (`readRetained`) — reuse, bukan duplikasi kode MQTT dashboard. Deploy volume mount (`.113` → dashboard container) & `docker run`/publish firmware ke `.113` sama-sama ditandai gated — tak dieksekusi otomatis.
