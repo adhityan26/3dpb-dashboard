@@ -4,7 +4,6 @@ import { MARGIN_TIER_LABEL, type MarginTier } from "@3pb/kalkulator-core";
 import { fullView } from "@/lib/kalkulator/compute";
 import { GlassCard, GlassInput } from "@3pb/ui";
 import { LockedBlock } from "./LockedBlock";
-import { UpgradeModal } from "./UpgradeModal";
 
 const rupiah = (n: number) => "Rp" + n.toLocaleString("id-ID");
 const TIERS: MarginTier[] = ["A", "B", "C"];
@@ -13,7 +12,6 @@ export function Calculator({ authenticated }: { authenticated: boolean }) {
   const [gramasi, setGramasi] = useState("50");
   const [durasi, setDurasi] = useState("3");
   const [tipe, setTipe] = useState<"FDM" | "SLA">("FDM");
-  const [showUpgrade, setShowUpgrade] = useState(false);
 
   const g = Number(gramasi);
   const d = Number(durasi);
@@ -84,14 +82,13 @@ export function Calculator({ authenticated }: { authenticated: boolean }) {
                 </div>
               </LockedBlock>
 
-              <button className="text-[11px] g-t4 text-left underline" onClick={() => setShowUpgrade(true)}>
+              <button className="text-[11px] g-t4 text-left underline" onClick={() => { window.location.href = "/beli"; }}>
                 Simpan hasil, multi-plate, labor & settings custom → Beli 🔒
               </button>
             </div>
           )}
         </GlassCard>
       </div>
-      {showUpgrade && <UpgradeModal onClose={() => setShowUpgrade(false)} />}
     </main>
   );
 }
