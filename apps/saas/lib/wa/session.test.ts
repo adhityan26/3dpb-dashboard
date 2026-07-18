@@ -40,7 +40,8 @@ describe("upsertUserByPhone", () => {
 describe("createUserSession", () => {
   it("buat Session row + set cookie authjs.session-token (http)", async () => {
     (prisma.session.create as any).mockResolvedValue({});
-    await createUserSession("u1", new Date("2026-07-18T10:00:00Z"));
+    const NOW = new Date("2026-07-18T10:00:00Z");
+    await createUserSession("u1", NOW);
     const arg = (prisma.session.create as any).mock.calls[0][0].data;
     expect(arg.userId).toBe("u1");
     expect(typeof arg.sessionToken).toBe("string");
@@ -48,6 +49,10 @@ describe("createUserSession", () => {
     expect(name).toBe("authjs.session-token");
     expect(value).toBe(arg.sessionToken);
     expect(opts).toMatchObject({ httpOnly: true, sameSite: "lax", path: "/", secure: false });
+    // Assert expires parity: session row expires = cookie expires = NOW + 30 days
+    const expectedExpires = new Date(NOW.getTime() + 30 * 24 * 60 * 60 * 1000);
+    expect(arg.expires).toEqual(expectedExpires);
+    expect(opts.expires).toEqual(arg.expires);
   });
   it("https origin → cookie __Secure- + secure true", async () => {
     process.env.NEXTAUTH_URL = "https://app.slizebiz.com";
