@@ -4,6 +4,7 @@ import { MARGIN_TIER_LABEL, type MarginTier } from "@3pb/kalkulator-core";
 import { fullView } from "@/lib/kalkulator/compute";
 import { GlassCard, GlassInput } from "@3pb/ui";
 import { LockedBlock } from "./LockedBlock";
+import { LogoutButton } from "./LogoutButton";
 
 const rupiah = (n: number) => "Rp" + n.toLocaleString("id-ID");
 const TIERS: MarginTier[] = ["A", "B", "C"];
@@ -24,6 +25,7 @@ export function Calculator({ authenticated }: { authenticated: boolean }) {
         <img src="/logo.svg" alt="" width={28} height={28} />
         <span className="font-bold text-lg g-t1">Slizebiz</span>
         <span className="text-xl font-semibold g-t3">· Kalkulator harga jual</span>
+        {authenticated && <LogoutButton className="ml-auto" />}
       </div>
       <div className="grid md:grid-cols-2 gap-5">
         {/* Input */}

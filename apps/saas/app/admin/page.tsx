@@ -7,6 +7,7 @@ import { listPending, listPaid } from "@/lib/payment/service";
 import { prisma } from "@/lib/db";
 import { ConfigEditor } from "@/components/admin/ConfigEditor";
 import { WaitlistTable } from "@/components/admin/WaitlistTable";
+import { LogoutButton } from "@/components/LogoutButton";
 import { PaymentQueue, type PendingRow } from "@/components/admin/PaymentQueue";
 import { PaidList, type PaidRow } from "@/components/admin/PaidList";
 
@@ -36,7 +37,10 @@ export default async function AdminPage() {
 
   return (
     <main className="max-w-3xl mx-auto p-6 flex flex-col gap-6">
-      <h1 className="text-xl font-semibold g-t1">Admin Slizebiz</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-xl font-semibold g-t1">Admin Slizebiz</h1>
+        <LogoutButton />
+      </div>
       <section>
         <h2 className="text-sm font-medium g-t2 mb-2">Harga & copy (Config)</h2>
         <ConfigEditor initial={config} />

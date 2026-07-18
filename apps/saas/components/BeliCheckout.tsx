@@ -40,10 +40,14 @@ export function BeliCheckout({ displayPrice, refundCopy }: { displayPrice: strin
   return (
     <div className="flex flex-col gap-3 mt-2">
       {!inv ? (
+        !priceNum || priceNum <= 0 ? (
+          <p className="text-[13px] g-t3">Pembayaran belum diaktifkan admin. Coba lagi nanti.</p>
+        ) : (
         <>
-          <p className="text-[13px] g-t2">Akses Beli (sekali bayar): {displayPrice ? rupiah(priceNum) : "—"}</p>
-          <GlassButton onClick={beli} disabled={pending || !displayPrice}>{pending ? "Memproses…" : "Beli sekarang"}</GlassButton>
+          <p className="text-[13px] g-t2">Akses Beli (sekali bayar): {rupiah(priceNum)}</p>
+          <GlassButton onClick={beli} disabled={pending}>{pending ? "Memproses…" : "Beli sekarang"}</GlassButton>
         </>
+        )
       ) : paid ? (
         <p className="text-[13px] g-t2">Terima kasih! Pembayaran kamu sedang <b>diverifikasi admin</b>. Kamu akan dikabari begitu aktif.</p>
       ) : (

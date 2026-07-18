@@ -18,7 +18,7 @@ export default function LoginPage() {
     setMsg(""); setPending(true);
     const channel = detectChannel(input);
     if (channel === "email") {
-      await signIn("resend", { email: input.trim(), redirect: false });
+      await signIn("resend", { email: input.trim(), redirect: false, callbackUrl: "/" });
       setStep("email_sent"); setPending(false); return;
     }
     if (channel === "phone") {
