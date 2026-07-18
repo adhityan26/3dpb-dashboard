@@ -57,3 +57,38 @@ export async function markPaid(id: string, userId: string, now = new Date()): Pr
   if (!p) throw new Error("not_found");
   await prisma.payment.update({ where: { id }, data: { paidMarkedAt: now } });
 }
+
+export async function listPending(now = new Date()): Promise<Payment[]> {
+  const rows = await prisma.payment.findMany({
+    where: { status: "PENDING", createdAt: { gt: liveSince(now) } },
+    orderBy: [{ paidMarkedAt: "desc" }, { createdAt: "desc" }],
+  });
+  return rows;
+}
+
+export async function activate(id: string, ownerEmail: string, now = new Date()): Promise<Payment | null> {
+  const p = await prisma.payment.findUnique({ where: { id } });
+  if (!p || p.status !== "PENDING") return null;
+  const updated = await prisma.payment.update({
+    where: { id },
+    data: { status: "PAID", verifiedAt: now, verifiedBy: ownerEmail },
+  });
+  await prisma.entitlement.upsert({
+    where: { userId: p.userId },
+    create: { userId: p.userId, lifetimeOwned: true, lifetimePurchasedAt: now },
+    update: { lifetimeOwned: true, lifetimePurchasedAt: now },
+  });
+  return updated;
+}
+
+export async function cancel(id: string): Promise<void> {
+  await prisma.payment.update({ where: { id }, data: { status: "CANCELLED" } });
+}
+
+export async function deactivate(userId: string): Promise<void> {
+  await prisma.entitlement.update({ where: { userId }, data: { lifetimeOwned: false } });
+}
+
+export async function listPaid(limit = 20): Promise<Payment[]> {
+  return prisma.payment.findMany({ where: { status: "PAID" }, orderBy: { verifiedAt: "desc" }, take: limit });
+}

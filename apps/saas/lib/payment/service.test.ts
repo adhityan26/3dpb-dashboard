@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@/lib/db", () => ({
   prisma: {
     payment: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), findUnique: vi.fn() },
+    entitlement: { update: vi.fn(), upsert: vi.fn() },
   },
 }));
 vi.mock("@/lib/config", async () => {
@@ -15,7 +16,7 @@ vi.mock("@/lib/qris/dynamic", () => ({ generateDynamicQris: vi.fn(() => "QRPAYLO
 import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { getEntitlement } from "@/lib/entitlement";
-import { allocUniqueCode, createOrReuseCheckout, markPaid } from "@/lib/payment/service";
+import { allocUniqueCode, createOrReuseCheckout, markPaid, listPending, activate, cancel, deactivate, listPaid } from "@/lib/payment/service";
 import { AlreadyOwned, PriceNotSet, QrisNotSet, CodePoolExhausted } from "@/lib/payment/errors";
 
 const NOW = new Date("2026-07-18T10:00:00Z");
@@ -104,5 +105,38 @@ describe("markPaid", () => {
   it("bukan milik user / tak hidup → throw", async () => {
     (prisma.payment.findFirst as any).mockResolvedValue(null);
     await expect(markPaid("p1", "u1", NOW)).rejects.toThrow();
+  });
+});
+
+describe("activate", () => {
+  it("status bukan PENDING → no-op null (idempoten)", async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", status: "PAID" });
+    expect(await activate("p1", "owner@x.com", NOW)).toBeNull();
+    expect(prisma.payment.update).not.toHaveBeenCalled();
+  });
+  it("PENDING → set PAID + flip lifetimeOwned", async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", status: "PENDING", userId: "u1" });
+    (prisma.payment.update as any).mockResolvedValue({ id: "p1", userId: "u1", status: "PAID" });
+    const r = await activate("p1", "owner@x.com", NOW);
+    expect(r?.status).toBe("PAID");
+    expect(prisma.payment.update).toHaveBeenCalledWith({ where: { id: "p1" }, data: { status: "PAID", verifiedAt: NOW, verifiedBy: "owner@x.com" } });
+    expect(prisma.entitlement.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { userId: "u1" },
+      update: { lifetimeOwned: true, lifetimePurchasedAt: NOW },
+    }));
+  });
+});
+
+describe("deactivate", () => {
+  it("set lifetimeOwned false", async () => {
+    await deactivate("u1");
+    expect(prisma.entitlement.update).toHaveBeenCalledWith({ where: { userId: "u1" }, data: { lifetimeOwned: false } });
+  });
+});
+
+describe("cancel", () => {
+  it("set CANCELLED", async () => {
+    await cancel("p1");
+    expect(prisma.payment.update).toHaveBeenCalledWith({ where: { id: "p1" }, data: { status: "CANCELLED" } });
   });
 });
