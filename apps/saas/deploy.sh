@@ -53,6 +53,9 @@ docker run -d \
   -e OWNER_EMAILS="$OWNER_EMAILS" \
   -e CLOUDFLARE_ACCOUNT_ID="${CLOUDFLARE_ACCOUNT_ID:-}" \
   -e CLOUDFLARE_API_TOKEN="${CLOUDFLARE_API_TOKEN:-}" \
+  -e WA_OMNI_URL="${WA_OMNI_URL:-}" \
+  -e WA_OMNI_TOKEN="${WA_OMNI_TOKEN:-}" \
+  -e WA_OMNI_ACCOUNT_ID="${WA_OMNI_ACCOUNT_ID:-}" \
   "$LOCAL_IMAGE"
 
 echo "⏳  Menunggu container ready..."
