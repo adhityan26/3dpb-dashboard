@@ -16,6 +16,7 @@ Butuh `.env` (lihat `.env.deploy.example`): `DATABASE_URL`, `AUTH_SECRET`, `RESE
 - Kalkulator: `@3pb/kalkulator-core` `hitungKalkulasiV2` + `defaultSettings`; UI memformat, tak menghitung ulang (`lib/kalkulator/compute.ts`).
 - Gating: `lib/entitlement.ts` (`getEntitlement`/`can`/`requirePlan`) + `lib/hooks/use-entitlement.ts`. Di 1a-1 semua Free; fitur Beli 🔒 modal segera-hadir.
 - Admin-mini: `/admin` owner-only (`OWNER_EMAILS`) — edit Config + lihat/ekspor waitlist.
+- Payment (Beli, 1c): dynamic QRIS manual (`lib/qris/dynamic.ts` + `lib/payment/*`), checkout `/beli` → QR nominal-unik → user "sudah bayar" → admin verifikasi (`/admin` tab Pembayaran) → flip `lifetimeOwned` + notif (WA/email). Owner set `qris.static` + `price.beli` di `/admin`. Fitur Beli-nya (save/multi-plate) = 1b; Subscribe = 1c-lanjut.
 
 ## Deploy (homelab, GATED)
 `./deploy.sh` → container `slizebiz` port 3300 di Docker host homelab. Butuh `.env.deploy`. Jangan deploy tanpa diminta user.
