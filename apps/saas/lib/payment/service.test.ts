@@ -81,6 +81,16 @@ describe("createOrReuseCheckout", () => {
     cfg({ "price.beli": "1000", "price.discountBuffer": "1000", "qris.static": "00020101021152...6304ABCD" });
     await expect(createOrReuseCheckout("u1", NOW)).rejects.toBeInstanceOf(PriceNotSet);
   });
+  it("discountBuffer diset di bawah 1000 → di-floor jadi 1000 (amount tetap < displayPrice)", async () => {
+    (getEntitlement as any).mockResolvedValue({ lifetimeOwned: false });
+    (prisma.payment.findFirst as any).mockResolvedValue(null);
+    (prisma.payment.findMany as any).mockResolvedValue([]); // semua kode bebas
+    cfg({ "price.beli": "150000", "price.discountBuffer": "500", "qris.static": "00020101021152...6304ABCD" });
+    (prisma.payment.create as any).mockImplementation(async ({ data }: any) => ({ id: "p-new", ...data }));
+    const r = await createOrReuseCheckout("u1", NOW);
+    expect(r.amount).toBeLessThan(150000);
+    expect(r.amount).toBe(150000 - 1000 + r.uniqueCode);
+  });
   it("pool kode habis (1000 pendents) → CodePoolExhausted", async () => {
     (getEntitlement as any).mockResolvedValue({ lifetimeOwned: false });
     (prisma.payment.findFirst as any).mockResolvedValue(null);
@@ -109,14 +119,28 @@ describe("markPaid", () => {
 });
 
 describe("listPending", () => {
-  it("query PENDING + live window, orderBy paidMarkedAt desc nulls-last then createdAt desc", async () => {
+  it("query PENDING + (live window OR paidMarkedAt set), orderBy paidMarkedAt desc nulls-last then createdAt desc", async () => {
     (prisma.payment.findMany as any).mockResolvedValue([]);
     await listPending(NOW);
     expect(prisma.payment.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ status: "PENDING", createdAt: { gt: expect.any(Date) } }),
+        where: expect.objectContaining({
+          status: "PENDING",
+          OR: [
+            { createdAt: { gt: expect.any(Date) } },
+            { paidMarkedAt: { not: null } },
+          ],
+        }),
         orderBy: [{ paidMarkedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
       }),
+    );
+  });
+  it("invoice ditandai bayar tapi lewat 3 jam tetap muncul (lolos lewat OR paidMarkedAt)", async () => {
+    (prisma.payment.findMany as any).mockResolvedValue([]);
+    await listPending(NOW);
+    const call = (prisma.payment.findMany as any).mock.calls[0][0];
+    expect(call.where.OR).toEqual(
+      expect.arrayContaining([{ paidMarkedAt: { not: null } }]),
     );
   });
 });

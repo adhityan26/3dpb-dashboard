@@ -38,7 +38,7 @@ export async function createOrReuseCheckout(userId: string, now = new Date()): P
   if (price === null || price <= 0) throw new PriceNotSet();
   const staticQ = (await getConfig("qris.static")).trim();
   if (!staticQ) throw new QrisNotSet();
-  const buffer = parsePrice(await getConfig("price.discountBuffer")) ?? 1000;
+  const buffer = Math.max(1000, parsePrice(await getConfig("price.discountBuffer")) ?? 1000);
   if (price <= buffer) throw new PriceNotSet();
 
   const code = await allocUniqueCode(now);
@@ -60,7 +60,13 @@ export async function markPaid(id: string, userId: string, now = new Date()): Pr
 
 export async function listPending(now = new Date()): Promise<Payment[]> {
   const rows = await prisma.payment.findMany({
-    where: { status: "PENDING", createdAt: { gt: liveSince(now) } },
+    where: {
+      status: "PENDING",
+      OR: [
+        { createdAt: { gt: liveSince(now) } }, // masih hidup (dalam 3 jam)
+        { paidMarkedAt: { not: null } }, // sudah ditandai bayar — jangan hilang walau lewat 3 jam
+      ],
+    },
     orderBy: [{ paidMarkedAt: { sort: "desc", nulls: "last" } }, { createdAt: "desc" }],
   });
   return rows;
