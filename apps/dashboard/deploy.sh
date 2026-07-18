@@ -99,6 +99,7 @@ docker run -d \
   --network homelab \
   -p 3100:3000 \
   -v "$DATA_VOLUME:/app/data" \
+  -v "/opt/stacks/cyd-firmware/latest:/app/firmware:ro" \
   -e NEXT_PUBLIC_BUILD_DATE="$BUILD_DATE" \
   -e NEXT_PUBLIC_BUILD_HASH="$BUILD_HASH" \
   -e DATABASE_URL="$DATABASE_URL" \
@@ -131,6 +132,7 @@ docker run -d \
   -e DISCORD_WEBHOOK_URL="${DISCORD_WEBHOOK_URL:-}" \
   -e OPS_API_SECRET="${OPS_API_SECRET:-}" \
   -e BOT_API_TOKEN="${BOT_API_TOKEN:-}" \
+  -e CYD_OTA_PASSWORD="${CYD_OTA_PASSWORD:-}" \
   "$DEPLOY_IMAGE"
 
 # ── Health check ───────────────────────────────────────────────────────────────
