@@ -22,7 +22,11 @@ export function Calculator({ authenticated }: { authenticated: boolean }) {
 
   return (
     <main className="max-w-3xl mx-auto p-6">
-      <h1 className="text-xl font-semibold g-t1 mb-4">Kalkulator harga jual</h1>
+      <div className="flex items-center gap-2 mb-4">
+        <img src="/logo.svg" alt="" width={28} height={28} />
+        <span className="font-bold text-lg g-t1">Slizebiz</span>
+        <span className="text-xl font-semibold g-t3">· Kalkulator harga jual</span>
+      </div>
       <div className="grid md:grid-cols-2 gap-5">
         {/* Input */}
         <GlassCard className="p-4 flex flex-col gap-3">
