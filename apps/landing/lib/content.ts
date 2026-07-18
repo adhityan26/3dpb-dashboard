@@ -19,7 +19,7 @@ export const CONTENT = {
 export const TIERS = [
   { id: "free", nama: "Free", harga: "Rp 0", fitur: ["Kalkulator dasar", "Margin Kompetitif/Standard/Premium + status", "Tanpa simpan"] },
   { id: "beli", nama: "Beli", harga: "Segera hadir", interest: "beli" as const, highlight: true,
-    fitur: ["Miliki aplikasinya — selamanya", "Semua fitur inti, offline", "Simpan, multi-plate, labor, settings"] },
+    fitur: ["Bayar sekali, tanpa langganan", "Semua fitur inti jalan offline", "Simpan, multi-plate, labor, settings"] },
   { id: "subscribe", nama: "Subscribe", harga: "Segera hadir", interest: "subscribe" as const,
     fitur: ["Sync antar device (cloud)", "OCR & share invoice", "Butuh langganan"] },
 ];
