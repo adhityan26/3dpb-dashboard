@@ -34,10 +34,13 @@ Firmware: `~/Documents/Project/3dpb-app/apps/claude-monitor` (PlatformIO/Arduino
 ```
 ~/Documents/Project/3pb-monitoring-display/
   apps/
-    internal/   ← migrasi claude-monitor, git history dijaga (git subtree split)
+    internal/
+      default-layout.json  ← BARU — sample/template JSON, sumber sama yg dipakai applyDefaultLayout() firmware
+      ...                    (migrasi claude-monitor, git history dijaga via git subtree split)
     produk/     ← BARU, TIDAK dibangun sesi ini (Fase 4)
   docs/superpowers/   ← spec ini + plan-nya disalin ke sini saat scaffolding
 ```
+`default-layout.json` = **satu sumber kebenaran** dipakai dua arah: (1) contoh/template siap-pakai buat siapa pun yang mau lihat/pelajari format skema, (2) firmware baca file ini saat build (embed via `PROGMEM`/LittleFS image) sbg isi `applyDefaultLayout()` — tidak ada dua salinan yang bisa saling beda.
 
 Migrasi: `git subtree split --prefix=apps/claude-monitor` di `3dpb-app` → import ke repo baru sbg `apps/internal/` (history commit dijaga). **Setelah** dikonfirmasi build & jalan identik di lokasi baru → `git rm -r apps/claude-monitor` di `3dpb-app` (commit terpisah, BUKAN rewrite history `3dpb-app` — cukup hapus working-tree state supaya tidak duplikat).
 
@@ -82,9 +85,10 @@ interface LayoutCell {
 
 ### 3.3 Kontrak MQTT
 
-- **Topic:** `3dpb/cyd/<deviceId>/layout`, **retained**. `deviceId` untuk device ini = `"internal-rack"` (konstanta di `config.h`, satu device fisik).
+- **Topic config (masuk):** `3dpb/cyd/<deviceId>/layout`, **retained**. `deviceId` untuk device ini = `"internal-rack"` (konstanta di `config.h`, satu device fisik).
+- **Topic readback (keluar), BARU:** `3dpb/cyd/<deviceId>/layout/current`, **retained**. Firmware publish `gLayout` (config yang SEDANG aktif di layar — hasil dari cache, default, atau MQTT baru, apa pun sumbernya) ke topic ini **setiap kali** `applyLayout()` sukses. Dua kegunaan: (1) sample/debug — subscribe topic ini kapan saja utk lihat persis apa yg sedang tampil di device manapun; (2) dashboard pakai ini sbg **konfirmasi save** (lihat §3.5) — tanpa ini, publish config dari dashboard bersifat *fire-and-forget*, tak ada cara tahu device beneran menerapkannya.
 - **Reporter:** dashboard (§3.5) publish retained JSON via `mqtt.js` (Node, sama library yg dipakai `printer-monitor-core`) ke broker `.113:1883` — **broker yang sama**, reuse, bukan instalasi baru.
-- Firmware subscribe topic ini **selain** `3dpb/printers` yang sudah ada (dua subscription independen, sama seperti pola `3dpb/cyd/orders` yang sudah jalan di firmware ini).
+- Firmware subscribe topic config **selain** `3dpb/printers` yang sudah ada (tiga subscription independen total termasuk `3dpb/cyd/orders`, sama pola yg sudah jalan di firmware ini).
 
 ### 3.4 Firmware: satu renderer generik + cache + fallback
 
@@ -95,7 +99,8 @@ void drawLabelCell(int x,int y,int w,int h, const char* text);        // cell ty
 void drawPrinterCell(int x,int y,int w,int h, const PrinterData& p, const FieldRow* fields, int fieldCount);  // loop fields baris demi baris, dispatch per FieldId ke drawTextField()/drawProgressBar(), stop saat tinggi habis (graceful degradation)
 void onLayoutMessage(const char* topic, byte* payload, unsigned int len);  // MQTT callback: parse+validasi (schemaVersion, limit 8 halaman/24 cell), simpan ke gLayout in-memory, tulis ke LittleFS, invalidate redraw. Gagal parse/validasi → gLayout TAK diubah (layout lama tetap dipakai)
 void loadLayoutFromCache();    // baca /layout.json dari LittleFS saat boot (sebelum WiFi/MQTT connect) — offline-capable
-void applyDefaultLayout();     // fallback baked-in sederhana (grid 6×4 cocok topologi 10-printer sekarang) — dipakai kalau LittleFS kosong DAN belum pernah terima MQTT. Auto-layout generik dari printer manapun (utk CYD-produk) DITUNDA ke Fase 4 — bukan scope sesi ini.
+void applyDefaultLayout();     // fallback baked-in sederhana (grid 6×4 cocok topologi 10-printer sekarang, dari default-layout.json §3.1) — dipakai kalau LittleFS kosong DAN belum pernah terima MQTT. Auto-layout generik dari printer manapun (utk CYD-produk) DITUNDA ke Fase 4 — bukan scope sesi ini.
+void applyLayout(const LayoutConfig& cfg);     // titik tunggal yg dipanggil dari cache/default/MQTT — set gLayout, redraw, DAN publish balik ke topic readback §3.3 (retained). Satu fungsi, tiga pemanggil, satu jaminan: readback selalu sinkron dgn apa yg benar-benar tampil di layar.
 ```
 Tabel statis `FieldId → {tinggiPx, renderer}` (dipakai `drawPrinterCell`) — satu-satunya bagian yang butuh kehati-hatian, sisanya integer math sederhana (bukan layout engine).
 
@@ -109,13 +114,15 @@ Differential-redraw (`namedCellChanged`/`sForceAll`) **dipertahankan**, digenera
 
 **Scope MVP** — satu halaman `app/(dashboard)/cyd-layout/page.tsx`:
 - Form grid TETAP (bukan drag-drop bebas) — 10 slot rack (grid 6×4 sesuai §3.2) + 2 slot label ("RAK KIRI"/"RAK KANAN", teks tetap) + 1 slot Ganymede-lebar (colSpan 6), cocok topologi fisik sekarang. Tiap slot printer = `<select>` isi printer, opsi diambil live dari `3dpb/printers` (API route baru `GET /api/cyd-layout/printers` — subscribe sesaat ke broker, baca retained, return daftar `{id,name}`; **butuh field `id`** dari payload — lihat prasyarat §3.2).
-- Tombol Simpan → `POST /api/cyd-layout` — server membentuk `LayoutConfig` LENGKAP (bukan cuma page rack): page `"rack"` dari assignment form (grid+cells+fields default `["name"],["state","progress"],["progressBar"]`); page `"detail-1"` dst di-**generate otomatis** di server dengan mengelompokkan printer yang sama (urutan sesuai assignment rack) jadi grid 1×3 per halaman, fields lengkap (`name/type`, `state+progress`, `progressBar`, `timeLeft+eta`, `filename`). Publish retained ke topic §3.3.
+- Tombol Simpan → `POST /api/cyd-layout` — server membentuk `LayoutConfig` LENGKAP (bukan cuma page rack): page `"rack"` dari assignment form (grid+cells+fields default `["name"],["state","progress"],["progressBar"]`); page `"detail-1"` dst di-**generate otomatis** di server dengan mengelompokkan printer yang sama (urutan sesuai assignment rack) jadi grid 1×3 per halaman, fields lengkap (`name/type`, `state+progress`, `progressBar`, `timeLeft+eta`, `filename`). Publish retained ke topic config §3.3.
+- **Konfirmasi diterapkan:** setelah publish, halaman subscribe singkat (~5 detik timeout) ke topic readback `.../layout/current` (§3.3) — kalau payload yg diterima match dgn yg baru dikirim → tampilkan "✅ Diterapkan ke CYD". Timeout tanpa match → "⚠️ Tersimpan, tapi device belum konfirmasi (cek koneksi CYD)". Bukan hard-error — publish tetap sukses (retained, device tetap akan menerapkannya begitu online), ini murni sinyal UX.
 - **Kenapa detail di-generate otomatis, bukan diedit manual:** MVP fokus pada masalah nyata (rearrange fisik rak tanpa reflash); skema JSON tetap genuinely multi-page multi-field (membuktikan fondasi utk Fase 4/produk yang nanti bisa expose UI penuh per-halaman/per-field), tapi UI-nya sengaja tak melebar ke drag-drop/field-picker bebas (itu scope dashboard/SaaS lanjutan, bukan sesi ini).
 
 ## 4. Testing
 
 - **Firmware (native/unit, kalau ada test harness PlatformIO):** geometri grid (`cellW/cellH` benar dari `cols/rows/rowWeights`, termasuk kasus tanpa `rowWeights` = seragam), `drawPrinterCell` per `FieldId` (dimensi/warna/label benar, termasuk override `label`), graceful-degradation (baris terakhir yg tak muat ter-skip, bukan overflow/crash), parse `LayoutConfig` dari sample JSON (termasuk malformed/melebihi limit → fallback lama dipertahankan), `applyDefaultLayout()` cocok proporsi visual dgn `screenPrintersRackDraw()` lama (regression guard — **bukan lagi pixel-identik**, krn grid seragam per-baris beda dari pixel bebas asli; verifikasi visual, bukan diff pixel exact).
-- **Dashboard:** test route `POST /api/cyd-layout` (bentuk `LayoutConfig` valid sesuai skema §3.2, page detail ter-generate benar dari assignment) + `GET /api/cyd-layout/printers` (parse retained payload, includes `id`).
+- **Dashboard:** test route `POST /api/cyd-layout` (bentuk `LayoutConfig` valid sesuai skema §3.2, page detail ter-generate benar dari assignment, subscribe readback + timeout 5s berfungsi) + `GET /api/cyd-layout/printers` (parse retained payload, includes `id`).
+- **Firmware — readback:** `applyLayout()` selalu publish ke topic `.../layout/current` stlh cache/default/MQTT diterapkan (3 pemanggil, satu assert: readback == gLayout aktif).
 - **Manual end-to-end (tak ada hardware-in-loop otomatis):** publish dari dashboard MVP → verifikasi log serial firmware (`Serial.printf`) menerima & re-render → foto/screenshot layar fisik sbg bukti (user, seperti pola verifikasi CYD di printer-monitor Fase 1).
 
 ## 5. Risiko & catatan terbuka
