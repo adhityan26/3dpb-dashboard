@@ -6,6 +6,7 @@ export function Footer() {
       <div className="g-t3 flex items-center gap-2">
         <img src="/logo.svg" alt="" width={20} height={20} />
         <span><span className="font-semibold g-t1">{CONTENT.brand}</span> · {CONTENT.poweredBy}</span>
+        <img src="/3dpb.png" alt="Logo 3D Printing Bandung" width={17} height={20} />
       </div>
       <div className="flex items-center gap-4 g-t4">
         <a href="/privasi" className="hover:g-t1">Privasi</a>

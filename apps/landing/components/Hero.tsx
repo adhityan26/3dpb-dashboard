@@ -3,7 +3,10 @@ import { CONTENT } from "@/lib/content";
 export function Hero() {
   return (
     <section className="px-5 py-16 md:py-24 max-w-3xl mx-auto w-full text-center">
-      <p className="text-[11px] uppercase tracking-wide g-t4 mb-3">{CONTENT.poweredBy}</p>
+      <p className="flex items-center justify-center gap-2 text-[11px] uppercase tracking-wide g-t4 mb-3">
+        <img src="/3dpb.png" alt="Logo 3D Printing Bandung" width={28} height={32} />
+        {CONTENT.poweredBy}
+      </p>
       <h1 className="text-3xl md:text-5xl font-bold g-t1 leading-tight">{CONTENT.heroHeadline}</h1>
       <p className="text-base md:text-lg g-t3 mt-4">{CONTENT.heroSub}</p>
       <a
