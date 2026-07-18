@@ -33,10 +33,13 @@ export interface LocalSettings {
   failureSpreadPct: number;
   testLayerPct: number;
   margin: { A: number; B: number; C: number };
+  resellerBulkMultiplier: number;
   channels: { offline: number; shopee: number }; // feeMultiplier
 }
 ```
-`DEFAULT_LOCAL_SETTINGS` = dari konstanta existing (`DEFAULT_MATERIAL` FDM 300/900/12 · SLA 1750/3500/12; `DEFAULT_MESIN_PER_JAM` 4000; `defaultSettings` failureSpread 50, testLayer 5, margin 1.1/1.5/2.0, channel offline 1.0/shopee 1.2). `resellerBulkMultiplier` (1.05) **tak** editable di 1b-1 — tetap konstanta.
+`DEFAULT_LOCAL_SETTINGS` = dari konstanta existing (`DEFAULT_MATERIAL` FDM 300/900/12 · SLA 1750/3500/12; `DEFAULT_MESIN_PER_JAM` 4000; `defaultSettings` failureSpread 50, testLayer 5, margin 1.1/1.5/2.0, resellerBulk 1.05, channel offline 1.0/shopee 1.2). Semua field di atas **editable** untuk Beli.
+
+**Scope material/mesin = ubah-angka (opsi A), BUKAN CRUD banyak profil:** field material tetap 2 jenis tetap (FDM & SLA, tiap-tiap 3 angka), mesin = **satu** `mesinPerJam`. "Tambah/hapus profil material/printer sendiri + pilih per-plate" = 1b-2 (bareng multi-plate).
 
 **Modul `lib/store/local-settings.ts`** (client-only, `idb`):
 - `loadSettings(userId: string): Promise<LocalSettings>` — baca record `userId` dari object store `settings`; tak ada / error / IndexedDB absen → return `DEFAULT_LOCAL_SETTINGS` (kalkulator tetap jalan).
@@ -44,7 +47,7 @@ export interface LocalSettings {
 - `resetSettings(userId: string): Promise<void>` — hapus record `userId` (→ balik default).
 - DB name `slizebiz-local`, store `settings` (keyPath `userId`).
 
-**Modul `lib/kalkulator/local-settings.ts`** (isomorphic, no idb): `DEFAULT_LOCAL_SETTINGS` + `toSettingsV2(ls): SettingsV2` (map `failureSpreadPct`/`testLayerPct`/`margin`→`marginMultipliers`/`resellerBulkMultiplier:1.05`/`channels:[{id:"offline",nama:"Offline",feeMultiplier:ls.channels.offline},{id:"shopee",nama:"Shopee",feeMultiplier:ls.channels.shopee}]`) + `validateLocalSettings(ls): string[]` (daftar error, kosong = valid).
+**Modul `lib/kalkulator/local-settings.ts`** (isomorphic, no idb): `DEFAULT_LOCAL_SETTINGS` + `toSettingsV2(ls): SettingsV2` (map `failureSpreadPct`/`testLayerPct`/`margin`→`marginMultipliers`/`resellerBulkMultiplier: ls.resellerBulkMultiplier`/`channels:[{id:"offline",nama:"Offline",feeMultiplier:ls.channels.offline},{id:"shopee",nama:"Shopee",feeMultiplier:ls.channels.shopee}]`) + `validateLocalSettings(ls): string[]` (daftar error, kosong = valid).
 
 ---
 
@@ -54,7 +57,7 @@ export interface LocalSettings {
 
 **Client `components/SettingsPanel.tsx`:**
 - On-mount: `editable` → `loadSettings(userId)`; else `DEFAULT_LOCAL_SETTINGS`. Simpan ke state.
-- Grup field (semua angka): **Material** (FDM & SLA: hpp/jual/failure), **Mesin** (`mesinPerJam`), **Failure & prototype** (`failureSpreadPct`, `testLayerPct`), **Margin** (Kompetitif=A / Standard=B / Premium=C, pakai `MARGIN_TIER_LABEL`), **Fee channel** (offline, shopee).
+- Grup field (semua angka): **Material** (FDM & SLA: hpp/jual/failure), **Mesin** (`mesinPerJam`), **Failure & prototype** (`failureSpreadPct`, `testLayerPct`), **Margin** (Kompetitif=A / Standard=B / Premium=C via `MARGIN_TIER_LABEL` + **Reseller bulk** = `resellerBulkMultiplier`), **Fee channel** (offline, shopee).
 - **Free (read-only):** input `disabled`, tiap grup badge **🔒** + tombol/link **"Edit di Beli →"** ke `/beli`. Header: "Ini setting default. Beli untuk mengubah & pakai di kalkulatormu."
 - **Beli (editable):** input aktif; tombol **Simpan** (`validateLocalSettings` → bila ada error tampil hint & batal; else `saveSettings` → "Tersimpan.") + **"Reset ke default"** (`resetSettings` → muat ulang default).
 - Kalkulator dapat link **⚙ Setting** ke `/settings` (di header, saat login).
@@ -75,7 +78,7 @@ export interface LocalSettings {
 ## 5. Error handling
 
 - **IndexedDB absen/gagal** (mode privat, browser lawas): `loadSettings` → default (kalkulator & panel tetap render); `saveSettings` gagal → pesan "Gagal simpan, coba lagi" (non-fatal, data lama tak hilang).
-- **Nilai invalid** (`validateLocalSettings`): hpp/jual/mesin ≤ 0, failure di luar 0–100, margin ≤ 0, feeMultiplier < 1 → Simpan ditolak + hint field mana.
+- **Nilai invalid** (`validateLocalSettings`): hpp/jual/mesin ≤ 0, failure di luar 0–100, margin ≤ 0, resellerBulk ≤ 0, feeMultiplier < 1 → Simpan ditolak + hint field mana.
 - **Free defense:** kalkulator terapkan custom hanya bila `paidCore`; panel Free input disabled (nggak bisa Simpan). Setting custom di IndexedDB milik user Free (mis. sisa dari pernah Beli lalu refund) diabaikan kalkulator selama `!paidCore`.
 - **Parity Free:** `fullView(c)` == `fullView(c, DEFAULT_LOCAL_SETTINGS)` == angka lama.
 
