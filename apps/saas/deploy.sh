@@ -41,7 +41,7 @@ docker run -d \
   --name "$CONTAINER" \
   --restart unless-stopped \
   --network homelab \
-  -p 3200:3000 \
+  -p 3300:3000 \
   -e NEXT_PUBLIC_BUILD_DATE="$BUILD_DATE" \
   -e NEXT_PUBLIC_BUILD_HASH="$BUILD_HASH" \
   -e DATABASE_URL="$DATABASE_URL" \
@@ -58,7 +58,7 @@ docker run -d \
 echo "⏳  Menunggu container ready..."
 sleep 3
 if docker logs "$CONTAINER" 2>&1 | grep -q "Ready in"; then
-  echo "✅  Deploy berhasil! Container '$CONTAINER' berjalan di :3200."
+  echo "✅  Deploy berhasil! Container '$CONTAINER' berjalan di :3300."
   docker logs "$CONTAINER" --tail 5
 else
   echo "⚠️   Container jalan tapi belum terdeteksi Ready. Cek logs:"

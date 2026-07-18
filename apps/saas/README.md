@@ -5,7 +5,7 @@ App SaaS Slizebiz: kalkulator harga jual 3D print untuk user Free + admin-mini.
 ## Jalankan lokal
 ```bash
 export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH"
-pnpm --filter @3pb/saas dev   # http://localhost:3200
+pnpm --filter @3pb/saas dev   # http://localhost:3300
 ```
 Butuh `.env` (lihat `.env.deploy.example`): `DATABASE_URL`, `AUTH_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `OWNER_EMAILS`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`.
 
@@ -18,7 +18,7 @@ Butuh `.env` (lihat `.env.deploy.example`): `DATABASE_URL`, `AUTH_SECRET`, `RESE
 - Admin-mini: `/admin` owner-only (`OWNER_EMAILS`) — edit Config + lihat/ekspor waitlist.
 
 ## Deploy (homelab, GATED)
-`./deploy.sh` → container `slizebiz` port 3200 di Docker host homelab. Butuh `.env.deploy`. Jangan deploy tanpa diminta user.
+`./deploy.sh` → container `slizebiz` port 3300 di Docker host homelab. Butuh `.env.deploy`. Jangan deploy tanpa diminta user.
 
 ## Batas fase
 Payment/subscription = 1c. Save/IndexedDB/PWA data = 1b.
