@@ -13,8 +13,9 @@ Prasyarat: akun Cloudflare, domain `slizebiz.com` memakai nameserver Cloudflare,
 2. Build (dari root repo): `pnpm --filter @3pb/landing build` (hasil `apps/landing/out`).
 3. Deploy (dari `apps/landing`, tanpa argumen output-dir — `pages_build_output_dir = "out"` di `wrangler.toml` sudah menghandle ini):
    ```
-   cd apps/landing && npx wrangler pages deploy
+   cd apps/landing && npx wrangler pages deploy --branch=main
    ```
+   > `--branch=main` wajib: production branch project Pages = `main`, sedangkan branch git repo ini `master`. Tanpa flag itu wrangler memakai nama branch git → deploy nyasar ke environment preview (custom domain tetap serve versi lama).
    Alternatif Git integration: di Cloudflare Pages project, set **Root directory = `apps/landing`**, build command `pnpm --filter @3pb/landing build`, build output directory `out`.
 4. Custom domain: tambah `www.slizebiz.com` di Pages project; apex `slizebiz.com` → redirect ke `www`.
 5. Cek waitlist: `cd apps/landing && npx wrangler d1 execute slizebiz-waitlist --remote --command "SELECT * FROM waitlist"`.
