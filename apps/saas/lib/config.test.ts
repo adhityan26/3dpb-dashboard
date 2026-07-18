@@ -21,7 +21,7 @@ describe("parsePrice", () => {
 });
 
 describe("getConfig", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks() });
   it("pakai nilai DB bila ada", async () => {
     (prisma.config.findUnique as any).mockResolvedValue({ key: "price.beli", value: "199000" });
     expect(await getConfig("price.beli")).toBe("199000");
@@ -37,7 +37,7 @@ describe("getConfig", () => {
 });
 
 describe("getAllConfig", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks() });
   it("merge default ⊕ DB (DB menang)", async () => {
     (prisma.config.findMany as any).mockResolvedValue([{ key: "price.beli", value: "199000" }]);
     const all = await getAllConfig();
@@ -47,7 +47,7 @@ describe("getAllConfig", () => {
 });
 
 describe("setConfig", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => { vi.clearAllMocks() });
   it("upsert key/value", async () => {
     await setConfig("price.beli", "250000");
     expect(prisma.config.upsert).toHaveBeenCalledWith({
