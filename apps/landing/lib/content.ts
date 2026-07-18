@@ -3,11 +3,11 @@ export const CONTENT = {
   brand: "slizebiz",
   poweredBy: "powered by 3D Printing Bandung",
   heroHeadline: "Tahu harga jual produk 3D print-mu dalam hitungan detik",
-  heroSub: "Hitung biaya modal, harga jual minimum, dan rekomendasi harga — gratis, tanpa daftar.",
+  heroSub: "Hitung biaya modal, harga jual minimum, dan rekomendasi harga. Gratis, tanpa daftar.",
   valueProps: [
-    { icon: "🎯", title: "Harga akurat", desc: "Material, buffer gagal, listrik + depresiasi mesin ikut dihitung — bukan cuma tebak." },
+    { icon: "🎯", title: "Harga akurat", desc: "Material, buffer gagal, listrik + depresiasi mesin ikut dihitung, bukan cuma tebak." },
     { icon: "🏷️", title: "Per channel", desc: "Rekomendasi harga untuk offline & marketplace, sekali klik." },
-    { icon: "💾", title: "Simpan & kelola", desc: "Simpan kalkulasi, multi-plate, labor & settings custom — di app (segera)." },
+    { icon: "💾", title: "Simpan & kelola", desc: "Simpan kalkulasi, multi-plate, labor & settings custom di app (segera)." },
   ],
   faq: [
     { q: "Perlu bayar untuk coba?", a: "Tidak. Kalkulator teaser gratis dan tanpa daftar." },
