@@ -22,6 +22,30 @@ describe("issueOtp", () => {
     expect(arg.create.codeHash).toBe(hash("628111", code));
     expect(arg.create.sentCount).toBe(1);
   });
+  it("issueOtp dalam window — sentCount++, windowStart preserved", async () => {
+    const existingWindowStart = new Date(NOW.getTime() - 10 * 60_000); // 10 min ago
+    (prisma.waOtp.findUnique as any).mockResolvedValue({
+      phone: "628111",
+      windowStart: existingWindowStart,
+      sentCount: 2,
+    });
+    await issueOtp("628111", NOW);
+    const arg = (prisma.waOtp.upsert as any).mock.calls[0][0];
+    expect(arg.update.sentCount).toBe(3);
+    expect(arg.update.windowStart).toBe(existingWindowStart);
+  });
+  it("issueOtp past window — sentCount reset ke 1, windowStart = now", async () => {
+    const oldWindowStart = new Date(NOW.getTime() - 2 * 60 * 60_000); // 2 hours ago
+    (prisma.waOtp.findUnique as any).mockResolvedValue({
+      phone: "628111",
+      windowStart: oldWindowStart,
+      sentCount: 5,
+    });
+    await issueOtp("628111", NOW);
+    const arg = (prisma.waOtp.upsert as any).mock.calls[0][0];
+    expect(arg.update.sentCount).toBe(1);
+    expect(arg.update.windowStart).toBe(NOW);
+  });
 });
 
 describe("verifyOtp", () => {
@@ -65,6 +89,17 @@ describe("canSend", () => {
   });
   it("cooldown lewat & kuota belum habis → boleh", async () => {
     (prisma.waOtp.findUnique as any).mockResolvedValue({ lastSentAt: new Date(NOW.getTime() - 120000), sentCount: 2, windowStart: new Date(NOW.getTime() - 600000) });
+    expect((await canSend("628111", NOW)).ok).toBe(true);
+  });
+  it("canSend stale window (>1h) + cooldown lewat — boleh meski sentCount=5", async () => {
+    const staleWindowStart = new Date(NOW.getTime() - 2 * 60 * 60_000); // 2 hours ago
+    const lastSentAt = new Date(NOW.getTime() - 120_000); // 2 min ago (past 60s cooldown)
+    (prisma.waOtp.findUnique as any).mockResolvedValue({
+      phone: "628111",
+      windowStart: staleWindowStart,
+      sentCount: 5,
+      lastSentAt,
+    });
     expect((await canSend("628111", NOW)).ok).toBe(true);
   });
 });
