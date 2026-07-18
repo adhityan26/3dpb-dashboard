@@ -19,6 +19,13 @@
 
 > **Perubahan payment (2026-07-16):** Tripay/gateway **DIBATALKAN**. Payment nanti = **dynamic QRIS sendiri + verifikasi manual** (user konfirmasi bayar → admin cek & flip entitlement). Ini urusan **1c**; di 1a hanya berdampak: (a) admin-mini nanti dapat antrian konfirmasi bayar, (b) skema entitlement sudah dirancang bisa di-flip manual. Referensi "Tripay" di spec funnel & induk kini usang — perlu **doc-sync terpisah** (di luar scope build ini).
 
+> **⭐ AMANDEMEN 2026-07-18 (mengikat — menang atas teks lama yang bertentangan):** milestone yang dibangun sekarang = **App 1a-1 (Free + admin-mini ringan)**. Tiga penyelarasan wajib:
+> 1. **Deploy target = HOMELAB dulu** (bukan VPS). Re-scope note 2026-07-16 di atas keliru menulis VPS — yang berlaku adalah **decision-log #2 & §2/§10 (homelab)**: container `slizebiz` port **3200** di Docker host `192.168.88.113`, DB `slizebiz` di `light-generator-postgres-1`. `app.slizebiz.com` + VPS/SumoPod = migrasi "go public" terpisah, **di luar 1a-1**.
+> 2. **Sumber waitlist = Cloudflare D1 (rumah landing), BUKAN tabel Postgres app.** Landing (`www.slizebiz.com`) sudah menulis signup ke D1 `slizebiz-waitlist` (`database_id fc76ff99-d167-4570-a8ae-58923ab31e4d`, tabel `waitlist(id,email,interest,created_at)`). Landing tetap **standalone** (tahan banting, tak bergantung app). Admin-mini app **membaca D1 read-only via Cloudflare API** (token `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` di env app; scope minimal D1:read). **Konsekuensi:** tabel `Waitlist` Prisma di §5 **DIHAPUS dari 1a-1** (tak ada duplikasi/sync). Kolom `Waitlist.userId` (minat oleh user login) ditunda sampai app punya form waitlist sendiri (tidak di 1a-1).
+> 3. **App login = kalkulator PENUH untuk Free, bukan "teaser".** Teaser (tanpa login) hidup di landing. Di app, user login-Free dapat: single-plate, single-material, profil default, margin Kompetitif/Standard/Premium (`MARGIN_TIER_LABEL`), status vs harga pasar, per-channel, copy/share. Fitur Beli (multi-plate, labor, settings custom, master harga, **Save**) tampil **🔒** → modal "segera hadir". Deskripsi "teaser page" di §8 dibaca sebagai **halaman kalkulator penuh Free** dengan gating login+kapabilitas yang sama; mekanik "login-reveal in-place" tetap berlaku untuk transisi anonim→Free bila app juga melayani rute publik, tapi pintu utama app = sudah login.
+>
+> **Label margin:** pakai `MARGIN_TIER_LABEL` dari kalkulator-core (A→Kompetitif, B→Standard, C→Premium). Key A/B/C tak berubah; tampilan pakai label. **Payment/subscription penuh + admin QRIS = 1c** (bukan sekarang). **Save/IndexedDB/offline data = 1b.**
+
 ---
 
 ## 1. Ringkasan keputusan (decision log)
@@ -111,17 +118,7 @@ model Config {
 ```
 Landing/teaser/modal membaca dari sini (dengan default konstanta jika key absen). Editable via `/admin` tanpa redeploy.
 
-**Waitlist (funnel §6 — minat tier berbayar):**
-```prisma
-model Waitlist {
-  id        String   @id @default(cuid())
-  email     String
-  interest  String                    // "beli" | "subscribe"
-  userId    String?                   // jika sudah login
-  createdAt DateTime @default(now())
-  @@unique([email, interest])
-}
-```
+**Waitlist — TIDAK di Postgres app (lihat Amandemen 2026-07-18 #2).** Sumber = Cloudflare D1 `slizebiz-waitlist`, ditulis oleh landing. Admin-mini membacanya read-only via Cloudflare API. Tidak ada model Prisma `Waitlist` di 1a-1.
 
 **Tidak ada** tabel Kalkulasi/Plate/Komponen/dst di 1a — Free stateless, save = fitur Beli (1b).
 
@@ -151,7 +148,8 @@ Detail badge 🔒 + modal upgrade = track funnel; fondasi menyediakan primitifny
 ## 7. Admin-mini
 
 - Route `/admin` di `apps/saas`, **owner-only**: guard server membandingkan email sesi dengan allowlist env **`OWNER_EMAILS`** (comma-separated). Non-owner → 404/redirect.
-- Fungsi 1a: **CRUD `Config`** (form key-value untuk harga & copy landing/teaser) + **tabel `Waitlist`** (lihat/ekspor minat). 
+- Fungsi 1a: **CRUD `Config`** (form key-value untuk harga & copy landing/teaser) + **lihat/ekspor Waitlist** (dibaca dari **Cloudflare D1** via CF API, read-only — lihat Amandemen #2, bukan tabel Postgres).
+- Waitlist read: server-only helper `lib/waitlist/cloudflare.ts` → `POST https://api.cloudflare.com/client/v4/accounts/{CLOUDFLARE_ACCOUNT_ID}/d1/database/{DB_ID}/query` dengan `SELECT id,email,interest,created_at FROM waitlist ORDER BY created_at DESC`, header `Authorization: Bearer ${CLOUDFLARE_API_TOKEN}`. Token & id dari env; DB_ID = `fc76ff99-d167-4570-a8ae-58923ab31e4d`. Ekspor CSV = render hasil query. Gagal panggil CF (token invalid/jaringan) → tabel tampil pesan error, **tidak** crash halaman admin.
 - Tanpa koneksi ke DB dashboard internal (jaga pemisahan 2-deployment).
 - *(1c nanti: tab antrian konfirmasi pembayaran QRIS → tombol aktifkan yang mem-flip `Entitlement`. Skema sudah siap; tidak dibangun di 1a.)*
 
@@ -190,7 +188,7 @@ Single-plate, single-material, profil default saja (multi-plate/material/labor/s
 - **Dockerfile** `apps/saas` (multi-stage, pola sama `apps/dashboard/Dockerfile`; build context = root repo, standalone output Next). Entrypoint: `prisma db push` lalu start server.
 - **Skrip deploy** (mirror `apps/dashboard/deploy.sh` disederhanakan, tanpa stl-service): build image `slizebiz:latest` di Docker host homelab → `docker run` container `slizebiz`, `--network homelab -p 3200:3000`, env dari `.env.deploy` saas.
 - **DB:** buat database `slizebiz` di Postgres homelab (pola `shopee_dashboard_dev`). `DATABASE_URL` → `postgresql://…@light-generator-postgres-1:5432/slizebiz` (runtime) / host `192.168.88.113:5432` (migrasi/seed dari lokal).
-- **Env:** `DATABASE_URL`, `AUTH_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `OWNER_EMAILS`, `NEXTAUTH_URL` (homelab origin), `NEXT_PUBLIC_BUILD_*`.
+- **Env:** `DATABASE_URL`, `AUTH_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `OWNER_EMAILS`, `NEXTAUTH_URL` (homelab origin), `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` (baca waitlist D1, admin-only), `NEXT_PUBLIC_BUILD_*`.
 - **CI:** tambah `apps/saas` ke `pnpm turbo test`/`build` (workflow root existing sudah workspace-wide).
 - SumoPod/Caddy/DNS/backup publik = task migrasi terpisah, **bukan** 1a.
 
