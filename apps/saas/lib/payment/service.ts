@@ -39,6 +39,7 @@ export async function createOrReuseCheckout(userId: string, now = new Date()): P
   const staticQ = (await getConfig("qris.static")).trim();
   if (!staticQ) throw new QrisNotSet();
   const buffer = parsePrice(await getConfig("price.discountBuffer")) ?? 1000;
+  if (price <= buffer) throw new PriceNotSet();
 
   const code = await allocUniqueCode(now);
   const amount = price - buffer + code;
