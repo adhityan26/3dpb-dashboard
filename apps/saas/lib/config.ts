@@ -5,8 +5,11 @@ export const DEFAULT_CONFIG: Record<string, string> = {
   "price.beli": "",              // TBA (angka pricing ditunda — funnel §3.7)
   "price.sub.owner": "",
   "price.sub.standalone": "",
+  "price.discountBuffer": "1000",
   "copy.hero.headline": "Hitung harga jual produk 3D print-mu dalam hitungan detik",
+  "copy.refund": "Refund 7 hari sejak pembelian — hubungi kami via WhatsApp/email.",
   "feature.pos.status": "segera-hadir",
+  "qris.static": "",
 };
 
 /** Parse harga; kembalikan null bila non-numerik/kosong (biar caller fallback). */
