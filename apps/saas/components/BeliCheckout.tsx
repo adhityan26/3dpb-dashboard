@@ -44,7 +44,7 @@ export function BeliCheckout({ displayPrice, refundCopy }: { displayPrice: strin
           <p className="text-[13px] g-t3">Pembayaran belum diaktifkan admin. Coba lagi nanti.</p>
         ) : (
         <>
-          <p className="text-[13px] g-t2">Akses Beli (sekali bayar): {rupiah(priceNum)}</p>
+          <p className="text-[13px] g-t2">Bayar sekali, akses selamanya — <b>{rupiah(priceNum)}</b></p>
           <GlassButton onClick={beli} disabled={pending}>{pending ? "Memproses…" : "Beli sekarang"}</GlassButton>
         </>
         )

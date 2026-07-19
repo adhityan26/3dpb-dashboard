@@ -6,9 +6,9 @@ export function LogoutButton({ className = "" }: { className?: string }) {
     <button
       type="button"
       onClick={() => signOut({ callbackUrl: "/login" })}
-      className={`text-[12px] g-t4 underline hover:g-t2 ${className}`}
+      className={`text-[12px] g-t4 hover:g-t2 inline-flex items-center gap-1 ${className}`}
     >
-      Keluar
+      <span aria-hidden>🚪</span> Keluar
     </button>
   );
 }

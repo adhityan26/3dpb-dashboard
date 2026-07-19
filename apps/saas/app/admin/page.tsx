@@ -7,7 +7,7 @@ import { listPending, listPaid } from "@/lib/payment/service";
 import { prisma } from "@/lib/db";
 import { ConfigEditor } from "@/components/admin/ConfigEditor";
 import { WaitlistTable } from "@/components/admin/WaitlistTable";
-import { LogoutButton } from "@/components/LogoutButton";
+import { AppHeader } from "@/components/AppHeader";
 import { PaymentQueue, type PendingRow } from "@/components/admin/PaymentQueue";
 import { PaidList, type PaidRow } from "@/components/admin/PaidList";
 import { UserList, type UserRow } from "@/components/admin/UserList";
@@ -93,10 +93,7 @@ export default async function AdminPage() {
 
   return (
     <main className="max-w-3xl mx-auto p-6 flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold g-t1">Admin Slizebiz</h1>
-        <LogoutButton />
-      </div>
+      <AppHeader subtitle="Admin" />
       <AdminTabs tabs={tabs} />
     </main>
   );

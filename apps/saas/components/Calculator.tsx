@@ -6,7 +6,7 @@ import { DEFAULT_LOCAL_SETTINGS, type LocalSettings } from "@/lib/kalkulator/loc
 import { loadSettings } from "@/lib/store/local-settings";
 import { GlassCard, GlassInput } from "@3pb/ui";
 import { LockedBlock } from "./LockedBlock";
-import { LogoutButton } from "./LogoutButton";
+import { AppHeader } from "./AppHeader";
 import type { KomponenRow, LaborRow } from "@/lib/kalkulator/compose";
 import { KomponenLaborInput } from "./KomponenLaborInput";
 import { RincianPanel } from "./RincianPanel";
@@ -43,14 +43,8 @@ export function Calculator({ authenticated, paidCore = false, userId = null }: {
 
   return (
     <main className="max-w-3xl mx-auto p-6">
-      <div className="flex items-center gap-2 mb-4">
-        <img src="/logo.svg" alt="" width={28} height={28} />
-        <span className="font-bold text-lg g-t1">Slizebiz</span>
-        <span className="text-xl font-semibold g-t3">· Kalkulator harga jual</span>
-        {authenticated && <a href="/settings" className="text-[12px] g-t4 underline ml-auto" title="Setting kalkulator">⚙ Setting</a>}
-        {authenticated && <LogoutButton />}
-      </div>
-      <div className="grid md:grid-cols-2 gap-5">
+      <AppHeader subtitle="Kalkulator harga jual" authenticated={authenticated} />
+      <div className="grid md:grid-cols-2 gap-5 items-start">
         {/* Input */}
         <GlassCard className="p-4 flex flex-col gap-3">
           <label className="text-[12px] g-t3">Berat (gram)
@@ -69,6 +63,17 @@ export function Calculator({ authenticated, paidCore = false, userId = null }: {
             </select>
           </label>
           <p className="text-[11px] g-t4">Printer: Default (Bambu P1P) · Printer & material custom di Beli 🔒</p>
+
+          <KomponenLaborInput
+            locked={!paidCore}
+            settings={settings}
+            komponen={komponen}
+            labor={labor}
+            packing={packing}
+            onKomponenChange={setKomponen}
+            onLaborChange={setLabor}
+            onPackingChange={setPacking}
+          />
         </GlassCard>
 
         {/* Hasil */}
@@ -107,21 +112,13 @@ export function Calculator({ authenticated, paidCore = false, userId = null }: {
                 </div>
               </LockedBlock>
 
-              <button className="text-[11px] g-t4 text-left underline" onClick={() => { window.location.href = "/beli"; }}>
-                Simpan hasil, multi-plate, labor & settings custom → Beli 🔒
-              </button>
-
-              <KomponenLaborInput
-                locked={!paidCore}
-                settings={settings}
-                komponen={komponen}
-                labor={labor}
-                packing={packing}
-                onKomponenChange={setKomponen}
-                onLaborChange={setLabor}
-                onPackingChange={setPacking}
-              />
               {showRincian && <RincianPanel rincian={view.rincian} />}
+
+              {!paidCore && (
+                <button className="text-[11px] g-t4 text-left underline" onClick={() => { window.location.href = "/beli"; }}>
+                  Simpan hasil & multi-plate → Beli 🔒
+                </button>
+              )}
             </div>
           )}
         </GlassCard>

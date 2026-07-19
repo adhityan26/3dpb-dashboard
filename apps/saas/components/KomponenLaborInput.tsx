@@ -17,8 +17,7 @@ export function KomponenLaborInput({
     return (
       <div className="border-t border-[color:var(--g-row-border)] pt-3 mt-1">
         <div className="text-[12px] g-t3 font-medium">🔒 Komponen, labor &amp; packing</div>
-        <p className="text-[11px] g-t4 mt-1">Tambah komponen, biaya labor &amp; packing ke perhitungan.
-          <a href="/beli" className="underline ml-1">Buka di Beli →</a></p>
+        <p className="text-[11px] g-t4 mt-1">Hitung juga komponen tambahan, biaya labor, dan packing di harga jualmu. <a href="/beli" className="underline">Buka di Beli →</a></p>
       </div>
     );
   }
