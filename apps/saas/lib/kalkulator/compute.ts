@@ -5,6 +5,7 @@ import {
 } from "@3pb/kalkulator-core";
 import { defaultSettings } from "./default-settings";
 import { DEFAULT_LOCAL_SETTINGS, toSettingsV2, type LocalSettings } from "./local-settings";
+import { composeKomponen, composeLabor, type KomponenRow, type LaborRow } from "./compose";
 
 export { defaultSettings };
 
@@ -13,6 +14,9 @@ export interface CalcInput {
   durasiJam: number;
   tipe: "FDM" | "SLA";
   hargaAktual?: { channelId: string; harga: number };
+  komponen?: KomponenRow[];
+  labor?: LaborRow[];
+  packing?: { nama: string; harga: number };
 }
 
 export function buildInputV2(c: CalcInput, ls: LocalSettings = DEFAULT_LOCAL_SETTINGS): KalkulasiInputV2 {
@@ -30,8 +34,8 @@ export function buildInputV2(c: CalcInput, ls: LocalSettings = DEFAULT_LOCAL_SET
       }],
     }],
     batch: 1,
-    komponen: [],
-    labor: [],
+    komponen: composeKomponen(c.packing, c.komponen ?? []),
+    labor: composeLabor(c.labor ?? []),
     ...(c.hargaAktual ? { hargaAktual: c.hargaAktual } : {}),
   };
 }
@@ -46,6 +50,10 @@ export interface FullView {
   rekomendasi: number;
   channels: { channelId: string; nama: string; A: number; B: number; C: number; margin: number }[];
   status: HasilKalkulasiV2["status"];
+  rincian: {
+    produksi: number; komponen: number; packing: number; labor: number;
+    biayaModal: number; hargaJualMinimum: number; rekomendasi: number;
+  };
 }
 
 export function fullView(c: CalcInput, ls: LocalSettings = DEFAULT_LOCAL_SETTINGS): FullView {
@@ -54,6 +62,7 @@ export function fullView(c: CalcInput, ls: LocalSettings = DEFAULT_LOCAL_SETTING
   const r = Math.round;
   const namaOf = (id: string) => settings.channels.find((ch) => ch.id === id)?.nama ?? id;
   const off = h.hargaPerChannel.find((ch) => ch.channelId === "offline")!;
+  const packingHarga = c.packing?.harga ?? 0;
   return {
     biayaModal: r(h.hppTotal),
     hargaJualMinimum: r(h.floorPrice),
@@ -67,5 +76,14 @@ export function fullView(c: CalcInput, ls: LocalSettings = DEFAULT_LOCAL_SETTING
       margin: r(ch.margin),
     })),
     status: h.status,
+    rincian: {
+      produksi: r(h.hppProduksi),
+      komponen: r(h.hppKomponen - packingHarga),
+      packing: r(packingHarga),
+      labor: r(h.hppLabor),
+      biayaModal: r(h.hppTotal),
+      hargaJualMinimum: r(h.floorPrice),
+      rekomendasi: r(off.B),
+    },
   };
 }
