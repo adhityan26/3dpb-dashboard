@@ -2,108 +2,89 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Tambah komponen tambahan, labor, dan packing ke kalkulator `apps/saas` Slizebiz — pustaka preset CRUD dua-mode di `/settings` + input di kalkulator (single-plate), tanpa meregresi angka Free.
+**Goal:** Tambah komponen/packing/labor (preset CRUD dua-mode + input kalkulator single-plate) dan panel rincian perhitungan opsional ke `apps/saas` Slizebiz, tanpa meregresi angka Free.
 
-**Architecture:** Perluas blob `LocalSettings` (IndexedDB) dengan `komponenPresets`/`laborPresets`/`packingRates`. Helper `compose.ts` mengubah baris input jadi `KomponenItem[]`/`LaborItem[]` yang dikonsumsi `hitungKalkulasiV2`. Kalkulator meneruskan add-on hanya bila `paidCore`; Free/tanpa add-on → array kosong → angka identik 1b-1. Preset tak menyentuh `toSettingsV2` → invariant paritas 1b-1 utuh.
+**Architecture:** Perluas blob `LocalSettings` (IndexedDB) dengan `komponenPresets`/`packingPresets`/`laborPresets` (labor = bundle multi-item). Helper `compose.ts` ubah baris input jadi `KomponenItem[]`/`LaborItem[]` untuk `hitungKalkulasiV2`. Packing = pilih-satu preset. Rincian breakdown dari field hasil core, di-toggle lewat pref localStorage (universal, non-gated). Kalkulator teruskan add-on hanya bila `paidCore`; Free/tanpa add-on → array kosong → angka identik 1b-1.
 
-**Tech Stack:** Next.js 16, React 19, TypeScript, `@3pb/kalkulator-core` (formula), `idb` (IndexedDB), vitest + jsdom + `@testing-library/react`.
+**Tech Stack:** Next.js 16, React 19, TypeScript, `@3pb/kalkulator-core`, `idb`, vitest + jsdom + `@testing-library/react`.
 
 ## Global Constraints
 
 - **Node 22 wajib** — prefix tiap shell command: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH"`.
 - **Parity Free INVARIANT:** `fullView(c)` === `fullView(c, DEFAULT_LOCAL_SETTINGS)` === angka 1b-1. `toSettingsV2(DEFAULT_LOCAL_SETTINGS)` tetap deep-equal `defaultSettings` (JANGAN ubah `toSettingsV2`). Tanpa add-on → `komponen:[]`+`labor:[]`.
-- **Free defense:** kalkulator meneruskan komponen/labor/packing ke `fullView` HANYA bila `paidCore` (server-auth prop). `!paidCore` → paksa kosong.
-- **Item shape kalkulator-core (verbatim):** `KomponenItem = { nama: string; harga: number; qty: number }`; `LaborItem = { nama: string; jam?: number; ratePerJam?: number; flat?: number }`. Biaya komponen = `Σ harga×qty`; biaya labor = `Σ (jam??0)×(ratePerJam??0) + (flat??0)`.
-- **Tanpa perubahan skema Prisma** (murni client IndexedDB). **Tanpa dep baru** (`idb` sudah ada; id preset baru pakai `crypto.randomUUID()` native).
-- **Bahasa Indonesia** untuk semua copy UI.
-- **Storage:** DB `slizebiz-local`, store `settings`, keyPath `userId`, satu blob `LocalSettings` per user (wholesale load/save).
-- Deploy homelab :3300 (`bash apps/saas/deploy.sh`) = **GATED** (jangan deploy tanpa perintah user eksplisit).
+- **Free defense:** kalkulator teruskan komponen/labor/packing ke `fullView` HANYA bila `paidCore` (prop server-auth). `!paidCore` → paksa kosong. Toggle rincian TIDAK memengaruhi angka.
+- **Item shape core (verbatim):** `KomponenItem = { nama: string; harga: number; qty: number }`; `LaborItem = { nama: string; jam?: number; ratePerJam?: number; flat?: number }`. Biaya komponen `Σ harga×qty`; labor `Σ (jam??0)×(ratePerJam??0)+(flat??0)`.
+- **`HasilKalkulasiV2` breakdown tersedia:** `hppProduksi`, `hppKomponen`, `hppLabor`, `hppTotal`, `floorPrice` (dipakai panel rincian).
+- **Packing = pilih-SATU** preset di kalkulator (bukan multi). **Labor preset = BUNDLE**: klik → append semua item.
+- **Tanpa perubahan Prisma. Tanpa dep baru** (`idb` ada; id baru `crypto.randomUUID()`).
+- **Bahasa Indonesia** semua copy UI.
+- Deploy homelab :3300 = **GATED** (jangan deploy tanpa perintah user).
 
 ---
 
-### Task 1: Perluas LocalSettings — preset komponen/labor + packing rates
+### Task 1: LocalSettings — preset komponen/packing + labor bundle
 
 **Files:**
 - Modify: `apps/saas/lib/kalkulator/local-settings.ts`
 - Test: `apps/saas/lib/kalkulator/local-settings.test.ts`
 
 **Interfaces:**
-- Consumes: existing `LocalSettings`, `DEFAULT_LOCAL_SETTINGS`, `toSettingsV2`, `validateLocalSettings`, `defaultSettings`.
-- Produces:
-  - `interface KomponenPreset { id: string; nama: string; harga: number }`
-  - `interface LaborPreset { id: string; nama: string; jam?: number; ratePerJam?: number; flat?: number }`
-  - `type PackingSize = "S" | "M" | "L" | "XL"`
-  - `LocalSettings` gains `komponenPresets: KomponenPreset[]`, `laborPresets: LaborPreset[]`, `packingRates: Record<PackingSize, number>`
-  - `DEFAULT_LOCAL_SETTINGS` seeded (values below)
-  - `validateLocalSettings` extended (preset/packing rules)
+- Produces: `KomponenPreset {id,nama,harga}`, `PackingPreset = KomponenPreset`, `LaborItemInput {nama,jam?,ratePerJam?,flat?}`, `LaborPreset {id,nama,items:LaborItemInput[]}`; `LocalSettings` gains `komponenPresets`, `packingPresets`, `laborPresets`; `DEFAULT_LOCAL_SETTINGS` seeded; `validateLocalSettings` extended.
 
-- [ ] **Step 1: Write the failing tests**
-
-Append to `apps/saas/lib/kalkulator/local-settings.test.ts`:
+- [ ] **Step 1: Write failing tests** — append to `apps/saas/lib/kalkulator/local-settings.test.ts`:
 
 ```ts
-import { PACKING_SIZES } from "./local-settings"; // NEW export used below
-
-describe("1b-2 preset komponen/labor/packing", () => {
-  it("toSettingsV2 tetap paritas walau ada field preset baru (invariant 1b-1)", () => {
-    // KRUSIAL: field preset TIDAK boleh masuk SettingsV2
+describe("1b-2 preset komponen/packing/labor-bundle", () => {
+  it("toSettingsV2 tetap paritas (invariant 1b-1)", () => {
     expect(toSettingsV2(DEFAULT_LOCAL_SETTINGS)).toEqual(defaultSettings);
   });
-
-  it("DEFAULT punya 6 komponen, 3 labor, 4 packing rate", () => {
+  it("DEFAULT: 6 komponen, 4 packing, 3 labor bundle (tiap bundle punya item)", () => {
     expect(DEFAULT_LOCAL_SETTINGS.komponenPresets).toHaveLength(6);
+    expect(DEFAULT_LOCAL_SETTINGS.packingPresets).toHaveLength(4);
     expect(DEFAULT_LOCAL_SETTINGS.laborPresets).toHaveLength(3);
-    expect(Object.keys(DEFAULT_LOCAL_SETTINGS.packingRates).sort()).toEqual(["L", "M", "S", "XL"]);
-    expect(DEFAULT_LOCAL_SETTINGS.packingRates.M).toBe(2500);
-    expect(DEFAULT_LOCAL_SETTINGS.komponenPresets[0]).toMatchObject({ nama: "Gantungan kew-kew", harga: 900 });
-    expect(PACKING_SIZES).toEqual(["S", "M", "L", "XL"]);
+    expect(DEFAULT_LOCAL_SETTINGS.laborPresets[1]).toMatchObject({ nama: "Mask Medium" });
+    expect(DEFAULT_LOCAL_SETTINGS.laborPresets[1].items).toHaveLength(3);
+    expect(DEFAULT_LOCAL_SETTINGS.packingPresets[0]).toMatchObject({ nama: "Packing S", harga: 1500 });
   });
-
-  it("validate menangkap preset komponen invalid", () => {
+  it("DEFAULT valid", () => { expect(validateLocalSettings(DEFAULT_LOCAL_SETTINGS)).toEqual([]); });
+  it("validate tangkap komponen/packing invalid", () => {
     const bad = structuredClone(DEFAULT_LOCAL_SETTINGS);
     bad.komponenPresets[0].harga = 0;
-    bad.komponenPresets[1].nama = "  ";
-    const errs = validateLocalSettings(bad);
-    expect(errs.some((e) => /komponen/i.test(e))).toBe(true);
-    expect(errs.length).toBeGreaterThanOrEqual(2);
+    bad.packingPresets[0].nama = "  ";
+    const e = validateLocalSettings(bad);
+    expect(e.some((x) => /komponen/i.test(x))).toBe(true);
+    expect(e.some((x) => /packing/i.test(x))).toBe(true);
   });
-
-  it("validate menangkap labor biaya 0 dan packing negatif", () => {
+  it("validate tangkap labor bundle kosong item & item biaya 0", () => {
     const bad = structuredClone(DEFAULT_LOCAL_SETTINGS);
-    bad.laborPresets[0] = { id: "x", nama: "Kosong", jam: 0, ratePerJam: 0, flat: 0 };
-    bad.packingRates.S = -1;
-    const errs = validateLocalSettings(bad);
-    expect(errs.some((e) => /labor/i.test(e))).toBe(true);
-    expect(errs.some((e) => /packing/i.test(e))).toBe(true);
-  });
-
-  it("DEFAULT valid (nol error)", () => {
-    expect(validateLocalSettings(DEFAULT_LOCAL_SETTINGS)).toEqual([]);
+    bad.laborPresets[0].items = [];
+    bad.laborPresets[1].items[0] = { nama: "Nol", jam: 0, ratePerJam: 0, flat: 0 };
+    const e = validateLocalSettings(bad);
+    expect(e.filter((x) => /labor/i.test(x)).length).toBeGreaterThanOrEqual(2);
   });
 });
 ```
 
-- [ ] **Step 2: Run tests to verify they fail**
+- [ ] **Step 2: Run to verify fail**
 
 Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run lib/kalkulator/local-settings.test.ts`
-Expected: FAIL (`komponenPresets` undefined / `PACKING_SIZES` not exported).
+Expected: FAIL (`komponenPresets` undefined).
 
-- [ ] **Step 3: Implement**
+- [ ] **Step 3: Implement** — edit `apps/saas/lib/kalkulator/local-settings.ts`.
 
-Edit `apps/saas/lib/kalkulator/local-settings.ts`. Add types + export `PACKING_SIZES` after the imports:
-
+Add after imports:
 ```ts
 export interface KomponenPreset { id: string; nama: string; harga: number }
-export interface LaborPreset { id: string; nama: string; jam?: number; ratePerJam?: number; flat?: number }
-export type PackingSize = "S" | "M" | "L" | "XL";
-export const PACKING_SIZES: PackingSize[] = ["S", "M", "L", "XL"];
+export type PackingPreset = KomponenPreset;
+export interface LaborItemInput { nama: string; jam?: number; ratePerJam?: number; flat?: number }
+export interface LaborPreset { id: string; nama: string; items: LaborItemInput[] }
 ```
 
-Add the 3 fields to the `LocalSettings` interface (after `channels`):
+Add to `LocalSettings` interface (after `channels`):
 ```ts
   komponenPresets: KomponenPreset[];
+  packingPresets: PackingPreset[];
   laborPresets: LaborPreset[];
-  packingRates: Record<PackingSize, number>;
 ```
 
 Add to `DEFAULT_LOCAL_SETTINGS` (after `channels: {...}`):
@@ -116,140 +97,125 @@ Add to `DEFAULT_LOCAL_SETTINGS` (after `channels: {...}`):
     { id: "kmp-switch", nama: "Switch", harga: 2500 },
     { id: "kmp-label", nama: "Label", harga: 750 },
   ],
-  laborPresets: [
-    { id: "lbr-preparer", nama: "Preparer (sanding + assembly)", jam: 2, ratePerJam: 35000 },
-    { id: "lbr-finisher", nama: "Finisher (painting)", jam: 2, ratePerJam: 75000 },
-    { id: "lbr-consumables", nama: "Consumables finishing", flat: 55000 },
+  packingPresets: [
+    { id: "pack-s", nama: "Packing S", harga: 1500 },
+    { id: "pack-m", nama: "Packing M", harga: 2500 },
+    { id: "pack-l", nama: "Packing L", harga: 5000 },
+    { id: "pack-xl", nama: "Packing XL", harga: 8000 },
   ],
-  packingRates: { S: 1500, M: 2500, L: 5000, XL: 8000 },
+  laborPresets: [
+    { id: "lbr-mask-minimal", nama: "Mask Minimal", items: [
+      { nama: "Assembly", jam: 0.25, ratePerJam: 35000 },
+      { nama: "Sanding", jam: 0.5, ratePerJam: 35000 },
+      { nama: "Painting", jam: 0.5, ratePerJam: 75000 },
+    ] },
+    { id: "lbr-mask-medium", nama: "Mask Medium", items: [
+      { nama: "Assembly", jam: 0.5, ratePerJam: 35000 },
+      { nama: "Sanding", jam: 1, ratePerJam: 35000 },
+      { nama: "Painting", jam: 2, ratePerJam: 75000 },
+    ] },
+    { id: "lbr-mask-heavy", nama: "Mask Heavy", items: [
+      { nama: "Assembly", jam: 1, ratePerJam: 35000 },
+      { nama: "Sanding", jam: 4, ratePerJam: 35000 },
+      { nama: "Painting", jam: 3.5, ratePerJam: 75000 },
+    ] },
+  ],
 ```
 
 Extend `validateLocalSettings` — insert before `return errs;`:
 ```ts
-  ls.komponenPresets.forEach((k, i) => {
-    if (!k.nama.trim()) errs.push(`Komponen #${i + 1} nama kosong`);
-    if (!(k.harga > 0)) errs.push(`Komponen "${k.nama || i + 1}" harga harus > 0`);
+  const checkPresetList = (list: KomponenPreset[], label: string) =>
+    list.forEach((k, i) => {
+      if (!k.nama.trim()) errs.push(`${label} #${i + 1} nama kosong`);
+      if (!(k.harga > 0)) errs.push(`${label} "${k.nama || i + 1}" harga harus > 0`);
+    });
+  checkPresetList(ls.komponenPresets, "Komponen");
+  checkPresetList(ls.packingPresets, "Packing");
+  ls.laborPresets.forEach((p, i) => {
+    if (!p.nama.trim()) errs.push(`Labor #${i + 1} nama kosong`);
+    if (p.items.length === 0) errs.push(`Labor "${p.nama || i + 1}" harus punya item`);
+    p.items.forEach((it, j) => {
+      if (!it.nama.trim()) errs.push(`Labor "${p.nama}" item #${j + 1} nama kosong`);
+      for (const [f, v] of [["jam", it.jam], ["rate", it.ratePerJam], ["flat", it.flat]] as const) {
+        if (v != null && v < 0) errs.push(`Labor "${p.nama}" ${f} negatif`);
+      }
+      const biaya = (it.jam ?? 0) * (it.ratePerJam ?? 0) + (it.flat ?? 0);
+      if (!(biaya > 0)) errs.push(`Labor "${p.nama}" item "${it.nama || j + 1}" biaya harus > 0`);
+    });
   });
-  ls.laborPresets.forEach((l, i) => {
-    if (!l.nama.trim()) errs.push(`Labor #${i + 1} nama kosong`);
-    for (const [f, v] of [["jam", l.jam], ["rate", l.ratePerJam], ["flat", l.flat]] as const) {
-      if (v != null && v < 0) errs.push(`Labor "${l.nama || i + 1}" ${f} tak boleh negatif`);
-    }
-    const biaya = (l.jam ?? 0) * (l.ratePerJam ?? 0) + (l.flat ?? 0);
-    if (!(biaya > 0)) errs.push(`Labor "${l.nama || i + 1}" biaya harus > 0`);
-  });
-  for (const sz of PACKING_SIZES) {
-    if (ls.packingRates[sz] < 0) errs.push(`Packing ${sz} tak boleh negatif`);
-  }
 ```
 
-- [ ] **Step 4: Run tests to verify they pass**
+- [ ] **Step 4: Run to verify pass**
 
 Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run lib/kalkulator/local-settings.test.ts`
-Expected: PASS (all, including the pre-existing 1b-1 tests in the file).
+Expected: PASS (incl. 1b-1 tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add apps/saas/lib/kalkulator/local-settings.ts apps/saas/lib/kalkulator/local-settings.test.ts
-git commit -m "feat(saas): LocalSettings + preset komponen/labor + packing rates (invariant toSettingsV2, TDD)"
+git commit -m "feat(saas): preset komponen/packing + labor bundle di LocalSettings (invariant, TDD)"
 ```
 
 ---
 
-### Task 2: compose.ts — baris input → KomponenItem[]/LaborItem[]
+### Task 2: compose.ts — rows → KomponenItem[]/LaborItem[]
 
 **Files:**
 - Create: `apps/saas/lib/kalkulator/compose.ts`
 - Test: `apps/saas/lib/kalkulator/compose.test.ts`
 
 **Interfaces:**
-- Consumes: `KomponenItem`, `LaborItem` from `@3pb/kalkulator-core`; `PackingSize` from `./local-settings`.
-- Produces:
-  - `interface KomponenRow { id: string; nama: string; harga: number; qty: number }`
-  - `interface LaborRow { id: string; nama: string; jam?: number; ratePerJam?: number; flat?: number }`
-  - `composeKomponen(packing: PackingSize | undefined, packingRates: Record<PackingSize, number>, rows: KomponenRow[]): KomponenItem[]`
-  - `composeLabor(rows: LaborRow[]): LaborItem[]`
+- Produces: `KomponenRow {id,nama,harga,qty}`, `LaborRow {id,nama,jam?,ratePerJam?,flat?}`; `composeKomponen(packing: {nama,harga}|undefined, rows): KomponenItem[]`; `composeLabor(rows): LaborItem[]`.
 
-- [ ] **Step 1: Write the failing test**
-
-Create `apps/saas/lib/kalkulator/compose.test.ts`:
+- [ ] **Step 1: Write failing test** — create `apps/saas/lib/kalkulator/compose.test.ts`:
 
 ```ts
 import { describe, it, expect } from "vitest";
 import { composeKomponen, composeLabor, type KomponenRow, type LaborRow } from "./compose";
 
-const rates = { S: 1500, M: 2500, L: 5000, XL: 8000 };
 const krow = (o: Partial<KomponenRow>): KomponenRow => ({ id: "1", nama: "X", harga: 100, qty: 1, ...o });
 const lrow = (o: Partial<LaborRow>): LaborRow => ({ id: "1", nama: "L", ...o });
 
 describe("composeKomponen", () => {
-  it("tanpa packing & tanpa row → [] (parity)", () => {
-    expect(composeKomponen(undefined, rates, [])).toEqual([]);
+  it("tanpa packing & rows → [] (parity)", () => expect(composeKomponen(undefined, [])).toEqual([]));
+  it("packing terpilih → satu row pertama", () => {
+    expect(composeKomponen({ nama: "Box 20x20", harga: 3000 }, [])).toEqual([{ nama: "Box 20x20", harga: 3000, qty: 1 }]);
   });
-  it("packing M → satu row Packing M dg rate", () => {
-    expect(composeKomponen("M", rates, [])).toEqual([{ nama: "Packing M", harga: 2500, qty: 1 }]);
-  });
-  it("skip row nama kosong / harga <= 0, floor qty ke 1, trim nama", () => {
-    const out = composeKomponen(undefined, rates, [
-      krow({ nama: "  ", harga: 100 }),
-      krow({ nama: "Baut", harga: 0 }),
-      krow({ nama: "  Mur ", harga: 300, qty: 0 }),
+  it("packing harga 0 diabaikan", () => expect(composeKomponen({ nama: "Gratis", harga: 0 }, [])).toEqual([]));
+  it("skip nama kosong / harga<=0, floor qty, trim, packing dulu", () => {
+    const out = composeKomponen({ nama: "Box", harga: 3000 }, [
+      krow({ nama: "  ", harga: 100 }), krow({ nama: "Baut", harga: 0 }), krow({ nama: " Mur ", harga: 300, qty: 0 }),
     ]);
-    expect(out).toEqual([{ nama: "Mur", harga: 300, qty: 1 }]);
-  });
-  it("packing + rows digabung, packing pertama", () => {
-    const out = composeKomponen("S", rates, [krow({ nama: "Baut", harga: 200, qty: 3 })]);
-    expect(out).toEqual([
-      { nama: "Packing S", harga: 1500, qty: 1 },
-      { nama: "Baut", harga: 200, qty: 3 },
-    ]);
+    expect(out).toEqual([{ nama: "Box", harga: 3000, qty: 1 }, { nama: "Mur", harga: 300, qty: 1 }]);
   });
 });
-
 describe("composeLabor", () => {
-  it("[] → [] (parity)", () => {
-    expect(composeLabor([])).toEqual([]);
+  it("[] → [] (parity)", () => expect(composeLabor([])).toEqual([]));
+  it("jam×rate lolos; biaya 0 & nama kosong skip", () => {
+    expect(composeLabor([lrow({ nama: "Cat", jam: 2, ratePerJam: 75000 }), lrow({ nama: "Nol" }), lrow({ nama: " ", flat: 5000 })]))
+      .toEqual([{ nama: "Cat", jam: 2, ratePerJam: 75000, flat: undefined }]);
   });
-  it("row jam×rate lolos, biaya 0 & nama kosong di-skip", () => {
-    const out = composeLabor([
-      lrow({ nama: "Cat", jam: 2, ratePerJam: 75000 }),
-      lrow({ nama: "Nol", jam: 0, ratePerJam: 0, flat: 0 }),
-      lrow({ nama: "  ", flat: 5000 }),
-    ]);
-    expect(out).toEqual([{ nama: "Cat", jam: 2, ratePerJam: 75000, flat: undefined }]);
-  });
-  it("row flat-only lolos", () => {
-    expect(composeLabor([lrow({ nama: "Consumable", flat: 55000 })])).toEqual([
-      { nama: "Consumable", jam: undefined, ratePerJam: undefined, flat: 55000 },
-    ]);
-  });
+  it("flat-only lolos", () => expect(composeLabor([lrow({ nama: "C", flat: 55000 })])).toEqual([{ nama: "C", jam: undefined, ratePerJam: undefined, flat: 55000 }]));
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run to verify fail**
 
 Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run lib/kalkulator/compose.test.ts`
 Expected: FAIL (`./compose` not found).
 
-- [ ] **Step 3: Implement**
-
-Create `apps/saas/lib/kalkulator/compose.ts`:
+- [ ] **Step 3: Implement** — create `apps/saas/lib/kalkulator/compose.ts`:
 
 ```ts
 import type { KomponenItem, LaborItem } from "@3pb/kalkulator-core";
-import type { PackingSize } from "./local-settings";
 
 export interface KomponenRow { id: string; nama: string; harga: number; qty: number }
 export interface LaborRow { id: string; nama: string; jam?: number; ratePerJam?: number; flat?: number }
 
-export function composeKomponen(
-  packing: PackingSize | undefined,
-  packingRates: Record<PackingSize, number>,
-  rows: KomponenRow[],
-): KomponenItem[] {
+export function composeKomponen(packing: { nama: string; harga: number } | undefined, rows: KomponenRow[]): KomponenItem[] {
   const items: KomponenItem[] = [];
-  if (packing) items.push({ nama: `Packing ${packing}`, harga: packingRates[packing] ?? 0, qty: 1 });
+  if (packing && packing.harga > 0) items.push({ nama: packing.nama.trim() || "Packing", harga: packing.harga, qty: 1 });
   for (const r of rows) {
     if (!r.nama.trim() || r.harga <= 0) continue;
     items.push({ nama: r.nama.trim(), harga: r.harga, qty: Math.max(1, r.qty) });
@@ -268,7 +234,7 @@ export function composeLabor(rows: LaborRow[]): LaborItem[] {
 }
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 4: Run to verify pass**
 
 Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run lib/kalkulator/compose.test.ts`
 Expected: PASS.
@@ -277,72 +243,61 @@ Expected: PASS.
 
 ```bash
 git add apps/saas/lib/kalkulator/compose.ts apps/saas/lib/kalkulator/compose.test.ts
-git commit -m "feat(saas): compose komponen/labor rows → KalkulasiInputV2 items (TDD)"
+git commit -m "feat(saas): compose komponen(packing single)/labor rows → items (TDD)"
 ```
 
 ---
 
-### Task 3: compute.ts — CalcInput + buildInputV2 pakai add-on
+### Task 3: compute.ts — CalcInput add-on + fullView.rincian
 
 **Files:**
 - Modify: `apps/saas/lib/kalkulator/compute.ts`
 - Test: `apps/saas/lib/kalkulator/compute.test.ts` (append)
 
 **Interfaces:**
-- Consumes: `composeKomponen`, `composeLabor`, `KomponenRow`, `LaborRow` (Task 2); `PackingSize` (Task 1).
-- Produces: `CalcInput` gains optional `komponen?: KomponenRow[]`, `labor?: LaborRow[]`, `packing?: PackingSize`. `buildInputV2`/`compute`/`fullView` signatures UNCHANGED.
+- Consumes: `composeKomponen`/`composeLabor`/`KomponenRow`/`LaborRow` (Task 2).
+- Produces: `CalcInput` gains `komponen?`, `labor?`, `packing?: {nama,harga}`. `FullView` gains `rincian: {produksi,komponen,packing,labor,biayaModal,hargaJualMinimum,rekomendasi}`. Signatures otherwise unchanged.
 
-- [ ] **Step 1: Write the failing test**
-
-Append to `apps/saas/lib/kalkulator/compute.test.ts`:
+- [ ] **Step 1: Write failing test** — append to `apps/saas/lib/kalkulator/compute.test.ts` (add `import { DEFAULT_LOCAL_SETTINGS } from "./local-settings";` at top if absent):
 
 ```ts
-describe("1b-2 add-on komponen/labor/packing", () => {
+describe("1b-2 add-on + rincian", () => {
   const base = { gramasi: 50, durasiJam: 3, tipe: "FDM" as const };
-
-  it("tanpa add-on → identik parity (invariant)", () => {
+  it("tanpa add-on → parity (invariant)", () => {
     expect(fullView(base)).toEqual(fullView({ ...base }, DEFAULT_LOCAL_SETTINGS));
   });
-
-  it("komponen menaikkan biaya modal & floor persis Σ harga×qty", () => {
-    const tanpa = fullView(base);
-    const dengan = fullView(
-      { ...base, komponen: [{ id: "1", nama: "Baut", harga: 1000, qty: 2 }] },
-      DEFAULT_LOCAL_SETTINGS,
-    );
-    expect(dengan.biayaModal - tanpa.biayaModal).toBe(2000);
-    expect(dengan.hargaJualMinimum - tanpa.hargaJualMinimum).toBe(2000);
+  it("komponen naikkan biaya modal & floor persis", () => {
+    const a = fullView(base);
+    const b = fullView({ ...base, komponen: [{ id: "1", nama: "Baut", harga: 1000, qty: 2 }] }, DEFAULT_LOCAL_SETTINGS);
+    expect(b.biayaModal - a.biayaModal).toBe(2000);
+    expect(b.hargaJualMinimum - a.hargaJualMinimum).toBe(2000);
   });
-
-  it("labor + packing menaikkan biaya modal", () => {
-    const tanpa = fullView(base);
-    const dengan = fullView(
-      { ...base, labor: [{ id: "1", nama: "Cat", jam: 1, ratePerJam: 10000 }], packing: "M" },
-      DEFAULT_LOCAL_SETTINGS,
-    );
-    // labor 10000 + packing M 2500 = 12500
-    expect(dengan.biayaModal - tanpa.biayaModal).toBe(12500);
+  it("labor + packing naikkan biaya modal", () => {
+    const a = fullView(base);
+    const b = fullView({ ...base, labor: [{ id: "1", nama: "Cat", jam: 1, ratePerJam: 10000 }], packing: { nama: "Box", harga: 2500 } }, DEFAULT_LOCAL_SETTINGS);
+    expect(b.biayaModal - a.biayaModal).toBe(12500);
+  });
+  it("rincian: produksi+komponen+packing+labor == biayaModal", () => {
+    const v = fullView({ ...base, komponen: [{ id: "1", nama: "Baut", harga: 1000, qty: 1 }], labor: [{ id: "2", nama: "Cat", flat: 5000 }], packing: { nama: "Box", harga: 2500 } }, DEFAULT_LOCAL_SETTINGS);
+    expect(v.rincian.packing).toBe(2500);
+    expect(v.rincian.komponen).toBe(1000);
+    expect(v.rincian.labor).toBe(5000);
+    expect(v.rincian.produksi + v.rincian.komponen + v.rincian.packing + v.rincian.labor).toBe(v.rincian.biayaModal);
   });
 });
 ```
 
-(File already imports `fullView` and `DEFAULT_LOCAL_SETTINGS` from Task 1's suite; if not present in this file's imports, add `import { DEFAULT_LOCAL_SETTINGS } from "./local-settings";` at top.)
-
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run to verify fail**
 
 Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run lib/kalkulator/compute.test.ts`
-Expected: FAIL (`komponen`/`packing` not accepted on `CalcInput`, or add-on ignored → diff 0).
+Expected: FAIL.
 
-- [ ] **Step 3: Implement**
-
-Edit `apps/saas/lib/kalkulator/compute.ts`:
+- [ ] **Step 3: Implement** — edit `apps/saas/lib/kalkulator/compute.ts`.
 
 Add imports:
 ```ts
 import { composeKomponen, composeLabor, type KomponenRow, type LaborRow } from "./compose";
-import { DEFAULT_LOCAL_SETTINGS, toSettingsV2, type LocalSettings, type PackingSize } from "./local-settings";
 ```
-(replace the existing `local-settings` import line to include `PackingSize`.)
 
 Extend `CalcInput`:
 ```ts
@@ -353,26 +308,51 @@ export interface CalcInput {
   hargaAktual?: { channelId: string; harga: number };
   komponen?: KomponenRow[];
   labor?: LaborRow[];
-  packing?: PackingSize;
+  packing?: { nama: string; harga: number };
 }
 ```
 
-In `buildInputV2`, replace the two hardcoded lines `komponen: [],` and `labor: [],` with:
+In `buildInputV2`, replace `komponen: [],` and `labor: [],` with:
 ```ts
-    komponen: composeKomponen(c.packing, ls.packingRates, c.komponen ?? []),
+    komponen: composeKomponen(c.packing, c.komponen ?? []),
     labor: composeLabor(c.labor ?? []),
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+Add `rincian` to the `FullView` interface:
+```ts
+  rincian: {
+    produksi: number; komponen: number; packing: number; labor: number;
+    biayaModal: number; hargaJualMinimum: number; rekomendasi: number;
+  };
+```
+
+In `fullView`, before `return {`, add:
+```ts
+  const packingHarga = c.packing?.harga ?? 0;
+```
+Add to the returned object (after `status: h.status,`):
+```ts
+    rincian: {
+      produksi: r(h.hppProduksi),
+      komponen: r(h.hppKomponen - packingHarga),
+      packing: r(packingHarga),
+      labor: r(h.hppLabor),
+      biayaModal: r(h.hppTotal),
+      hargaJualMinimum: r(h.floorPrice),
+      rekomendasi: r(off.B),
+    },
+```
+
+- [ ] **Step 4: Run to verify pass**
 
 Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run lib/kalkulator/compute.test.ts`
-Expected: PASS (including pre-existing parity tests).
+Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add apps/saas/lib/kalkulator/compute.ts apps/saas/lib/kalkulator/compute.test.ts
-git commit -m "feat(saas): buildInputV2 pakai komponen/labor/packing (parity tanpa add-on, TDD)"
+git commit -m "feat(saas): buildInputV2 add-on + fullView.rincian breakdown (parity, TDD)"
 ```
 
 ---
@@ -383,47 +363,35 @@ git commit -m "feat(saas): buildInputV2 pakai komponen/labor/packing (parity tan
 - Modify: `apps/saas/lib/store/local-settings.ts`
 - Test: `apps/saas/lib/store/local-settings.test.ts` (append)
 
-**Interfaces:**
-- Consumes: `DEFAULT_LOCAL_SETTINGS`, `LocalSettings` (Task 1).
-- Produces: `loadSettings` returns record merged over `DEFAULT_LOCAL_SETTINGS` (field baru terisi default bila absen). Signature unchanged.
-
-- [ ] **Step 1: Write the failing test**
-
-Append to `apps/saas/lib/store/local-settings.test.ts`:
+- [ ] **Step 1: Write failing test** — append:
 
 ```ts
-it("record lama tanpa field preset → merge default (tak throw, punya preset default)", async () => {
-  // simulasikan blob 1b-1: buka DB & tulis settings TANPA komponenPresets
+it("record lama tanpa preset baru → merge default (tak throw)", async () => {
   const legacy = { ...DEFAULT_LOCAL_SETTINGS } as Record<string, unknown>;
-  delete legacy.komponenPresets;
-  delete legacy.laborPresets;
-  delete legacy.packingRates;
+  delete legacy.komponenPresets; delete legacy.packingPresets; delete legacy.laborPresets;
   await saveSettings("u-legacy", legacy as unknown as import("@/lib/kalkulator/local-settings").LocalSettings);
-
   const loaded = await loadSettings("u-legacy");
   expect(loaded.komponenPresets).toHaveLength(6);
-  expect(loaded.packingRates.M).toBe(2500);
-  // field 1b-1 tetap dari record (bukan hilang)
+  expect(loaded.packingPresets).toHaveLength(4);
+  expect(loaded.laborPresets).toHaveLength(3);
   expect(loaded.mesinPerJam).toBe(DEFAULT_LOCAL_SETTINGS.mesinPerJam);
 });
 ```
 
-(File already imports `loadSettings`, `saveSettings`, `DEFAULT_LOCAL_SETTINGS`. If `DEFAULT_LOCAL_SETTINGS` not imported, add it.)
+(Add `import { DEFAULT_LOCAL_SETTINGS } from "@/lib/kalkulator/local-settings";` if absent.)
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run to verify fail**
 
 Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run lib/store/local-settings.test.ts`
-Expected: FAIL (`loaded.komponenPresets` undefined → `toHaveLength` throws).
+Expected: FAIL.
 
-- [ ] **Step 3: Implement**
-
-Edit `apps/saas/lib/store/local-settings.ts` — in `loadSettings`, replace `return rec?.settings ?? DEFAULT_LOCAL_SETTINGS;` with:
+- [ ] **Step 3: Implement** — in `loadSettings`, replace `return rec?.settings ?? DEFAULT_LOCAL_SETTINGS;` with:
 ```ts
     if (!rec?.settings) return DEFAULT_LOCAL_SETTINGS;
     return { ...DEFAULT_LOCAL_SETTINGS, ...rec.settings };
 ```
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 4: Run to verify pass**
 
 Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run lib/store/local-settings.test.ts`
 Expected: PASS.
@@ -437,19 +405,77 @@ git commit -m "feat(saas): loadSettings shallow-merge default (migrasi blob 1b-1
 
 ---
 
-### Task 5: SettingsPanel — grup Komponen/Labor (preset CRUD) + Packing
+### Task 5: display-prefs.ts — toggle rincian (localStorage)
+
+**Files:**
+- Create: `apps/saas/lib/store/display-prefs.ts`
+- Test: `apps/saas/lib/store/display-prefs.test.ts`
+
+**Interfaces:**
+- Produces: `getRincianPref(): boolean` (default false, SSR-safe), `setRincianPref(v: boolean): void`.
+
+- [ ] **Step 1: Write failing test** — create `apps/saas/lib/store/display-prefs.test.ts`:
+
+```ts
+// @vitest-environment jsdom
+import { describe, it, expect, beforeEach } from "vitest";
+import { getRincianPref, setRincianPref } from "./display-prefs";
+
+beforeEach(() => window.localStorage.clear());
+
+describe("display-prefs rincian", () => {
+  it("default false", () => expect(getRincianPref()).toBe(false));
+  it("set true → get true", () => { setRincianPref(true); expect(getRincianPref()).toBe(true); });
+  it("set false → get false", () => { setRincianPref(true); setRincianPref(false); expect(getRincianPref()).toBe(false); });
+});
+```
+
+- [ ] **Step 2: Run to verify fail**
+
+Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run lib/store/display-prefs.test.ts`
+Expected: FAIL (`./display-prefs` not found).
+
+- [ ] **Step 3: Implement** — create `apps/saas/lib/store/display-prefs.ts`:
+
+```ts
+const KEY = "slizebiz-rincian";
+
+export function getRincianPref(): boolean {
+  if (typeof window === "undefined") return false;
+  try { return window.localStorage.getItem(KEY) === "1"; } catch { return false; }
+}
+
+export function setRincianPref(v: boolean): void {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(KEY, v ? "1" : "0"); } catch { /* noop */ }
+}
+```
+
+- [ ] **Step 4: Run to verify pass**
+
+Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run lib/store/display-prefs.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/saas/lib/store/display-prefs.ts apps/saas/lib/store/display-prefs.test.ts
+git commit -m "feat(saas): display-prefs rincian toggle (localStorage, TDD)"
+```
+
+---
+
+### Task 6: SettingsPanel — grup Komponen + Packing (CRUD) + Tampilan
 
 **Files:**
 - Modify: `apps/saas/components/SettingsPanel.tsx`
 - Test: `apps/saas/components/settings-panel.test.tsx` (append; create if absent)
 
 **Interfaces:**
-- Consumes: `KomponenPreset`, `LaborPreset`, `PACKING_SIZES`, `PackingSize` (Task 1); existing `NumField`/`Group`, `saveSettings`.
-- Produces: 3 new groups rendered; Beli can add/edit/delete presets & edit packing; Free disabled+🔒.
+- Consumes: `KomponenPreset` (Task 1), `getRincianPref`/`setRincianPref` (Task 5), existing `NumField`/`Group`/`saveSettings`.
+- Produces: Komponen & Packing CRUD groups; Tampilan toggle (always enabled). (Labor group = Task 7.)
 
-- [ ] **Step 1: Write the failing test**
-
-Append to (or create) `apps/saas/components/settings-panel.test.tsx`:
+- [ ] **Step 1: Write failing test** — append to (or create) `apps/saas/components/settings-panel.test.tsx`:
 
 ```ts
 // @vitest-environment jsdom
@@ -464,32 +490,30 @@ vi.mock("@/lib/store/local-settings", () => ({
   resetSettings: vi.fn(),
 }));
 
-beforeEach(() => { saveMock.mockReset(); saveMock.mockResolvedValue(undefined); });
+beforeEach(() => { saveMock.mockReset(); saveMock.mockResolvedValue(undefined); window.localStorage.clear(); });
 
-describe("SettingsPanel 1b-2", () => {
-  it("Free (editable=false) → grup Komponen & Labor & Packing tampil terkunci", () => {
+describe("SettingsPanel 1b-2 komponen/packing/tampilan", () => {
+  it("Free → grup Komponen & Packing terkunci; Tampilan toggle TETAP enabled", () => {
     render(<SettingsPanel editable={false} userId={null} />);
-    expect(screen.getByText(/Komponen/)).toBeTruthy();
-    expect(screen.getByText(/Labor/)).toBeTruthy();
-    expect(screen.getByText(/Packing/)).toBeTruthy();
-    // input harga preset pertama disabled
-    const inp = screen.getByDisplayValue("Gantungan kew-kew") as HTMLInputElement;
-    expect(inp.disabled).toBe(true);
-    // tak ada tombol tambah preset di Free
-    expect(screen.queryByText(/Tambah komponen/i)).toBeNull();
+    expect((screen.getByDisplayValue("Gantungan kew-kew") as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByDisplayValue("Packing S") as HTMLInputElement).disabled).toBe(true);
+    const toggle = screen.getByLabelText(/rincian perhitungan/i) as HTMLInputElement;
+    expect(toggle.disabled).toBe(false);
   });
-
-  it("Beli → tambah preset komponen lalu Simpan meneruskan preset baru", async () => {
+  it("Tampilan toggle persist ke localStorage segera", () => {
+    render(<SettingsPanel editable={false} userId={null} />);
+    fireEvent.click(screen.getByLabelText(/rincian perhitungan/i));
+    expect(window.localStorage.getItem("slizebiz-rincian")).toBe("1");
+  });
+  it("Beli → tambah packing lalu Simpan meneruskan packing baru", async () => {
     render(<SettingsPanel editable={true} userId="u1" />);
-    await waitFor(() => expect(screen.getByDisplayValue("Switch")).toBeTruthy());
-    fireEvent.click(screen.getByText(/Tambah komponen/i));
+    await waitFor(() => expect(screen.getByDisplayValue("Packing XL")).toBeTruthy());
+    fireEvent.click(screen.getByText(/Tambah packing/i));
     fireEvent.click(screen.getByText("Simpan"));
     await waitFor(() => expect(saveMock).toHaveBeenCalled());
-    const saved = saveMock.mock.calls[0][1];
-    expect(saved.komponenPresets.length).toBe(7);
+    expect(saveMock.mock.calls[0][1].packingPresets.length).toBe(5);
   });
-
-  it("Beli → preset harga 0 → tak Simpan + hint", async () => {
+  it("Beli → komponen harga 0 → tak Simpan + hint", async () => {
     render(<SettingsPanel editable={true} userId="u1" />);
     await waitFor(() => expect(screen.getByDisplayValue("900")).toBeTruthy());
     fireEvent.change(screen.getByDisplayValue("900"), { target: { value: "0" } });
@@ -500,97 +524,86 @@ describe("SettingsPanel 1b-2", () => {
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run to verify fail**
 
 Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run components/settings-panel.test.tsx`
-Expected: FAIL (no Komponen/Labor/Packing group, no "Tambah komponen" button).
+Expected: FAIL.
 
-- [ ] **Step 3: Implement**
+- [ ] **Step 3: Implement** — edit `apps/saas/components/SettingsPanel.tsx`.
 
-Edit `apps/saas/components/SettingsPanel.tsx`:
-
-Update import from local-settings to include the new types + `PACKING_SIZES`:
+Update local-settings import to include types:
 ```ts
-import { DEFAULT_LOCAL_SETTINGS, validateLocalSettings, PACKING_SIZES, type LocalSettings, type KomponenPreset, type LaborPreset } from "@/lib/kalkulator/local-settings";
+import { DEFAULT_LOCAL_SETTINGS, validateLocalSettings, type LocalSettings, type KomponenPreset } from "@/lib/kalkulator/local-settings";
 ```
+Add imports:
+```ts
+import { useEffect, useState } from "react";
+import { getRincianPref, setRincianPref } from "@/lib/store/display-prefs";
+```
+(Keep existing imports; `useEffect`/`useState` already imported — don't duplicate.)
 
-Add a small text-input helper below `NumField`:
+Add a text-field helper below `NumField`:
 ```tsx
 function TxtField({ value, disabled, onChange, ph }: { value: string; disabled: boolean; onChange: (s: string) => void; ph?: string }) {
-  return (
-    <GlassInput value={value} disabled={disabled} placeholder={ph}
-      onChange={(e) => onChange(e.target.value)} className="w-full" />
-  );
+  return <GlassInput value={value} disabled={disabled} placeholder={ph} onChange={(e) => onChange(e.target.value)} className="w-full" />;
 }
 ```
 
-Add preset mutation helpers inside `SettingsPanel` (after `setChan`):
+Inside `SettingsPanel`, add Tampilan pref state (after existing `const disabled = !editable;`):
 ```tsx
-  const setKomp = (i: number, patch: Partial<KomponenPreset>) =>
-    setS((p) => ({ ...p, komponenPresets: p.komponenPresets.map((k, j) => (j === i ? { ...k, ...patch } : k)) }));
-  const addKomp = () =>
-    setS((p) => ({ ...p, komponenPresets: [...p.komponenPresets, { id: crypto.randomUUID(), nama: "", harga: 0 }] }));
-  const delKomp = (i: number) =>
-    setS((p) => ({ ...p, komponenPresets: p.komponenPresets.filter((_, j) => j !== i) }));
-
-  const setLab = (i: number, patch: Partial<LaborPreset>) =>
-    setS((p) => ({ ...p, laborPresets: p.laborPresets.map((l, j) => (j === i ? { ...l, ...patch } : l)) }));
-  const addLab = () =>
-    setS((p) => ({ ...p, laborPresets: [...p.laborPresets, { id: crypto.randomUUID(), nama: "", flat: 0 }] }));
-  const delLab = (i: number) =>
-    setS((p) => ({ ...p, laborPresets: p.laborPresets.filter((_, j) => j !== i) }));
-
-  const setPack = (sz: (typeof PACKING_SIZES)[number], n: number) =>
-    setS((p) => ({ ...p, packingRates: { ...p.packingRates, [sz]: n } }));
+  const [rincian, setRincian] = useState(false);
+  useEffect(() => { setRincian(getRincianPref()); }, []);
+  const toggleRincian = () => { const v = !rincian; setRincian(v); setRincianPref(v); };
 ```
 
-Insert three new `<section>` blocks after the "Fee channel" `Group` (before the Simpan/CTA row). These use custom rows (not the 2-col `Group`), so write plain sections:
-
+Add komponen & packing mutation helpers (after `setChan`):
 ```tsx
-      <section className="flex flex-col gap-2">
-        <h2 className="text-[12px] font-medium g-t2 flex items-center gap-2">
-          Komponen tambahan {disabled && <span className="text-[10px] g-t5">🔒 Edit di Beli</span>}
-        </h2>
-        {s.komponenPresets.map((k, i) => (
-          <div key={k.id} className="flex items-center gap-2">
-            <TxtField value={k.nama} disabled={disabled} ph="Nama" onChange={(v) => setKomp(i, { nama: v })} />
-            <GlassInput type="number" inputMode="decimal" value={String(k.harga)} disabled={disabled}
-              onChange={(e) => setKomp(i, { harga: Number(e.target.value) })} className="w-28" />
-            {!disabled && <button type="button" onClick={() => delKomp(i)} className="g-t4 text-sm px-1" aria-label="Hapus komponen">✕</button>}
-          </div>
-        ))}
-        {!disabled && <button type="button" onClick={addKomp} className="text-[12px] g-t4 underline self-start">＋ Tambah komponen</button>}
-      </section>
-
-      <section className="flex flex-col gap-2">
-        <h2 className="text-[12px] font-medium g-t2 flex items-center gap-2">
-          Labor {disabled && <span className="text-[10px] g-t5">🔒 Edit di Beli</span>}
-        </h2>
-        {s.laborPresets.map((l, i) => (
-          <div key={l.id} className="flex items-center gap-2 flex-wrap">
-            <TxtField value={l.nama} disabled={disabled} ph="Nama" onChange={(v) => setLab(i, { nama: v })} />
-            <GlassInput type="number" inputMode="decimal" placeholder="jam" value={l.jam ?? ""} disabled={disabled}
-              onChange={(e) => setLab(i, { jam: e.target.value === "" ? undefined : Number(e.target.value) })} className="w-20" />
-            <GlassInput type="number" inputMode="decimal" placeholder="rate/jam" value={l.ratePerJam ?? ""} disabled={disabled}
-              onChange={(e) => setLab(i, { ratePerJam: e.target.value === "" ? undefined : Number(e.target.value) })} className="w-28" />
-            <GlassInput type="number" inputMode="decimal" placeholder="flat" value={l.flat ?? ""} disabled={disabled}
-              onChange={(e) => setLab(i, { flat: e.target.value === "" ? undefined : Number(e.target.value) })} className="w-24" />
-            {!disabled && <button type="button" onClick={() => delLab(i)} className="g-t4 text-sm px-1" aria-label="Hapus labor">✕</button>}
-          </div>
-        ))}
-        {!disabled && <button type="button" onClick={addLab} className="text-[12px] g-t4 underline self-start">＋ Tambah labor</button>}
-      </section>
-
-      <Group title="Packing" locked={disabled}>
-        {PACKING_SIZES.map((sz) => (
-          <NumField key={sz} label={`Packing ${sz}`} value={s.packingRates[sz]} disabled={disabled} onChange={(n) => setPack(sz, n)} />
-        ))}
-      </Group>
+  const mutList = (key: "komponenPresets" | "packingPresets") => ({
+    set: (i: number, patch: Partial<KomponenPreset>) => setS((p) => ({ ...p, [key]: p[key].map((k, j) => (j === i ? { ...k, ...patch } : k)) })),
+    add: () => setS((p) => ({ ...p, [key]: [...p[key], { id: crypto.randomUUID(), nama: "", harga: 0 }] })),
+    del: (i: number) => setS((p) => ({ ...p, [key]: p[key].filter((_, j) => j !== i) })),
+  });
+  const komp = mutList("komponenPresets");
+  const pack = mutList("packingPresets");
 ```
 
-(`GlassInput` accepts `value={l.jam ?? ""}` — number|string; if TS complains, coerce with `String(l.jam ?? "")`.)
+Add a reusable CRUD-list renderer (module-scope function, place beside `Group`):
+```tsx
+function PresetList({ title, disabled, list, onSet, onAdd, onDel, addLabel }: {
+  title: string; disabled: boolean; list: KomponenPreset[];
+  onSet: (i: number, patch: Partial<KomponenPreset>) => void; onAdd: () => void; onDel: (i: number) => void; addLabel: string;
+}) {
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="text-[12px] font-medium g-t2 flex items-center gap-2">{title} {disabled && <span className="text-[10px] g-t5">🔒 Edit di Beli</span>}</h2>
+      {list.map((k, i) => (
+        <div key={k.id} className="flex items-center gap-2">
+          <GlassInput value={k.nama} disabled={disabled} placeholder="Nama" className="flex-1" onChange={(e) => onSet(i, { nama: e.target.value })} />
+          <GlassInput type="number" inputMode="decimal" value={String(k.harga)} disabled={disabled} className="w-28" onChange={(e) => onSet(i, { harga: Number(e.target.value) })} />
+          {!disabled && <button type="button" onClick={() => onDel(i)} className="g-t4 text-sm px-1" aria-label={`Hapus ${title}`}>✕</button>}
+        </div>
+      ))}
+      {!disabled && <button type="button" onClick={onAdd} className="text-[12px] g-t4 underline self-start">＋ {addLabel}</button>}
+    </section>
+  );
+}
+```
+(Add `import type { KomponenPreset }` reference is already in the file's import; `PresetList` uses it.)
 
-- [ ] **Step 4: Run test to verify it passes**
+Insert into the JSX after the "Fee channel" `Group` (before the Simpan/CTA row):
+```tsx
+      <PresetList title="Komponen tambahan" disabled={disabled} list={s.komponenPresets} onSet={komp.set} onAdd={komp.add} onDel={komp.del} addLabel="Tambah komponen" />
+      <PresetList title="Packing" disabled={disabled} list={s.packingPresets} onSet={pack.set} onAdd={pack.add} onDel={pack.del} addLabel="Tambah packing" />
+      <section className="flex flex-col gap-2">
+        <h2 className="text-[12px] font-medium g-t2">Tampilan</h2>
+        <label className="text-[12px] g-t3 flex items-center gap-2">
+          <input type="checkbox" checked={rincian} onChange={toggleRincian} aria-label="Tampilkan rincian perhitungan" />
+          Tampilkan rincian perhitungan di kalkulator
+        </label>
+      </section>
+```
+
+- [ ] **Step 4: Run to verify pass**
 
 Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run components/settings-panel.test.tsx`
 Expected: PASS.
@@ -599,36 +612,124 @@ Expected: PASS.
 
 ```bash
 git add apps/saas/components/SettingsPanel.tsx apps/saas/components/settings-panel.test.tsx
-git commit -m "feat(saas): SettingsPanel grup Komponen/Labor preset CRUD + Packing (dua-mode, TDD)"
+git commit -m "feat(saas): SettingsPanel grup Komponen/Packing CRUD + toggle Tampilan rincian (TDD)"
 ```
 
 ---
 
-### Task 6: KomponenLaborInput — blok input kalkulator (locked/unlocked)
+### Task 7: SettingsPanel — grup Labor bundle (nested items)
+
+**Files:**
+- Modify: `apps/saas/components/SettingsPanel.tsx`
+- Test: `apps/saas/components/settings-panel.test.tsx` (append)
+
+**Interfaces:**
+- Consumes: `LaborPreset`, `LaborItemInput` (Task 1).
+- Produces: Labor bundle group (add/del preset, add/del item, edit item fields).
+
+- [ ] **Step 1: Write failing test** — append:
+
+```ts
+describe("SettingsPanel labor bundle", () => {
+  it("Free → labor preset & item disabled", async () => {
+    render(<SettingsPanel editable={false} userId={null} />);
+    expect((screen.getByDisplayValue("Mask Medium") as HTMLInputElement).disabled).toBe(true);
+  });
+  it("Beli → tambah item ke bundle lalu Simpan", async () => {
+    render(<SettingsPanel editable={true} userId="u1" />);
+    await waitFor(() => expect(screen.getByDisplayValue("Mask Minimal")).toBeTruthy());
+    fireEvent.click(screen.getAllByText(/Tambah item/i)[0]);
+    fireEvent.click(screen.getByText("Simpan"));
+    await waitFor(() => expect(saveMock).toHaveBeenCalled());
+    const lp = saveMock.mock.calls[0][1].laborPresets[0];
+    expect(lp.items.length).toBe(4);
+  });
+});
+```
+
+- [ ] **Step 2: Run to verify fail**
+
+Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run components/settings-panel.test.tsx`
+Expected: FAIL (no "Mask Medium" field / no "Tambah item").
+
+- [ ] **Step 3: Implement** — edit `apps/saas/components/SettingsPanel.tsx`.
+
+Add to the local-settings import: `type LaborPreset, type LaborItemInput`.
+
+Add labor mutation helpers inside `SettingsPanel` (after `pack`):
+```tsx
+  const setLaborNama = (i: number, nama: string) =>
+    setS((p) => ({ ...p, laborPresets: p.laborPresets.map((l, j) => (j === i ? { ...l, nama } : l)) }));
+  const addLaborPreset = () =>
+    setS((p) => ({ ...p, laborPresets: [...p.laborPresets, { id: crypto.randomUUID(), nama: "", items: [{ nama: "", flat: 0 }] }] }));
+  const delLaborPreset = (i: number) =>
+    setS((p) => ({ ...p, laborPresets: p.laborPresets.filter((_, j) => j !== i) }));
+  const setItem = (pi: number, ii: number, patch: Partial<LaborItemInput>) =>
+    setS((p) => ({ ...p, laborPresets: p.laborPresets.map((l, j) => (j === pi ? { ...l, items: l.items.map((it, k) => (k === ii ? { ...it, ...patch } : it)) } : l)) }));
+  const addItem = (pi: number) =>
+    setS((p) => ({ ...p, laborPresets: p.laborPresets.map((l, j) => (j === pi ? { ...l, items: [...l.items, { nama: "", flat: 0 }] } : l)) }));
+  const delItem = (pi: number, ii: number) =>
+    setS((p) => ({ ...p, laborPresets: p.laborPresets.map((l, j) => (j === pi ? { ...l, items: l.items.filter((_, k) => k !== ii) } : l)) }));
+  const numOrUndef = (v: string) => (v === "" ? undefined : Number(v));
+```
+
+Insert the Labor section into JSX after the Packing `PresetList` (before Tampilan section):
+```tsx
+      <section className="flex flex-col gap-3">
+        <h2 className="text-[12px] font-medium g-t2 flex items-center gap-2">Labor (preset bundle) {disabled && <span className="text-[10px] g-t5">🔒 Edit di Beli</span>}</h2>
+        {s.laborPresets.map((lp, pi) => (
+          <div key={lp.id} className="flex flex-col gap-1 border-l-2 border-[color:var(--g-row-border)] pl-2">
+            <div className="flex items-center gap-2">
+              <GlassInput value={lp.nama} disabled={disabled} placeholder="Nama preset" className="flex-1" onChange={(e) => setLaborNama(pi, e.target.value)} />
+              {!disabled && <button type="button" onClick={() => delLaborPreset(pi)} className="g-t4 text-sm px-1" aria-label="Hapus preset labor">✕ preset</button>}
+            </div>
+            {lp.items.map((it, ii) => (
+              <div key={ii} className="flex items-center gap-2 flex-wrap pl-2">
+                <GlassInput value={it.nama} disabled={disabled} placeholder="Item" className="flex-1 min-w-[100px]" onChange={(e) => setItem(pi, ii, { nama: e.target.value })} />
+                <GlassInput type="number" inputMode="decimal" placeholder="jam" value={it.jam ?? ""} disabled={disabled} className="w-16" onChange={(e) => setItem(pi, ii, { jam: numOrUndef(e.target.value) })} />
+                <GlassInput type="number" inputMode="decimal" placeholder="rate/jam" value={it.ratePerJam ?? ""} disabled={disabled} className="w-24" onChange={(e) => setItem(pi, ii, { ratePerJam: numOrUndef(e.target.value) })} />
+                <GlassInput type="number" inputMode="decimal" placeholder="flat" value={it.flat ?? ""} disabled={disabled} className="w-20" onChange={(e) => setItem(pi, ii, { flat: numOrUndef(e.target.value) })} />
+                {!disabled && <button type="button" onClick={() => delItem(pi, ii)} className="g-t4 text-sm px-1" aria-label="Hapus item">✕</button>}
+              </div>
+            ))}
+            {!disabled && <button type="button" onClick={() => addItem(pi)} className="text-[11px] g-t4 underline self-start pl-2">＋ Tambah item</button>}
+          </div>
+        ))}
+        {!disabled && <button type="button" onClick={addLaborPreset} className="text-[12px] g-t4 underline self-start">＋ Tambah preset labor</button>}
+      </section>
+```
+
+- [ ] **Step 4: Run to verify pass**
+
+Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run components/settings-panel.test.tsx`
+Expected: PASS.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add apps/saas/components/SettingsPanel.tsx apps/saas/components/settings-panel.test.tsx
+git commit -m "feat(saas): SettingsPanel grup Labor bundle nested items (CRUD, TDD)"
+```
+
+---
+
+### Task 8: KomponenLaborInput — blok kalkulator (packing single-select, labor bundle)
 
 **Files:**
 - Create: `apps/saas/components/KomponenLaborInput.tsx`
 - Test: `apps/saas/components/komponen-labor-input.test.tsx`
 
 **Interfaces:**
-- Consumes: `LocalSettings`, `PACKING_SIZES`, `PackingSize` (Task 1); `KomponenRow`, `LaborRow` (Task 2).
-- Produces: `KomponenLaborInput` component with props:
+- Consumes: `LocalSettings` (Task 1), `KomponenRow`/`LaborRow` (Task 2).
+- Produces: `KomponenLaborInput` props:
   ```ts
-  {
-    locked: boolean;
-    settings: LocalSettings;
-    komponen: KomponenRow[];
-    labor: LaborRow[];
-    packing: PackingSize | undefined;
-    onKomponenChange: (rows: KomponenRow[]) => void;
-    onLaborChange: (rows: LaborRow[]) => void;
-    onPackingChange: (p: PackingSize | undefined) => void;
-  }
+  { locked: boolean; settings: LocalSettings;
+    komponen: KomponenRow[]; labor: LaborRow[]; packing: { nama: string; harga: number } | undefined;
+    onKomponenChange: (r: KomponenRow[]) => void; onLaborChange: (r: LaborRow[]) => void;
+    onPackingChange: (p: { nama: string; harga: number } | undefined) => void; }
   ```
 
-- [ ] **Step 1: Write the failing test**
-
-Create `apps/saas/components/komponen-labor-input.test.tsx`:
+- [ ] **Step 1: Write failing test** — create `apps/saas/components/komponen-labor-input.test.tsx`:
 
 ```ts
 // @vitest-environment jsdom
@@ -637,100 +738,96 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { KomponenLaborInput } from "./KomponenLaborInput";
 import { DEFAULT_LOCAL_SETTINGS } from "@/lib/kalkulator/local-settings";
 
-const baseProps = {
-  settings: DEFAULT_LOCAL_SETTINGS,
-  komponen: [], labor: [], packing: undefined as undefined,
+const base = {
+  settings: DEFAULT_LOCAL_SETTINGS, komponen: [], labor: [], packing: undefined,
   onKomponenChange: vi.fn(), onLaborChange: vi.fn(), onPackingChange: vi.fn(),
 };
 
 describe("KomponenLaborInput", () => {
-  it("locked → 🔒 + CTA Beli, tak ada chip preset aktif", () => {
-    render(<KomponenLaborInput {...baseProps} locked={true} />);
-    expect(screen.getByText(/Buka di Beli|Beli/)).toBeTruthy();
+  it("locked → 🔒 + CTA, tak ada chip preset", () => {
+    render(<KomponenLaborInput {...base} locked={true} />);
+    expect(screen.getByText(/Beli/)).toBeTruthy();
     expect(screen.queryByText(/Gantungan kew-kew/)).toBeNull();
   });
-
-  it("unlocked → klik chip preset komponen memanggil onKomponenChange dg row baru", () => {
+  it("unlocked → chip komponen append 1 row", () => {
     const onK = vi.fn();
-    render(<KomponenLaborInput {...baseProps} locked={false} onKomponenChange={onK} />);
+    render(<KomponenLaborInput {...base} locked={false} onKomponenChange={onK} />);
     fireEvent.click(screen.getByText(/Gantungan kew-kew/));
-    expect(onK).toHaveBeenCalledTimes(1);
-    const rows = onK.mock.calls[0][0];
-    expect(rows[0]).toMatchObject({ nama: "Gantungan kew-kew", harga: 900, qty: 1 });
+    expect(onK.mock.calls[0][0][0]).toMatchObject({ nama: "Gantungan kew-kew", harga: 900, qty: 1 });
   });
-
-  it("unlocked → toggle packing set lalu clear", () => {
+  it("unlocked → chip labor bundle append SEMUA item (Mask Medium = 3)", () => {
+    const onL = vi.fn();
+    render(<KomponenLaborInput {...base} locked={false} onLaborChange={onL} />);
+    fireEvent.click(screen.getByText(/Mask Medium/));
+    expect(onL.mock.calls[0][0]).toHaveLength(3);
+    expect(onL.mock.calls[0][0][0]).toMatchObject({ nama: "Assembly", jam: 0.5, ratePerJam: 35000 });
+  });
+  it("unlocked → packing single-select set lalu clear", () => {
     const onP = vi.fn();
-    const { rerender } = render(<KomponenLaborInput {...baseProps} locked={false} onPackingChange={onP} />);
-    fireEvent.click(screen.getByRole("button", { name: "Packing S" }));
-    expect(onP).toHaveBeenCalledWith("S");
-    rerender(<KomponenLaborInput {...baseProps} locked={false} packing="S" onPackingChange={onP} />);
-    fireEvent.click(screen.getByRole("button", { name: "Packing S" }));
+    const { rerender } = render(<KomponenLaborInput {...base} locked={false} onPackingChange={onP} />);
+    fireEvent.click(screen.getByRole("button", { name: /Packing S/ }));
+    expect(onP).toHaveBeenCalledWith({ nama: "Packing S", harga: 1500 });
+    rerender(<KomponenLaborInput {...base} locked={false} packing={{ nama: "Packing S", harga: 1500 }} onPackingChange={onP} />);
+    fireEvent.click(screen.getByRole("button", { name: /Packing S/ }));
     expect(onP).toHaveBeenLastCalledWith(undefined);
   });
 });
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 2: Run to verify fail**
 
 Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run components/komponen-labor-input.test.tsx`
 Expected: FAIL (`./KomponenLaborInput` not found).
 
-- [ ] **Step 3: Implement**
-
-Create `apps/saas/components/KomponenLaborInput.tsx`:
+- [ ] **Step 3: Implement** — create `apps/saas/components/KomponenLaborInput.tsx`:
 
 ```tsx
 "use client";
 import { GlassInput } from "@3pb/ui";
-import { PACKING_SIZES, type LocalSettings, type PackingSize } from "@/lib/kalkulator/local-settings";
+import type { LocalSettings } from "@/lib/kalkulator/local-settings";
 import type { KomponenRow, LaborRow } from "@/lib/kalkulator/compose";
 
 const rupiah = (n: number) => "Rp" + n.toLocaleString("id-ID");
 
 export function KomponenLaborInput({
-  locked, settings, komponen, labor, packing,
-  onKomponenChange, onLaborChange, onPackingChange,
+  locked, settings, komponen, labor, packing, onKomponenChange, onLaborChange, onPackingChange,
 }: {
-  locked: boolean;
-  settings: LocalSettings;
-  komponen: KomponenRow[];
-  labor: LaborRow[];
-  packing: PackingSize | undefined;
-  onKomponenChange: (rows: KomponenRow[]) => void;
-  onLaborChange: (rows: LaborRow[]) => void;
-  onPackingChange: (p: PackingSize | undefined) => void;
+  locked: boolean; settings: LocalSettings;
+  komponen: KomponenRow[]; labor: LaborRow[]; packing: { nama: string; harga: number } | undefined;
+  onKomponenChange: (r: KomponenRow[]) => void; onLaborChange: (r: LaborRow[]) => void;
+  onPackingChange: (p: { nama: string; harga: number } | undefined) => void;
 }) {
   if (locked) {
     return (
       <div className="border-t border-[color:var(--g-row-border)] pt-3 mt-1">
-        <div className="text-[12px] g-t3 font-medium flex items-center gap-2">🔒 Komponen, labor & packing</div>
-        <p className="text-[11px] g-t4 mt-1">Tambah komponen, biaya labor & packing ke perhitungan.
+        <div className="text-[12px] g-t3 font-medium">🔒 Komponen, labor &amp; packing</div>
+        <p className="text-[11px] g-t4 mt-1">Tambah komponen, biaya labor &amp; packing ke perhitungan.
           <a href="/beli" className="underline ml-1">Buka di Beli →</a></p>
       </div>
     );
   }
-
-  const subKomp = komponen.reduce((s, r) => s + (r.harga > 0 ? r.harga * Math.max(1, r.qty) : 0), 0);
+  const subKomp = komponen.reduce((s, r) => s + (r.harga > 0 ? r.harga * Math.max(1, r.qty) : 0), 0) + (packing?.harga ?? 0);
   const subLab = labor.reduce((s, r) => s + ((r.jam ?? 0) * (r.ratePerJam ?? 0) + (r.flat ?? 0)), 0);
 
   return (
     <div className="border-t border-[color:var(--g-row-border)] pt-3 mt-1 flex flex-col gap-3">
-      {/* Packing */}
       <div>
-        <div className="text-[11px] g-t3 mb-1">Packing</div>
+        <div className="text-[11px] g-t3 mb-1">Packing (pilih satu)</div>
         <div className="flex gap-2 flex-wrap">
-          {PACKING_SIZES.map((sz) => (
-            <button key={sz} type="button" aria-label={`Packing ${sz}`}
-              onClick={() => onPackingChange(packing === sz ? undefined : sz)}
-              className={`g-btn-ghost rounded-[10px] px-3 h-8 text-[12px] ${packing === sz ? "g-btn-active" : ""}`}>
-              {sz} · {rupiah(settings.packingRates[sz])}
-            </button>
-          ))}
+          {settings.packingPresets.map((p) => {
+            const on = packing?.nama === p.nama && packing?.harga === p.harga;
+            return (
+              <button key={p.id} type="button" aria-label={`Packing ${p.nama}`}
+                onClick={() => onPackingChange(on ? undefined : { nama: p.nama, harga: p.harga })}
+                className="g-btn-ghost rounded-[10px] px-3 h-8 text-[12px]"
+                style={on ? { outline: "2px solid var(--g-accent)" } : undefined}>
+                {p.nama} · {rupiah(p.harga)}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Komponen */}
       <div>
         <div className="text-[11px] g-t3 mb-1">Komponen tambahan</div>
         <div className="flex gap-2 flex-wrap mb-2">
@@ -739,50 +836,36 @@ export function KomponenLaborInput({
               onClick={() => onKomponenChange([...komponen, { id: crypto.randomUUID(), nama: p.nama, harga: p.harga, qty: 1 }])}
               className="g-btn-ghost rounded-[10px] px-3 h-8 text-[12px]">＋ {p.nama} ({rupiah(p.harga)})</button>
           ))}
-          <button type="button"
-            onClick={() => onKomponenChange([...komponen, { id: crypto.randomUUID(), nama: "", harga: 0, qty: 1 }])}
-            className="text-[12px] g-t4 underline">＋ manual</button>
+          <button type="button" onClick={() => onKomponenChange([...komponen, { id: crypto.randomUUID(), nama: "", harga: 0, qty: 1 }])} className="text-[12px] g-t4 underline">＋ manual</button>
         </div>
         {komponen.map((r, i) => (
           <div key={r.id} className="flex items-center gap-2 mb-1">
-            <GlassInput value={r.nama} placeholder="Nama" className="flex-1"
-              onChange={(e) => onKomponenChange(komponen.map((x, j) => (j === i ? { ...x, nama: e.target.value } : x)))} />
-            <GlassInput type="number" inputMode="decimal" value={String(r.harga)} className="w-24"
-              onChange={(e) => onKomponenChange(komponen.map((x, j) => (j === i ? { ...x, harga: Number(e.target.value) } : x)))} />
-            <GlassInput type="number" inputMode="numeric" value={String(r.qty)} className="w-16"
-              onChange={(e) => onKomponenChange(komponen.map((x, j) => (j === i ? { ...x, qty: Number(e.target.value) } : x)))} />
-            <button type="button" aria-label="Hapus komponen" className="g-t4 text-sm px-1"
-              onClick={() => onKomponenChange(komponen.filter((_, j) => j !== i))}>✕</button>
+            <GlassInput value={r.nama} placeholder="Nama" className="flex-1" onChange={(e) => onKomponenChange(komponen.map((x, j) => (j === i ? { ...x, nama: e.target.value } : x)))} />
+            <GlassInput type="number" inputMode="decimal" value={String(r.harga)} className="w-24" onChange={(e) => onKomponenChange(komponen.map((x, j) => (j === i ? { ...x, harga: Number(e.target.value) } : x)))} />
+            <GlassInput type="number" inputMode="numeric" value={String(r.qty)} className="w-16" onChange={(e) => onKomponenChange(komponen.map((x, j) => (j === i ? { ...x, qty: Number(e.target.value) } : x)))} />
+            <button type="button" aria-label="Hapus komponen" className="g-t4 text-sm px-1" onClick={() => onKomponenChange(komponen.filter((_, j) => j !== i))}>✕</button>
           </div>
         ))}
-        {subKomp > 0 && <div className="text-[11px] g-t4">Subtotal komponen: {rupiah(subKomp)}</div>}
+        {subKomp > 0 && <div className="text-[11px] g-t4">Subtotal komponen + packing: {rupiah(subKomp)}</div>}
       </div>
 
-      {/* Labor */}
       <div>
         <div className="text-[11px] g-t3 mb-1">Labor</div>
         <div className="flex gap-2 flex-wrap mb-2">
           {settings.laborPresets.map((p) => (
             <button key={p.id} type="button"
-              onClick={() => onLaborChange([...labor, { id: crypto.randomUUID(), nama: p.nama, jam: p.jam, ratePerJam: p.ratePerJam, flat: p.flat }])}
+              onClick={() => onLaborChange([...labor, ...p.items.map((it) => ({ id: crypto.randomUUID(), nama: it.nama, jam: it.jam, ratePerJam: it.ratePerJam, flat: it.flat }))])}
               className="g-btn-ghost rounded-[10px] px-3 h-8 text-[12px]">＋ {p.nama}</button>
           ))}
-          <button type="button"
-            onClick={() => onLaborChange([...labor, { id: crypto.randomUUID(), nama: "" }])}
-            className="text-[12px] g-t4 underline">＋ manual</button>
+          <button type="button" onClick={() => onLaborChange([...labor, { id: crypto.randomUUID(), nama: "" }])} className="text-[12px] g-t4 underline">＋ manual</button>
         </div>
         {labor.map((r, i) => (
           <div key={r.id} className="flex items-center gap-2 mb-1 flex-wrap">
-            <GlassInput value={r.nama} placeholder="Nama" className="flex-1"
-              onChange={(e) => onLaborChange(labor.map((x, j) => (j === i ? { ...x, nama: e.target.value } : x)))} />
-            <GlassInput type="number" inputMode="decimal" placeholder="jam" value={r.jam ?? ""} className="w-16"
-              onChange={(e) => onLaborChange(labor.map((x, j) => (j === i ? { ...x, jam: e.target.value === "" ? undefined : Number(e.target.value) } : x)))} />
-            <GlassInput type="number" inputMode="decimal" placeholder="rate" value={r.ratePerJam ?? ""} className="w-24"
-              onChange={(e) => onLaborChange(labor.map((x, j) => (j === i ? { ...x, ratePerJam: e.target.value === "" ? undefined : Number(e.target.value) } : x)))} />
-            <GlassInput type="number" inputMode="decimal" placeholder="flat" value={r.flat ?? ""} className="w-20"
-              onChange={(e) => onLaborChange(labor.map((x, j) => (j === i ? { ...x, flat: e.target.value === "" ? undefined : Number(e.target.value) } : x)))} />
-            <button type="button" aria-label="Hapus labor" className="g-t4 text-sm px-1"
-              onClick={() => onLaborChange(labor.filter((_, j) => j !== i))}>✕</button>
+            <GlassInput value={r.nama} placeholder="Nama" className="flex-1" onChange={(e) => onLaborChange(labor.map((x, j) => (j === i ? { ...x, nama: e.target.value } : x)))} />
+            <GlassInput type="number" inputMode="decimal" placeholder="jam" value={r.jam ?? ""} className="w-16" onChange={(e) => onLaborChange(labor.map((x, j) => (j === i ? { ...x, jam: e.target.value === "" ? undefined : Number(e.target.value) } : x)))} />
+            <GlassInput type="number" inputMode="decimal" placeholder="rate" value={r.ratePerJam ?? ""} className="w-24" onChange={(e) => onLaborChange(labor.map((x, j) => (j === i ? { ...x, ratePerJam: e.target.value === "" ? undefined : Number(e.target.value) } : x)))} />
+            <GlassInput type="number" inputMode="decimal" placeholder="flat" value={r.flat ?? ""} className="w-20" onChange={(e) => onLaborChange(labor.map((x, j) => (j === i ? { ...x, flat: e.target.value === "" ? undefined : Number(e.target.value) } : x)))} />
+            <button type="button" aria-label="Hapus labor" className="g-t4 text-sm px-1" onClick={() => onLaborChange(labor.filter((_, j) => j !== i))}>✕</button>
           </div>
         ))}
         {subLab > 0 && <div className="text-[11px] g-t4">Subtotal labor: {rupiah(subLab)}</div>}
@@ -792,9 +875,9 @@ export function KomponenLaborInput({
 }
 ```
 
-Note: `g-btn-active` may not exist as a utility. If it isn't defined in `@3pb/ui` glass.css, replace with an inline style on the active toggle: `style={packing === sz ? { outline: "2px solid var(--g-accent)" } : undefined}` and drop the `g-btn-active` class. The implementer should grep `packages/ui/src/glass.css` for `g-btn-active`; if absent, use the inline style.
+Note: grep `packages/ui/src/glass.css` for `g-btn-ghost` and `--g-accent`; both are used in existing 1b-1 code (SettingsPanel CTA + Calculator), so they exist. The active packing outline uses inline `--g-accent` (present).
 
-- [ ] **Step 4: Run test to verify it passes**
+- [ ] **Step 4: Run to verify pass**
 
 Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run components/komponen-labor-input.test.tsx`
 Expected: PASS.
@@ -803,71 +886,114 @@ Expected: PASS.
 
 ```bash
 git add apps/saas/components/KomponenLaborInput.tsx apps/saas/components/komponen-labor-input.test.tsx
-git commit -m "feat(saas): KomponenLaborInput blok kalkulator (locked Free / editable Beli, TDD)"
+git commit -m "feat(saas): KomponenLaborInput (packing single-select, labor bundle expand, TDD)"
 ```
 
 ---
 
-### Task 7: Calculator wiring — state add-on + gating paidCore
+### Task 9: RincianPanel + Calculator wiring + gating
 
 **Files:**
+- Create: `apps/saas/components/RincianPanel.tsx`
 - Modify: `apps/saas/components/Calculator.tsx`
-- Test: `apps/saas/components/calculator.test.tsx` (append)
+- Test: `apps/saas/components/rincian-panel.test.tsx`, `apps/saas/components/calculator.test.tsx` (append)
 
 **Interfaces:**
-- Consumes: `KomponenLaborInput` (Task 6); `fullView` accepting `komponen/labor/packing` (Task 3); `KomponenRow`/`LaborRow` (Task 2); `PackingSize` (Task 1). Existing props `{ authenticated, paidCore=false, userId=null }`.
-- Produces: kalkulator meneruskan add-on ke `fullView` HANYA bila `paidCore`.
+- Consumes: `FullView["rincian"]` (Task 3), `KomponenLaborInput` (Task 8), `getRincianPref` (Task 5), `KomponenRow`/`LaborRow` (Task 2).
+- Produces: `RincianPanel({ rincian }: { rincian: FullView["rincian"] })`; Calculator passes add-on only when `paidCore`, renders rincian when pref on.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write failing tests**
+
+Create `apps/saas/components/rincian-panel.test.tsx`:
+```ts
+// @vitest-environment jsdom
+import { describe, it, expect } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { RincianPanel } from "./RincianPanel";
+
+it("render baris breakdown", () => {
+  render(<RincianPanel rincian={{ produksi: 40000, komponen: 900, packing: 2500, labor: 202500, biayaModal: 245900, hargaJualMinimum: 260000, rekomendasi: 312000 }} />);
+  expect(screen.getByText(/Produksi/)).toBeTruthy();
+  expect(screen.getByText(/Biaya modal/)).toBeTruthy();
+  expect(screen.getByText("Rp202.500")).toBeTruthy();
+});
+```
 
 Append to `apps/saas/components/calculator.test.tsx`:
-
 ```ts
-it("paidCore=false → blok add-on terkunci (🔒), tak ada chip preset", () => {
+it("paidCore=false → blok add-on terkunci", () => {
   render(<Calculator authenticated={true} paidCore={false} userId="u1" />);
   expect(screen.getByText(/🔒 Komponen/)).toBeTruthy();
   expect(screen.queryByText(/Gantungan kew-kew/)).toBeNull();
 });
-
-it("paidCore=true → chip preset komponen muncul (blok editable)", async () => {
+it("paidCore=true → chip preset komponen muncul", async () => {
   render(<Calculator authenticated={true} paidCore={true} userId="u1" />);
-  // settings default dipakai walau loadSettings async; chip dari DEFAULT
   await waitFor(() => expect(screen.getByText(/Gantungan kew-kew/)).toBeTruthy());
 });
 ```
+(If `calculator.test.tsx` mocks `@/lib/store/local-settings`, ensure `loadSettings` resolves to `DEFAULT_LOCAL_SETTINGS`.)
 
-(If `calculator.test.tsx` mocks `@/lib/store/local-settings`, ensure `loadSettings` resolves to `DEFAULT_LOCAL_SETTINGS` so chips render. Reuse the existing mock in that file; if it returns `{}`, change it to return `DEFAULT_LOCAL_SETTINGS`.)
+- [ ] **Step 2: Run to verify fail**
 
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run components/calculator.test.tsx`
-Expected: FAIL (no add-on block rendered yet).
+Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run components/rincian-panel.test.tsx components/calculator.test.tsx`
+Expected: FAIL.
 
 - [ ] **Step 3: Implement**
+
+Create `apps/saas/components/RincianPanel.tsx`:
+```tsx
+"use client";
+import type { FullView } from "@/lib/kalkulator/compute";
+
+const rupiah = (n: number) => "Rp" + n.toLocaleString("id-ID");
+const Row = ({ label, val, strong }: { label: string; val: number; strong?: boolean }) => (
+  <div className={`flex justify-between text-[12px] py-[3px] ${strong ? "g-t1 font-medium" : "g-t3"}`} style={{ borderBottom: "1px dashed var(--g-row-border)" }}>
+    <span>{label}</span><span style={{ fontVariantNumeric: "tabular-nums" }}>{rupiah(val)}</span>
+  </div>
+);
+
+export function RincianPanel({ rincian }: { rincian: FullView["rincian"] }) {
+  return (
+    <div className="mt-3 rounded-[10px] p-3" style={{ background: "color-mix(in srgb, var(--g-t5) 8%, transparent)" }}>
+      <div className="text-[11px] g-t4 mb-1">Rincian perhitungan</div>
+      <Row label="Produksi (material + mesin + failure)" val={rincian.produksi} />
+      {rincian.komponen > 0 && <Row label="Komponen" val={rincian.komponen} />}
+      {rincian.packing > 0 && <Row label="Packing" val={rincian.packing} />}
+      {rincian.labor > 0 && <Row label="Labor" val={rincian.labor} />}
+      <Row label="= Biaya modal" val={rincian.biayaModal} strong />
+      <Row label="Harga jual minimum" val={rincian.hargaJualMinimum} />
+      <Row label="Rekomendasi (Standard)" val={rincian.rekomendasi} />
+    </div>
+  );
+}
+```
 
 Edit `apps/saas/components/Calculator.tsx`:
 
 Add imports:
 ```ts
 import type { KomponenRow, LaborRow } from "@/lib/kalkulator/compose";
-import type { PackingSize } from "@/lib/kalkulator/local-settings";
 import { KomponenLaborInput } from "./KomponenLaborInput";
+import { RincianPanel } from "./RincianPanel";
+import { getRincianPref } from "@/lib/store/display-prefs";
 ```
 
-Add state (near existing `useState` calls):
+Add state (near existing `useState`):
 ```ts
   const [komponen, setKomponen] = useState<KomponenRow[]>([]);
   const [labor, setLabor] = useState<LaborRow[]>([]);
-  const [packing, setPacking] = useState<PackingSize | undefined>(undefined);
+  const [packing, setPacking] = useState<{ nama: string; harga: number } | undefined>(undefined);
+  const [showRincian, setShowRincian] = useState(false);
+  useEffect(() => { setShowRincian(getRincianPref()); }, []);
 ```
 
-Change the `view` computation to pass add-ons ONLY when `paidCore` (Free defense):
+Change the `view` computation to gate add-ons on `paidCore`:
 ```ts
   const addon = paidCore ? { komponen, labor, packing } : {};
   const view = valid ? fullView({ gramasi: g, durasiJam: d, tipe, ...addon }, settings) : null;
 ```
 
-Render `<KomponenLaborInput>` inside the Hasil `GlassCard`, right before the closing of the results `div` (after the `<button>` "Simpan hasil..." block, still inside `!view ? ... : (<div>...)`). Insert:
+Inside the Hasil `GlassCard`, as the LAST children of the inner `<div className="flex flex-col gap-3">` (after the existing "Simpan hasil…" button), insert:
 ```tsx
               <KomponenLaborInput
                 locked={!paidCore}
@@ -879,53 +1005,42 @@ Render `<KomponenLaborInput>` inside the Hasil `GlassCard`, right before the clo
                 onLaborChange={setLabor}
                 onPackingChange={setPacking}
               />
+              {showRincian && <RincianPanel rincian={view.rincian} />}
 ```
 
-(Place it just before the closing `</div>` that wraps the results column, so it appears under the numbers. It must be within the `view` branch so it renders alongside results; if you prefer it always visible, place it after the `GlassCard` grid — but keep it inside the `authenticated` area. Simplest: put it as the last child of the Hasil `GlassCard`'s inner `<div className="flex flex-col gap-3">`.)
+- [ ] **Step 4: Run to verify pass**
 
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run components/calculator.test.tsx`
+Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/saas exec vitest run components/rincian-panel.test.tsx components/calculator.test.tsx`
 Expected: PASS.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add apps/saas/components/Calculator.tsx apps/saas/components/calculator.test.tsx
-git commit -m "feat(saas): kalkulator blok komponen/labor/packing + gating paidCore (Free terkunci, TDD)"
+git add apps/saas/components/RincianPanel.tsx apps/saas/components/Calculator.tsx apps/saas/components/calculator.test.tsx apps/saas/components/rincian-panel.test.tsx
+git commit -m "feat(saas): RincianPanel + kalkulator wiring komponen/labor/packing + gating paidCore (TDD)"
 ```
 
 ---
 
-### Task 8: Verifikasi akhir + docs (deploy GATED)
+### Task 10: Verifikasi akhir + docs (deploy GATED)
 
 **Files:**
 - Modify: `apps/saas/README.md`
 
-**Interfaces:**
-- Consumes: all prior tasks.
-- Produces: whole-workspace green; README note; NO deploy.
-
-- [ ] **Step 1: Update README**
-
-Edit `apps/saas/README.md` — add under the settings bullet (after the 1b-1 line):
+- [ ] **Step 1: Update README** — add under the 1b-1 settings bullet:
 ```markdown
-- Komponen & Labor (Beli, 1b-2): preset komponen/labor CRUD + packing rate di `/settings` (dua-mode); di kalkulator blok "Komponen & Labor" (chip preset + baris manual + toggle packing) terkunci untuk Free. `lib/kalkulator/compose.ts` → `buildInputV2`. Parity Free dijaga (tanpa add-on = angka lama). Multi-plate = 1b-3, save hasil = 1b-4.
+- Komponen/Labor/Packing (Beli, 1b-2): preset komponen & packing (CRUD `{nama,harga}`) + labor preset bundle (multi-item) di `/settings`; di kalkulator blok "Komponen & Labor" (chip preset, packing pilih-satu, labor bundle auto-fill) terkunci untuk Free. Panel rincian perhitungan opsional (toggle Setting→Tampilan, localStorage, semua user). `lib/kalkulator/compose.ts` → `buildInputV2`. Parity Free dijaga. Multi-plate=1b-3, save hasil=1b-4.
 ```
 
-- [ ] **Step 2: Regenerate Prisma client (hindari gotcha monorepo) + full test**
-
-Run:
+- [ ] **Step 2: Prisma generate + full test**
 ```bash
 export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH"
 pnpm --filter @3pb/saas exec prisma generate
 pnpm turbo test
 ```
-Expected: 6/6 packages pass (saas test count naik dari 132 dengan test 1b-2 baru).
+Expected: 6/6 packages pass (saas count naik).
 
-- [ ] **Step 3: Regenerate dashboard client + full build**
-
-The saas `prisma generate` clobbers the shared `@prisma/client` store entry (documented gotcha). Regenerate the dashboard client so `pnpm turbo build` is green:
+- [ ] **Step 3: Regenerate dashboard client + full build** (gotcha monorepo shared `@prisma/client`)
 ```bash
 export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH"
 cd apps/dashboard && npx prisma generate && cd ../..
@@ -936,25 +1051,24 @@ Expected: 3/3 build tasks successful.
 - [ ] **Step 4: Guard — no leaked secret**
 
 Run: `git diff --stat apps/saas/.env.deploy.example`
-Expected: EMPTY (no change). If it shows a diff, run `git checkout -- apps/saas/.env.deploy.example` before committing (never commit a real token into the tracked example).
+Expected: EMPTY. If diff shows, `git checkout -- apps/saas/.env.deploy.example` before committing.
 
 - [ ] **Step 5: Commit**
-
 ```bash
 git add apps/saas/README.md
-git commit -m "docs(saas): catat komponen/labor/packing 1b-2 di README"
+git commit -m "docs(saas): catat komponen/labor/packing + rincian 1b-2 di README"
 ```
 
 - [ ] **Step 6: Deploy — GATED**
 
-Do NOT run `bash apps/saas/deploy.sh`. Deploy is gated on explicit user go-ahead. Report completion and await instruction.
+Do NOT run `bash apps/saas/deploy.sh`. Await explicit user go-ahead.
 
 ---
 
 ## Self-Review (penulis plan)
 
-**Spec coverage:** §1 keputusan → Task 1 (preset CRUD types + validate), Task 5 (CRUD UI), Task 6 (input locked Free), Task 3 (compose→buildInputV2 parity). §2 data model → Task 1 + Task 4 (merge migrasi). §3 compose → Task 2. §4 input kalkulator → Task 6 + Task 7. §5 settings 3 grup → Task 5. §6 gating/parity → Task 3 (parity) + Task 7 (paidCore guard). §7 testing → tiap task punya test; regresi via Task 8 `turbo test`. §8 deploy gated → Task 8 Step 6. Semua tercakup.
+**Spec coverage:** §1 keputusan → T1 (types+validate), T6/T7 (CRUD UI packing+komponen+labor bundle), T8 (input locked, packing single-select, labor bundle expand), T3 (rincian + parity), T5 (display-pref), T9 (RincianPanel + toggle wiring + gating). §2 data → T1 + T4 (merge). §3 compose → T2. §4 input/rincian → T8 + T9. §5 settings → T6 + T7. §6 gating/parity → T3 + T9. §7 testing → tiap task; regresi T10. §8 deploy gated → T10 Step 6. Semua tercakup.
 
-**Placeholder scan:** tak ada TBD/TODO; tiap step kode lengkap. Satu conditional guidance (`g-btn-active` grep → fallback inline style) diberi instruksi konkret, bukan placeholder.
+**Placeholder scan:** tak ada TBD/TODO; kode lengkap tiap step. Grep-guidance (`g-btn-ghost`/`--g-accent`) konkret (dipakai kode 1b-1 existing).
 
-**Type consistency:** `KomponenPreset {id,nama,harga}` / `LaborPreset {id,nama,jam?,ratePerJam?,flat?}` / `PackingSize` / `PACKING_SIZES` (Task 1) dipakai konsisten di Task 5/6. `KomponenRow`/`LaborRow` (Task 2) dipakai Task 3/6/7. `composeKomponen(packing, packingRates, rows)` / `composeLabor(rows)` (Task 2) dipanggil Task 3 dg urutan arg sama. `CalcInput.komponen?/labor?/packing?` (Task 3) di-set Task 7. `KomponenLaborInput` props (Task 6) dipanggil Task 7 dg nama callback identik (`onKomponenChange`/`onLaborChange`/`onPackingChange`). Konsisten.
+**Type consistency:** `KomponenPreset {id,nama,harga}` / `PackingPreset` / `LaborItemInput` / `LaborPreset {id,nama,items}` (T1) dipakai T6/T7/T8. `KomponenRow`/`LaborRow` (T2) dipakai T3/T8/T9. `composeKomponen(packing:{nama,harga}|undefined, rows)` / `composeLabor(rows)` (T2) dipanggil T3. `CalcInput.komponen?/labor?/packing?:{nama,harga}` (T3) di-set T9. `FullView.rincian` (T3) dipakai T9 RincianPanel. `KomponenLaborInput` props (T8) dipanggil T9 dg callback identik. `getRincianPref/setRincianPref` (T5) dipakai T6 (set) + T9 (get). Konsisten.
