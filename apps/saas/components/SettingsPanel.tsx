@@ -2,8 +2,9 @@
 import { useEffect, useState } from "react";
 import { MARGIN_TIER_LABEL } from "@3pb/kalkulator-core";
 import { GlassButton, GlassInput } from "@3pb/ui";
-import { DEFAULT_LOCAL_SETTINGS, validateLocalSettings, type LocalSettings } from "@/lib/kalkulator/local-settings";
+import { DEFAULT_LOCAL_SETTINGS, validateLocalSettings, type LocalSettings, type KomponenPreset } from "@/lib/kalkulator/local-settings";
 import { loadSettings, saveSettings, resetSettings } from "@/lib/store/local-settings";
+import { getRincianPref, setRincianPref } from "@/lib/store/display-prefs";
 
 function NumField({ label, value, disabled, onChange }: { label: string; value: number; disabled: boolean; onChange: (n: number) => void }) {
   return (
@@ -13,6 +14,10 @@ function NumField({ label, value, disabled, onChange }: { label: string; value: 
         onChange={(e) => onChange(Number(e.target.value))} className="w-full mt-1" />
     </label>
   );
+}
+
+function TxtField({ value, disabled, onChange, ph }: { value: string; disabled: boolean; onChange: (s: string) => void; ph?: string }) {
+  return <GlassInput value={value} disabled={disabled} placeholder={ph} onChange={(e) => onChange(e.target.value)} className="w-full" />;
 }
 
 function Group({ title, locked, children }: { title: string; locked: boolean; children: React.ReactNode }) {
@@ -26,18 +31,49 @@ function Group({ title, locked, children }: { title: string; locked: boolean; ch
   );
 }
 
+function PresetList({ title, disabled, list, onSet, onAdd, onDel, addLabel }: {
+  title: string; disabled: boolean; list: KomponenPreset[];
+  onSet: (i: number, patch: Partial<KomponenPreset>) => void; onAdd: () => void; onDel: (i: number) => void; addLabel: string;
+}) {
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="text-[12px] font-medium g-t2 flex items-center gap-2">{title} {disabled && <span className="text-[10px] g-t5">🔒 Edit di Beli</span>}</h2>
+      {list.map((k, i) => (
+        <div key={k.id} className="flex items-center gap-2">
+          <GlassInput value={k.nama} disabled={disabled} placeholder="Nama" className="flex-1" onChange={(e) => onSet(i, { nama: e.target.value })} />
+          <GlassInput type="number" inputMode="decimal" value={String(k.harga)} disabled={disabled} className="w-28" onChange={(e) => onSet(i, { harga: Number(e.target.value) })} />
+          {!disabled && <button type="button" onClick={() => onDel(i)} className="g-t4 text-sm px-1" aria-label={`Hapus ${title}`}>✕</button>}
+        </div>
+      ))}
+      {!disabled && <button type="button" onClick={onAdd} className="text-[12px] g-t4 underline self-start">＋ {addLabel}</button>}
+    </section>
+  );
+}
+
 export function SettingsPanel({ editable, userId }: { editable: boolean; userId: string | null }) {
   const [s, setS] = useState<LocalSettings>(DEFAULT_LOCAL_SETTINGS);
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
   const disabled = !editable;
+  const [rincian, setRincian] = useState(false);
 
   useEffect(() => { if (editable && userId) loadSettings(userId).then(setS); }, [editable, userId]);
+  useEffect(() => { setRincian(getRincianPref()); }, []);
+
+  const toggleRincian = () => { const v = !rincian; setRincian(v); setRincianPref(v); };
 
   const setMat = (t: "FDM" | "SLA", k: "hppPerGram" | "jualPerGram" | "failureRatePct", n: number) =>
     setS((p) => ({ ...p, material: { ...p.material, [t]: { ...p.material[t], [k]: n } } }));
   const setMargin = (k: "A" | "B" | "C", n: number) => setS((p) => ({ ...p, margin: { ...p.margin, [k]: n } }));
   const setChan = (k: "offline" | "shopee", n: number) => setS((p) => ({ ...p, channels: { ...p.channels, [k]: n } }));
+
+  const mutList = (key: "komponenPresets" | "packingPresets") => ({
+    set: (i: number, patch: Partial<KomponenPreset>) => setS((p) => ({ ...p, [key]: p[key].map((k, j) => (j === i ? { ...k, ...patch } : k)) })),
+    add: () => setS((p) => ({ ...p, [key]: [...p[key], { id: crypto.randomUUID(), nama: "", harga: 0 }] })),
+    del: (i: number) => setS((p) => ({ ...p, [key]: p[key].filter((_, j) => j !== i) })),
+  });
+  const komp = mutList("komponenPresets");
+  const pack = mutList("packingPresets");
 
   async function save() {
     const errs = validateLocalSettings(s);
@@ -80,6 +116,15 @@ export function SettingsPanel({ editable, userId }: { editable: boolean; userId:
         <NumField label="Offline ×" value={s.channels.offline} disabled={disabled} onChange={(n) => setChan("offline", n)} />
         <NumField label="Shopee ×" value={s.channels.shopee} disabled={disabled} onChange={(n) => setChan("shopee", n)} />
       </Group>
+      <PresetList title="Komponen tambahan" disabled={disabled} list={s.komponenPresets} onSet={komp.set} onAdd={komp.add} onDel={komp.del} addLabel="Tambah komponen" />
+      <PresetList title="Packing" disabled={disabled} list={s.packingPresets} onSet={pack.set} onAdd={pack.add} onDel={pack.del} addLabel="Tambah packing" />
+      <section className="flex flex-col gap-2">
+        <h2 className="text-[12px] font-medium g-t2">Tampilan</h2>
+        <label className="text-[12px] g-t3 flex items-center gap-2">
+          <input type="checkbox" checked={rincian} onChange={toggleRincian} aria-label="Tampilkan rincian perhitungan" />
+          Tampilkan rincian perhitungan di kalkulator
+        </label>
+      </section>
 
       {editable ? (
         <div className="flex items-center gap-3">

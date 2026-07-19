@@ -2,14 +2,19 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 
-const saveMock = vi.fn(); const resetMock = vi.fn();
+const saveMock = vi.fn();
+const resetMock = vi.fn();
 vi.mock("@/lib/store/local-settings", async () => {
   const actual = await vi.importActual<any>("@/lib/kalkulator/local-settings");
-  return { loadSettings: vi.fn(async () => actual.DEFAULT_LOCAL_SETTINGS), saveSettings: (...a: unknown[]) => saveMock(...a), resetSettings: (...a: unknown[]) => resetMock(...a) };
+  return {
+    loadSettings: vi.fn(async () => actual.DEFAULT_LOCAL_SETTINGS),
+    saveSettings: (...a: unknown[]) => saveMock(...a),
+    resetSettings: (...a: unknown[]) => resetMock(...a)
+  };
 });
 import { SettingsPanel } from "@/components/SettingsPanel";
 
-beforeEach(() => { saveMock.mockReset(); resetMock.mockReset(); });
+beforeEach(() => { saveMock.mockReset(); resetMock.mockReset(); saveMock.mockResolvedValue(undefined); window.localStorage.clear(); });
 
 describe("SettingsPanel", () => {
   it("Free (editable=false) → input disabled + CTA Beli, tak ada tombol Simpan", () => {
@@ -27,5 +32,37 @@ describe("SettingsPanel", () => {
     render(<SettingsPanel editable={true} userId="u1" />);
     fireEvent.click(screen.getByText("Reset ke default"));
     await waitFor(() => expect(resetMock).toHaveBeenCalledWith("u1"));
+  });
+});
+
+describe("SettingsPanel 1b-2 komponen/packing/tampilan", () => {
+  it("Free → grup Komponen & Packing terkunci; Tampilan toggle TETAP enabled", () => {
+    render(<SettingsPanel editable={false} userId={null} />);
+    expect((screen.getByDisplayValue("Gantungan kew-kew") as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByDisplayValue("Packing S") as HTMLInputElement).disabled).toBe(true);
+    const toggle = screen.getByLabelText(/rincian perhitungan/i) as HTMLInputElement;
+    expect(toggle.disabled).toBe(false);
+  });
+  it("Tampilan toggle persist ke localStorage segera", () => {
+    render(<SettingsPanel editable={false} userId={null} />);
+    fireEvent.click(screen.getByLabelText(/rincian perhitungan/i));
+    expect(window.localStorage.getItem("slizebiz-rincian")).toBe("1");
+  });
+  it("Beli → tambah packing lalu Simpan meneruskan packing baru", async () => {
+    render(<SettingsPanel editable={true} userId="u1" />);
+    const addBtn = await screen.findByText(/Tambah packing/i);
+    fireEvent.click(addBtn);
+    fireEvent.click(screen.getByText("Simpan"));
+    await waitFor(() => expect(saveMock).toHaveBeenCalled());
+    expect(saveMock.mock.calls[0][1].packingPresets.length).toBe(5);
+  });
+  it("Beli → komponen harga 0 → tak Simpan + hint", async () => {
+    render(<SettingsPanel editable={true} userId="u1" />);
+    await screen.findByText(/Tambah komponen/i);
+    const inputs = screen.getAllByDisplayValue("900");
+    fireEvent.change(inputs[0], { target: { value: "0" } });
+    fireEvent.click(screen.getByText("Simpan"));
+    await waitFor(() => expect(screen.getByText(/harga harus > 0/i)).toBeTruthy());
+    expect(saveMock).not.toHaveBeenCalled();
   });
 });
