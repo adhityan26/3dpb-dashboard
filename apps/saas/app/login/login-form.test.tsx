@@ -14,7 +14,7 @@ describe("LoginPage auto-detect", () => {
     render(<LoginPage />);
     fireEvent.change(screen.getByPlaceholderText(/Email atau nomor/i), { target: { value: "a@b.com" } });
     fireEvent.click(screen.getByText("Lanjut"));
-    await waitFor(() => expect(signInMock).toHaveBeenCalledWith("resend", { email: "a@b.com", redirect: false }));
+    await waitFor(() => expect(signInMock).toHaveBeenCalledWith("resend", { email: "a@b.com", redirect: false, callbackUrl: "/" }));
     expect(screen.getByText(/Cek inbox/i)).toBeTruthy();
   });
 

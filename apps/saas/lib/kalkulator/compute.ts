@@ -3,7 +3,8 @@ import {
   type KalkulasiInputV2,
   type HasilKalkulasiV2,
 } from "@3pb/kalkulator-core";
-import { defaultSettings, DEFAULT_MATERIAL, DEFAULT_MESIN_PER_JAM } from "./default-settings";
+import { defaultSettings } from "./default-settings";
+import { DEFAULT_LOCAL_SETTINGS, toSettingsV2, type LocalSettings } from "./local-settings";
 
 export { defaultSettings };
 
@@ -14,13 +15,13 @@ export interface CalcInput {
   hargaAktual?: { channelId: string; harga: number };
 }
 
-export function buildInputV2(c: CalcInput): KalkulasiInputV2 {
-  const m = DEFAULT_MATERIAL[c.tipe];
+export function buildInputV2(c: CalcInput, ls: LocalSettings = DEFAULT_LOCAL_SETTINGS): KalkulasiInputV2 {
+  const m = ls.material[c.tipe];
   return {
     plates: [{
       durasiJam: c.durasiJam,
-      mesinPerJam: DEFAULT_MESIN_PER_JAM,
-      mesinPerJamJual: DEFAULT_MESIN_PER_JAM,
+      mesinPerJam: ls.mesinPerJam,
+      mesinPerJamJual: ls.mesinPerJam,
       materials: [{
         gramasi: c.gramasi,
         hppPerGram: m.hppPerGram,
@@ -35,8 +36,8 @@ export function buildInputV2(c: CalcInput): KalkulasiInputV2 {
   };
 }
 
-export function compute(c: CalcInput): HasilKalkulasiV2 {
-  return hitungKalkulasiV2(buildInputV2(c), defaultSettings);
+export function compute(c: CalcInput, ls: LocalSettings = DEFAULT_LOCAL_SETTINGS): HasilKalkulasiV2 {
+  return hitungKalkulasiV2(buildInputV2(c, ls), toSettingsV2(ls));
 }
 
 export interface FullView {
@@ -47,10 +48,11 @@ export interface FullView {
   status: HasilKalkulasiV2["status"];
 }
 
-export function fullView(c: CalcInput): FullView {
-  const h = compute(c);
+export function fullView(c: CalcInput, ls: LocalSettings = DEFAULT_LOCAL_SETTINGS): FullView {
+  const h = compute(c, ls);
+  const settings = toSettingsV2(ls);
   const r = Math.round;
-  const namaOf = (id: string) => defaultSettings.channels.find((ch) => ch.id === id)?.nama ?? id;
+  const namaOf = (id: string) => settings.channels.find((ch) => ch.id === id)?.nama ?? id;
   const off = h.hargaPerChannel.find((ch) => ch.channelId === "offline")!;
   return {
     biayaModal: r(h.hppTotal),
