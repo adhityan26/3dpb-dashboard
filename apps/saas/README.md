@@ -14,6 +14,7 @@ Butuh `.env` (lihat `.env.deploy.example`): `DATABASE_URL`, `AUTH_SECRET`, `RESE
 - Data: Prisma/Postgres — NextAuth tables + `Entitlement` komposit + `Config`. **Tanpa** tabel Waitlist.
 - Waitlist: dibaca read-only dari **Cloudflare D1** milik landing (`lib/waitlist/cloudflare.ts`).
 - Kalkulator: `@3pb/kalkulator-core` `hitungKalkulasiV2` + `defaultSettings`; UI memformat, tak menghitung ulang (`lib/kalkulator/compute.ts`).
+- Setting (Beli, 1b-1): panel `/settings` dua-mode — Free lihat default read-only+🔒, Beli edit + simpan **lokal (IndexedDB, `lib/store/local-settings.ts`)**. Kalkulator pakai setting custom hanya bila `paidCore` (`compute.ts` terima `LocalSettings`; parity Free dijaga). Scope: material FDM/SLA, mesin/jam, failure/test, margin, reseller, fee channel. Komponen/labor/multi-plate/save = 1b-2.
 - Gating: `lib/entitlement.ts` (`getEntitlement`/`can`/`requirePlan`) + `lib/hooks/use-entitlement.ts`. Di 1a-1 semua Free; fitur Beli 🔒 modal segera-hadir.
 - Admin-mini: `/admin` owner-only (`OWNER_EMAILS`) — edit Config + lihat/ekspor waitlist.
 - Payment (Beli, 1c): dynamic QRIS manual (`lib/qris/dynamic.ts` + `lib/payment/*`), checkout `/beli` → QR nominal-unik → user "sudah bayar" → admin verifikasi (`/admin` tab Pembayaran) → flip `lifetimeOwned` + notif (WA/email). Owner set `qris.static` + `price.beli` di `/admin`. Fitur Beli-nya (save/multi-plate) = 1b; Subscribe = 1c-lanjut.
