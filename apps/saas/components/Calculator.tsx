@@ -7,6 +7,10 @@ import { loadSettings } from "@/lib/store/local-settings";
 import { GlassCard, GlassInput } from "@3pb/ui";
 import { LockedBlock } from "./LockedBlock";
 import { LogoutButton } from "./LogoutButton";
+import type { KomponenRow, LaborRow } from "@/lib/kalkulator/compose";
+import { KomponenLaborInput } from "./KomponenLaborInput";
+import { RincianPanel } from "./RincianPanel";
+import { getRincianPref } from "@/lib/store/display-prefs";
 
 const rupiah = (n: number) => "Rp" + n.toLocaleString("id-ID");
 const TIERS: MarginTier[] = ["A", "B", "C"];
@@ -16,6 +20,10 @@ export function Calculator({ authenticated, paidCore = false, userId = null }: {
   const [durasi, setDurasi] = useState("3");
   const [tipe, setTipe] = useState<"FDM" | "SLA">("FDM");
   const [settings, setSettings] = useState<LocalSettings>(DEFAULT_LOCAL_SETTINGS);
+  const [komponen, setKomponen] = useState<KomponenRow[]>([]);
+  const [labor, setLabor] = useState<LaborRow[]>([]);
+  const [packing, setPacking] = useState<{ nama: string; harga: number } | undefined>(undefined);
+  const [showRincian, setShowRincian] = useState(false);
 
   useEffect(() => {
     if (paidCore && userId) {
@@ -23,10 +31,15 @@ export function Calculator({ authenticated, paidCore = false, userId = null }: {
     }
   }, [paidCore, userId]);
 
+  useEffect(() => {
+    setShowRincian(getRincianPref());
+  }, []);
+
   const g = Number(gramasi);
   const d = Number(durasi);
   const valid = Number.isFinite(g) && g > 0 && Number.isFinite(d) && d > 0;
-  const view = valid ? fullView({ gramasi: g, durasiJam: d, tipe }, settings) : null;
+  const addon = paidCore ? { komponen, labor, packing } : {};
+  const view = valid ? fullView({ gramasi: g, durasiJam: d, tipe, ...addon }, settings) : null;
 
   return (
     <main className="max-w-3xl mx-auto p-6">
@@ -97,6 +110,18 @@ export function Calculator({ authenticated, paidCore = false, userId = null }: {
               <button className="text-[11px] g-t4 text-left underline" onClick={() => { window.location.href = "/beli"; }}>
                 Simpan hasil, multi-plate, labor & settings custom → Beli 🔒
               </button>
+
+              <KomponenLaborInput
+                locked={!paidCore}
+                settings={settings}
+                komponen={komponen}
+                labor={labor}
+                packing={packing}
+                onKomponenChange={setKomponen}
+                onLaborChange={setLabor}
+                onPackingChange={setPacking}
+              />
+              {showRincian && <RincianPanel rincian={view.rincian} />}
             </div>
           )}
         </GlassCard>

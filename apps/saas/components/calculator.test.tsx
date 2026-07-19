@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import { Calculator } from "@/components/Calculator";
+import { DEFAULT_LOCAL_SETTINGS } from "@/lib/kalkulator/local-settings";
 
 vi.mock("@/lib/store/local-settings", () => ({ loadSettings: vi.fn(async () => ({})) }));
 import { loadSettings } from "@/lib/store/local-settings";
@@ -32,5 +33,19 @@ describe("Calculator gating settings", () => {
     (loadSettings as any).mockClear();
     render(<Calculator authenticated={true} paidCore={true} userId="u1" />);
     expect(loadSettings).toHaveBeenCalledWith("u1");
+  });
+});
+
+describe("Calculator add-on gating", () => {
+  it("paidCore=false → blok add-on terkunci", () => {
+    render(<Calculator authenticated={true} paidCore={false} userId="u1" />);
+    expect(screen.getByText(/🔒 Komponen/)).toBeTruthy();
+    expect(screen.queryByText(/Gantungan kew-kew/)).toBeNull();
+  });
+  it("paidCore=true → chip preset komponen muncul", async () => {
+    (loadSettings as any).mockClear();
+    (loadSettings as any).mockResolvedValue(DEFAULT_LOCAL_SETTINGS);
+    render(<Calculator authenticated={true} paidCore={true} userId="u1" />);
+    await waitFor(() => expect(screen.getByText(/Gantungan kew-kew/)).toBeTruthy());
   });
 });
