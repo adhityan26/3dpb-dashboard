@@ -54,9 +54,12 @@ describe("SettingsPanel 1b-2 komponen/packing/tampilan", () => {
     fireEvent.click(addBtn);
     // baris packing baru = input Nama & harga terakhir; isi valid dulu
     const names = screen.getAllByPlaceholderText("Nama");
-    fireEvent.change(names[names.length - 1], { target: { value: "Box Besar" } });
-    const nums = screen.getAllByRole("spinbutton");
-    fireEvent.change(nums[nums.length - 1], { target: { value: "3000" } });
+    const newNameInput = names[names.length - 1] as HTMLInputElement;
+    fireEvent.change(newNameInput, { target: { value: "Box Besar" } });
+    // find spinbutton after the name input in the same flex row
+    const container = newNameInput.closest(".flex");
+    const spinbutton = container?.querySelector('input[type="number"]') as HTMLInputElement;
+    if (spinbutton) fireEvent.change(spinbutton, { target: { value: "3000" } });
     fireEvent.click(screen.getByText("Simpan"));
     await waitFor(() => expect(saveMock).toHaveBeenCalled());
     expect(saveMock.mock.calls[0][1].packingPresets.length).toBe(5);
@@ -69,5 +72,21 @@ describe("SettingsPanel 1b-2 komponen/packing/tampilan", () => {
     fireEvent.click(screen.getByText("Simpan"));
     await waitFor(() => expect(screen.getByText(/nama kosong|harga harus > 0/i)).toBeTruthy());
     expect(saveMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("SettingsPanel labor bundle", () => {
+  it("Free → labor preset & item disabled", async () => {
+    render(<SettingsPanel editable={false} userId={null} />);
+    expect((screen.getByDisplayValue("Mask Medium") as HTMLInputElement).disabled).toBe(true);
+  });
+  it("Beli → tambah item ke bundle lalu Simpan", async () => {
+    render(<SettingsPanel editable={true} userId="u1" />);
+    await waitFor(() => expect(screen.getByDisplayValue("Mask Minimal")).toBeTruthy());
+    fireEvent.click(screen.getAllByText(/Tambah item/i)[0]);
+    fireEvent.click(screen.getByText("Simpan"));
+    await waitFor(() => expect(saveMock).toHaveBeenCalled());
+    const lp = saveMock.mock.calls[0][1].laborPresets[0];
+    expect(lp.items.length).toBe(4);
   });
 });

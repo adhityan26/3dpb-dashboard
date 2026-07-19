@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { MARGIN_TIER_LABEL } from "@3pb/kalkulator-core";
 import { GlassButton, GlassInput } from "@3pb/ui";
-import { DEFAULT_LOCAL_SETTINGS, validateLocalSettings, type LocalSettings, type KomponenPreset } from "@/lib/kalkulator/local-settings";
+import { DEFAULT_LOCAL_SETTINGS, validateLocalSettings, type LocalSettings, type KomponenPreset, type LaborPreset, type LaborItemInput } from "@/lib/kalkulator/local-settings";
 import { loadSettings, saveSettings, resetSettings } from "@/lib/store/local-settings";
 import { getRincianPref, setRincianPref } from "@/lib/store/display-prefs";
 
@@ -75,6 +75,20 @@ export function SettingsPanel({ editable, userId }: { editable: boolean; userId:
   const komp = mutList("komponenPresets");
   const pack = mutList("packingPresets");
 
+  const setLaborNama = (i: number, nama: string) =>
+    setS((p) => ({ ...p, laborPresets: p.laborPresets.map((l, j) => (j === i ? { ...l, nama } : l)) }));
+  const addLaborPreset = () =>
+    setS((p) => ({ ...p, laborPresets: [...p.laborPresets, { id: crypto.randomUUID(), nama: "", items: [{ nama: "", flat: 0 }] }] }));
+  const delLaborPreset = (i: number) =>
+    setS((p) => ({ ...p, laborPresets: p.laborPresets.filter((_, j) => j !== i) }));
+  const setItem = (pi: number, ii: number, patch: Partial<LaborItemInput>) =>
+    setS((p) => ({ ...p, laborPresets: p.laborPresets.map((l, j) => (j === pi ? { ...l, items: l.items.map((it, k) => (k === ii ? { ...it, ...patch } : it)) } : l)) }));
+  const addItem = (pi: number) =>
+    setS((p) => ({ ...p, laborPresets: p.laborPresets.map((l, j) => (j === pi ? { ...l, items: [...l.items, { nama: "Item", jam: 1, ratePerJam: 35000 }] } : l)) }));
+  const delItem = (pi: number, ii: number) =>
+    setS((p) => ({ ...p, laborPresets: p.laborPresets.map((l, j) => (j === pi ? { ...l, items: l.items.filter((_, k) => k !== ii) } : l)) }));
+  const numOrUndef = (v: string) => (v === "" ? undefined : Number(v));
+
   async function save() {
     const errs = validateLocalSettings(s);
     if (errs.length) { setMsg(errs[0]); return; }
@@ -118,6 +132,28 @@ export function SettingsPanel({ editable, userId }: { editable: boolean; userId:
       </Group>
       <PresetList title="Komponen tambahan" disabled={disabled} list={s.komponenPresets} onSet={komp.set} onAdd={komp.add} onDel={komp.del} addLabel="Tambah komponen" />
       <PresetList title="Packing" disabled={disabled} list={s.packingPresets} onSet={pack.set} onAdd={pack.add} onDel={pack.del} addLabel="Tambah packing" />
+      <section className="flex flex-col gap-3">
+        <h2 className="text-[12px] font-medium g-t2 flex items-center gap-2">Labor (preset bundle) {disabled && <span className="text-[10px] g-t5">🔒 Edit di Beli</span>}</h2>
+        {s.laborPresets.map((lp, pi) => (
+          <div key={lp.id} className="flex flex-col gap-1 border-l-2 border-[color:var(--g-row-border)] pl-2">
+            <div className="flex items-center gap-2">
+              <GlassInput value={lp.nama} disabled={disabled} placeholder="Nama preset" className="flex-1" onChange={(e) => setLaborNama(pi, e.target.value)} />
+              {!disabled && <button type="button" onClick={() => delLaborPreset(pi)} className="g-t4 text-sm px-1" aria-label="Hapus preset labor">✕ preset</button>}
+            </div>
+            {lp.items.map((it, ii) => (
+              <div key={ii} className="flex items-center gap-2 flex-wrap pl-2">
+                <GlassInput value={it.nama} disabled={disabled} placeholder="Item" className="flex-1 min-w-[100px]" onChange={(e) => setItem(pi, ii, { nama: e.target.value })} />
+                <GlassInput type="number" inputMode="decimal" placeholder="jam" value={it.jam ?? ""} disabled={disabled} className="w-16" onChange={(e) => setItem(pi, ii, { jam: numOrUndef(e.target.value) })} />
+                <GlassInput type="number" inputMode="decimal" placeholder="rate/jam" value={it.ratePerJam ?? ""} disabled={disabled} className="w-24" onChange={(e) => setItem(pi, ii, { ratePerJam: numOrUndef(e.target.value) })} />
+                <GlassInput type="number" inputMode="decimal" placeholder="flat" value={it.flat ?? ""} disabled={disabled} className="w-20" onChange={(e) => setItem(pi, ii, { flat: numOrUndef(e.target.value) })} />
+                {!disabled && <button type="button" onClick={() => delItem(pi, ii)} className="g-t4 text-sm px-1" aria-label="Hapus item">✕</button>}
+              </div>
+            ))}
+            {!disabled && <button type="button" onClick={() => addItem(pi)} className="text-[11px] g-t4 underline self-start pl-2">＋ Tambah item</button>}
+          </div>
+        ))}
+        {!disabled && <button type="button" onClick={addLaborPreset} className="text-[12px] g-t4 underline self-start">＋ Tambah preset labor</button>}
+      </section>
       <section className="flex flex-col gap-2">
         <h2 className="text-[12px] font-medium g-t2">Tampilan</h2>
         <label className="text-[12px] g-t3 flex items-center gap-2">
