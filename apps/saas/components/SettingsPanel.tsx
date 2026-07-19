@@ -16,10 +16,6 @@ function NumField({ label, value, disabled, onChange }: { label: string; value: 
   );
 }
 
-function TxtField({ value, disabled, onChange, ph }: { value: string; disabled: boolean; onChange: (s: string) => void; ph?: string }) {
-  return <GlassInput value={value} disabled={disabled} placeholder={ph} onChange={(e) => onChange(e.target.value)} className="w-full" />;
-}
-
 function Group({ title, locked, children }: { title: string; locked: boolean; children: React.ReactNode }) {
   return (
     <section className="flex flex-col gap-2">
