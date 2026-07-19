@@ -58,3 +58,28 @@ describe("compute custom settings", () => {
     expect(fullView(sample, custom).biayaModal).toBeGreaterThan(fullView(sample).biayaModal);
   });
 });
+
+describe("1b-2 add-on + rincian", () => {
+  const base = { gramasi: 50, durasiJam: 3, tipe: "FDM" as const };
+  it("tanpa add-on → parity (invariant)", () => {
+    expect(fullView(base)).toEqual(fullView({ ...base }, DEFAULT_LOCAL_SETTINGS));
+  });
+  it("komponen naikkan biaya modal & floor persis", () => {
+    const a = fullView(base);
+    const b = fullView({ ...base, komponen: [{ id: "1", nama: "Baut", harga: 1000, qty: 2 }] }, DEFAULT_LOCAL_SETTINGS);
+    expect(b.biayaModal - a.biayaModal).toBe(2000);
+    expect(b.hargaJualMinimum - a.hargaJualMinimum).toBe(2000);
+  });
+  it("labor + packing naikkan biaya modal", () => {
+    const a = fullView(base);
+    const b = fullView({ ...base, labor: [{ id: "1", nama: "Cat", jam: 1, ratePerJam: 10000 }], packing: { nama: "Box", harga: 2500 } }, DEFAULT_LOCAL_SETTINGS);
+    expect(b.biayaModal - a.biayaModal).toBe(12500);
+  });
+  it("rincian: produksi+komponen+packing+labor == biayaModal", () => {
+    const v = fullView({ ...base, komponen: [{ id: "1", nama: "Baut", harga: 1000, qty: 1 }], labor: [{ id: "2", nama: "Cat", flat: 5000 }], packing: { nama: "Box", harga: 2500 } }, DEFAULT_LOCAL_SETTINGS);
+    expect(v.rincian.packing).toBe(2500);
+    expect(v.rincian.komponen).toBe(1000);
+    expect(v.rincian.labor).toBe(5000);
+    expect(v.rincian.produksi + v.rincian.komponen + v.rincian.packing + v.rincian.labor).toBe(v.rincian.biayaModal);
+  });
+});

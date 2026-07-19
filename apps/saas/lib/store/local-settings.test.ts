@@ -50,4 +50,23 @@ describe("local-settings store", () => {
     },
     10000
   );
+  it(
+    "record lama tanpa preset baru → merge default (tak throw)",
+    async () => {
+      const legacy = { ...DEFAULT_LOCAL_SETTINGS } as Record<string, unknown>;
+      delete legacy.komponenPresets;
+      delete legacy.packingPresets;
+      delete legacy.laborPresets;
+      await saveSettings(
+        "u-legacy",
+        legacy as unknown as import("@/lib/kalkulator/local-settings").LocalSettings
+      );
+      const loaded = await loadSettings("u-legacy");
+      expect(loaded.komponenPresets).toHaveLength(6);
+      expect(loaded.packingPresets).toHaveLength(4);
+      expect(loaded.laborPresets).toHaveLength(3);
+      expect(loaded.mesinPerJam).toBe(DEFAULT_LOCAL_SETTINGS.mesinPerJam);
+    },
+    10000
+  );
 });
