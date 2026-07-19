@@ -48,21 +48,26 @@ describe("SettingsPanel 1b-2 komponen/packing/tampilan", () => {
     fireEvent.click(screen.getByLabelText(/rincian perhitungan/i));
     expect(window.localStorage.getItem("slizebiz-rincian")).toBe("1");
   });
-  it("Beli → tambah packing lalu Simpan meneruskan packing baru", async () => {
+  it("Beli → tambah packing (isi valid) lalu Simpan meneruskan packing baru", async () => {
     render(<SettingsPanel editable={true} userId="u1" />);
     const addBtn = await screen.findByText(/Tambah packing/i);
     fireEvent.click(addBtn);
+    // baris packing baru = input Nama & harga terakhir; isi valid dulu
+    const names = screen.getAllByPlaceholderText("Nama");
+    fireEvent.change(names[names.length - 1], { target: { value: "Box Besar" } });
+    const nums = screen.getAllByRole("spinbutton");
+    fireEvent.change(nums[nums.length - 1], { target: { value: "3000" } });
     fireEvent.click(screen.getByText("Simpan"));
     await waitFor(() => expect(saveMock).toHaveBeenCalled());
     expect(saveMock.mock.calls[0][1].packingPresets.length).toBe(5);
+    expect(saveMock.mock.calls[0][1].packingPresets[4]).toMatchObject({ nama: "Box Besar", harga: 3000 });
   });
-  it("Beli → komponen harga 0 → tak Simpan + hint", async () => {
+  it("Beli → preset invalid (kosong) → tak Simpan + hint", async () => {
     render(<SettingsPanel editable={true} userId="u1" />);
-    await screen.findByText(/Tambah komponen/i);
-    const inputs = screen.getAllByDisplayValue("900");
-    fireEvent.change(inputs[0], { target: { value: "0" } });
+    const addBtn = await screen.findByText(/Tambah komponen/i);
+    fireEvent.click(addBtn); // preset komponen baru kosong (nama "", harga 0) → invalid
     fireEvent.click(screen.getByText("Simpan"));
-    await waitFor(() => expect(screen.getByText(/harga harus > 0/i)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/nama kosong|harga harus > 0/i)).toBeTruthy());
     expect(saveMock).not.toHaveBeenCalled();
   });
 });
