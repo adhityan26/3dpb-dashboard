@@ -25,7 +25,8 @@ export async function loadSettings(userId: string): Promise<LocalSettings> {
       | { userId: string; settings: LocalSettings }
       | undefined;
     database.close();
-    return rec?.settings ?? DEFAULT_LOCAL_SETTINGS;
+    if (!rec?.settings) return DEFAULT_LOCAL_SETTINGS;
+    return { ...DEFAULT_LOCAL_SETTINGS, ...rec.settings };
   } catch {
     return DEFAULT_LOCAL_SETTINGS;
   }
