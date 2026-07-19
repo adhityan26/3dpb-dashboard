@@ -16,7 +16,7 @@ export default async function SettingsPage() {
     <main className="max-w-xl mx-auto p-6">
       <AppHeader subtitle="Setting" />
       <h1 className="text-lg font-semibold g-t1 mb-1">Setting kalkulator</h1>
-      {!paidCore && <p className="text-[12px] g-t4 mb-4">Ini nilai default (read-only). Beli untuk mengubah & memakainya di kalkulatormu.</p>}
+      {!paidCore && <p className="text-[12px] g-t4 mb-4">Ini nilai default (read-only). Ambil Pro untuk mengubah &amp; memakainya di kalkulatormu.</p>}
       <SettingsPanel editable={paidCore} userId={userId} />
     </main>
   );

@@ -20,7 +20,7 @@ function Group({ title, locked, children }: { title: string; locked: boolean; ch
   return (
     <section className="flex flex-col gap-2">
       <h2 className="text-[12px] font-medium g-t2 flex items-center gap-2">
-        {title} {locked && <span className="text-[10px] g-t5">🔒 Edit di Beli</span>}
+        {title} {locked && <span className="text-[10px] g-t5">🔒 Edit di Pro</span>}
       </h2>
       <div className="grid grid-cols-2 gap-2">{children}</div>
     </section>
@@ -33,7 +33,7 @@ function PresetList({ title, disabled, list, onSet, onAdd, onDel, addLabel }: {
 }) {
   return (
     <section className="flex flex-col gap-2">
-      <h2 className="text-[12px] font-medium g-t2 flex items-center gap-2">{title} {disabled && <span className="text-[10px] g-t5">🔒 Edit di Beli</span>}</h2>
+      <h2 className="text-[12px] font-medium g-t2 flex items-center gap-2">{title} {disabled && <span className="text-[10px] g-t5">🔒 Edit di Pro</span>}</h2>
       {list.map((k, i) => (
         <div key={k.id} className="flex items-center gap-2">
           <GlassInput value={k.nama} disabled={disabled} placeholder="Nama" className="flex-1" onChange={(e) => onSet(i, { nama: e.target.value })} />
@@ -129,7 +129,7 @@ export function SettingsPanel({ editable, userId }: { editable: boolean; userId:
       <PresetList title="Komponen tambahan" disabled={disabled} list={s.komponenPresets} onSet={komp.set} onAdd={komp.add} onDel={komp.del} addLabel="Tambah komponen" />
       <PresetList title="Packing" disabled={disabled} list={s.packingPresets} onSet={pack.set} onAdd={pack.add} onDel={pack.del} addLabel="Tambah packing" />
       <section className="flex flex-col gap-3">
-        <h2 className="text-[12px] font-medium g-t2 flex items-center gap-2">Labor (preset bundle) {disabled && <span className="text-[10px] g-t5">🔒 Edit di Beli</span>}</h2>
+        <h2 className="text-[12px] font-medium g-t2 flex items-center gap-2">Labor (preset bundle) {disabled && <span className="text-[10px] g-t5">🔒 Edit di Pro</span>}</h2>
         {s.laborPresets.map((lp, pi) => (
           <div key={lp.id} className="flex flex-col gap-1 border-l-2 border-[color:var(--g-row-border)] pl-2">
             <div className="flex items-center gap-2">
@@ -165,7 +165,7 @@ export function SettingsPanel({ editable, userId }: { editable: boolean; userId:
           {msg && <span className="text-[12px] g-t4">{msg}</span>}
         </div>
       ) : (
-        <a href="/beli" className="g-btn-ghost rounded-[10px] px-4 h-9 inline-flex items-center text-sm self-start">Buka semua ini di Beli →</a>
+        <a href="/beli" className="g-btn-ghost rounded-[10px] px-4 h-9 inline-flex items-center text-sm self-start">Buka semua ini di Pro →</a>
       )}
     </div>
   );

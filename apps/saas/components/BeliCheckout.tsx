@@ -22,7 +22,7 @@ export function BeliCheckout({ displayPrice, refundCopy }: { displayPrice: strin
     const res = await fetch("/api/beli/checkout", { method: "POST" });
     setPending(false);
     const data = await res.json().catch(() => ({}));
-    if (data.owned) { setMsg("Kamu sudah punya akses."); return; }
+    if (data.owned) { setMsg("Kamu sudah punya akses Pro."); return; }
     if (res.status === 503) { setMsg("Pembayaran belum aktif. Coba lagi nanti."); return; }
     if (!res.ok) { setMsg("Gagal membuat invoice."); return; }
     setInv(data);

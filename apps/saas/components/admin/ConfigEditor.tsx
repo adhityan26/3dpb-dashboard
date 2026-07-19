@@ -3,7 +3,7 @@ import { useState } from "react";
 import { GlassButton, GlassInput } from "@3pb/ui";
 
 const LABELS: Record<string, string> = {
-  "price.beli": "Harga Beli (Rp)",
+  "price.beli": "Harga Pro (Rp)",
   "price.discountBuffer": "Buffer diskon kode unik (Rp, min 1000)",
   "qris.static": "QRIS statik merchant — paste teks payload (00020101…)",
   "copy.refund": "Teks kebijakan refund",

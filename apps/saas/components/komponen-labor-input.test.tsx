@@ -12,7 +12,7 @@ const base = {
 describe("KomponenLaborInput", () => {
   it("locked → 🔒 + CTA, tak ada chip preset", () => {
     render(<KomponenLaborInput {...base} locked={true} />);
-    expect(screen.getByText(/Beli/)).toBeTruthy();
+    expect(screen.getByText(/Pro/)).toBeTruthy();
     expect(screen.queryByText(/Gantungan kew-kew/)).toBeNull();
   });
   it("unlocked → chip komponen append 1 row", () => {

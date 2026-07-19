@@ -16,9 +16,9 @@ export default async function BeliPage() {
   return (
     <main className="max-w-md mx-auto p-6">
       <AppHeader subtitle="Beli" />
-      <h1 className="text-lg font-semibold g-t1 mb-1">Beli Slizebiz</h1>
+      <h1 className="text-lg font-semibold g-t1 mb-1">Slizebiz Pro</h1>
       {ent.lifetimeOwned
-        ? <p className="text-[13px] g-t2 mt-3">Akses Beli kamu sudah aktif. Terima kasih! 🎉</p>
+        ? <p className="text-[13px] g-t2 mt-3">Akses Pro kamu sudah aktif. Terima kasih! 🎉</p>
         : <BeliCheckout displayPrice={price} refundCopy={refund} />}
     </main>
   );

@@ -62,7 +62,7 @@ export function Calculator({ authenticated, paidCore = false, userId = null }: {
               <option value="SLA">SLA (Resin)</option>
             </select>
           </label>
-          <p className="text-[11px] g-t4">Printer: Default (Bambu P1P) · Printer & material custom di Beli 🔒</p>
+          <p className="text-[11px] g-t4">Printer: Default (Bambu P1P) · Printer & material custom di Pro 🔒</p>
 
           <KomponenLaborInput
             locked={!paidCore}
@@ -116,7 +116,7 @@ export function Calculator({ authenticated, paidCore = false, userId = null }: {
 
               {!paidCore && (
                 <button className="text-[11px] g-t4 text-left underline" onClick={() => { window.location.href = "/beli"; }}>
-                  Simpan hasil & multi-plate → Beli 🔒
+                  Simpan hasil & multi-plate → Pro 🔒
                 </button>
               )}
             </div>

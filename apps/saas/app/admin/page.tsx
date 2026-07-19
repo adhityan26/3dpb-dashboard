@@ -59,7 +59,7 @@ export default async function AdminPage() {
   });
   const userRows: UserRow[] = allUsers.map((u) => ({
     who: u.email ?? u.phone ?? u.id.slice(0, 6),
-    status: u.entitlement?.lifetimeOwned ? "Beli" : u.entitlement?.subStatus === "ACTIVE" ? "Subscribe" : "Free",
+    status: u.entitlement?.lifetimeOwned ? "Pro" : u.entitlement?.subStatus === "ACTIVE" ? "Subscribe" : "Free",
     joined: u.createdAt.toISOString().slice(0, 10),
   }));
 

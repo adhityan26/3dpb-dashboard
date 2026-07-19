@@ -20,7 +20,7 @@ describe("SettingsPanel", () => {
   it("Free (editable=false) → input disabled + CTA Beli, tak ada tombol Simpan", () => {
     render(<SettingsPanel editable={false} userId="u1" />);
     expect((screen.getByLabelText(/FDM harga modal/i) as HTMLInputElement).disabled).toBe(true);
-    expect(screen.getByText(/Buka semua ini di Beli/i)).toBeTruthy();
+    expect(screen.getByText(/Buka semua ini di Pro/i)).toBeTruthy();
     expect(screen.queryByText("Simpan")).toBeNull();
   });
   it("Beli (editable=true) → Simpan panggil saveSettings", async () => {
