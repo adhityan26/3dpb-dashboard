@@ -10,7 +10,7 @@ import { RefreshIndicator } from "@/components/layout/RefreshIndicator"
 import { useAnalytics } from "@/lib/hooks/use-analytics"
 import { useRefreshConfig } from "@/lib/use-refresh-config"
 import { Button } from "@/components/ui/button"
-import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
+import { PageShell } from "@/components/layout/PageShell"
 import type { FlexRange } from "@/lib/dateRange"
 
 export default function AnalisaPage() {
@@ -53,25 +53,29 @@ export default function AnalisaPage() {
   if (!data) return null
 
   return (
-    <div className="space-y-4">
-      <GlassPageHeader title="Analisa" subtitle="Laporan penjualan & tren bisnis">
+    <PageShell
+      title="Analisa"
+      description="Laporan penjualan & tren bisnis"
+      actions={
         <RefreshIndicator
           lastUpdated={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
           intervalMs={intervalMs}
           onRefresh={() => refetch()}
         />
-      </GlassPageHeader>
+      }
+    >
+      <div className="space-y-4">
+        <DateRangeSelector value={range} onChange={setRange} />
 
-      <DateRangeSelector value={range} onChange={setRange} />
+        <AnalyticsKpiBar kpi={data.kpi} />
 
-      <AnalyticsKpiBar kpi={data.kpi} />
+        <SalesTrendChart daily={data.daily} />
 
-      <SalesTrendChart daily={data.daily} />
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <TopProductsChart products={data.topProducts} />
-        <ProfitCard kpi={data.kpi} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <TopProductsChart products={data.topProducts} />
+          <ProfitCard kpi={data.kpi} />
+        </div>
       </div>
-    </div>
+    </PageShell>
   )
 }

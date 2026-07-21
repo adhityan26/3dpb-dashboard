@@ -21,7 +21,7 @@ import {
 } from "@/lib/hooks/use-products"
 import { useRefreshConfig } from "@/lib/use-refresh-config"
 import { Button } from "@/components/ui/button"
-import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
+import { PageShell } from "@/components/layout/PageShell"
 import type { ProductFilterValue } from "@/components/products/types"
 
 export default function ProdukPage() {
@@ -30,6 +30,14 @@ export default function ProdukPage() {
       <ProdukPageInner />
     </Suspense>
   )
+}
+
+/** Judul PageShell mengikuti tab aktif, supaya selalu menggambarkan yang dilihat. */
+const PRODUK_HEADING: Record<ProdukTab, { title: string; description: string }> = {
+  katalog:    { title: "Katalog Produk",   description: "Daftar produk internal yang kamu jual" },
+  produk:     { title: "Produk",           description: "Pantau produk aktif dan HPP" },
+  kalkulator: { title: "Kalkulator Harga", description: "Hitung HPP, Floor Price, dan rekomendasi harga jual per produk" },
+  filamen:    { title: "Filamen",          description: "Stok dan katalog filament" },
 }
 
 function ProdukPageInner() {
@@ -152,6 +160,8 @@ function ProdukPageInner() {
   const indexEmpty =
     !pageLoading && !pageError && pageData && pageData.total === 0 && !debouncedQ
 
+  const heading = PRODUK_HEADING[produkTab]
+
   return (
     <div className="flex min-h-screen -mx-4 -mt-4 md:-mx-6 md:-mt-6">
       <SidebarDrawerShell
@@ -163,15 +173,11 @@ function ProdukPageInner() {
       </SidebarDrawerShell>
 
       <div className="flex-1 overflow-auto p-4 md:p-6">
-        {produkTab === "katalog" ? (
-          <KatalogTab />
-        ) : produkTab === "kalkulator" ? (
-          <KalkulasiTab />
-        ) : produkTab === "filamen" ? (
-          <FilamenTab />
-        ) : (
-          <>
-            <GlassPageHeader title="Produk" subtitle="Pantau produk aktif dan HPP">
+        <PageShell
+          title={heading.title}
+          description={heading.description}
+          actions={
+            produkTab === "produk" ? (
               <div className="flex items-center gap-2">
                 {pageData?.fetchedAt && (
                   <span className="text-[10px] g-t5">
@@ -197,9 +203,17 @@ function ProdukPageInner() {
                   onRefresh={handleRefresh}
                 />
               </div>
-            </GlassPageHeader>
-
-            <div className="space-y-4 mt-4">
+            ) : undefined
+          }
+        >
+        {produkTab === "katalog" ? (
+          <KatalogTab />
+        ) : produkTab === "kalkulator" ? (
+          <KalkulasiTab />
+        ) : produkTab === "filamen" ? (
+          <FilamenTab />
+        ) : (
+            <div className="space-y-4">
               {kpiData && <ProductsKpiBar kpi={kpiData} />}
 
               {/* Search input */}
@@ -302,8 +316,8 @@ function ProdukPageInner() {
                 </div>
               )}
             </div>
-          </>
         )}
+        </PageShell>
       </div>
 
       {toast && (

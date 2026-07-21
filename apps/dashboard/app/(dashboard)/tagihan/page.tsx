@@ -1,9 +1,17 @@
-// MINIMAL TEST - no imports, just static content
+import { PageShell } from "@/components/layout/PageShell"
+
 export default function TagihanPage() {
   return (
-    <div style={{ padding: 40, color: "white" }}>
-      <h1>TAGIHAN PAGE LOADED OK</h1>
-      <p>Jika kamu bisa baca ini, routing works!</p>
-    </div>
+    <PageShell
+      title="Tagihan"
+      description="Modul ini belum tersedia — belum ada implementasi di balik halaman ini."
+    >
+      <div className="g-card rounded-[12px] p-4">
+        <p className="text-sm g-t4">
+          Belum ada data tagihan untuk ditampilkan. Untuk sementara, penagihan ke
+          buyer dikelola lewat <strong>Finance → Invoice</strong>.
+        </p>
+      </div>
+    </PageShell>
   )
 }

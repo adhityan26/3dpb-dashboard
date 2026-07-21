@@ -2,7 +2,6 @@
 
 import { useStravaOrders, usePatchStravaOrder } from "@/lib/hooks/use-cms"
 import { CollectionList } from "./shared/CollectionList"
-import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
 import type { StravaOrder } from "@/lib/sanity/types"
 
 const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
@@ -21,11 +20,14 @@ export function StravaOrdersManager() {
   const newCount = items.filter((i) => i.status === "new").length
 
   return (
-    <div className="p-6 space-y-4">
-      <GlassPageHeader
-        title="🗺️ Strava Map Orders"
-        subtitle={`${items.length} total${newCount > 0 ? ` · ${newCount} baru perlu diproses` : ""}`}
-      />
+    <div className="space-y-4">
+      {/* Judul halaman diurus PageShell di halaman landing */}
+      <h2 className="text-[15px] font-bold text-white">
+        🗺️ Strava Map Orders
+        <span className="ml-2 text-[12px] font-normal text-white/40">
+          {items.length} total{newCount > 0 ? ` · ${newCount} baru perlu diproses` : ""}
+        </span>
+      </h2>
 
       <CollectionList
         items={items}

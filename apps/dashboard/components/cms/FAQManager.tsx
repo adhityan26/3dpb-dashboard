@@ -41,7 +41,7 @@ export function FAQManager() {
   if (isLoading) return <div className="p-6 text-white/40 text-sm">Memuat...</div>
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-[15px] font-bold text-white">❓ FAQ</h2>

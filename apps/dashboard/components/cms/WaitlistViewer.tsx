@@ -9,7 +9,7 @@ export function WaitlistViewer() {
   if (isLoading) return <div className="p-6 text-white/40 text-sm">Memuat...</div>
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="space-y-4">
       <div>
         <h2 className="text-[15px] font-bold text-white">📧 Waitlist</h2>
         <p className="text-[12px] mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>{items.length} pendaftar</p>

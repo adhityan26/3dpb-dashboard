@@ -9,7 +9,7 @@ import { DateRangeSelector } from "@/components/ui/DateRangeSelector"
 import { useAds } from "@/lib/hooks/use-ads"
 import { useRefreshConfig } from "@/lib/use-refresh-config"
 import { Button } from "@/components/ui/button"
-import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
+import { PageShell } from "@/components/layout/PageShell"
 import type { FlexRange } from "@/lib/dateRange"
 
 export default function IklanPage() {
@@ -52,22 +52,26 @@ export default function IklanPage() {
   if (!data) return null
 
   return (
-    <div className="space-y-4">
-      <GlassPageHeader title="Iklan" subtitle="Performa iklan Shopee hari ini">
+    <PageShell
+      title="Iklan"
+      description="Performa iklan Shopee hari ini"
+      actions={
         <RefreshIndicator
           lastUpdated={dataUpdatedAt ? new Date(dataUpdatedAt) : null}
           intervalMs={intervalMs}
           onRefresh={() => refetch()}
         />
-      </GlassPageHeader>
+      }
+    >
+      <div className="space-y-4">
+        <DateRangeSelector value={range} onChange={setRange} />
 
-      <DateRangeSelector value={range} onChange={setRange} />
+        <AdsKpiBar kpi={data.kpi} />
 
-      <AdsKpiBar kpi={data.kpi} />
+        <AdRecommendationList ads={data.ads} />
 
-      <AdRecommendationList ads={data.ads} />
-
-      <AdsTable ads={data.ads} />
-    </div>
+        <AdsTable ads={data.ads} />
+      </div>
+    </PageShell>
   )
 }

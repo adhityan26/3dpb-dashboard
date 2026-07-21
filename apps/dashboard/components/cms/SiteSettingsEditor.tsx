@@ -38,7 +38,7 @@ export function SiteSettingsEditor() {
   const sectionClass = "space-y-4 pb-6 border-b border-white/6"
 
   return (
-    <div className="p-6 space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-2xl">
       <div>
         <h2 className="text-[15px] font-bold text-white">⚙️ Site Settings</h2>
         <p className="text-[12px] mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>Brand info, kontak, marketplace links, SEO</p>

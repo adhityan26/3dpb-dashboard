@@ -42,7 +42,7 @@ export function TestimonialsManager() {
   const inputClass = "w-full bg-white/[0.04] border border-white/10 rounded-[8px] px-3 py-2 text-[13px] text-white/80 focus:outline-none"
 
   return (
-    <div className="p-6 space-y-4">
+    <div className="space-y-4">
       <div className="flex items-start justify-between">
         <div>
           <h2 className="text-[15px] font-bold text-white">💬 Testimoni</h2>
