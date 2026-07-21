@@ -50,15 +50,19 @@ export async function createOrReuseCheckout(userId: string, now = new Date()): P
   });
 }
 
+export async function findClaimablePayment(id: string, userId: string, now = new Date()): Promise<Payment | null> {
+  return prisma.payment.findFirst({
+    where: { id, userId, status: "PENDING", createdAt: { gt: liveSince(now) } },
+  });
+}
+
 export async function markPaid(
   id: string,
   userId: string,
   proof: { proofKey: string; proofType: string },
   now = new Date(),
 ): Promise<void> {
-  const p = await prisma.payment.findFirst({
-    where: { id, userId, status: "PENDING", createdAt: { gt: liveSince(now) } },
-  });
+  const p = await findClaimablePayment(id, userId, now);
   if (!p) throw new Error("not_found");
   await prisma.payment.update({
     where: { id },

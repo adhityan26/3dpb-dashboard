@@ -16,7 +16,7 @@ vi.mock("@/lib/qris/dynamic", () => ({ generateDynamicQris: vi.fn(() => "QRPAYLO
 import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { getEntitlement } from "@/lib/entitlement";
-import { allocUniqueCode, createOrReuseCheckout, markPaid, listPending, activate, cancel, deactivate, listPaid } from "@/lib/payment/service";
+import { allocUniqueCode, createOrReuseCheckout, markPaid, findClaimablePayment, listPending, activate, cancel, deactivate, listPaid } from "@/lib/payment/service";
 import { AlreadyOwned, PriceNotSet, QrisNotSet, CodePoolExhausted } from "@/lib/payment/errors";
 
 const NOW = new Date("2026-07-18T10:00:00Z");
@@ -115,6 +115,21 @@ describe("markPaid", () => {
   it("bukan milik user / tak hidup → throw", async () => {
     (prisma.payment.findFirst as any).mockResolvedValue(null);
     await expect(markPaid("p1", "u1", { proofKey: "k", proofType: "image/jpeg" }, NOW)).rejects.toThrow();
+  });
+});
+
+describe("findClaimablePayment", () => {
+  it("query id+userId+PENDING+live window, dipakai markPaid internal (guard tak berubah)", async () => {
+    (prisma.payment.findFirst as any).mockResolvedValue({ id: "p1", userId: "u1", status: "PENDING" });
+    const r = await findClaimablePayment("p1", "u1", NOW);
+    expect(r).toEqual({ id: "p1", userId: "u1", status: "PENDING" });
+    expect(prisma.payment.findFirst).toHaveBeenCalledWith({
+      where: { id: "p1", userId: "u1", status: "PENDING", createdAt: { gt: expect.any(Date) } },
+    });
+  });
+  it("tidak ditemukan/bukan milik user → null", async () => {
+    (prisma.payment.findFirst as any).mockResolvedValue(null);
+    expect(await findClaimablePayment("p1", "lain", NOW)).toBeNull();
   });
 });
 

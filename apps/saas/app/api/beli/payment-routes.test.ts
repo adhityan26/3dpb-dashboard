@@ -4,6 +4,7 @@ vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/owner", () => ({ isOwner: vi.fn() }));
 vi.mock("@/lib/payment/service", () => ({
   createOrReuseCheckout: vi.fn(), markPaid: vi.fn(), activate: vi.fn(), cancel: vi.fn(), deactivate: vi.fn(),
+  findClaimablePayment: vi.fn(),
 }));
 vi.mock("@/lib/payment/notify", () => ({ notifyActivated: vi.fn() }));
 vi.mock("@/lib/db", () => ({ prisma: { user: { findUnique: vi.fn() } } }));
@@ -11,7 +12,12 @@ vi.mock("@/lib/storage/r2", () => ({ putProof: vi.fn(), R2NotConfigured: class R
 
 import { auth } from "@/lib/auth";
 import { isOwner } from "@/lib/owner";
-import { createOrReuseCheckout, activate, markPaid as markPaidFn } from "@/lib/payment/service";
+import {
+  createOrReuseCheckout,
+  activate,
+  markPaid as markPaidFn,
+  findClaimablePayment as findClaimablePaymentFn,
+} from "@/lib/payment/service";
 import { notifyActivated } from "@/lib/payment/notify";
 import { prisma } from "@/lib/db";
 import { AlreadyOwned, QrisNotSet } from "@/lib/payment/errors";
@@ -70,6 +76,7 @@ describe("admin activate", () => {
 describe("1c-2 mark-paid wajib bukti", () => {
   const markPaidMock = markPaidFn as any;
   const putProofMock = putProof as any;
+  const findClaimablePaymentMock = findClaimablePaymentFn as any;
   const fd = (file?: File) => { const f = new FormData(); if (file) f.append("bukti", file); return f; };
   const reqFormData = (f: FormData) => ({ formData: async () => f }) as unknown as Request;
   const ctx = { params: Promise.resolve({ id: "p1" }) };
@@ -77,6 +84,7 @@ describe("1c-2 mark-paid wajib bukti", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     (auth as any).mockResolvedValue({ user: { id: "u1" } });
+    findClaimablePaymentMock.mockResolvedValue({ id: "p1", userId: "u1", status: "PENDING" });
   });
 
   it("tanpa file → 400 bukti_wajib, markPaid tak dipanggil", async () => {
@@ -108,5 +116,30 @@ describe("1c-2 mark-paid wajib bukti", () => {
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({ error: "upload_belum_aktif" });
     expect(markPaidMock).not.toHaveBeenCalled();
+  });
+
+  it("payment bukan milik user (pre-check gagal) → 404, putProof & markPaid TAK dipanggil", async () => {
+    findClaimablePaymentMock.mockResolvedValue(null);
+    const res = await markPaidPOST(reqFormData(fd(new File(["x"], "a.jpg", { type: "image/jpeg" }))), ctx);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "not_found" });
+    expect(putProofMock).not.toHaveBeenCalled();
+    expect(markPaidMock).not.toHaveBeenCalled();
+  });
+
+  it("id malformed (path traversal) → 404, putProof TAK dipanggil, pre-check tak dijalankan", async () => {
+    const badCtx = { params: Promise.resolve({ id: "../../etc/passwd" }) };
+    const res = await markPaidPOST(reqFormData(fd(new File(["x"], "a.jpg", { type: "image/jpeg" }))), badCtx);
+    expect(res.status).toBe(404);
+    expect(await res.json()).toEqual({ error: "not_found" });
+    expect(putProofMock).not.toHaveBeenCalled();
+    expect(findClaimablePaymentMock).not.toHaveBeenCalled();
+  });
+
+  it("id dengan slash → 404, putProof TAK dipanggil", async () => {
+    const badCtx = { params: Promise.resolve({ id: "a/b" }) };
+    const res = await markPaidPOST(reqFormData(fd(new File(["x"], "a.jpg", { type: "image/jpeg" }))), badCtx);
+    expect(res.status).toBe(404);
+    expect(putProofMock).not.toHaveBeenCalled();
   });
 });

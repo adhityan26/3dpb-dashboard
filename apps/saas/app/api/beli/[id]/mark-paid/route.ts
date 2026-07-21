@@ -1,16 +1,22 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { markPaid } from "@/lib/payment/service";
+import { findClaimablePayment, markPaid } from "@/lib/payment/service";
 import { putProof, R2NotConfigured } from "@/lib/storage/r2";
 
 const ALLOWED = ["image/jpeg", "image/png", "image/webp"];
 const MAX_BYTES = 5 * 1024 * 1024;
+const ID_RE = /^[a-z0-9]+$/i;
 
 export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
   const { id } = await ctx.params;
+
+  if (!ID_RE.test(id)) return NextResponse.json({ error: "not_found" }, { status: 404 });
+
+  const claimable = await findClaimablePayment(id, userId);
+  if (!claimable) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   let file: File | null = null;
   try {
