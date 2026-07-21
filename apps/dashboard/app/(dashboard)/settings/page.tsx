@@ -17,6 +17,7 @@ import { ShopeeFeeAnalyticsCard } from "@/components/settings/ShopeeFeeAnalytics
 import { InvoiceMethodsCard } from "@/components/settings/InvoiceMethodsCard"
 import { TokopediaSessionCard } from "@/components/settings/TokopediaSessionCard"
 import { FilamentAliasCard } from "@/components/settings/FilamentAliasCard"
+import { CydDeviceCard } from "@/components/settings/CydDeviceCard"
 import { useSettings } from "@/lib/hooks/use-settings"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
@@ -35,6 +36,7 @@ const TABS = [
   { key: "kalkulator", label: "🧮 Kalkulator"  },
   { key: "notifikasi", label: "🔔 Notifikasi"  },
   { key: "user",       label: "👥 User"        },
+  { key: "monitoring", label: "🖥️ Monitoring" },
   { key: "lainnya",    label: "⚙️ Lainnya"    },
 ] as const
 
@@ -140,6 +142,12 @@ function SettingsPageInner() {
 
       {activeTab === "user" && (
         <UserManagementCard />
+      )}
+
+      {activeTab === "monitoring" && (
+        <div className="space-y-4">
+          <CydDeviceCard />
+        </div>
       )}
 
       {activeTab === "lainnya" && (
