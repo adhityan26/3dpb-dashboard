@@ -11,6 +11,7 @@ import { KomponenLaborInput } from "./KomponenLaborInput";
 import { RincianPanel } from "./RincianPanel";
 import { getRincianPref } from "@/lib/store/display-prefs";
 import { InfoTip } from "./InfoTip";
+import Link from "next/link";
 
 const rupiah = (n: number) => "Rp" + n.toLocaleString("id-ID");
 const TIERS: MarginTier[] = ["A", "B", "C"];
@@ -129,9 +130,9 @@ export function Calculator({ authenticated, paidCore = false, userId = null }: {
               {showRincian && <RincianPanel rincian={view.rincian} />}
 
               {!paidCore && (
-                <button className="text-[11px] g-t4 text-left underline" onClick={() => { window.location.href = "/beli"; }}>
+                <Link href="/beli" className="text-[11px] g-t4 text-left underline">
                   Simpan hasil & multi-plate → Pro 🔒
-                </button>
+                </Link>
               )}
             </div>
           )}

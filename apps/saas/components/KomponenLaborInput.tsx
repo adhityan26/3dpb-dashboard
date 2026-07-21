@@ -1,8 +1,10 @@
 "use client";
+import Link from "next/link";
 import { GlassInput } from "@3pb/ui";
 import type { LocalSettings } from "@/lib/kalkulator/local-settings";
 import type { KomponenRow, LaborRow } from "@/lib/kalkulator/compose";
 import { InfoTip } from "./InfoTip";
+import { newId } from "@/lib/id";
 
 const rupiah = (n: number) => "Rp" + n.toLocaleString("id-ID");
 
@@ -18,7 +20,7 @@ export function KomponenLaborInput({
     return (
       <div className="border-t border-[color:var(--g-row-border)] pt-3 mt-1">
         <div className="text-[12px] g-t3 font-medium">🔒 Komponen, labor &amp; packing</div>
-        <p className="text-[11px] g-t4 mt-1">Hitung juga komponen tambahan, biaya labor, dan packing di harga jualmu. <a href="/beli" className="underline">Buka dengan Pro →</a></p>
+        <p className="text-[11px] g-t4 mt-1">Hitung juga komponen tambahan, biaya labor, dan packing di harga jualmu. <Link href="/beli" className="underline">Buka dengan Pro →</Link></p>
       </div>
     );
   }
@@ -49,10 +51,10 @@ export function KomponenLaborInput({
         <div className="flex gap-2 flex-wrap mb-2">
           {settings.komponenPresets.map((p) => (
             <button key={p.id} type="button"
-              onClick={() => onKomponenChange([...komponen, { id: crypto.randomUUID(), nama: p.nama, harga: p.harga, qty: 1 }])}
+              onClick={() => onKomponenChange([...komponen, { id: newId(), nama: p.nama, harga: p.harga, qty: 1 }])}
               className="g-btn-ghost rounded-[10px] px-3 h-8 text-[12px]">＋ {p.nama} ({rupiah(p.harga)})</button>
           ))}
-          <button type="button" onClick={() => onKomponenChange([...komponen, { id: crypto.randomUUID(), nama: "", harga: 0, qty: 1 }])} className="text-[12px] g-t4 underline">＋ manual</button>
+          <button type="button" onClick={() => onKomponenChange([...komponen, { id: newId(), nama: "", harga: 0, qty: 1 }])} className="text-[12px] g-t4 underline">＋ manual</button>
         </div>
         {komponen.map((r, i) => (
           <div key={r.id} className="flex items-center gap-2 mb-1">
@@ -70,10 +72,10 @@ export function KomponenLaborInput({
         <div className="flex gap-2 flex-wrap mb-2">
           {settings.laborPresets.map((p) => (
             <button key={p.id} type="button"
-              onClick={() => onLaborChange([...labor, ...p.items.map((it) => ({ id: crypto.randomUUID(), nama: it.nama, jam: it.jam, ratePerJam: it.ratePerJam, flat: it.flat }))])}
+              onClick={() => onLaborChange([...labor, ...p.items.map((it) => ({ id: newId(), nama: it.nama, jam: it.jam, ratePerJam: it.ratePerJam, flat: it.flat }))])}
               className="g-btn-ghost rounded-[10px] px-3 h-8 text-[12px]">＋ {p.nama}</button>
           ))}
-          <button type="button" onClick={() => onLaborChange([...labor, { id: crypto.randomUUID(), nama: "" }])} className="text-[12px] g-t4 underline">＋ manual</button>
+          <button type="button" onClick={() => onLaborChange([...labor, { id: newId(), nama: "" }])} className="text-[12px] g-t4 underline">＋ manual</button>
         </div>
         {labor.map((r, i) => (
           <div key={r.id} className="flex items-center gap-2 mb-1 flex-wrap">

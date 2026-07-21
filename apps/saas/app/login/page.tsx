@@ -47,6 +47,8 @@ export default function LoginPage() {
       body: JSON.stringify({ input, code }),
     });
     setPending(false);
+    // SENGAJA reload penuh, bukan router.push: sesi baru saja dibuat lewat cookie
+    // dari route WA OTP, dan server component perlu membacanya dari awal.
     if (res.ok) { window.location.href = "/"; return; }
     const data = await res.json().catch(() => ({}));
     if (data.error === "expired") setMsg("Kode kadaluarsa. Kirim ulang.");

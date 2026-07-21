@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useTheme } from "next-themes";
 import { ThemeToggle } from "./ThemeToggle";
 import { LogoutButton } from "./LogoutButton";
@@ -84,12 +85,12 @@ export function AppHeader({
 
   return (
     <nav className="sticky top-0 z-50 flex items-center gap-3 px-4 md:px-8 py-[10px]" style={navStyle}>
-      <a href="/" className="flex items-center gap-2 no-underline flex-shrink-0 md:min-w-[150px]">
+      <Link href="/" className="flex items-center gap-2 no-underline flex-shrink-0 md:min-w-[150px]">
         <img src="/logo.svg" alt="" width={22} height={22} />
         <span className="font-bold text-[15px]" style={{ color: isDark ? "#a5b4fc" : "#4f46e5" }}>
           Slizebiz
         </span>
-      </a>
+      </Link>
 
       {authenticated && (
         <>
@@ -115,9 +116,9 @@ export function AppHeader({
                   </span>
                 );
                 return t.href && !t.soon ? (
-                  <a key={t.key} href={t.href} className="relative no-underline" aria-current={active ? "page" : undefined}>
+                  <Link key={t.key} href={t.href} className="relative no-underline" aria-current={active ? "page" : undefined}>
                     {body}
-                  </a>
+                  </Link>
                 ) : (
                   <span key={t.key} className="relative cursor-default" aria-disabled="true" title="Segera hadir">
                     {body}

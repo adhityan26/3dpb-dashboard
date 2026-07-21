@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 import { MARGIN_TIER_LABEL } from "@3pb/kalkulator-core";
 import { GlassButton, GlassInput } from "@3pb/ui";
@@ -6,6 +7,7 @@ import { DEFAULT_LOCAL_SETTINGS, validateLocalSettings, type LocalSettings, type
 import { loadSettings, saveSettings, resetSettings } from "@/lib/store/local-settings";
 import { getRincianPref, setRincianPref } from "@/lib/store/display-prefs";
 import { InfoTip } from "./InfoTip";
+import { newId } from "@/lib/id";
 
 function NumField({ label, hint, value, disabled, onChange }: { label: string; hint?: string; value: number; disabled: boolean; onChange: (n: number) => void }) {
   const id = useId();
@@ -75,7 +77,7 @@ export function SettingsPanel({ editable, userId }: { editable: boolean; userId:
 
   const mutList = (key: "komponenPresets" | "packingPresets") => ({
     set: (i: number, patch: Partial<KomponenPreset>) => setS((p) => ({ ...p, [key]: p[key].map((k, j) => (j === i ? { ...k, ...patch } : k)) })),
-    add: () => setS((p) => ({ ...p, [key]: [...p[key], { id: crypto.randomUUID(), nama: "", harga: 0 }] })),
+    add: () => setS((p) => ({ ...p, [key]: [...p[key], { id: newId(), nama: "", harga: 0 }] })),
     del: (i: number) => setS((p) => ({ ...p, [key]: p[key].filter((_, j) => j !== i) })),
   });
   const komp = mutList("komponenPresets");
@@ -84,7 +86,7 @@ export function SettingsPanel({ editable, userId }: { editable: boolean; userId:
   const setLaborNama = (i: number, nama: string) =>
     setS((p) => ({ ...p, laborPresets: p.laborPresets.map((l, j) => (j === i ? { ...l, nama } : l)) }));
   const addLaborPreset = () =>
-    setS((p) => ({ ...p, laborPresets: [...p.laborPresets, { id: crypto.randomUUID(), nama: "", items: [{ nama: "", flat: 0 }] }] }));
+    setS((p) => ({ ...p, laborPresets: [...p.laborPresets, { id: newId(), nama: "", items: [{ nama: "", flat: 0 }] }] }));
   const delLaborPreset = (i: number) =>
     setS((p) => ({ ...p, laborPresets: p.laborPresets.filter((_, j) => j !== i) }));
   const setItem = (pi: number, ii: number, patch: Partial<LaborItemInput>) =>
@@ -188,7 +190,7 @@ export function SettingsPanel({ editable, userId }: { editable: boolean; userId:
           {msg && <span className="text-[12px] g-t4">{msg}</span>}
         </div>
       ) : (
-        <a href="/beli" className="g-btn-ghost rounded-[10px] px-4 h-9 inline-flex items-center text-sm self-start">Buka semua ini di Pro →</a>
+        <Link href="/beli" className="g-btn-ghost rounded-[10px] px-4 h-9 inline-flex items-center text-sm self-start">Buka semua ini di Pro →</Link>
       )}
     </div>
   );
