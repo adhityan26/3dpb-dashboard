@@ -2055,6 +2055,7 @@ export default function CydLayoutPage() {
           />
           <CellSettingsPanel
             cell={selectedCell}
+            activePageId={activePage.id}
             onUpdateCell={(cell) => selectedCellIndex !== null && updateCell(selectedCellIndex, cell)}
             onRemoveCell={() => selectedCellIndex !== null && removeCell(selectedCellIndex)}
             pageDurationSec={activePage.durationSec}
