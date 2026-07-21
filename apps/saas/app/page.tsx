@@ -12,7 +12,7 @@ export default async function Home() {
   if (!session?.user?.id) redirect("/login");
   const ent = await getEntitlement(session.user.id);
   return (
-    <PageShell subtitle="Kalkulator harga jual" current="kalkulator" owner={isOwner(session.user.email)} userLabel={session.user.email ?? undefined}>
+    <PageShell title="Kalkulator harga jual" description="Hitung biaya modal & harga jual produk 3D print-mu." current="kalkulator" owner={isOwner(session.user.email)} userLabel={session.user.email ?? undefined}>
       <Calculator authenticated={true} paidCore={capabilities(ent).paidCore} userId={session.user.id} />
     </PageShell>
   );

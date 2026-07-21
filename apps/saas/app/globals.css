@@ -7,3 +7,6 @@ body { min-height: 100dvh; }
 .locked-blur { filter: blur(5px); pointer-events: none; user-select: none; }
 .modal-surface { background: #ffffff; border: 1px solid rgba(0,0,0,0.12); box-shadow: 0 24px 70px rgba(0,0,0,0.35); }
 .dark .modal-surface { background: #14142c; border: 1px solid rgba(255,255,255,0.12); box-shadow: 0 24px 70px rgba(0,0,0,0.7); }
+
+@keyframes fadeSlide { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+.page-enter { animation: fadeSlide 0.3s ease; }

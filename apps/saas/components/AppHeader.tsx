@@ -21,13 +21,11 @@ const TABS: Tab[] = [
 ];
 
 export function AppHeader({
-  subtitle,
   authenticated = true,
   owner = false,
   current,
   userLabel,
 }: {
-  subtitle?: string;
   authenticated?: boolean;
   owner?: boolean;
   current?: NavKey;
@@ -91,7 +89,6 @@ export function AppHeader({
         <span className="font-bold text-[15px]" style={{ color: isDark ? "#a5b4fc" : "#4f46e5" }}>
           Slizebiz
         </span>
-        {subtitle && <span className="hidden lg:inline text-[11px] g-t4">· {subtitle}</span>}
       </a>
 
       {authenticated && (

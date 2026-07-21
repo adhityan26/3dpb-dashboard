@@ -10,6 +10,7 @@ pnpm --filter @3pb/saas dev   # http://localhost:3300
 Butuh `.env` (lihat `.env.deploy.example`): `DATABASE_URL`, `AUTH_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `OWNER_EMAILS`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`.
 
 ## Arsitektur
+- **Layout halaman: ikuti `docs/ui-page-layout.md`** — semua halaman ber-auth dibungkus `PageShell` (`title` wajib); nav island + tema light/system/dark + background sudah di kerangka.
 - Auth: dual-channel — email magic-link (NextAuth v5 + Resend) + nomor WhatsApp OTP (via WA Omni, `lib/wa/*` + `/api/auth/wa/*`). Sesi database. Login satu-input auto-detect (@ = email, 08…/+62… = WA). Env WA opsional (`WA_OMNI_URL/TOKEN/ACCOUNT_ID`); absen = WA nonaktif, email tetap jalan.
 - Data: Prisma/Postgres — NextAuth tables + `Entitlement` komposit + `Config`. **Tanpa** tabel Waitlist.
 - Waitlist: dibaca read-only dari **Cloudflare D1** milik landing (`lib/waitlist/cloudflare.ts`).
