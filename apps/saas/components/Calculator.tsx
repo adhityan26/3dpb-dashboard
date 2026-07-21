@@ -10,9 +10,18 @@ import type { KomponenRow, LaborRow } from "@/lib/kalkulator/compose";
 import { KomponenLaborInput } from "./KomponenLaborInput";
 import { RincianPanel } from "./RincianPanel";
 import { getRincianPref } from "@/lib/store/display-prefs";
+import { InfoTip } from "./InfoTip";
 
 const rupiah = (n: number) => "Rp" + n.toLocaleString("id-ID");
 const TIERS: MarginTier[] = ["A", "B", "C"];
+// Enum core -> kalimat manusia. TIDAK_DISET = belum ada harga aktual pembanding,
+// jadi tak ada yang berguna untuk ditampilkan (kalkulator saas memang belum punya input itu).
+const STATUS_LABEL: Record<string, string> = {
+  AMAN: "Harga aman — di atas rekomendasi",
+  BAWAH_REKM: "Di bawah rekomendasi, masih di atas modal",
+  RUGI: "Rugi — di bawah harga jual minimum",
+  TIDAK_DISET: "",
+};
 
 export function Calculator({ authenticated, paidCore = false, userId = null }: { authenticated: boolean; paidCore?: boolean; userId?: string | null }) {
   const [gramasi, setGramasi] = useState("50");
@@ -44,15 +53,21 @@ export function Calculator({ authenticated, paidCore = false, userId = null }: {
     <div className="grid md:grid-cols-2 gap-5 items-start">
         {/* Input */}
         <GlassCard className="p-4 flex flex-col gap-3">
-          <label className="text-[12px] g-t3">Berat (gram)
+          <label className="text-[12px] g-t3 flex flex-col">
+            <span className="flex items-center gap-1">Berat (gram)
+              <InfoTip text="Berat total produk yang dicetak. Dikali harga material per gram untuk jadi Biaya modal." /></span>
             <GlassInput type="number" inputMode="decimal" value={gramasi}
               onChange={(e) => setGramasi(e.target.value)} className="w-full mt-1" />
           </label>
-          <label className="text-[12px] g-t3">Durasi print (jam)
+          <label className="text-[12px] g-t3 flex flex-col">
+            <span className="flex items-center gap-1">Durasi print (jam)
+              <InfoTip text="Lama cetak menurut slicer. Dikali Biaya mesin/jam (listrik + depresiasi + maintenance)." /></span>
             <GlassInput type="number" inputMode="decimal" value={durasi}
               onChange={(e) => setDurasi(e.target.value)} className="w-full mt-1" />
           </label>
-          <label className="text-[12px] g-t3">Jenis filament
+          <label className="text-[12px] g-t3 flex flex-col">
+            <span className="flex items-center gap-1">Jenis filament
+              <InfoTip text="Menentukan tarif material yang dipakai: FDM pakai harga filament, SLA pakai harga resin." /></span>
             <select value={tipe} onChange={(e) => setTipe(e.target.value as "FDM" | "SLA")}
               className="glass-input rounded-[10px] px-3 h-10 text-sm w-full mt-1">
               <option value="FDM">FDM (PLA/PETG)</option>
@@ -80,15 +95,15 @@ export function Calculator({ authenticated, paidCore = false, userId = null }: {
           ) : (
             <div className="flex flex-col gap-3">
               <div>
-                <div className="text-[12px] g-t4">Biaya modal</div>
+                <div className="text-[12px] g-t4 flex items-center gap-1">Biaya modal <InfoTip text="Total yang keluar dari kantongmu: material + mesin + buffer gagal + komponen + labor + packing. Bukan harga jual." /></div>
                 <div className="text-lg font-semibold g-t1">{rupiah(view.biayaModal)}</div>
               </div>
               <div>
-                <div className="text-[12px] g-t4">Harga jual minimum</div>
+                <div className="text-[12px] g-t4 flex items-center gap-1">Harga jual minimum <InfoTip text="Batas bawah. Jual di bawah angka ini artinya kamu rugi." /></div>
                 <div className="text-base g-t2">{rupiah(view.hargaJualMinimum)}</div>
               </div>
               <div>
-                <div className="text-[12px] g-t4">Rekomendasi harga jual · margin {MARGIN_TIER_LABEL.B}</div>
+                <div className="text-[12px] g-t4 flex items-center gap-1">Rekomendasi harga jual · margin {MARGIN_TIER_LABEL.B} <InfoTip text="Harga jual minimum dikali margin Standard. Ubah pengalinya di Setting → Harga jual." /></div>
                 <div className="text-2xl font-bold" style={{ color: "var(--g-accent)" }}>{rupiah(view.rekomendasi)}</div>
               </div>
 
@@ -105,7 +120,9 @@ export function Calculator({ authenticated, paidCore = false, userId = null }: {
                       </div>
                     </div>
                   ))}
-                  <div className="text-[11px] g-t4">Status: {view.status}</div>
+                  {STATUS_LABEL[view.status] && (
+                    <div className="text-[11px] g-t4">{STATUS_LABEL[view.status]}</div>
+                  )}
                 </div>
               </LockedBlock>
 

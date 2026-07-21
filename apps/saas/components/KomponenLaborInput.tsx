@@ -2,6 +2,7 @@
 import { GlassInput } from "@3pb/ui";
 import type { LocalSettings } from "@/lib/kalkulator/local-settings";
 import type { KomponenRow, LaborRow } from "@/lib/kalkulator/compose";
+import { InfoTip } from "./InfoTip";
 
 const rupiah = (n: number) => "Rp" + n.toLocaleString("id-ID");
 
@@ -27,7 +28,7 @@ export function KomponenLaborInput({
   return (
     <div className="border-t border-[color:var(--g-row-border)] pt-3 mt-1 flex flex-col gap-3">
       <div>
-        <div className="text-[11px] g-t3 mb-1">Packing (pilih satu)</div>
+        <div className="text-[11px] g-t3 mb-1 flex items-center gap-1">Packing (pilih satu) <InfoTip text="Biaya kemasan. Hanya satu yang bisa dipilih. Kelola daftarnya di Setting → Tambahan." /></div>
         <div className="flex gap-2 flex-wrap">
           {settings.packingPresets.map((p) => {
             const on = packing?.nama === p.nama && packing?.harga === p.harga;
@@ -44,7 +45,7 @@ export function KomponenLaborInput({
       </div>
 
       <div>
-        <div className="text-[11px] g-t3 mb-1">Komponen tambahan</div>
+        <div className="text-[11px] g-t3 mb-1 flex items-center gap-1">Komponen tambahan <InfoTip text="Barang di luar cetakan (gantungan, switch, label). Klik preset untuk menambah baris; bisa lebih dari satu." /></div>
         <div className="flex gap-2 flex-wrap mb-2">
           {settings.komponenPresets.map((p) => (
             <button key={p.id} type="button"
@@ -65,7 +66,7 @@ export function KomponenLaborInput({
       </div>
 
       <div>
-        <div className="text-[11px] g-t3 mb-1">Labor</div>
+        <div className="text-[11px] g-t3 mb-1 flex items-center gap-1">Labor <InfoTip text="Biaya tenaga kerja: jam × rate + flat. Klik preset bundle untuk mengisi beberapa baris sekaligus." /></div>
         <div className="flex gap-2 flex-wrap mb-2">
           {settings.laborPresets.map((p) => (
             <button key={p.id} type="button"

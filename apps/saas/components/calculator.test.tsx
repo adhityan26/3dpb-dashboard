@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { Calculator } from "@/components/Calculator";
 import { DEFAULT_LOCAL_SETTINGS } from "@/lib/kalkulator/local-settings";
 
@@ -47,5 +47,21 @@ describe("Calculator add-on gating", () => {
     (loadSettings as any).mockResolvedValue(DEFAULT_LOCAL_SETTINGS);
     render(<Calculator authenticated={true} paidCore={true} userId="u1" />);
     await waitFor(() => expect(screen.getByText(/Gantungan kew-kew/)).toBeTruthy());
+  });
+});
+
+describe("Calculator: status & tooltip", () => {
+  it("tak membocorkan enum mentah; TIDAK_DISET disembunyikan (saas tak punya input harga aktual)", () => {
+    render(<Calculator authenticated={true} paidCore={false} userId="u1" />);
+    expect(screen.queryByText(/TIDAK_DISET/)).toBeNull();
+    expect(screen.queryByText(/Status:/)).toBeNull();
+  });
+
+  it("field & angka hasil punya penjelasan (ℹ)", async () => {
+    render(<Calculator authenticated={true} paidCore={false} userId="u1" />);
+    const tips = screen.getAllByLabelText("Penjelasan");
+    expect(tips.length).toBeGreaterThanOrEqual(6); // 3 input + 3 angka hasil
+    fireEvent.click(tips[0]);
+    expect(screen.getByRole("tooltip").textContent).toMatch(/Berat total produk/i);
   });
 });

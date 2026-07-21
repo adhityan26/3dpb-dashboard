@@ -5,34 +5,7 @@ import { GlassButton, GlassInput } from "@3pb/ui";
 import { DEFAULT_LOCAL_SETTINGS, validateLocalSettings, type LocalSettings, type KomponenPreset, type LaborItemInput } from "@/lib/kalkulator/local-settings";
 import { loadSettings, saveSettings, resetSettings } from "@/lib/store/local-settings";
 import { getRincianPref, setRincianPref } from "@/lib/store/display-prefs";
-
-/** Penjelasan singkat "ini pengaruhnya ke mana". Buka lewat klik/tap (ramah HP) maupun hover. */
-function InfoTip({ text }: { text: string }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <span className="relative inline-flex">
-      <button
-        type="button"
-        aria-label="Penjelasan"
-        onClick={() => setOpen((o) => !o)}
-        onMouseEnter={() => setOpen(true)}
-        onMouseLeave={() => setOpen(false)}
-        onBlur={() => setOpen(false)}
-        className="w-[14px] h-[14px] rounded-full text-[9px] leading-none flex items-center justify-center g-t5 border border-[color:var(--g-row-border)]"
-      >
-        i
-      </button>
-      {open && (
-        <span
-          role="tooltip"
-          className="modal-surface absolute left-1/2 -translate-x-1/2 top-[18px] z-30 w-[210px] rounded-[8px] p-2 text-[11px] g-t2 font-normal normal-case"
-        >
-          {text}
-        </span>
-      )}
-    </span>
-  );
-}
+import { InfoTip } from "./InfoTip";
 
 function NumField({ label, hint, value, disabled, onChange }: { label: string; hint?: string; value: number; disabled: boolean; onChange: (n: number) => void }) {
   const id = useId();
