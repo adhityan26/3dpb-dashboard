@@ -43,12 +43,22 @@ Canvas render pakai **warna persis dari `display.h`** firmware (`C_BG #0a0a0f`, 
   - `RINGKAS = [['name'], ['state', 'progress'], ['progressBar']]` (cocok grid padat, mis. rak)
   - `DETAIL = [['name', 'type'], ['state', 'progress'], ['progressBar'], [{id:'timeLeft',label:'Sisa'}, {id:'eta',label:'ETA'}], ['filename']]` (cocok halaman lebar)
 
+### 3.5 Status live di Produk→Filamen→Printer (sekalian, satu sumber data dengan palette editor)
+
+Dicek: `apps/saas` **belum ada** UI/data status printer sama sekali (cuma tab nav "🖨️ Printer" berlabel "soon", disabled, ditambah hari ini — tidak ada page/component/hook, tidak ada model `Printer` di `apps/saas/prisma/schema.prisma`, database saas [`slizebiz`] terpisah total dari dashboard [`shopee_dashboard`]). Jadi tidak ada yang perlu diselaraskan sekarang — tapi karena halaman Produk→Printer *dan* palette editor CYD (§3.1) sama-sama butuh "tabel `Printer` + status live", dibangun **satu sumber gabungan** dari awal, bukan implementasi duplikat:
+
+- `lib/printers/live-status.ts` — `getPrintersWithLiveStatus()`: baca tabel `Printer` (`isActive`), baca retained MQTT `3dpb/printers`, gabungkan by `slug`↔`id`. Return `{id, slug, name, model, notes, live: {state, progress, remainingMin} | null}[]` (`live: null` kalau printer belum/tidak ada di feed MQTT — mis. baru ditambah di DB, `printer-monitor-core` belum di-konfigurasi).
+- Satu API route dipakai bersama: `GET /api/printers/live` — dikonsumsi oleh (a) halaman Produk→Filamen→Printer (tambah badge status warna + progress bar per baris, pakai palet warna yang sama dengan §3.3) dan (b) palette editor CYD (card printer dapat indikator status kecil, bukan cuma nama/model statis).
+- `GET /api/cyd-layout/printers` (§4) jadi alias/reuse endpoint ini, bukan implementasi terpisah.
+- Komponen status (badge + progress bar) dibangun **lokal di `apps/dashboard`** dulu (bukan langsung diekstrak ke `packages/ui`) — YAGNI, saas belum punya halaman buat mengonsumsinya. Diesktrak ke `packages/ui` nanti kalau modul printer saas beneran mulai dibangun (props sudah didesain generik/self-contained dari awal biar gampang dipindah).
+
 ## 4. Backend & Migrasi
 
 **Prisma**: `Printer.slug String? @unique` → migration backfill (script satu-kali, isi dari nama existing, verifikasi match ke id `printer-monitor-core`) → `slug String @unique` (required).
 
 **API**:
-- `GET /api/cyd-layout/printers` — ganti baca tabel `Printer` (bukan MQTT retained), filter `isActive`.
+- `GET /api/printers/live` — baru (§3.5), `getPrintersWithLiveStatus()`.
+- `GET /api/cyd-layout/printers` — jadi tipis, panggil `getPrintersWithLiveStatus()` yang sama, map ke bentuk yang dibutuhkan palette (id=`slug`, name, model, live status buat indikator).
 - `POST /api/cyd-layout` — body ganti dari `{assignment}` jadi `{config: LayoutConfigOut}` (bentuk `LayoutConfig` penuh langsung dari state editor). Validasi struktur dasar (schemaVersion=1, pages non-empty, tiap page grid valid, tiap page tak ada printer dobel) sebelum publish. `publishAndConfirm` (mqtt-client.ts, Task 11) dipakai ulang tanpa perubahan.
 - **Dihapus**: `rack-template.ts`, `buildLayoutConfig()`/`findDuplicatePrinterIds()` versi v1 (`build-config.ts` ditulis ulang total — validasi duplikat jadi per-halaman, bukan across satu assignment datar).
 
@@ -63,6 +73,7 @@ Canvas render pakai **warna persis dari `display.h`** firmware (`C_BG #0a0a0f`, 
 
 ## 6. Testing
 
+- Unit test `lib/printers/live-status.ts` — `getPrintersWithLiveStatus()`: gabung by slug benar, printer DB tanpa match MQTT dapat `live: null` (bukan error/crash), printer MQTT tanpa match DB (belum di-daftarkan) diabaikan (bukan muncul entry ghost).
 - Unit test `lib/cyd-layout/build-config.ts` v2 (serialisasi state→LayoutConfig, validasi duplikat per-halaman) — vitest, matching existing convention.
 - Manual: buat layout custom (grid non-default, label custom, resize baris+sel) di editor → publish → verifikasi render benar di CYD fisik (lanjutan verifikasi hardware sesi ini — device sudah di tangan, captive portal & BOOT-reset sudah tervalidasi).
 - Migration script `Printer.slug` backfill: dry-run dulu (print hasil slugify vs id MQTT existing, minta konfirmasi manual sebelum apply) — jangan auto-apply tanpa review, mengingat risiko id-mismatch di atas.
