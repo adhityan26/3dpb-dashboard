@@ -4,6 +4,7 @@ import { getConfig } from "@/lib/config";
 import { getEntitlement } from "@/lib/entitlement";
 import { BeliCheckout } from "@/components/BeliCheckout";
 import { AppHeader } from "@/components/AppHeader";
+import { isOwner } from "@/lib/owner";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export default async function BeliPage() {
   const refund = await getConfig("copy.refund");
   return (
     <main className="max-w-md mx-auto p-6">
-      <AppHeader subtitle="Beli" />
+      <AppHeader subtitle="Pro" owner={isOwner(session.user?.email)} current="beli" />
       <h1 className="text-lg font-semibold g-t1 mb-1">Slizebiz Pro</h1>
       {ent.lifetimeOwned
         ? <p className="text-[13px] g-t2 mt-3">Akses Pro kamu sudah aktif. Terima kasih! 🎉</p>

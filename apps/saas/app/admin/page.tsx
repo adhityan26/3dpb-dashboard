@@ -58,11 +58,33 @@ export default async function AdminPage() {
     orderBy: { createdAt: "desc" },
     take: 200,
   });
-  const userRows: UserRow[] = allUsers.map((u) => ({
-    who: u.email ?? u.phone ?? u.id.slice(0, 6),
-    status: u.entitlement?.lifetimeOwned ? "Pro" : u.entitlement?.subStatus === "ACTIVE" ? "Subscribe" : "Free",
-    joined: u.createdAt.toISOString().slice(0, 10),
-  }));
+  // Pembayaran terverifikasi terbaru per user (untuk kolom Pembayaran di tab User aktif)
+  const verified = await prisma.payment.findMany({
+    where: { userId: { in: allUsers.map((u) => u.id) }, status: "PAID" },
+    orderBy: { verifiedAt: "desc" },
+    select: { id: true, userId: true, amount: true, verifiedAt: true, proofKey: true },
+  });
+  const latestPay = new Map<string, (typeof verified)[number]>();
+  for (const p of verified) if (!latestPay.has(p.userId)) latestPay.set(p.userId, p);
+
+  const userRows: UserRow[] = allUsers.map((u) => {
+    const p = latestPay.get(u.id);
+    return {
+      who: u.email ?? u.phone ?? u.id.slice(0, 6),
+      status: u.entitlement?.lifetimeOwned ? "Pro" : u.entitlement?.subStatus === "ACTIVE" ? "Subscribe" : "Free",
+      joined: u.createdAt.toISOString().slice(0, 10),
+      ...(p
+        ? {
+            payment: {
+              id: p.id,
+              amount: p.amount,
+              when: p.verifiedAt ? p.verifiedAt.toISOString().slice(0, 10) : "",
+              hasProof: !!p.proofKey,
+            },
+          }
+        : {}),
+    };
+  });
 
   const tabs: AdminTab[] = [
     { key: "setting", label: "Setting", node: <ConfigEditor initial={config} /> },
@@ -94,7 +116,7 @@ export default async function AdminPage() {
 
   return (
     <main className="max-w-3xl mx-auto p-6 flex flex-col gap-6">
-      <AppHeader subtitle="Admin" />
+      <AppHeader subtitle="Admin" owner={true} current="admin" />
       <AdminTabs tabs={tabs} />
     </main>
   );
