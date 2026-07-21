@@ -101,6 +101,15 @@ describe("1c-2 mark-paid wajib bukti", () => {
     expect(putProofMock).not.toHaveBeenCalled();
   });
 
+  it("file > 5MB → 400 file_terlalu_besar, putProof tak dipanggil", async () => {
+    const big = new File(["x"], "a.jpg", { type: "image/jpeg" });
+    Object.defineProperty(big, "size", { value: 5 * 1024 * 1024 + 1 });
+    const res = await markPaidPOST(reqFormData(fd(big)), ctx);
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "file_terlalu_besar" });
+    expect(putProofMock).not.toHaveBeenCalled();
+  });
+
   it("sukses → putProof lalu markPaid", async () => {
     putProofMock.mockResolvedValueOnce(undefined);
     const res = await markPaidPOST(reqFormData(fd(new File(["x"], "a.jpg", { type: "image/jpeg" }))), ctx);

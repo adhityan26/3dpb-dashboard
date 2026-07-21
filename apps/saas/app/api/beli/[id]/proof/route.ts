@@ -29,6 +29,8 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
     headers: {
       "Content-Type": p.proofType ?? obj.contentType,
       "Cache-Control": "private, max-age=300",
+      "X-Content-Type-Options": "nosniff",
+      "Content-Disposition": "inline; filename=\"bukti.jpg\"",
     },
   });
 }

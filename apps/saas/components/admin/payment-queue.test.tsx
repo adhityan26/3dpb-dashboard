@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, fireEvent } from "@testing-library/react";
 import { PaymentQueue, type PendingRow } from "./PaymentQueue";
 
 const row = (o: Partial<PendingRow> = {}): PendingRow =>
@@ -19,5 +19,12 @@ describe("PaymentQueue bukti", () => {
   it("banner peringatan cek mutasi tetap ada", () => {
     render(<PaymentQueue rows={[row()]} />);
     expect(screen.getByText(/mutasi/i)).toBeTruthy();
+  });
+  it("gambar bukti gagal load → tampil fallback 'Bukti sudah kedaluwarsa'", () => {
+    render(<PaymentQueue rows={[row()]} />);
+    const img = screen.getByAltText(/bukti/i) as HTMLImageElement;
+    fireEvent.error(img);
+    expect(screen.getByText(/kedaluwarsa/i)).toBeTruthy();
+    expect(screen.queryByAltText(/bukti/i)).toBeNull();
   });
 });

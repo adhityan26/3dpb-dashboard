@@ -6,6 +6,7 @@ export type PendingRow = { id: string; amount: number; who: string; ageMin: numb
 
 export function PaymentQueue({ rows }: { rows: PendingRow[] }) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [expired, setExpired] = useState<Record<string, boolean>>({});
   async function act(id: string, action: "activate" | "cancel") {
     setBusy(id);
     await fetch(`/api/admin/payment/${id}/${action}`, { method: "PUT" });
@@ -29,9 +30,18 @@ export function PaymentQueue({ rows }: { rows: PendingRow[] }) {
               <td className="pr-3">{r.ageMin}m</td>
               <td className="pr-3 py-1">
                 {r.hasProof ? (
-                  <a href={`/api/beli/${r.id}/proof`} target="_blank" rel="noreferrer">
-                    <img src={`/api/beli/${r.id}/proof`} alt={`Bukti ${r.who}`} className="h-12 w-12 object-cover rounded-[6px]" />
-                  </a>
+                  expired[r.id] ? (
+                    <span className="text-[11px] g-t5">Bukti sudah kedaluwarsa</span>
+                  ) : (
+                    <a href={`/api/beli/${r.id}/proof`} target="_blank" rel="noreferrer">
+                      <img
+                        src={`/api/beli/${r.id}/proof`}
+                        alt={`Bukti ${r.who}`}
+                        className="h-12 w-12 object-cover rounded-[6px]"
+                        onError={() => setExpired((prev) => ({ ...prev, [r.id]: true }))}
+                      />
+                    </a>
+                  )
                 ) : (
                   <span className="g-t5">—</span>
                 )}

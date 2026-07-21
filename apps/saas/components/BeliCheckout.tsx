@@ -14,6 +14,7 @@ export function BeliCheckout({ displayPrice, refundCopy }: { displayPrice: strin
   const [paid, setPaid] = useState(false);
   const [pending, setPending] = useState(false);
   const [file, setFile] = useState<File | null>(null);
+  const [proofExpired, setProofExpired] = useState(false);
 
   useEffect(() => {
     if (inv?.qrPayload) QRCode.toDataURL(inv.qrPayload, { width: 240 }).then(setQrSrc).catch(() => {});
@@ -63,7 +64,16 @@ export function BeliCheckout({ displayPrice, refundCopy }: { displayPrice: strin
       ) : paid ? (
         <>
           <p className="text-[13px] g-t2">Terima kasih! Pembayaran kamu sedang <b>diverifikasi admin</b>. Kamu akan dikabari begitu aktif.</p>
-          {inv && <img src={`/api/beli/${inv.id}/proof`} alt="Bukti transfer" className="mt-2 rounded-[10px] max-h-48" />}
+          {inv && (proofExpired ? (
+            <p className="mt-2 text-[12px] g-t5">Bukti sudah kedaluwarsa</p>
+          ) : (
+            <img
+              src={`/api/beli/${inv.id}/proof`}
+              alt="Bukti transfer"
+              className="mt-2 rounded-[10px] max-h-48"
+              onError={() => setProofExpired(true)}
+            />
+          ))}
         </>
       ) : (
         <div className="flex flex-col items-center gap-2">
