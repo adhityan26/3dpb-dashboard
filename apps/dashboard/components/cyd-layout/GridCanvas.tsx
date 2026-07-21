@@ -1,7 +1,7 @@
 // components/cyd-layout/GridCanvas.tsx
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
 import type { LayoutPageOut, LayoutCellOut } from '@/lib/cyd-layout/types'
 import { CYD_COLORS, stateColor } from '@/lib/cyd-layout/colors'
@@ -69,6 +69,11 @@ function EmptyCell({ col, row, onAddCell }: { col: number; row: number; onAddCel
 }
 
 function ResizeHandle({ onResize }: { onResize: (deltaCol: number, deltaRow: number) => void }) {
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    return () => { mountedRef.current = false }
+  }, [])
+
   function handlePointerDown(startEvent: React.PointerEvent) {
     startEvent.stopPropagation()
     const startX = startEvent.clientX
@@ -78,11 +83,15 @@ function ResizeHandle({ onResize }: { onResize: (deltaCol: number, deltaRow: num
     const cellH = cellEl?.offsetHeight ?? 50
 
     function handlePointerMove(moveEvent: PointerEvent) {
+      if (!mountedRef.current) { cleanup(); return }
       const dCol = Math.round((moveEvent.clientX - startX) / cellW)
       const dRow = Math.round((moveEvent.clientY - startY) / cellH)
       onResize(dCol, dRow)
     }
     function handlePointerUp() {
+      cleanup()
+    }
+    function cleanup() {
       window.removeEventListener('pointermove', handlePointerMove)
       window.removeEventListener('pointerup', handlePointerUp)
     }
@@ -147,6 +156,11 @@ function FilledCell({ cell, index, isSelected, live, onSelect, onUpdateCell, gri
 }
 
 function RowDivider({ rowIndex, onDrag }: { rowIndex: number; onDrag: (rowIndex: number, deltaFraction: number) => void }) {
+  const mountedRef = useRef(true)
+  useEffect(() => {
+    return () => { mountedRef.current = false }
+  }, [])
+
   function handlePointerDown(startEvent: React.PointerEvent) {
     startEvent.stopPropagation()
     const startY = startEvent.clientY
@@ -154,10 +168,14 @@ function RowDivider({ rowIndex, onDrag }: { rowIndex: number; onDrag: (rowIndex:
     const containerH = container?.offsetHeight ?? 240
 
     function handlePointerMove(moveEvent: PointerEvent) {
+      if (!mountedRef.current) { cleanup(); return }
       const deltaFraction = (moveEvent.clientY - startY) / containerH
       onDrag(rowIndex, deltaFraction)
     }
     function handlePointerUp() {
+      cleanup()
+    }
+    function cleanup() {
       window.removeEventListener('pointermove', handlePointerMove)
       window.removeEventListener('pointerup', handlePointerUp)
     }
