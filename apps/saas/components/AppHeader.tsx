@@ -1,4 +1,5 @@
 import { LogoutButton } from "./LogoutButton";
+import { ModulMenu } from "./ModulMenu";
 
 export type NavKey = "kalkulator" | "setting" | "admin" | "beli";
 
@@ -35,6 +36,7 @@ export function AppHeader({
               <span aria-hidden>{l.icon}</span> {l.label}
             </a>
           ))}
+          <ModulMenu current={current} />
           <LogoutButton />
         </nav>
       )}

@@ -16,9 +16,13 @@ describe("AppHeader nav", () => {
     expect(screen.queryByText(/Admin/)).toBeNull();
   });
 
+  // "Kalkulator" sengaja muncul 2×: link cepat di nav + entri di menu Modul.
+  const adaJalanBalikKeKalkulator = () =>
+    screen.getAllByText(/Kalkulator/).some((el) => el.closest("a")?.getAttribute("href") === "/");
+
   it("dari admin ada jalan balik ke Kalkulator & Setting", () => {
     render(<AppHeader owner={true} current="admin" />);
-    expect(screen.getByText(/Kalkulator/).closest("a")?.getAttribute("href")).toBe("/");
+    expect(adaJalanBalikKeKalkulator()).toBe(true);
     expect(screen.getByText(/Setting/).closest("a")?.getAttribute("href")).toBe("/settings");
     // halaman aktif tak dilink ke dirinya sendiri
     expect(screen.queryByText(/^\s*Admin\s*$/)).toBeNull();
@@ -26,7 +30,7 @@ describe("AppHeader nav", () => {
 
   it("dari setting ada jalan balik ke Kalkulator", () => {
     render(<AppHeader owner={false} current="setting" />);
-    expect(screen.getByText(/Kalkulator/).closest("a")?.getAttribute("href")).toBe("/");
+    expect(adaJalanBalikKeKalkulator()).toBe(true);
   });
 
   it("anon (authenticated=false) → tak ada nav", () => {
