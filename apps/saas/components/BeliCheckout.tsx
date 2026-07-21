@@ -82,7 +82,6 @@ export function BeliCheckout({ displayPrice, refundCopy }: { displayPrice: strin
             {pending ? "Mengunggah…" : "Saya sudah bayar"}
           </GlassButton>
           {!file && <p className="text-[11px] g-t5">Upload foto bukti transfer dulu untuk melanjutkan.</p>}
-          {msg && <p className="text-[12px] g-t4">{msg}</p>}
         </div>
       )}
       {msg && <p className="text-[12px] g-t3">{msg}</p>}
