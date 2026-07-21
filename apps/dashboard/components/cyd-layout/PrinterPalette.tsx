@@ -44,8 +44,9 @@ export function PrinterPalette({ usedSlugsOnActivePage }: { usedSlugsOnActivePag
 
   useEffect(() => {
     fetch('/api/cyd-layout/printers')
-      .then((r) => r.json())
-      .then((data: PaletteItem[]) => setPrinters(data))
+      .then((r) => (r.ok ? (r.json() as Promise<PaletteItem[]>) : Promise.reject(new Error(`HTTP ${r.status}`))))
+      .then((data) => setPrinters(data))
+      .catch(() => setPrinters([]))
       .finally(() => setLoading(false))
   }, [])
 
