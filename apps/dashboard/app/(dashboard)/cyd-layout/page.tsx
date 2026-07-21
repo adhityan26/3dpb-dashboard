@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DndContext, type DragEndEvent } from '@dnd-kit/core'
 import { PrinterPalette } from '@/components/cyd-layout/PrinterPalette'
 import { GridCanvas } from '@/components/cyd-layout/GridCanvas'
@@ -24,6 +24,9 @@ export default function CydLayoutPage() {
   const [selectedCellIndex, setSelectedCellIndex] = useState<number | null>(null)
   const [liveMap, setLiveMap] = useState<LiveMap>({})
   const [status, setStatus] = useState<'idle' | 'saving' | 'confirmed' | 'timeout' | 'error'>('idle')
+  // Monotonic counter for generating new page ids — never reused even after a page is removed,
+  // so a later add can't collide with an id still (or previously) present in `config.pages`.
+  const nextPageNumberRef = useRef(DEFAULT_CONFIG.pages.length + 1)
 
   useEffect(() => {
     fetch('/api/cyd-layout/printers')
@@ -70,7 +73,7 @@ export default function CydLayoutPage() {
   }
 
   function addPage() {
-    const newId = `halaman-${config.pages.length + 1}`
+    const newId = `halaman-${nextPageNumberRef.current++}`
     setConfig((cfg) => ({
       ...cfg,
       pages: [...cfg.pages, { id: newId, grid: { cols: 1, rows: 1 }, fields: FIELD_PRESETS.ringkas, durationSec: 8, cells: [] }],
@@ -80,6 +83,10 @@ export default function CydLayoutPage() {
 
   function removePage(index: number) {
     if (config.pages.length <= 1) return  // minimal 1 halaman
+    // Kalau yang dihapus adalah halaman yang lagi aktif, halaman yang jadi aktif setelah ini pasti
+    // beda (isi cells beda) — selectedCellIndex lama (index numerik ke array cells halaman lama)
+    // jadi tidak relevan lagi dan bisa salah nunjuk ke sel di halaman baru (lihat Bug 2 fix di onSelect).
+    if (index === activePageIndex) setSelectedCellIndex(null)
     setConfig((cfg) => ({ ...cfg, pages: cfg.pages.filter((_, i) => i !== index) }))
     setActivePageIndex((i) => Math.max(0, i - (index <= i ? 1 : 0)))
   }
@@ -126,7 +133,7 @@ export default function CydLayoutPage() {
         <PageTabs
           pages={config.pages}
           activeIndex={activePageIndex}
-          onSelect={setActivePageIndex}
+          onSelect={(i) => { setActivePageIndex(i); setSelectedCellIndex(null) }}
           onAdd={addPage}
           onRemove={removePage}
           onReorder={(newPages) => setConfig((cfg) => ({ ...cfg, pages: newPages }))}
