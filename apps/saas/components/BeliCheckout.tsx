@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { GlassButton } from "@3pb/ui";
+import { compressImage } from "@/lib/image/compress";
 
 const rupiah = (n: number) => "Rp" + n.toLocaleString("id-ID");
 type Invoice = { id: string; amount: number; qrPayload: string; displayPrice: number };
@@ -12,6 +13,7 @@ export function BeliCheckout({ displayPrice, refundCopy }: { displayPrice: strin
   const [msg, setMsg] = useState("");
   const [paid, setPaid] = useState(false);
   const [pending, setPending] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
 
   useEffect(() => {
     if (inv?.qrPayload) QRCode.toDataURL(inv.qrPayload, { width: 240 }).then(setQrSrc).catch(() => {});
@@ -29,11 +31,21 @@ export function BeliCheckout({ displayPrice, refundCopy }: { displayPrice: strin
   }
 
   async function sudahBayar() {
-    if (!inv) return;
+    if (!inv || !file) return;
     setPending(true);
-    const res = await fetch(`/api/beli/${inv.id}/mark-paid`, { method: "POST" });
+    setMsg("");
+    try {
+      const blob = await compressImage(file);
+      const form = new FormData();
+      form.append("bukti", new File([blob], "bukti.jpg", { type: "image/jpeg" }));
+      const res = await fetch(`/api/beli/${inv.id}/mark-paid`, { method: "POST", body: form });
+      if (res.ok) setPaid(true);
+      else if (res.status === 503) setMsg("Upload bukti belum aktif. Hubungi admin.");
+      else setMsg("Gagal upload bukti, coba lagi.");
+    } catch {
+      setMsg("Gagal memproses foto, coba lagi.");
+    }
     setPending(false);
-    if (res.ok) setPaid(true);
   }
 
   const priceNum = Number(displayPrice);
@@ -49,14 +61,28 @@ export function BeliCheckout({ displayPrice, refundCopy }: { displayPrice: strin
         </>
         )
       ) : paid ? (
-        <p className="text-[13px] g-t2">Terima kasih! Pembayaran kamu sedang <b>diverifikasi admin</b>. Kamu akan dikabari begitu aktif.</p>
+        <>
+          <p className="text-[13px] g-t2">Terima kasih! Pembayaran kamu sedang <b>diverifikasi admin</b>. Kamu akan dikabari begitu aktif.</p>
+          {inv && <img src={`/api/beli/${inv.id}/proof`} alt="Bukti transfer" className="mt-2 rounded-[10px] max-h-48" />}
+        </>
       ) : (
         <div className="flex flex-col items-center gap-2">
           <p className="text-[12px] g-t4 text-center">Scan QRIS & transfer <b>TEPAT</b> nominal ini:</p>
           <div className="text-xl font-bold" style={{ color: "var(--g-accent)" }}>{rupiah(inv.amount)}</div>
           {qrSrc && <img src={qrSrc} alt="QRIS" width={240} height={240} />}
           <p className="text-[11px] g-t4">Invoice berlaku 3 jam.</p>
-          <GlassButton onClick={sudahBayar} disabled={pending} className="w-full">{pending ? "…" : "Saya sudah bayar"}</GlassButton>
+          <label className="text-[12px] g-t3 flex flex-col gap-1">
+            Foto bukti transfer (wajib)
+            <input type="file" accept="image/*" aria-label="Foto bukti transfer"
+              onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+              className="text-[12px] g-t4" />
+          </label>
+          {file && <p className="text-[11px] g-t4">Terpilih: {file.name}</p>}
+          <GlassButton onClick={sudahBayar} disabled={pending || !file} className="w-full">
+            {pending ? "Mengunggah…" : "Saya sudah bayar"}
+          </GlassButton>
+          {!file && <p className="text-[11px] g-t5">Upload foto bukti transfer dulu untuk melanjutkan.</p>}
+          {msg && <p className="text-[12px] g-t4">{msg}</p>}
         </div>
       )}
       {msg && <p className="text-[12px] g-t3">{msg}</p>}
