@@ -96,6 +96,8 @@ model Payment {
   qrPayload    String
   status       String    @default("PENDING")
   paidMarkedAt DateTime?
+  proofKey     String?
+  proofType    String?
   verifiedAt   DateTime?
   verifiedBy   String?
   createdAt    DateTime  @default(now())

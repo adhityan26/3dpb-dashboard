@@ -45,6 +45,7 @@ export default async function AdminPage() {
   const pendingRows: PendingRow[] = pending.map((p) => ({
     id: p.id, amount: p.amount, who: whoOf(p.userId),
     ageMin: Math.floor((now.getTime() - p.createdAt.getTime()) / 60000), marked: !!p.paidMarkedAt,
+    hasProof: !!p.proofKey,
   }));
   const paidRows: PaidRow[] = paid.map((p) => ({
     id: p.id, userId: p.userId, amount: p.amount, who: whoOf(p.userId),

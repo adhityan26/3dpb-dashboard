@@ -2,10 +2,11 @@
 import { useState } from "react";
 import { GlassButton } from "@3pb/ui";
 
-export type PendingRow = { id: string; amount: number; who: string; ageMin: number; marked: boolean };
+export type PendingRow = { id: string; amount: number; who: string; ageMin: number; marked: boolean; hasProof: boolean };
 
 export function PaymentQueue({ rows }: { rows: PendingRow[] }) {
   const [busy, setBusy] = useState<string | null>(null);
+  const [expired, setExpired] = useState<Record<string, boolean>>({});
   async function act(id: string, action: "activate" | "cancel") {
     setBusy(id);
     await fetch(`/api/admin/payment/${id}/${action}`, { method: "PUT" });
@@ -20,13 +21,31 @@ export function PaymentQueue({ rows }: { rows: PendingRow[] }) {
       </p>
       <div className="overflow-x-auto">
       <table className="text-[12px] g-t2 w-full">
-        <thead><tr className="g-t4 text-left"><th className="pr-3">Nominal</th><th className="pr-3">User</th><th className="pr-3">Umur</th><th>Aksi</th></tr></thead>
+        <thead><tr className="g-t4 text-left"><th className="pr-3">Nominal</th><th className="pr-3">User</th><th className="pr-3">Umur</th><th className="pr-3">Bukti</th><th>Aksi</th></tr></thead>
         <tbody>
           {rows.map((r) => (
             <tr key={r.id}>
               <td className="pr-3 font-medium">{"Rp" + r.amount.toLocaleString("id-ID")} {r.marked && <span className="text-[10px]" style={{ color: "#d97706" }} title="user meng-klik sudah bayar — belum diverifikasi">diklaim</span>}</td>
               <td className="pr-3">{r.who}</td>
               <td className="pr-3">{r.ageMin}m</td>
+              <td className="pr-3 py-1">
+                {r.hasProof ? (
+                  expired[r.id] ? (
+                    <span className="text-[11px] g-t5">Bukti sudah kedaluwarsa</span>
+                  ) : (
+                    <a href={`/api/beli/${r.id}/proof`} target="_blank" rel="noreferrer">
+                      <img
+                        src={`/api/beli/${r.id}/proof`}
+                        alt={`Bukti ${r.who}`}
+                        className="h-12 w-12 object-cover rounded-[6px]"
+                        onError={() => setExpired((prev) => ({ ...prev, [r.id]: true }))}
+                      />
+                    </a>
+                  )
+                ) : (
+                  <span className="g-t5">—</span>
+                )}
+              </td>
               <td className="flex gap-2 py-1">
                 <GlassButton onClick={() => act(r.id, "activate")} disabled={busy === r.id} className="h-7 px-2 text-[11px]">Aktifkan</GlassButton>
                 <button onClick={() => act(r.id, "cancel")} disabled={busy === r.id} className="text-[11px] g-t4 underline">Batalkan</button>

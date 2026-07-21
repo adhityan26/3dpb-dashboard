@@ -56,6 +56,10 @@ docker run -d \
   -e WA_OMNI_URL="${WA_OMNI_URL:-}" \
   -e WA_OMNI_TOKEN="${WA_OMNI_TOKEN:-}" \
   -e WA_OMNI_ACCOUNT_ID="${WA_OMNI_ACCOUNT_ID:-}" \
+  -e R2_ACCOUNT_ID="${R2_ACCOUNT_ID:-}" \
+  -e R2_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID:-}" \
+  -e R2_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY:-}" \
+  -e R2_BUCKET="${R2_BUCKET:-}" \
   "$LOCAL_IMAGE"
 
 echo "⏳  Menunggu container ready..."
