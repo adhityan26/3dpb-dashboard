@@ -1087,22 +1087,26 @@ export function validateLayoutConfig(input: unknown): ValidationResult {
 Run: `cd apps/dashboard && pnpm vitest run lib/cyd-layout/__tests__/build-config.test.ts`
 Expected: PASS (12/12)
 
-- [ ] **Step 5: Hapus `rack-template.ts` (tak dipakai lagi)**
+- [ ] **Step 5: JANGAN hapus `rack-template.ts` atau fungsi lama di titik ini (koreksi ordering, ditemukan saat eksekusi)**
 
-```bash
-cd apps/dashboard
-git rm lib/cyd-layout/rack-template.ts
-```
+`buildLayoutConfig()`/`findDuplicatePrinterIds()` versi v1 dan `rack-template.ts` **masih dipakai** oleh `app/api/cyd-layout/route.ts` (v1, belum diganti sampai Task 6) dan `app/(dashboard)/cyd-layout/page.tsx` (v1, belum diganti sampai Task 11). Menghapusnya sekarang akan merusak build. `validateLayoutConfig` (baru) ditambahkan **BERDAMPINGAN** dengan fungsi v1 (tetap utuh, tak diubah) di file yang sama — bukan menggantikannya. Penghapusan `rack-template.ts` + fungsi v1 dipindah jadi step tambahan di akhir Task 11 (lihat Task 11 Step 5 baru), setelah consumer terakhirnya (`page.tsx`) sudah diganti.
 
-Run: `cd apps/dashboard && grep -rl "rack-template" --include="*.ts" --include="*.tsx" . | grep -v node_modules`
-Expected: tidak ada hasil (tak ada importer tersisa) — kalau ada, itu artinya ada file lain yang belum di-migrasi, JANGAN lanjut hapus sampai dicek.
+Test file juga sama: pertahankan test suite v1 (`buildLayoutConfig`/`findDuplicatePrinterIds`) yang sudah ada, TAMBAHKAN 12 test case `validateLayoutConfig` di atas berdampingan (bukan mengganti file test lama).
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 6: Run full test file + build check, verifikasi tak ada yang rusak**
+
+Run: `cd apps/dashboard && pnpm vitest run lib/cyd-layout/__tests__/build-config.test.ts`
+Expected: PASS — jumlah test v1 lama + 12 test `validateLayoutConfig` baru, semua lulus.
+
+Run: `cd apps/dashboard && pnpm build`
+Expected: SUCCESS — konfirmasi `route.ts`/`page.tsx` v1 (consumer lama) masih compile normal, tak tersentuh.
+
+- [ ] **Step 7: Commit**
 
 ```bash
 cd apps/dashboard
 git add lib/cyd-layout/build-config.ts lib/cyd-layout/__tests__/build-config.test.ts
-git commit -m "refactor(cyd-layout): build-config.ts v2 — validasi LayoutConfig penuh, hapus generation dari assignment + rack-template.ts"
+git commit -m "feat(cyd-layout): validateLayoutConfig (v2) berdampingan dengan buildLayoutConfig (v1, dipertahankan sampai Task 11)"
 ```
 
 ---
@@ -2086,12 +2090,39 @@ Buka `http://localhost:3000/cyd-layout` (login dulu), verifikasi satu-satu:
 
 Kalau ada langkah yang tidak sesuai, JANGAN lanjut ke Task 12 — perbaiki dulu di task ini.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 4: Commit `page.tsx`**
 
 ```bash
 cd apps/dashboard
 git add "app/(dashboard)/cyd-layout/page.tsx"
 git commit -m "feat(cyd-layout): page.tsx v2 — orkestrasi penuh page-builder (palette+canvas+tabs+settings+publish)"
+```
+
+- [ ] **Step 5: Cleanup v1 — hapus `rack-template.ts` + fungsi lama (ditunda dari Task 5, sekarang consumer terakhir sudah diganti)**
+
+Setelah Step 4, `page.tsx` (consumer terakhir `rack-template.ts`/`buildLayoutConfig`/`findDuplicatePrinterIds` v1) sudah diganti versi v2. Sekarang aman dihapus:
+
+```bash
+cd apps/dashboard
+grep -rl "rack-template\|buildLayoutConfig\|findDuplicatePrinterIds" --include="*.ts" --include="*.tsx" . | grep -v node_modules | grep -v __tests__
+```
+Expected: tidak ada hasil di luar `lib/cyd-layout/build-config.ts` sendiri (definisi fungsinya) — kalau ada importer lain yang belum ke-cover, JANGAN lanjut hapus, laporkan sebagai temuan.
+
+Kalau bersih:
+```bash
+git rm lib/cyd-layout/rack-template.ts
+```
+
+Edit `lib/cyd-layout/build-config.ts` — hapus fungsi `buildLayoutConfig()` dan `findDuplicatePrinterIds()` v1 (yang sudah tak dipakai lagi), sisakan cuma `validateLayoutConfig()`.
+
+Edit `lib/cyd-layout/__tests__/build-config.test.ts` — hapus test suite v1 (`describe('buildLayoutConfig', ...)`/`describe('findDuplicatePrinterIds', ...)`), sisakan cuma `describe('validateLayoutConfig', ...)`.
+
+Run: `cd apps/dashboard && pnpm vitest run lib/cyd-layout/__tests__/build-config.test.ts && pnpm build`
+Expected: test tetap 12/12 (cuma validateLayoutConfig tersisa), build SUCCESS.
+
+```bash
+git add lib/cyd-layout/rack-template.ts lib/cyd-layout/build-config.ts lib/cyd-layout/__tests__/build-config.test.ts
+git commit -m "refactor(cyd-layout): hapus rack-template.ts + buildLayoutConfig/findDuplicatePrinterIds v1 (consumer terakhir sudah diganti page.tsx v2)"
 ```
 
 ---
