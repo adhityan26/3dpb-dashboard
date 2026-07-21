@@ -90,3 +90,39 @@ describe("SettingsPanel labor bundle", () => {
     expect(lp.items.length).toBe(4);
   });
 });
+
+describe("SettingsPanel struktur & tooltip", () => {
+  it("punya 4 section dg judul + kalimat tujuan", () => {
+    render(<SettingsPanel editable={false} userId={null} />);
+    for (const t of ["Biaya produksi", "Harga jual", "Tambahan", "Tampilan"]) {
+      expect(screen.getByText(t)).toBeTruthy();
+    }
+    expect(screen.getByText(/Berapa modal yang keluar/i)).toBeTruthy();
+    expect(screen.getByText(/Dari modal, jadi berapa harga jualnya/i)).toBeTruthy();
+  });
+
+  it("field biaya & harga terpisah sesuai alur hitung", () => {
+    render(<SettingsPanel editable={false} userId={null} />);
+    // modal/failure = biaya produksi; jual/margin = harga jual
+    expect(screen.getByLabelText(/FDM harga modal\/g/i)).toBeTruthy();
+    expect(screen.getByLabelText(/FDM harga jual\/g/i)).toBeTruthy();
+    expect(screen.getByLabelText(/Fee Shopee/i)).toBeTruthy();
+  });
+
+  it("tooltip ℹ: tersembunyi, muncul saat diklik, hilang saat diklik lagi", () => {
+    render(<SettingsPanel editable={false} userId={null} />);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    const tips = screen.getAllByLabelText("Penjelasan");
+    fireEvent.click(tips[0]);
+    const tip = screen.getByRole("tooltip");
+    expect(tip.textContent).toMatch(/filament FDM per gram/i);
+    fireEvent.click(tips[0]);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("Free: section berbayar terkunci, tapi Tampilan tetap bisa diubah", () => {
+    render(<SettingsPanel editable={false} userId={null} />);
+    expect(screen.getAllByText(/Edit di Pro/i).length).toBeGreaterThanOrEqual(3);
+    expect((screen.getByLabelText(/rincian perhitungan/i) as HTMLInputElement).disabled).toBe(false);
+  });
+});

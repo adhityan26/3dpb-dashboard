@@ -1,39 +1,76 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { MARGIN_TIER_LABEL } from "@3pb/kalkulator-core";
 import { GlassButton, GlassInput } from "@3pb/ui";
-import { DEFAULT_LOCAL_SETTINGS, validateLocalSettings, type LocalSettings, type KomponenPreset, type LaborPreset, type LaborItemInput } from "@/lib/kalkulator/local-settings";
+import { DEFAULT_LOCAL_SETTINGS, validateLocalSettings, type LocalSettings, type KomponenPreset, type LaborItemInput } from "@/lib/kalkulator/local-settings";
 import { loadSettings, saveSettings, resetSettings } from "@/lib/store/local-settings";
 import { getRincianPref, setRincianPref } from "@/lib/store/display-prefs";
 
-function NumField({ label, value, disabled, onChange }: { label: string; value: number; disabled: boolean; onChange: (n: number) => void }) {
+/** Penjelasan singkat "ini pengaruhnya ke mana". Buka lewat klik/tap (ramah HP) maupun hover. */
+function InfoTip({ text }: { text: string }) {
+  const [open, setOpen] = useState(false);
   return (
-    <label className="text-[11px] g-t3 flex flex-col">
-      {label}
-      <GlassInput type="number" inputMode="decimal" value={String(value)} disabled={disabled}
-        onChange={(e) => onChange(Number(e.target.value))} className="w-full mt-1" />
-    </label>
+    <span className="relative inline-flex">
+      <button
+        type="button"
+        aria-label="Penjelasan"
+        onClick={() => setOpen((o) => !o)}
+        onMouseEnter={() => setOpen(true)}
+        onMouseLeave={() => setOpen(false)}
+        onBlur={() => setOpen(false)}
+        className="w-[14px] h-[14px] rounded-full text-[9px] leading-none flex items-center justify-center g-t5 border border-[color:var(--g-row-border)]"
+      >
+        i
+      </button>
+      {open && (
+        <span
+          role="tooltip"
+          className="modal-surface absolute left-1/2 -translate-x-1/2 top-[18px] z-30 w-[210px] rounded-[8px] p-2 text-[11px] g-t2 font-normal normal-case"
+        >
+          {text}
+        </span>
+      )}
+    </span>
   );
 }
 
-function Group({ title, locked, children }: { title: string; locked: boolean; children: React.ReactNode }) {
+function NumField({ label, hint, value, disabled, onChange }: { label: string; hint?: string; value: number; disabled: boolean; onChange: (n: number) => void }) {
+  const id = useId();
   return (
-    <section className="flex flex-col gap-2">
-      <h2 className="text-[12px] font-medium g-t2 flex items-center gap-2">
-        {title} {locked && <span className="text-[10px] g-t5">🔒 Edit di Pro</span>}
-      </h2>
-      <div className="grid grid-cols-2 gap-2">{children}</div>
+    <div className="flex flex-col">
+      <span className="text-[11px] g-t3 flex items-center gap-1">
+        <label htmlFor={id}>{label}</label>
+        {hint && <InfoTip text={hint} />}
+      </span>
+      <GlassInput id={id} type="number" inputMode="decimal" value={String(value)} disabled={disabled}
+        onChange={(e) => onChange(Number(e.target.value))} className="w-full mt-1" />
+    </div>
+  );
+}
+
+/** Section besar: judul + kalimat tujuan + pemisah, supaya arah halaman jelas. */
+function Section({ title, purpose, locked, children }: { title: string; purpose: string; locked?: boolean; children: React.ReactNode }) {
+  return (
+    <section className="flex flex-col gap-3 pt-5 border-t border-[color:var(--g-row-border)] first:border-t-0 first:pt-0">
+      <div>
+        <h2 className="text-[13px] font-medium g-t1 flex items-center gap-2">
+          {title}
+          {locked && <span className="text-[10px] g-t5 font-normal">🔒 Edit di Pro</span>}
+        </h2>
+        <p className="text-[11px] g-t4 mt-[2px]">{purpose}</p>
+      </div>
+      {children}
     </section>
   );
 }
 
-function PresetList({ title, disabled, list, onSet, onAdd, onDel, addLabel }: {
-  title: string; disabled: boolean; list: KomponenPreset[];
+function PresetList({ title, hint, disabled, list, onSet, onAdd, onDel, addLabel }: {
+  title: string; hint: string; disabled: boolean; list: KomponenPreset[];
   onSet: (i: number, patch: Partial<KomponenPreset>) => void; onAdd: () => void; onDel: (i: number) => void; addLabel: string;
 }) {
   return (
-    <section className="flex flex-col gap-2">
-      <h2 className="text-[12px] font-medium g-t2 flex items-center gap-2">{title} {disabled && <span className="text-[10px] g-t5">🔒 Edit di Pro</span>}</h2>
+    <div className="flex flex-col gap-2">
+      <h3 className="text-[12px] g-t2 flex items-center gap-1">{title} <InfoTip text={hint} /></h3>
       {list.map((k, i) => (
         <div key={k.id} className="flex items-center gap-2">
           <GlassInput value={k.nama} disabled={disabled} placeholder="Nama" className="flex-1" onChange={(e) => onSet(i, { nama: e.target.value })} />
@@ -42,7 +79,7 @@ function PresetList({ title, disabled, list, onSet, onAdd, onDel, addLabel }: {
         </div>
       ))}
       {!disabled && <button type="button" onClick={onAdd} className="text-[12px] g-t4 underline self-start">＋ {addLabel}</button>}
-    </section>
+    </div>
   );
 }
 
@@ -103,63 +140,76 @@ export function SettingsPanel({ editable, userId }: { editable: boolean; userId:
 
   return (
     <div className="flex flex-col gap-5">
-      <Group title="Material" locked={disabled}>
-        <NumField label="FDM harga modal/g" value={s.material.FDM.hppPerGram} disabled={disabled} onChange={(n) => setMat("FDM", "hppPerGram", n)} />
-        <NumField label="FDM harga jual/g" value={s.material.FDM.jualPerGram} disabled={disabled} onChange={(n) => setMat("FDM", "jualPerGram", n)} />
-        <NumField label="FDM failure %" value={s.material.FDM.failureRatePct} disabled={disabled} onChange={(n) => setMat("FDM", "failureRatePct", n)} />
-        <NumField label="SLA harga modal/g" value={s.material.SLA.hppPerGram} disabled={disabled} onChange={(n) => setMat("SLA", "hppPerGram", n)} />
-        <NumField label="SLA harga jual/g" value={s.material.SLA.jualPerGram} disabled={disabled} onChange={(n) => setMat("SLA", "jualPerGram", n)} />
-        <NumField label="SLA failure %" value={s.material.SLA.failureRatePct} disabled={disabled} onChange={(n) => setMat("SLA", "failureRatePct", n)} />
-      </Group>
-      <Group title="Mesin & prototype" locked={disabled}>
-        <NumField label="Biaya mesin/jam" value={s.mesinPerJam} disabled={disabled} onChange={(n) => setS((p) => ({ ...p, mesinPerJam: n }))} />
-        <NumField label="Failure spread %" value={s.failureSpreadPct} disabled={disabled} onChange={(n) => setS((p) => ({ ...p, failureSpreadPct: n }))} />
-        <NumField label="Test layer %" value={s.testLayerPct} disabled={disabled} onChange={(n) => setS((p) => ({ ...p, testLayerPct: n }))} />
-      </Group>
-      <Group title="Margin & reseller" locked={disabled}>
-        <NumField label={`Margin ${MARGIN_TIER_LABEL.A}`} value={s.margin.A} disabled={disabled} onChange={(n) => setMargin("A", n)} />
-        <NumField label={`Margin ${MARGIN_TIER_LABEL.B}`} value={s.margin.B} disabled={disabled} onChange={(n) => setMargin("B", n)} />
-        <NumField label={`Margin ${MARGIN_TIER_LABEL.C}`} value={s.margin.C} disabled={disabled} onChange={(n) => setMargin("C", n)} />
-        <NumField label="Reseller bulk ×" value={s.resellerBulkMultiplier} disabled={disabled} onChange={(n) => setS((p) => ({ ...p, resellerBulkMultiplier: n }))} />
-      </Group>
-      <Group title="Fee channel" locked={disabled}>
-        <NumField label="Offline ×" value={s.channels.offline} disabled={disabled} onChange={(n) => setChan("offline", n)} />
-        <NumField label="Shopee ×" value={s.channels.shopee} disabled={disabled} onChange={(n) => setChan("shopee", n)} />
-      </Group>
-      <PresetList title="Komponen tambahan" disabled={disabled} list={s.komponenPresets} onSet={komp.set} onAdd={komp.add} onDel={komp.del} addLabel="Tambah komponen" />
-      <PresetList title="Packing" disabled={disabled} list={s.packingPresets} onSet={pack.set} onAdd={pack.add} onDel={pack.del} addLabel="Tambah packing" />
-      <section className="flex flex-col gap-3">
-        <h2 className="text-[12px] font-medium g-t2 flex items-center gap-2">Labor (preset bundle) {disabled && <span className="text-[10px] g-t5">🔒 Edit di Pro</span>}</h2>
-        {s.laborPresets.map((lp, pi) => (
-          <div key={lp.id} className="flex flex-col gap-1 border-l-2 border-[color:var(--g-row-border)] pl-2">
-            <div className="flex items-center gap-2">
-              <GlassInput value={lp.nama} disabled={disabled} placeholder="Nama preset" className="flex-1" onChange={(e) => setLaborNama(pi, e.target.value)} />
-              {!disabled && <button type="button" onClick={() => delLaborPreset(pi)} className="g-t4 text-sm px-1" aria-label="Hapus preset labor">✕ preset</button>}
-            </div>
-            {lp.items.map((it, ii) => (
-              <div key={ii} className="flex items-center gap-2 flex-wrap pl-2">
-                <GlassInput value={it.nama} disabled={disabled} placeholder="Item" className="flex-1 min-w-[100px]" onChange={(e) => setItem(pi, ii, { nama: e.target.value })} />
-                <GlassInput type="number" inputMode="decimal" placeholder="jam" value={it.jam ?? ""} disabled={disabled} className="w-16" onChange={(e) => setItem(pi, ii, { jam: numOrUndef(e.target.value) })} />
-                <GlassInput type="number" inputMode="decimal" placeholder="rate/jam" value={it.ratePerJam ?? ""} disabled={disabled} className="w-24" onChange={(e) => setItem(pi, ii, { ratePerJam: numOrUndef(e.target.value) })} />
-                <GlassInput type="number" inputMode="decimal" placeholder="flat" value={it.flat ?? ""} disabled={disabled} className="w-20" onChange={(e) => setItem(pi, ii, { flat: numOrUndef(e.target.value) })} />
-                {!disabled && <button type="button" onClick={() => delItem(pi, ii)} className="g-t4 text-sm px-1" aria-label="Hapus item">✕</button>}
+      {/* 1 — apa yang keluar dari kantong */}
+      <Section title="Biaya produksi" purpose="Berapa modal yang keluar tiap produk. Semua di sini menaikkan Biaya modal." locked={disabled}>
+        <div className="grid grid-cols-2 gap-2">
+          <NumField label="FDM harga modal/g" hint="Harga beli filament FDM per gram. Dikali berat produk untuk jadi Biaya modal." value={s.material.FDM.hppPerGram} disabled={disabled} onChange={(n) => setMat("FDM", "hppPerGram", n)} />
+          <NumField label="SLA harga modal/g" hint="Harga beli resin per gram. Dipakai kalau jenis filament SLA." value={s.material.SLA.hppPerGram} disabled={disabled} onChange={(n) => setMat("SLA", "hppPerGram", n)} />
+          <NumField label="FDM failure %" hint="Perkiraan persen cetakan FDM gagal. Menambah buffer gagal ke Biaya modal." value={s.material.FDM.failureRatePct} disabled={disabled} onChange={(n) => setMat("FDM", "failureRatePct", n)} />
+          <NumField label="SLA failure %" hint="Perkiraan persen cetakan SLA gagal. Menambah buffer gagal ke Biaya modal." value={s.material.SLA.failureRatePct} disabled={disabled} onChange={(n) => setMat("SLA", "failureRatePct", n)} />
+          <NumField label="Biaya mesin/jam" hint="Listrik + depresiasi printer + maintenance per jam. Dikali durasi print." value={s.mesinPerJam} disabled={disabled} onChange={(n) => setS((p) => ({ ...p, mesinPerJam: n }))} />
+          <NumField label="Failure spread %" hint="Berapa persen biaya gagal dibebankan ke produk ini. 50 = separuhnya, sisanya dianggap tertutup produksi lain." value={s.failureSpreadPct} disabled={disabled} onChange={(n) => setS((p) => ({ ...p, failureSpreadPct: n }))} />
+          <NumField label="Test layer %" hint="Biaya uji layer/prototype yang dibebankan ke produk." value={s.testLayerPct} disabled={disabled} onChange={(n) => setS((p) => ({ ...p, testLayerPct: n }))} />
+        </div>
+      </Section>
+
+      {/* 2 — dari modal jadi harga */}
+      <Section title="Harga jual" purpose="Dari modal, jadi berapa harga jualnya." locked={disabled}>
+        <div className="grid grid-cols-2 gap-2">
+          <NumField label="FDM harga jual/g" hint="Tarif jual filament FDM per gram. Menentukan Harga jual minimum (bukan Biaya modal)." value={s.material.FDM.jualPerGram} disabled={disabled} onChange={(n) => setMat("FDM", "jualPerGram", n)} />
+          <NumField label="SLA harga jual/g" hint="Tarif jual resin per gram. Menentukan Harga jual minimum." value={s.material.SLA.jualPerGram} disabled={disabled} onChange={(n) => setMat("SLA", "jualPerGram", n)} />
+          <NumField label={`Margin ${MARGIN_TIER_LABEL.A}`} hint="Pengali dari Harga jual minimum untuk tier termurah. 1,1 = jual 1,1× harga minimum." value={s.margin.A} disabled={disabled} onChange={(n) => setMargin("A", n)} />
+          <NumField label={`Margin ${MARGIN_TIER_LABEL.B}`} hint="Pengali tier tengah — ini yang dipakai sebagai Rekomendasi harga jual." value={s.margin.B} disabled={disabled} onChange={(n) => setMargin("B", n)} />
+          <NumField label={`Margin ${MARGIN_TIER_LABEL.C}`} hint="Pengali tier tertinggi, untuk produk yang bisa dijual premium." value={s.margin.C} disabled={disabled} onChange={(n) => setMargin("C", n)} />
+          <NumField label="Reseller bulk ×" hint="Pengali harga khusus reseller yang beli banyak. Di bawah margin normal." value={s.resellerBulkMultiplier} disabled={disabled} onChange={(n) => setS((p) => ({ ...p, resellerBulkMultiplier: n }))} />
+          <NumField label="Fee Offline ×" hint="Pengali channel offline. 1,0 = tanpa potongan." value={s.channels.offline} disabled={disabled} onChange={(n) => setChan("offline", n)} />
+          <NumField label="Fee Shopee ×" hint="Pengali untuk menutup potongan Shopee. 1,2 = naikkan harga 20%." value={s.channels.shopee} disabled={disabled} onChange={(n) => setChan("shopee", n)} />
+        </div>
+      </Section>
+
+      {/* 3 — biaya di luar cetak */}
+      <Section title="Tambahan" purpose="Biaya di luar proses cetak. Muncul sebagai pilihan cepat di kalkulator." locked={disabled}>
+        <PresetList title="Komponen" hint="Preset komponen (gantungan, switch, label). Di kalkulator tinggal klik — bisa dipilih lebih dari satu." disabled={disabled} list={s.komponenPresets} onSet={komp.set} onAdd={komp.add} onDel={komp.del} addLabel="Tambah komponen" />
+        <PresetList title="Packing" hint="Pilihan packing. Di kalkulator hanya SATU yang bisa dipilih per perhitungan." disabled={disabled} list={s.packingPresets} onSet={pack.set} onAdd={pack.add} onDel={pack.del} addLabel="Tambah packing" />
+
+        <div className="flex flex-col gap-3">
+          <h3 className="text-[12px] g-t2 flex items-center gap-1">
+            Labor (preset bundle)
+            <InfoTip text="Paket biaya tenaga kerja. Satu klik di kalkulator mengisi beberapa baris sekaligus. Biaya = jam × rate + flat." />
+          </h3>
+          {s.laborPresets.map((lp, pi) => (
+            <div key={lp.id} className="flex flex-col gap-1 border-l-2 border-[color:var(--g-row-border)] pl-2">
+              <div className="flex items-center gap-2">
+                <GlassInput value={lp.nama} disabled={disabled} placeholder="Nama preset" className="flex-1" onChange={(e) => setLaborNama(pi, e.target.value)} />
+                {!disabled && <button type="button" onClick={() => delLaborPreset(pi)} className="g-t4 text-sm px-1" aria-label="Hapus preset labor">✕ preset</button>}
               </div>
-            ))}
-            {!disabled && <button type="button" onClick={() => addItem(pi)} className="text-[11px] g-t4 underline self-start pl-2">＋ Tambah item</button>}
-          </div>
-        ))}
-        {!disabled && <button type="button" onClick={addLaborPreset} className="text-[12px] g-t4 underline self-start">＋ Tambah preset labor</button>}
-      </section>
-      <section className="flex flex-col gap-2">
-        <h2 className="text-[12px] font-medium g-t2">Tampilan</h2>
+              {lp.items.map((it, ii) => (
+                <div key={ii} className="flex items-center gap-2 flex-wrap pl-2">
+                  <GlassInput value={it.nama} disabled={disabled} placeholder="Item" className="flex-1 min-w-[100px]" onChange={(e) => setItem(pi, ii, { nama: e.target.value })} />
+                  <GlassInput type="number" inputMode="decimal" placeholder="jam" value={it.jam ?? ""} disabled={disabled} className="w-16" onChange={(e) => setItem(pi, ii, { jam: numOrUndef(e.target.value) })} />
+                  <GlassInput type="number" inputMode="decimal" placeholder="rate/jam" value={it.ratePerJam ?? ""} disabled={disabled} className="w-24" onChange={(e) => setItem(pi, ii, { ratePerJam: numOrUndef(e.target.value) })} />
+                  <GlassInput type="number" inputMode="decimal" placeholder="flat" value={it.flat ?? ""} disabled={disabled} className="w-20" onChange={(e) => setItem(pi, ii, { flat: numOrUndef(e.target.value) })} />
+                  {!disabled && <button type="button" onClick={() => delItem(pi, ii)} className="g-t4 text-sm px-1" aria-label="Hapus item">✕</button>}
+                </div>
+              ))}
+              {!disabled && <button type="button" onClick={() => addItem(pi)} className="text-[11px] g-t4 underline self-start pl-2">＋ Tambah item</button>}
+            </div>
+          ))}
+          {!disabled && <button type="button" onClick={addLaborPreset} className="text-[12px] g-t4 underline self-start">＋ Tambah preset labor</button>}
+        </div>
+      </Section>
+
+      {/* 4 — tampilan; selalu bisa diubah, bukan fitur berbayar */}
+      <Section title="Tampilan" purpose="Cara hasil ditampilkan. Bisa diubah semua pengguna.">
         <label className="text-[12px] g-t3 flex items-center gap-2">
           <input type="checkbox" checked={rincian} onChange={toggleRincian} aria-label="Tampilkan rincian perhitungan" />
           Tampilkan rincian perhitungan di kalkulator
+          <InfoTip text="Menampilkan asal-usul angka: produksi, komponen, packing, labor → Biaya modal → harga. Tak mengubah hasil hitungan." />
         </label>
-      </section>
+      </Section>
 
       {editable ? (
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 pt-4 border-t border-[color:var(--g-row-border)]">
           <GlassButton onClick={save} disabled={saving}>{saving ? "Menyimpan…" : "Simpan"}</GlassButton>
           <button type="button" onClick={reset} className="text-[12px] g-t4 underline">Reset ke default</button>
           {msg && <span className="text-[12px] g-t4">{msg}</span>}
