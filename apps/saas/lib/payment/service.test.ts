@@ -104,8 +104,8 @@ describe("createOrReuseCheckout", () => {
 describe("markPaid", () => {
   it("set paidMarkedAt bila payment milik user & PENDING", async () => {
     (prisma.payment.findFirst as any).mockResolvedValue({ id: "p1" });
-    await markPaid("p1", "u1", NOW);
-    expect(prisma.payment.update).toHaveBeenCalledWith({ where: { id: "p1" }, data: { paidMarkedAt: NOW } });
+    await markPaid("p1", "u1", { proofKey: "proofs/p1.jpg", proofType: "image/jpeg" }, NOW);
+    expect(prisma.payment.update).toHaveBeenCalledWith({ where: { id: "p1" }, data: { paidMarkedAt: NOW, proofKey: "proofs/p1.jpg", proofType: "image/jpeg" } });
     expect(prisma.payment.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ id: "p1", userId: "u1", status: "PENDING", createdAt: { gt: expect.any(Date) } }),
@@ -114,7 +114,24 @@ describe("markPaid", () => {
   });
   it("bukan milik user / tak hidup → throw", async () => {
     (prisma.payment.findFirst as any).mockResolvedValue(null);
-    await expect(markPaid("p1", "u1", NOW)).rejects.toThrow();
+    await expect(markPaid("p1", "u1", { proofKey: "k", proofType: "image/jpeg" }, NOW)).rejects.toThrow();
+  });
+});
+
+describe("1c-2 markPaid simpan bukti", () => {
+  it("menyimpan paidMarkedAt + proofKey + proofType", async () => {
+    const now = new Date("2026-07-20T10:00:00Z");
+    (prisma.payment.findFirst as any).mockResolvedValue({ id: "p1", userId: "u1", status: "PENDING" });
+    await markPaid("p1", "u1", { proofKey: "proofs/p1.jpg", proofType: "image/jpeg" }, now);
+    expect(prisma.payment.update).toHaveBeenCalledWith({
+      where: { id: "p1" },
+      data: { paidMarkedAt: now, proofKey: "proofs/p1.jpg", proofType: "image/jpeg" },
+    });
+  });
+  it("tetap tolak payment bukan milik user", async () => {
+    (prisma.payment.findFirst as any).mockResolvedValue(null);
+    await expect(markPaid("p1", "lain", { proofKey: "k", proofType: "image/jpeg" })).rejects.toThrow("not_found");
+    expect(prisma.payment.update).not.toHaveBeenCalled();
   });
 });
 
