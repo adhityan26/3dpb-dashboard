@@ -115,7 +115,7 @@ export default async function AdminPage() {
   ];
 
   return (
-    <PageShell subtitle="Admin" current="admin" owner={true}>
+    <PageShell subtitle="Admin" current="admin" owner={true} userLabel={session?.user?.email ?? undefined}>
       <AdminTabs tabs={tabs} />
     </PageShell>
   );

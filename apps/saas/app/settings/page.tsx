@@ -14,7 +14,7 @@ export default async function SettingsPage() {
   const ent = await getEntitlement(userId);
   const paidCore = capabilities(ent).paidCore;
   return (
-    <PageShell subtitle="Setting" current="setting" owner={isOwner(session?.user?.email)}>
+    <PageShell subtitle="Setting" current="setting" owner={isOwner(session?.user?.email)} userLabel={session?.user?.email ?? undefined}>
       <h1 className="text-lg font-semibold g-t1 mb-1">Setting kalkulator</h1>
       {!paidCore && <p className="text-[12px] g-t4 mb-4">Ini nilai default (read-only). Ambil Pro untuk mengubah &amp; memakainya di kalkulatormu.</p>}
       <SettingsPanel editable={paidCore} userId={userId} />
