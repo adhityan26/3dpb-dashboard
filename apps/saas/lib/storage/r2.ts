@@ -22,7 +22,8 @@ function clientAndUrl(key: string) {
 
 export async function putProof(key: string, body: ArrayBuffer | Uint8Array, contentType: string): Promise<void> {
   const { client, url } = clientAndUrl(key);
-  const res = await client.fetch(url, { method: "PUT", body, headers: { "Content-Type": contentType } });
+  // TS 5.7+ menganggap Uint8Array<ArrayBufferLike> tak persis BodyInit; keduanya valid BufferSource saat runtime.
+  const res = await client.fetch(url, { method: "PUT", body: body as BodyInit, headers: { "Content-Type": contentType } });
   if (!res.ok) throw new Error(`r2_put_failed_${res.status}`);
 }
 
