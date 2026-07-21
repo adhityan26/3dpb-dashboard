@@ -5,7 +5,7 @@ const PUBLIC_PATHS = ["/login"]
 
 // Akses per role
 const ROLE_ACCESS: Record<string, string[]> = {
-  OWNER: ["/order", "/iklan", "/analisa", "/produk", "/finance", "/landing", "/settings", "/light-generator"],
+  OWNER: ["/order", "/iklan", "/analisa", "/produk", "/finance", "/landing", "/settings", "/light-generator", "/cyd-layout", "/firmware-update"],
   ADMIN: ["/order", "/produk", "/finance", "/landing"],
   TEST_USER: ["/order", "/iklan", "/analisa", "/produk"],
 }
