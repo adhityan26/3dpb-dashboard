@@ -4,12 +4,13 @@
 import type { LayoutCellOut, FieldPresetKey } from '@/lib/cyd-layout/types'
 import { FIELD_PRESETS } from '@/lib/cyd-layout/types'
 
-export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurationSec, onUpdateDuration }: {
+export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurationSec, onUpdateDuration, activePageId }: {
   cell: LayoutCellOut | null
   onUpdateCell: (cell: LayoutCellOut) => void
   onRemoveCell: () => void
   pageDurationSec: number
   onUpdateDuration: (seconds: number) => void
+  activePageId: string
 }) {
   function handlePresetChange(preset: FieldPresetKey) {
     if (!cell || ('type' in cell && cell.type === 'label')) return
@@ -18,11 +19,15 @@ export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurati
 
   // Identitas unik sel terpilih — dipakai sebagai React key agar input
   // uncontrolled (defaultValue) remount & baca ulang nilai saat seleksi
-  // berpindah ke sel lain (bukan cuma re-render dengan prop baru).
+  // berpindah ke sel lain (bukan cuma re-render dengan prop baru). Posisi
+  // (col/row) saja tidak cukup: dua halaman berbeda bisa punya sel di
+  // koordinat yang sama (mis. label sudut yang sama-sama masih teks default
+  // "Label baru" sebelum diedit) — activePageId (unik per skema) dilipat ke
+  // key ini di kedua cabang supaya ganti halaman selalu memicu remount.
   function getSelectedCellKey(): string {
     if (!cell) return 'none'
-    if ('type' in cell) return `label-${cell.col}-${cell.row}`
-    return `printer-${cell.col}-${cell.row}-${cell.printer}`
+    if ('type' in cell) return `label-${activePageId}-${cell.col}-${cell.row}`
+    return `printer-${activePageId}-${cell.col}-${cell.row}-${cell.printer}`
   }
   const selectedCellKey = getSelectedCellKey()
 
