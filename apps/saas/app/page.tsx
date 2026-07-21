@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { getEntitlement, capabilities } from "@/lib/entitlement";
 import { isOwner } from "@/lib/owner";
 import { Calculator } from "@/components/Calculator";
+import { PageShell } from "@/components/PageShell";
 
 export default async function Home() {
   const session = await auth();
@@ -11,11 +12,8 @@ export default async function Home() {
   if (!session?.user?.id) redirect("/login");
   const ent = await getEntitlement(session.user.id);
   return (
-    <Calculator
-      authenticated={true}
-      paidCore={capabilities(ent).paidCore}
-      userId={session.user.id}
-      owner={isOwner(session.user.email)}
-    />
+    <PageShell subtitle="Kalkulator harga jual" current="kalkulator" owner={isOwner(session.user.email)}>
+      <Calculator authenticated={true} paidCore={capabilities(ent).paidCore} userId={session.user.id} />
+    </PageShell>
   );
 }

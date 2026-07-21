@@ -6,7 +6,6 @@ import { DEFAULT_LOCAL_SETTINGS, type LocalSettings } from "@/lib/kalkulator/loc
 import { loadSettings } from "@/lib/store/local-settings";
 import { GlassCard, GlassInput } from "@3pb/ui";
 import { LockedBlock } from "./LockedBlock";
-import { AppHeader } from "./AppHeader";
 import type { KomponenRow, LaborRow } from "@/lib/kalkulator/compose";
 import { KomponenLaborInput } from "./KomponenLaborInput";
 import { RincianPanel } from "./RincianPanel";
@@ -15,7 +14,7 @@ import { getRincianPref } from "@/lib/store/display-prefs";
 const rupiah = (n: number) => "Rp" + n.toLocaleString("id-ID");
 const TIERS: MarginTier[] = ["A", "B", "C"];
 
-export function Calculator({ authenticated, paidCore = false, userId = null, owner = false }: { authenticated: boolean; paidCore?: boolean; userId?: string | null; owner?: boolean }) {
+export function Calculator({ authenticated, paidCore = false, userId = null }: { authenticated: boolean; paidCore?: boolean; userId?: string | null }) {
   const [gramasi, setGramasi] = useState("50");
   const [durasi, setDurasi] = useState("3");
   const [tipe, setTipe] = useState<"FDM" | "SLA">("FDM");
@@ -42,9 +41,7 @@ export function Calculator({ authenticated, paidCore = false, userId = null, own
   const view = valid ? fullView({ gramasi: g, durasiJam: d, tipe, ...addon }, settings) : null;
 
   return (
-    <main className="max-w-3xl mx-auto p-6">
-      <AppHeader subtitle="Kalkulator harga jual" authenticated={authenticated} owner={owner} current="kalkulator" />
-      <div className="grid md:grid-cols-2 gap-5 items-start">
+    <div className="grid md:grid-cols-2 gap-5 items-start">
         {/* Input */}
         <GlassCard className="p-4 flex flex-col gap-3">
           <label className="text-[12px] g-t3">Berat (gram)
@@ -122,7 +119,6 @@ export function Calculator({ authenticated, paidCore = false, userId = null, own
             </div>
           )}
         </GlassCard>
-      </div>
-    </main>
+    </div>
   );
 }

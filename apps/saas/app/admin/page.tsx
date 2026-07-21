@@ -7,7 +7,7 @@ import { listPending, listPaid } from "@/lib/payment/service";
 import { prisma } from "@/lib/db";
 import { ConfigEditor } from "@/components/admin/ConfigEditor";
 import { WaitlistTable } from "@/components/admin/WaitlistTable";
-import { AppHeader } from "@/components/AppHeader";
+import { PageShell } from "@/components/PageShell";
 import { PaymentQueue, type PendingRow } from "@/components/admin/PaymentQueue";
 import { PaidList, type PaidRow } from "@/components/admin/PaidList";
 import { UserList, type UserRow } from "@/components/admin/UserList";
@@ -115,9 +115,8 @@ export default async function AdminPage() {
   ];
 
   return (
-    <main className="max-w-3xl mx-auto p-6 flex flex-col gap-6">
-      <AppHeader subtitle="Admin" owner={true} current="admin" />
+    <PageShell subtitle="Admin" current="admin" owner={true}>
       <AdminTabs tabs={tabs} />
-    </main>
+    </PageShell>
   );
 }
