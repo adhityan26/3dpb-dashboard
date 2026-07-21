@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from "react"
 import { usePOList, useDeletePO, useOCRInvoice } from "@/lib/hooks/use-po"
-import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
 import { POForm } from "./POForm"
 import { PODetail } from "./PODetail"
 import type { POListItem, OCRPOResult } from "@/lib/po/types"
@@ -89,7 +88,8 @@ export function POTab() {
 
   return (
     <div className="space-y-4">
-      <GlassPageHeader title="Purchase Order" subtitle="Kelola pembelian filament dari vendor">
+      {/* Judul halaman diurus PageShell di halaman finance */}
+      <div className="flex justify-end">
         <div className="flex gap-2 flex-wrap">
           {/* OCR Upload */}
           <input ref={fileRef} type="file" accept="image/*" className="hidden"
@@ -116,7 +116,7 @@ export function POTab() {
             + Buat PO
           </button>
         </div>
-      </GlassPageHeader>
+      </div>
 
       {/* JSON Import panel */}
       {showJsonImport && (

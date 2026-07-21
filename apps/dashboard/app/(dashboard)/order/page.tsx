@@ -16,7 +16,7 @@ import { useStravaOrders } from "@/lib/hooks/use-strava-orders"
 import { useLgOrders, useCreateInternalLgOrder } from "@/lib/hooks/use-light-generator"
 import { LgOrderTable } from "@/components/light-generator/LgOrderTable"
 import { Button } from "@/components/ui/button"
-import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
+import { PageShell } from "@/components/layout/PageShell"
 import { OrderSidebar, type OrderChannel } from "@/components/order/OrderSidebar"
 import { StravaOrderList } from "@/components/order/StravaOrderList"
 import { InvoiceForm } from "@/components/invoice/InvoiceForm"
@@ -368,14 +368,11 @@ function OrderPageInner() {
   }
 
   return (
-    <div className="space-y-4">
-      <GlassPageHeader title="Order" subtitle="Kelola pesanan dari berbagai channel">
-      </GlassPageHeader>
-
+    <PageShell title="Order" description="Kelola pesanan dari berbagai channel">
       <div className="flex gap-4">
         <OrderSidebar active={channel} onChange={(ch) => setChannel(ch)} />
 
-                {/* Content Area */}
+        {/* Content Area */}
         <div className="flex-1 overflow-auto">
           {channel === "shopee" && <ShopeeOrderView />}
           {channel === "tokopedia" && <TokopediaOrderView />}
@@ -383,6 +380,6 @@ function OrderPageInner() {
           {channel === "strava" && <StravaOrderView />}
         </div>
       </div>
-    </div>
+    </PageShell>
   )
 }

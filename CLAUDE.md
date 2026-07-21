@@ -31,7 +31,7 @@ pnpm --filter shopee-dashboard db:seed-kalk-v2   # seed profiles/presets kalkula
 
 ## Aturan penting
 
-- **UI: baca `docs/ui-page-layout.md` sebelum bikin/mengubah halaman — berlaku `apps/saas` DAN `apps/dashboard`.** saas: halaman ber-auth WAJIB dibungkus `PageShell` (`title` prop wajib, ditegakkan TypeScript). dashboard: kerangka ada di `app/(dashboard)/layout.tsx`, halaman cuma isi `children` + blok judul manual (PageShell dashboard = utang, sesi tersendiri). Jangan tulis `<main>`/nav/background sendiri.
+- **UI: baca `docs/ui-page-layout.md` sebelum bikin/mengubah halaman — berlaku `apps/saas` DAN `apps/dashboard`.** Dua app sama: halaman WAJIB dibungkus `PageShell` (`title` prop wajib, ditegakkan TypeScript + test cakupan). Bedanya `PageShell` dashboard hanya merender blok judul — nav/container/background sudah di `app/(dashboard)/layout.tsx`. Jangan tulis `<main>`/nav/background sendiri.
 - **14 golden test** di `packages/kalkulator-core/src/formula.test.ts` = kontrak paritas formula legacy. Jangan diedit untuk meloloskan perubahan — perbaiki adapter/wrapper-nya. Detail paritas: `docs/kalkulator-formula.md` §4.
 - Perubahan formula dibuat SEKALI di `packages/kalkulator-core` — dashboard internal dan SaaS dua-duanya konsumen.
 - `apps/dashboard` deploy ke homelab via `./apps/dashboard/deploy.sh` (build context = root repo, `-f apps/dashboard/Dockerfile`). JANGAN deploy tanpa diminta user. Rollback: image tag `shopee-dashboard:pre-monorepo-20260706` di Docker host + git tag `pre-monorepo` (jangan `docker image prune -af` selama tag masih dibutuhkan).

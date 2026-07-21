@@ -4,7 +4,6 @@ import { useState } from "react"
 import { KalkulasiForm } from "./KalkulasiForm"
 import { KalkulasiHistory } from "./KalkulasiHistory"
 import { LinkProdukModal } from "./LinkProdukModal"
-import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
 import type { KalkulasiData } from "@/lib/kalkulator/types"
 
 export function KalkulasiTab() {
@@ -30,19 +29,17 @@ export function KalkulasiTab() {
 
   return (
     <div className="space-y-6">
-      <GlassPageHeader
-        title="Kalkulator Harga"
-        subtitle="Hitung HPP, Floor Price, dan rekomendasi harga jual per produk"
-      >
-        {editingKalk && (
+      {/* Judul halaman diurus PageShell di halaman produk */}
+      {editingKalk && (
+        <div className="flex justify-end">
           <button
             onClick={handleNew}
             className="h-8 px-3 rounded-[8px] text-[11px] g-btn-ghost"
           >
             + Kalkulasi Baru
           </button>
-        )}
-      </GlassPageHeader>
+        </div>
+      )}
 
       {/* Success banner */}
       {savedKalk && (

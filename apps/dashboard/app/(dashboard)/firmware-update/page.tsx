@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { PageShell } from '@/components/layout/PageShell'
 
 interface Status { latestVersion: string; deviceVersion: string | null; deviceIp: string | null; upToDate: boolean }
 
@@ -28,26 +29,27 @@ export default function FirmwareUpdatePage() {
   if (!status) return <div className="p-6">Memuat status...</div>
 
   return (
-    <div className="p-6 max-w-lg">
-      <h1 className="text-xl font-semibold mb-4">Update Firmware CYD</h1>
-      <div className="text-sm space-y-1 mb-4">
-        <p>Versi ter-build: <code>{status.latestVersion}</code></p>
-        <p>Versi di device: <code>{status.deviceVersion ?? 'tidak terdeteksi'}</code></p>
-        <p>IP device: <code>{status.deviceIp ?? '-'}</code></p>
-        <p>Status: {status.upToDate ? '✅ Sudah versi terbaru' : '⚠️ Ada update tersedia'}</p>
+    <PageShell title="Update Firmware CYD">
+      <div className="max-w-lg">
+        <div className="text-sm space-y-1 mb-4">
+          <p>Versi ter-build: <code>{status.latestVersion}</code></p>
+          <p>Versi di device: <code>{status.deviceVersion ?? 'tidak terdeteksi'}</code></p>
+          <p>IP device: <code>{status.deviceIp ?? '-'}</code></p>
+          <p>Status: {status.upToDate ? '✅ Sudah versi terbaru' : '⚠️ Ada update tersedia'}</p>
+        </div>
+        <button
+          onClick={handleUpdate}
+          disabled={busy || status.upToDate || !status.deviceIp}
+          className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
+        >
+          {busy ? 'Mengupdate... (device restart otomatis)' : 'Update CYD'}
+        </button>
+        {result && (
+          <p className={`mt-3 ${result.success ? 'text-green-600' : 'text-red-600'}`}>
+            {result.success ? '✅ ' : '❌ '}{result.message}
+          </p>
+        )}
       </div>
-      <button
-        onClick={handleUpdate}
-        disabled={busy || status.upToDate || !status.deviceIp}
-        className="px-4 py-2 bg-blue-600 text-white rounded disabled:opacity-50"
-      >
-        {busy ? 'Mengupdate... (device restart otomatis)' : 'Update CYD'}
-      </button>
-      {result && (
-        <p className={`mt-3 ${result.success ? 'text-green-600' : 'text-red-600'}`}>
-          {result.success ? '✅ ' : '❌ '}{result.message}
-        </p>
-      )}
-    </div>
+    </PageShell>
   )
 }

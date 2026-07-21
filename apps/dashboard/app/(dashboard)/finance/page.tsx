@@ -4,6 +4,7 @@ import { Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { POTab } from "@/components/po/POTab"
 import { InvoiceClientPage } from "@/components/invoice/InvoiceClientPage"
+import { PageShell } from "@/components/layout/PageShell"
 
 export default function FinancePage() {
   return (
@@ -15,6 +16,12 @@ export default function FinancePage() {
 
 const VALID_TABS = ["po", "invoice"] as const
 type FinanceTab = typeof VALID_TABS[number]
+
+/** Judul PageShell mengikuti tab aktif, supaya selalu menggambarkan yang dilihat. */
+const TAB_HEADING: Record<FinanceTab, { title: string; description: string }> = {
+  po:      { title: "Purchase Order", description: "Kelola pembelian filament dari vendor" },
+  invoice: { title: "Invoice",        description: "Kelola quotation dan invoice untuk buyer" },
+}
 
 function FinancePageInner() {
   const router = useRouter()
@@ -30,29 +37,33 @@ function FinancePageInner() {
     router.replace(`?${params.toString()}`, { scroll: false })
   }
 
-  return (
-    <div className="space-y-4">
-      {/* Sub-tab nav */}
-      <div className="flex border-b border-gray-200 dark:border-white/10 flex-wrap">
-        {([
-          ["po",      "📋 PO"],
-          ["invoice", "📄 Invoice"],
-        ] as [FinanceTab, string][]).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              activeTab === key
-                ? "border-indigo-500 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400"
-                : "border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
+  const heading = TAB_HEADING[activeTab]
 
-      {activeTab === "po" ? <POTab /> : <InvoiceClientPage />}
-    </div>
+  return (
+    <PageShell title={heading.title} description={heading.description}>
+      <div className="space-y-4">
+        {/* Sub-tab nav */}
+        <div className="flex border-b border-gray-200 dark:border-white/10 flex-wrap">
+          {([
+            ["po",      "📋 PO"],
+            ["invoice", "📄 Invoice"],
+          ] as [FinanceTab, string][]).map(([key, label]) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                activeTab === key
+                  ? "border-indigo-500 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400"
+                  : "border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === "po" ? <POTab /> : <InvoiceClientPage />}
+      </div>
+    </PageShell>
   )
 }

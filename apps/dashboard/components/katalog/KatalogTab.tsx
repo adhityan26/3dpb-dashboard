@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { useKatalogList } from "@/lib/hooks/use-katalog"
-import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
 import { KatalogCard } from "./KatalogCard"
 import { KatalogForm } from "./KatalogForm"
 import type { ProdukInternalData } from "@/lib/katalog/types"
@@ -26,10 +25,8 @@ export function KatalogTab() {
 
   return (
     <div className="space-y-6">
-      <GlassPageHeader
-        title="Katalog Produk"
-        subtitle="Daftar produk internal yang kamu jual"
-      >
+      {/* Judul halaman diurus PageShell di halaman produk */}
+      <div className="flex justify-end">
         <button
           onClick={() => { setEditingProduk(null); setShowForm(true) }}
           className="h-9 px-4 rounded-[10px] text-[12px] font-semibold text-white flex items-center gap-1.5 transition-all"
@@ -40,7 +37,7 @@ export function KatalogTab() {
           <span className="text-[15px] leading-none">+</span>
           Produk Baru
         </button>
-      </GlassPageHeader>
+      </div>
 
       {isLoading && (
         <div className="text-[11px] text-center py-12 g-t4">

@@ -46,7 +46,7 @@ export function GeneratorEditor() {
   }
 
   return (
-    <div className="p-6 space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-2xl">
       {zoomSrc && <ImageZoomModal src={zoomSrc.src} alt={zoomSrc.alt} onClose={() => setZoomSrc(null)} />}
       <div>
         <h2 className="text-[15px] font-bold text-white">🎨 Generator</h2>

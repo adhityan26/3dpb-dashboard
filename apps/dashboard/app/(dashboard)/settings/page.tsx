@@ -21,7 +21,7 @@ import { CydDeviceCard } from "@/components/settings/CydDeviceCard"
 import { useSettings } from "@/lib/hooks/use-settings"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
-import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
+import { PageShell } from "@/components/layout/PageShell"
 
 export default function SettingsPage() {
   return (
@@ -94,76 +94,76 @@ function SettingsPageInner() {
   if (!data) return null
 
   return (
-    <div className="space-y-4">
-      <GlassPageHeader title="Settings" subtitle="Konfigurasi sistem, notifikasi, dan akun" />
+    <PageShell title="Settings" description="Konfigurasi sistem, notifikasi, dan akun">
+      <div className="space-y-4">
+        {/* Sub-tab nav */}
+        <div className="flex border-b border-gray-200 dark:border-white/10 flex-wrap">
+          {TABS.map(({ key, label }) => (
+            <button
+              key={key}
+              onClick={() => setTab(key)}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                activeTab === key
+                  ? "border-indigo-500 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400"
+                  : "border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
 
-      {/* Sub-tab nav */}
-      <div className="flex border-b border-gray-200 dark:border-white/10 flex-wrap">
-        {TABS.map(({ key, label }) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-              activeTab === key
-                ? "border-indigo-500 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400"
-                : "border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
-            }`}
-          >
-            {label}
-          </button>
-        ))}
+        {/* Tab content */}
+        {activeTab === "shopee" && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <ShopeeStatusCard status={data.shopee} />
+              <RefreshIntervalCard />
+            </div>
+            <ShopeeFeeAnalyticsCard />
+          </div>
+        )}
+
+        {activeTab === "kalkulator" && (
+          <div className="space-y-4">
+            <KalkulatorSettingsCard />
+            <KalkulatorV2SettingsCard />
+          </div>
+        )}
+
+        {activeTab === "notifikasi" && (
+          <div className="space-y-4">
+            <NotificationConfigCard config={data.notification} />
+            <AlertThresholdCard thresholds={data.thresholds} />
+            <NotificationRunnerCard />
+          </div>
+        )}
+
+        {activeTab === "user" && (
+          <UserManagementCard />
+        )}
+
+        {activeTab === "monitoring" && (
+          <div className="space-y-4">
+            <CydDeviceCard />
+          </div>
+        )}
+
+        {activeTab === "lainnya" && (
+          <div className="space-y-4">
+            <InvoiceMethodsCard />
+            <TokopediaSessionCard />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FilamenCatalogCard lastCatalogSync={filamenSettings?.lastCatalogSync ?? null} />
+              <StickerSizeCard
+                initialSize={filamenSettings?.stickerSize ?? "40x30"}
+                canEdit={session?.user?.role === "OWNER"}
+              />
+            </div>
+            <FilamentAliasCard />
+          </div>
+        )}
       </div>
-
-      {/* Tab content */}
-      {activeTab === "shopee" && (
-        <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <ShopeeStatusCard status={data.shopee} />
-            <RefreshIntervalCard />
-          </div>
-          <ShopeeFeeAnalyticsCard />
-        </div>
-      )}
-
-      {activeTab === "kalkulator" && (
-        <div className="space-y-4">
-          <KalkulatorSettingsCard />
-          <KalkulatorV2SettingsCard />
-        </div>
-      )}
-
-      {activeTab === "notifikasi" && (
-        <div className="space-y-4">
-          <NotificationConfigCard config={data.notification} />
-          <AlertThresholdCard thresholds={data.thresholds} />
-          <NotificationRunnerCard />
-        </div>
-      )}
-
-      {activeTab === "user" && (
-        <UserManagementCard />
-      )}
-
-      {activeTab === "monitoring" && (
-        <div className="space-y-4">
-          <CydDeviceCard />
-        </div>
-      )}
-
-      {activeTab === "lainnya" && (
-        <div className="space-y-4">
-          <InvoiceMethodsCard />
-          <TokopediaSessionCard />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <FilamenCatalogCard lastCatalogSync={filamenSettings?.lastCatalogSync ?? null} />
-            <StickerSizeCard
-              initialSize={filamenSettings?.stickerSize ?? "40x30"}
-              canEdit={session?.user?.role === "OWNER"}
-            />
-          </div>
-          <FilamentAliasCard />
-        </div>
-      )}
-    </div>
+    </PageShell>
   )
 }

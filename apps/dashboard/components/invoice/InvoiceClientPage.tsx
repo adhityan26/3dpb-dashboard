@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 import { useInvoiceList, useDeleteInvoice } from "@/lib/hooks/use-invoice"
-import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
 import { InvoiceForm } from "@/components/invoice/InvoiceForm"
 import { InvoiceDetail } from "@/components/invoice/InvoiceDetail"
 import type { QuotationStatus } from "@/lib/invoice/types"
@@ -48,7 +47,8 @@ export function InvoiceClientPage() {
 
   return (
     <div className="space-y-5">
-      <GlassPageHeader title="Invoice" subtitle="Kelola quotation dan invoice untuk buyer">
+      {/* Judul halaman diurus PageShell di halaman pemanggil (invoice & finance) */}
+      <div className="flex justify-end">
         <button
           onClick={() => setShowForm(true)}
           className="h-9 px-4 rounded-[10px] text-sm font-semibold text-white"
@@ -56,7 +56,7 @@ export function InvoiceClientPage() {
         >
           + Buat Invoice
         </button>
-      </GlassPageHeader>
+      </div>
 
       {/* Status filter */}
       <div className="flex gap-2 flex-wrap">

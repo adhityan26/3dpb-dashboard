@@ -4,6 +4,7 @@ import { Suspense, useState } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { CMSSidebar } from "@/components/cms/CMSSidebar"
 import { SidebarDrawerShell } from "@/components/layout/SidebarDrawerShell"
+import { PageShell } from "@/components/layout/PageShell"
 import { SiteSettingsEditor } from "@/components/cms/SiteSettingsEditor"
 import { GalleryManager } from "@/components/cms/GalleryManager"
 import { TestimonialsManager } from "@/components/cms/TestimonialsManager"
@@ -19,6 +20,20 @@ type CmsSection =
   | "site-settings" | "gallery" | "testimonials" | "faq"
   | "strava-orders" | "waitlist" | "generator" | "faceshell"
   | "lg-orders" | "keycap-orders"
+
+/** Judul PageShell mengikuti section aktif, supaya selalu menggambarkan yang dilihat. */
+const SECTION_HEADING: Record<CmsSection, string> = {
+  "site-settings":  "Site Settings",
+  "gallery":        "Galeri",
+  "testimonials":   "Testimoni",
+  "faq":            "FAQ",
+  "strava-orders":  "Strava Orders",
+  "waitlist":       "Waitlist",
+  "generator":      "Generator",
+  "faceshell":      "Faceshell",
+  "lg-orders":      "LG Orders",
+  "keycap-orders":  "Keycap Orders",
+}
 
 export default function LandingPage() {
   return (
@@ -52,7 +67,11 @@ function LandingPageInner() {
       >
         <CMSSidebar active={activeSection} onChange={setSection} />
       </SidebarDrawerShell>
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto p-4 md:p-6">
+        <PageShell
+          title={SECTION_HEADING[activeSection]}
+          description="Kelola konten situs marketing Slizebiz."
+        >
         {activeSection === "site-settings"  && <SiteSettingsEditor />}
         {activeSection === "gallery"         && <GalleryManager />}
         {activeSection === "testimonials"    && <TestimonialsManager />}
@@ -63,6 +82,7 @@ function LandingPageInner() {
         {activeSection === "faceshell"       && <FaceshellEditor />}
         {activeSection === "lg-orders"       && <LgOrdersManager />}
         {activeSection === "keycap-orders"   && <KeycapOrdersManager />}
+        </PageShell>
       </div>
     </div>
   )

@@ -8,9 +8,9 @@ Design system: **Glass UI 3DPB** — Deep Space (dark) + Liquid Glass (light), a
 > | App | Kerangka halaman | Judul halaman |
 > |---|---|---|
 > | `apps/saas` | ✅ `PageShell` — `title` prop **wajib** (ditegakkan TypeScript) | ✅ 4/4 halaman |
-> | `apps/dashboard` | ⚠️ belum ada — tiap halaman menyusun sendiri | ⚠️ 2/11 halaman (`tagihan` malah placeholder debug) |
+> | `apps/dashboard` | ✅ `PageShell` — `title` prop **wajib** (ditegakkan TypeScript) | ✅ 11/11 halaman |
 >
-> Refactor dashboard (bikin `PageShell` + bungkus 11 halaman) **dijadwalkan sesi tersendiri**. Sampai itu terjadi, halaman dashboard baru/diedit **ikuti §5 secara manual**.
+> Dua app kini sama-sama punya `PageShell` dengan `title` wajib. Bedanya tinggal apa yang dirender shell-nya — lihat §2 dan §5.
 
 ---
 
@@ -41,7 +41,8 @@ Design system: **Glass UI 3DPB** — Deep Space (dark) + Liquid Glass (light), a
 | Kontrol kanan | ThemeToggle · avatar · ⏻ | ThemeToggle · avatar · ⏻ (`ControlIsland`) |
 | Akses tab | `owner` (owner-only Admin) | `role` per tab + badge angka |
 | Drawer | — | `SidebarDrawerShell` (2 halaman) |
-| Kerangka halaman | `PageShell` (title wajib) | belum ada (lihat §5) |
+| Kerangka halaman | `PageShell` (title wajib) | `PageShell` (title wajib) |
+| Isi `PageShell` | nav + container + blok judul | **blok judul saja** — nav/container di layout |
 
 Perbedaan lebar itu **disengaja** — jangan "diseragamkan" tanpa alasan.
 
@@ -102,9 +103,48 @@ Saat modul jadi: **tambah `href`, hapus `soon`**, lalu tambahkan `key` ke tipe `
 
 ---
 
-## 5. `apps/dashboard` — konvensi (belum ditegakkan kode)
+## 5. `apps/dashboard` — cara pakai
 
-Kerangka global sudah ada di `app/(dashboard)/layout.tsx` — **jangan diduplikasi di halaman**:
+> **Setiap halaman WAJIB dibungkus `PageShell`. Jangan tulis `<main>`, nav, atau `<h1>` sendiri.**
+
+```tsx
+import { PageShell } from "@/components/layout/PageShell";
+
+export default function ContohPage() {
+  return (
+    <PageShell
+      title="Judul Halaman"                  // WAJIB
+      description="Kalimat singkat."         // opsional
+      actions={<Button>Aksi</Button>}        // opsional, kanan judul
+    >
+      {/* isi halaman */}
+    </PageShell>
+  );
+}
+```
+
+| Prop | Wajib | Fungsi |
+|---|---|---|
+| `title` | ✅ | H1 gradient. TypeScript menolak halaman tanpa judul — disengaja. |
+| `description` | — | Kalimat pendukung di bawah judul. |
+| `actions` | — | Tombol/indikator di kanan judul. |
+
+**Beda dengan saas:** `PageShell` dashboard **hanya** merender blok judul + `children`. Nav, container, dan background diurus `app/(dashboard)/layout.tsx`. Di balik layar blok judulnya memakai `GlassPageHeader` — pakai `PageShell`, jangan panggil `GlassPageHeader` langsung dari halaman.
+
+### Halaman ber-tab (finance, produk, landing)
+
+Halaman yang isinya berganti per tab/section mengisi `title` **sesuai tab aktif**, lewat peta konstanta di file halaman (`TAB_HEADING` / `PRODUK_HEADING` / `SECTION_HEADING`). Tujuannya satu heading yang selalu menggambarkan yang sedang dilihat.
+
+```tsx
+const heading = TAB_HEADING[activeTab];
+return <PageShell title={heading.title} description={heading.description}>…</PageShell>;
+```
+
+Konsekuensinya: **komponen tab/section tidak boleh punya judul halaman sendiri** (`POTab`, `InvoiceClientPage`, `KatalogTab`, `KalkulasiTab`, manager CMS). Tombol aksinya berdiri sebagai baris toolbar (`flex justify-end`) di atas konten, atau diangkat ke prop `actions` kalau state-nya ada di halaman.
+
+### Kerangka global (jangan diduplikasi di halaman)
+
+Sudah ada di `app/(dashboard)/layout.tsx`:
 
 ```tsx
 <div className="relative min-h-screen bg-glass-page">
@@ -115,29 +155,7 @@ Kerangka global sudah ada di `app/(dashboard)/layout.tsx` — **jangan diduplika
 </div>
 ```
 
-Jadi halaman **hanya mengisi `children`**. Yang harus kamu tulis sendiri (sampai `PageShell` dashboard ada):
-
-```tsx
-export default async function ContohPage() {
-  return (
-    <>
-      <div className="flex items-start justify-between gap-4 mb-5">
-        <div className="min-w-0">
-          <h1 className="text-xl font-semibold bg-gradient-to-br from-[#1a1a2e] to-indigo-600 dark:from-white dark:to-[#a5b4fc] bg-clip-text text-transparent">
-            Judul Halaman
-          </h1>
-          <p className="text-[12px] g-t4 mt-1">Kalimat singkat.</p>
-        </div>
-        {/* aksi opsional di kanan */}
-      </div>
-
-      {/* isi halaman */}
-    </>
-  );
-}
-```
-
-**Jangan** tulis `<main>`, `TabNav`, `AmbientOrbs`, atau `bg-glass-page` di halaman — semuanya sudah di layout.
+Jadi halaman **hanya mengisi `children`** — dan `children` itu isi `PageShell`. **Jangan** tulis `<main>`, `TabNav`, `AmbientOrbs`, atau `bg-glass-page` di halaman.
 
 ### Menambah tab nav dashboard
 
@@ -147,10 +165,7 @@ export default async function ContohPage() {
 
 Drawer (bukan nav global) — hanya untuk halaman dengan **panel filter/detail samping** yang perlu disembunyikan di layar kecil. Saat ini dipakai `landing` dan `produk`. Props: `open`, `onOpen`, `onClose`, `children`. Jangan pakai untuk navigasi antar halaman — itu tugas `TabNav`.
 
-### Utang yang sudah diketahui
-
-- 9 dari 11 halaman belum punya judul; `tagihan` masih `<h1>TAGIHAN PAGE LOADED OK</h1>` (placeholder debug yang lolos ke produksi).
-- Rencana: bikin `PageShell` dashboard (title wajib) + bungkus semua halaman → **sesi tersendiri**.
+Di dua halaman itu `PageShell` duduk **di dalam panel konten** (`flex-1`), bukan membungkus drawer — supaya drawer tetap full-bleed dan judul ikut kolom kontennya.
 
 ---
 
@@ -166,7 +181,7 @@ Drawer (bukan nav global) — hanya untuk halaman dengan **panel filter/detail s
 
 ## 7. Checklist sebelum selesai
 
-- [ ] Halaman punya judul (saas: prop `title`; dashboard: blok H1 §5)
+- [ ] Halaman dibungkus `PageShell` dan punya `title` (dua app sama)
 - [ ] Tak ada `<main>` / nav / background buatan sendiri
 - [ ] `current` (saas) atau tab (dashboard) menunjuk halaman yang benar
 - [ ] Hak akses diisi dari sumbernya (`isOwner(...)` / `role`), bukan hardcode
@@ -184,6 +199,8 @@ Drawer (bukan nav global) — hanya untuk halaman dengan **panel filter/detail s
 | saas | `components/AppHeader.tsx` | Nav island + `TABS` |
 | saas | `components/ThemeToggle.tsx` · `AmbientOrbs.tsx` | Toggle 3-state · orb latar |
 | saas | `app/globals.css` | `.modal-surface`, `.page-enter`, `.locked-blur` |
+| dashboard | `components/layout/PageShell.tsx` | Kerangka halaman (blok judul saja) |
+| dashboard | `components/ui/GlassPageHeader.tsx` | Blok judul yang dipakai `PageShell` — jangan dipanggil langsung dari halaman |
 | dashboard | `app/(dashboard)/layout.tsx` | Kerangka global |
 | dashboard | `components/layout/TabNav.tsx` · `MobileBottomNav.tsx` | Nav desktop · nav mobile |
 | dashboard | `components/layout/ControlIsland.tsx` · `SidebarDrawerShell.tsx` | Kontrol kanan · drawer |
