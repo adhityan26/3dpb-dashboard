@@ -76,6 +76,7 @@ model FilamentCatalog {
 
 model Printer {
   id        String   @id @default(cuid())
+  slug      String?  @unique
   name      String
   model     String   @default("")
   isActive  Boolean  @default(true)
