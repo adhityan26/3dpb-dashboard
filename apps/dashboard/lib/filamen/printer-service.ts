@@ -1,7 +1,9 @@
 import { prisma } from '@/lib/db'
+import { slugify } from '@/lib/utils/slugify'
 
 export interface PrinterData {
   id: string
+  slug: string | null
   name: string
   model: string
   isActive: boolean
@@ -15,9 +17,10 @@ export interface PrinterInput {
   model?: string
   isActive?: boolean
   notes?: string
+  slug?: string
 }
 
-function toResponse(p: { id: string; name: string; model: string; isActive: boolean; notes: string; createdAt: Date; updatedAt: Date }): PrinterData {
+function toResponse(p: { id: string; slug: string | null; name: string; model: string; isActive: boolean; notes: string; createdAt: Date; updatedAt: Date }): PrinterData {
   return { ...p, createdAt: p.createdAt.toISOString(), updatedAt: p.updatedAt.toISOString() }
 }
 
@@ -30,6 +33,7 @@ export async function createPrinter(input: PrinterInput): Promise<PrinterData> {
   const printer = await prisma.printer.create({
     data: {
       name: input.name.trim(),
+      slug: input.slug?.trim() || slugify(input.name),
       model: input.model?.trim() ?? '',
       isActive: input.isActive ?? true,
       notes: input.notes?.trim() ?? '',
@@ -44,6 +48,7 @@ export async function updatePrinter(id: string, input: Partial<PrinterInput>): P
     where: { id },
     data: {
       ...(input.name !== undefined && { name: input.name.trim() }),
+      ...(input.slug !== undefined && { slug: input.slug.trim() || null }),
       ...(input.model !== undefined && { model: input.model.trim() }),
       ...(input.isActive !== undefined && { isActive: input.isActive }),
       ...(input.notes !== undefined && { notes: input.notes.trim() }),

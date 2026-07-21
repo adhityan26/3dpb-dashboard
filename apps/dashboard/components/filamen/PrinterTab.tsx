@@ -1,14 +1,19 @@
 "use client"
 
 import { useState } from "react"
-import { usePrinters, useCreatePrinter, useUpdatePrinter, useDeletePrinter } from "@/lib/hooks/use-filamen"
+import { usePrinters, useCreatePrinter, useUpdatePrinter, useDeletePrinter, usePrintersLive } from "@/lib/hooks/use-filamen"
 import type { PrinterData } from "@/lib/filamen/types"
+import { PrinterStatusBadge } from "@/components/printers/PrinterStatusBadge"
+import { PrinterProgressBar } from "@/components/printers/PrinterProgressBar"
 
 export function PrinterTab() {
   const { data: printers, isLoading } = usePrinters()
+  const { data: liveData } = usePrintersLive()
   const createPrinter = useCreatePrinter()
   const updatePrinter = useUpdatePrinter()
   const deletePrinter = useDeletePrinter()
+
+  const liveBySlug = new Map((liveData ?? []).map((p: { slug: string | null; live: unknown }) => [p.slug, p.live]))
 
   const [showAdd, setShowAdd] = useState(false)
   const [form, setForm] = useState({ name: "", model: "", notes: "" })
@@ -56,7 +61,6 @@ export function PrinterTab() {
         </button>
       </div>
 
-      {/* Add form */}
       {showAdd && (
         <div className="border border-gray-200 dark:border-slate-700 rounded-lg p-4 bg-gray-50 dark:bg-slate-900 space-y-3">
           <p className="text-sm font-medium text-gray-700 dark:text-slate-200">Printer Baru</p>
@@ -91,12 +95,13 @@ export function PrinterTab() {
         </div>
       )}
 
-      {/* Printer list */}
       {!printers || printers.length === 0 ? (
         <div className="text-gray-400 dark:text-slate-500 text-sm text-center py-8">Belum ada printer.</div>
       ) : (
         <div className="space-y-2">
-          {printers.map((p: PrinterData) => (
+          {printers.map((p: PrinterData) => {
+            const live = p.slug ? liveBySlug.get(p.slug) as { state: string; progress: number } | null | undefined : null
+            return (
             <div key={p.id} className={`border rounded-lg p-4 bg-white dark:bg-slate-800 ${p.isActive ? "border-gray-200 dark:border-slate-700" : "border-gray-100 dark:border-slate-700 opacity-60"}`}>
               {editingId === p.id ? (
                 <div className="space-y-2">
@@ -106,6 +111,8 @@ export function PrinterTab() {
                     <input value={editForm.model ?? p.model} onChange={(e) => setEditForm(f => ({ ...f, model: e.target.value }))}
                       className="border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100" placeholder="Model" />
                   </div>
+                  <input value={editForm.slug ?? p.slug ?? ""} onChange={(e) => setEditForm(f => ({ ...f, slug: e.target.value }))}
+                    className="w-full border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100 font-mono" placeholder="slug (id CYD/MQTT, mis. jupiter)" />
                   <input value={editForm.notes ?? p.notes} onChange={(e) => setEditForm(f => ({ ...f, notes: e.target.value }))}
                     className="w-full border border-gray-300 dark:border-slate-600 rounded px-2 py-1 text-sm bg-white dark:bg-slate-700 text-gray-900 dark:text-slate-100" placeholder="Catatan" />
                   <div className="flex gap-2">
@@ -115,11 +122,20 @@ export function PrinterTab() {
                 </div>
               ) : (
                 <div className="flex items-center gap-3">
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-gray-800 dark:text-slate-100">{p.name}
-                      {p.model && <span className="ml-2 text-xs text-gray-400 dark:text-slate-500">{p.model}</span>}
-                    </p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <p className="text-sm font-medium text-gray-800 dark:text-slate-100">{p.name}
+                        {p.model && <span className="ml-2 text-xs text-gray-400 dark:text-slate-500">{p.model}</span>}
+                      </p>
+                      <PrinterStatusBadge state={live?.state ?? null} />
+                    </div>
+                    {p.slug && <p className="text-[10px] font-mono text-gray-400 dark:text-slate-500 mt-0.5">{p.slug}</p>}
                     {p.notes && <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{p.notes}</p>}
+                    {live && (
+                      <div className="mt-1.5 max-w-[160px]">
+                        <PrinterProgressBar progress={live.progress} state={live.state} />
+                      </div>
+                    )}
                   </div>
                   <button onClick={() => handleToggle(p)}
                     className={`text-xs px-2 py-1 rounded-full border ${p.isActive ? "border-green-300 dark:border-green-700 text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-950/30" : "border-gray-300 dark:border-slate-600 text-gray-400 dark:text-slate-500"}`}>
@@ -132,7 +148,7 @@ export function PrinterTab() {
                 </div>
               )}
             </div>
-          ))}
+          )})}
         </div>
       )}
     </div>

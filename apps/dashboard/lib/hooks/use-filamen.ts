@@ -185,6 +185,19 @@ export function useDeletePrinter() {
   })
 }
 
+// ── Printer live status (gabungan DB + MQTT, dipakai PrinterTab dan CYD palette) ──
+const PRINTERS_LIVE_KEY = ['printers', 'live'] as const
+
+async function fetchPrintersLive() {
+  const res = await fetch('/api/printers/live')
+  if (!res.ok) throw new Error(`HTTP ${res.status}`)
+  return res.json()
+}
+
+export function usePrintersLive() {
+  return useQuery({ queryKey: PRINTERS_LIVE_KEY, queryFn: fetchPrintersLive, refetchInterval: 15000 })
+}
+
 // ── AMS Alternatives ─────────────────────────────────────────────────────────
 
 export function useAddAlternative() {

@@ -64,6 +64,7 @@ export interface AmsSlotData {
 
 export interface PrinterData {
   id: string
+  slug: string | null
   name: string
   model: string
   isActive: boolean
