@@ -16,9 +16,19 @@ export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurati
     onUpdateCell({ ...cell, fields: FIELD_PRESETS[preset] })
   }
 
+  // Identitas unik sel terpilih — dipakai sebagai React key agar input
+  // uncontrolled (defaultValue) remount & baca ulang nilai saat seleksi
+  // berpindah ke sel lain (bukan cuma re-render dengan prop baru).
+  function getSelectedCellKey(): string {
+    if (!cell) return 'none'
+    if ('type' in cell) return `label-${cell.col}-${cell.row}`
+    return `printer-${cell.col}-${cell.row}-${cell.printer}`
+  }
+  const selectedCellKey = getSelectedCellKey()
+
   return (
     <div className="w-44 flex-shrink-0 space-y-4">
-      <div>
+      <div key={selectedCellKey}>
         <div className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-slate-500 font-semibold mb-1">Sel Terpilih</div>
         {!cell && <div className="text-xs text-gray-400 dark:text-slate-500">Klik sel di canvas</div>}
         {cell && !('type' in cell && cell.type === 'label') && (
@@ -55,6 +65,7 @@ export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurati
         <label className="text-xs text-gray-500 dark:text-slate-400 block">
           Durasi rotasi (detik, 0 = statis)
           <input
+            key={pageDurationSec}
             type="number"
             min={0}
             defaultValue={pageDurationSec}
