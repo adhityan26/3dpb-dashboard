@@ -45,8 +45,9 @@ describe("SettingsPanel 1b-2 komponen/packing/tampilan", () => {
   });
   it("Tampilan toggle persist ke localStorage segera", () => {
     render(<SettingsPanel editable={false} userId={null} />);
+    // Default rincian tampil (checked); satu klik mematikannya → "0".
     fireEvent.click(screen.getByLabelText(/rincian perhitungan/i));
-    expect(window.localStorage.getItem("slizebiz-rincian")).toBe("1");
+    expect(window.localStorage.getItem("slizebiz-rincian")).toBe("0");
   });
   it("Beli → tambah packing (isi valid) lalu Simpan meneruskan packing baru", async () => {
     render(<SettingsPanel editable={true} userId="u1" />);

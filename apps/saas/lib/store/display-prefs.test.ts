@@ -5,7 +5,7 @@ import { getRincianPref, setRincianPref } from "./display-prefs";
 beforeEach(() => window.localStorage.clear());
 
 describe("display-prefs rincian", () => {
-  it("default false", () => expect(getRincianPref()).toBe(false));
+  it("default true (rincian tampil kecuali dimatikan)", () => expect(getRincianPref()).toBe(true));
   it("set true → get true", () => {
     setRincianPref(true);
     expect(getRincianPref()).toBe(true);

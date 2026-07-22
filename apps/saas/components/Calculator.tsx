@@ -4,6 +4,7 @@ import type { MarginTier } from "@3pb/kalkulator-core";
 import { fullView, type CalcPlate } from "@/lib/kalkulator/compute";
 import { DEFAULT_LOCAL_SETTINGS, type LocalSettings } from "@/lib/kalkulator/local-settings";
 import { loadSettings } from "@/lib/store/local-settings";
+import { getRincianPref } from "@/lib/store/display-prefs";
 import { rupiah } from "@/lib/kalkulator/format";
 import { CalcSection } from "./CalcSection";
 import { PlateInput, type PlateRow } from "./PlateInput";
@@ -26,10 +27,13 @@ export function Calculator({ paidCore = false, userId = null }: { paidCore?: boo
   const [channel, setChannel] = useState("offline");
   const [tier, setTier] = useState<MarginTier>("B");
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [showRincian, setShowRincian] = useState(true);
 
   useEffect(() => {
     if (paidCore && userId) loadSettings(userId).then(setSettings);
   }, [paidCore, userId]);
+
+  useEffect(() => { setShowRincian(getRincianPref()); }, []);
 
   const toCalcPlate = (p: PlateRow): CalcPlate => ({
     id: p.id, nama: p.nama || undefined, tipe: p.tipe,
@@ -90,7 +94,7 @@ export function Calculator({ paidCore = false, userId = null }: { paidCore?: boo
       {/* Kolom kanan: hasil (sticky desktop) */}
       <div className="hidden lg:block lg:sticky lg:top-6 min-w-0">
         {view ? (
-          <ResultPanel view={view} channel={channel} tier={tier} onChannel={setChannel} onTier={setTier} onCopy={onCopy} onReset={onReset} />
+          <ResultPanel view={view} channel={channel} tier={tier} onChannel={setChannel} onTier={setTier} onCopy={onCopy} onReset={onReset} showRincian={showRincian} />
         ) : (
           <div className="text-[12px] g-t4 p-4">Isi berat &amp; durasi (angka &gt; 0) untuk melihat hasil.</div>
         )}
@@ -107,7 +111,7 @@ export function Calculator({ paidCore = false, userId = null }: { paidCore?: boo
                   <span className="text-sm font-semibold g-t1">Hasil perhitungan</span>
                   <button type="button" aria-label="Tutup rincian" className="g-t3 text-lg leading-none" onClick={() => setSheetOpen(false)}>✕</button>
                 </div>
-                <ResultPanel view={view} channel={channel} tier={tier} onChannel={setChannel} onTier={setTier} onCopy={onCopy} onReset={onReset} />
+                <ResultPanel view={view} channel={channel} tier={tier} onChannel={setChannel} onTier={setTier} onCopy={onCopy} onReset={onReset} showRincian={showRincian} />
               </div>
             </div>
           )}

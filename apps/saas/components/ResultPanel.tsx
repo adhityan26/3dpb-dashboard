@@ -9,11 +9,11 @@ const TIERS: MarginTier[] = ["A", "B", "C"];
 const CHANNELS = [{ id: "offline", label: "Offline / Langsung" }, { id: "shopee", label: "Shopee" }];
 
 export function ResultPanel({
-  view, channel, tier, onChannel, onTier, onCopy, onReset,
+  view, channel, tier, onChannel, onTier, onCopy, onReset, showRincian = true,
 }: {
   view: FullView; channel: string; tier: MarginTier;
   onChannel: (c: string) => void; onTier: (t: MarginTier) => void;
-  onCopy: () => void; onReset: () => void;
+  onCopy: () => void; onReset: () => void; showRincian?: boolean;
 }) {
   const cell = view.strategi[channel]?.[tier] ?? { harga: 0, laba: 0, marginPct: 0 };
   const chanLabel = CHANNELS.find((c) => c.id === channel)?.label ?? channel;
@@ -74,6 +74,7 @@ export function ResultPanel({
         </div>
       </GlassCard>
 
+      {showRincian && (
       <GlassCard className="p-4 min-w-0">
         <div className="text-[11px] g-t4 mb-2 uppercase tracking-wide">Rincian biaya</div>
         {[
@@ -94,6 +95,7 @@ export function ResultPanel({
           <span style={{ fontVariantNumeric: "tabular-nums" }}>{rupiah(ceil500(view.hargaJualMinimum))}</span>
         </div>
       </GlassCard>
+      )}
     </div>
   );
 }
