@@ -72,26 +72,37 @@ export function PlateInput({
         <InfoTip text="Satu produk bisa terdiri dari beberapa bagian cetak. Tiap plate punya berat & durasi sendiri; totalnya dijumlahkan jadi biaya produksi." /></div>
 
       {plates.map((p, i) => (
-        <div key={p.id} className="flex flex-col gap-1">
-          <div className="flex items-center gap-2">
-            <GlassInput value={p.nama} placeholder="Nama part (opsional)" className="flex-1"
-              onChange={(e) => setRow(i, { nama: e.target.value })} />
-            {multi && (
-              <button type="button" aria-label="Hapus plate" className="g-t4 text-sm px-1"
-                onClick={() => onPlatesChange(plates.filter((_, j) => j !== i))}>✕</button>
-            )}
-          </div>
+        <div key={p.id} className="flex flex-col gap-1.5 rounded-[12px] border border-[color:var(--g-row-border)] p-2.5">
+          {(multi || p.nama) && (
+            <div className="flex items-center gap-2">
+              <GlassInput value={p.nama} placeholder="Nama part (opsional)" className="flex-1 min-w-0"
+                onChange={(e) => setRow(i, { nama: e.target.value })} />
+              {multi && (
+                <button type="button" aria-label="Hapus plate" className="g-t4 text-base px-1 shrink-0 leading-none"
+                  onClick={() => onPlatesChange(plates.filter((_, j) => j !== i))}>✕</button>
+              )}
+            </div>
+          )}
           <div className="flex items-center gap-2">
             <select value={p.tipe} onChange={(e) => setRow(i, { tipe: e.target.value as "FDM" | "SLA" })}
-              className="glass-input rounded-[10px] px-2 h-10 text-sm w-24">
+              className="glass-input rounded-[10px] px-2 h-10 text-sm w-[4.75rem] shrink-0">
               <option value="FDM">FDM</option>
               <option value="SLA">SLA</option>
             </select>
-            <GlassInput type="number" inputMode="decimal" placeholder="gram" value={p.gramasi} className="flex-1"
-              onChange={(e) => setRow(i, { gramasi: e.target.value })} />
-            <GlassInput type="number" inputMode="decimal" placeholder="durasi (jam)" value={p.durasiJam} className="flex-1"
-              onChange={(e) => setRow(i, { durasiJam: e.target.value })} />
+            <div className="relative flex-1 min-w-0">
+              <GlassInput type="number" inputMode="decimal" placeholder="berat" value={p.gramasi} className="w-full min-w-0 pr-8"
+                onChange={(e) => setRow(i, { gramasi: e.target.value })} />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">g</span>
+            </div>
+            <div className="relative flex-1 min-w-0">
+              <GlassInput type="number" inputMode="decimal" placeholder="durasi" value={p.durasiJam} className="w-full min-w-0 pr-9"
+                onChange={(e) => setRow(i, { durasiJam: e.target.value })} />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">jam</span>
+            </div>
           </div>
+          {!multi && !p.nama && (
+            <div className="text-[10px] g-t5">Tipe · berat (g) · durasi (jam)</div>
+          )}
         </div>
       ))}
 

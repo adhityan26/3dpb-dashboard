@@ -35,5 +35,9 @@
 .dark .glass-input { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); color: #fff; caret-color: #a5b4fc; }
 .dark .glass-input::placeholder { color: rgba(255,255,255,0.40); }
 .dark .glass-input:focus { border-color: rgba(99,102,241,0.5); box-shadow: 0 0 0 3px rgba(99,102,241,0.12); }
+/* Hilangkan spinner bawaan input number — bikin field padat & jelek (arrow naik/turun). */
+.glass-input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+.glass-input[type=number]::-webkit-outer-spin-button,
+.glass-input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .bg-glass-page { background: radial-gradient(ellipse at 20% 20%, rgba(255,200,220,0.30) 0%, transparent 50%), radial-gradient(ellipse at 80% 10%, rgba(180,200,255,0.35) 0%, transparent 45%), radial-gradient(ellipse at 60% 80%, rgba(200,230,255,0.25) 0%, transparent 50%), radial-gradient(ellipse at 10% 80%, rgba(255,220,180,0.20) 0%, transparent 45%), linear-gradient(135deg, #f8f4ff 0%, #f0f4ff 40%, #fef9ff 70%, #f5f8ff 100%); }
 .dark .bg-glass-page { background: radial-gradient(ellipse at 80% 0%, rgba(168,85,247,0.14) 0%, transparent 50%), radial-gradient(ellipse at 20% 100%, rgba(34,197,94,0.08) 0%, transparent 50%), linear-gradient(135deg, #080818 0%, #0c0c26 50%, #080820 100%); }
