@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { hitungKalkulasiV2 } from "@3pb/kalkulator-core";
-import { buildInputV2, compute, fullView, defaultSettings } from "@/lib/kalkulator/compute";
+import { buildInputV2, compute, fullView, defaultSettings, type CalcPlate } from "@/lib/kalkulator/compute";
 import { DEFAULT_LOCAL_SETTINGS } from "@/lib/kalkulator/local-settings";
 
 const sample = { gramasi: 50, durasiJam: 3, tipe: "FDM" as const };
@@ -81,5 +81,50 @@ describe("1b-2 add-on + rincian", () => {
     expect(v.rincian.komponen).toBe(1000);
     expect(v.rincian.labor).toBe(5000);
     expect(v.rincian.produksi + v.rincian.komponen + v.rincian.packing + v.rincian.labor).toBe(v.rincian.biayaModal);
+  });
+});
+
+describe("1b-3 multi-plate + batch", () => {
+  const p = (over: Partial<CalcPlate> = {}): CalcPlate => ({ id: "x", tipe: "FDM", gramasi: 50, durasiJam: 3, ...over });
+
+  it("plates[] menghasilkan N plate di output V2", () => {
+    const out = buildInputV2({ plates: [p(), p({ id: "y", gramasi: 30 }), p({ id: "z", tipe: "SLA", gramasi: 20 })] });
+    expect(out.plates).toHaveLength(3);
+    expect(out.plates[0].materials[0].gramasi).toBe(50);
+    expect(out.plates[2].materials[0].gramasi).toBe(20);
+    // plate SLA memakai rate material SLA dari settings
+    expect(out.plates[2].materials[0].hppPerGram).toBe(DEFAULT_LOCAL_SETTINGS.material.SLA.hppPerGram);
+  });
+
+  it("nama plate → namaPart (dan diabaikan bila kosong)", () => {
+    const out = buildInputV2({ plates: [p({ nama: "Face" }), p({ id: "y" })] });
+    expect(out.plates[0].namaPart).toBe("Face");
+    expect(out.plates[1].namaPart).toBeUndefined();
+  });
+
+  it("batch diteruskan & di-sanitasi (>=1, NaN/undefined → 1)", () => {
+    expect(buildInputV2({ plates: [p()], batch: 4 }).batch).toBe(4);
+    expect(buildInputV2({ plates: [p()], batch: 0 }).batch).toBe(1);
+    expect(buildInputV2({ plates: [p()], batch: -2 }).batch).toBe(1);
+    expect(buildInputV2({ plates: [p()] }).batch).toBe(1);
+  });
+
+  it("parity: plates single == jalur legacy flat (angka identik)", () => {
+    const viaPlate = fullView({ plates: [p({ gramasi: 50, durasiJam: 3, tipe: "FDM" })] });
+    const viaLegacy = fullView({ gramasi: 50, durasiJam: 3, tipe: "FDM" });
+    expect(viaPlate).toEqual(viaLegacy);
+  });
+
+  it("dua plate [50,50] == satu plate 100g/6jam (core linear)", () => {
+    const two = fullView({ plates: [p({ gramasi: 50, durasiJam: 3 }), p({ id: "y", gramasi: 50, durasiJam: 3 })] });
+    const one = fullView({ gramasi: 100, durasiJam: 6, tipe: "FDM" });
+    expect(two.biayaModal).toBe(one.biayaModal);
+    expect(two.hargaJualMinimum).toBe(one.hargaJualMinimum);
+  });
+
+  it("batch 2 pada dua plate identik membagi produksi", () => {
+    const b1 = fullView({ plates: [p(), p({ id: "y" })], batch: 1 });
+    const b2 = fullView({ plates: [p(), p({ id: "y" })], batch: 2 });
+    expect(b2.rincian.produksi).toBe(Math.round(b1.rincian.produksi / 2));
   });
 });

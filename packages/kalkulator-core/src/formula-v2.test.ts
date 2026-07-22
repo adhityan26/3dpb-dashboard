@@ -99,6 +99,21 @@ describe('hitungKalkulasiV2', () => {
     expect(r.hppProduksi).toBeCloseTo(4000)
   })
 
+  it('multi-plate: hpp & jual dijumlahkan antar-plate', () => {
+    const plate = { durasiJam: 1, mesinPerJam: 1000, materials: [{ gramasi: 10, hppPerGram: 300, jualPerGram: 900, failureRatePct: 0 }] }
+    const one = hitungKalkulasiV2(baseInput({ plates: [plate] }), SETTINGS)
+    const two = hitungKalkulasiV2(baseInput({ plates: [plate, plate] }), SETTINGS)
+    expect(two.hppProduksi).toBeCloseTo(one.hppProduksi * 2)   // 8000
+    expect(two.floorPrice).toBeCloseTo(one.floorPrice * 2)     // 20000
+  })
+
+  it('batch membagi total gabungan multi-plate', () => {
+    const plate = { durasiJam: 1, mesinPerJam: 1000, materials: [{ gramasi: 10, hppPerGram: 300, jualPerGram: 900, failureRatePct: 0 }] }
+    const r = hitungKalkulasiV2(baseInput({ plates: [plate, plate], batch: 2 }), SETTINGS)
+    expect(r.hppProduksi).toBeCloseTo(4000)    // 8000 / 2
+    expect(r.floorPrice).toBeCloseTo(10000)    // 20000 / 2
+  })
+
   it('status per channel: AMAN / BAWAH_REKM / RUGI / TIDAK_DISET', () => {
     expect(hitungKalkulasiV2(baseInput(), SETTINGS).status).toBe('TIDAK_DISET')
     expect(hitungKalkulasiV2(baseInput({ hargaAktual: { channelId: 'shopee', harga: 13200 } }), SETTINGS).status).toBe('AMAN')

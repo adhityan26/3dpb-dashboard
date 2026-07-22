@@ -4,10 +4,12 @@ import { MARGIN_TIER_LABEL, type MarginTier } from "@3pb/kalkulator-core";
 import { fullView } from "@/lib/kalkulator/compute";
 import { DEFAULT_LOCAL_SETTINGS, type LocalSettings } from "@/lib/kalkulator/local-settings";
 import { loadSettings } from "@/lib/store/local-settings";
-import { GlassCard, GlassInput } from "@3pb/ui";
+import { GlassCard } from "@3pb/ui";
 import { LockedBlock } from "./LockedBlock";
 import type { KomponenRow, LaborRow } from "@/lib/kalkulator/compose";
 import { KomponenLaborInput } from "./KomponenLaborInput";
+import { PlateInput, type PlateRow } from "./PlateInput";
+import type { CalcPlate } from "@/lib/kalkulator/compute";
 import { RincianPanel } from "./RincianPanel";
 import { getRincianPref } from "@/lib/store/display-prefs";
 import { InfoTip } from "./InfoTip";
@@ -25,9 +27,10 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 export function Calculator({ authenticated, paidCore = false, userId = null }: { authenticated: boolean; paidCore?: boolean; userId?: string | null }) {
-  const [gramasi, setGramasi] = useState("50");
-  const [durasi, setDurasi] = useState("3");
-  const [tipe, setTipe] = useState<"FDM" | "SLA">("FDM");
+  const [plates, setPlates] = useState<PlateRow[]>([
+    { id: "plate-1", nama: "", tipe: "FDM", gramasi: "50", durasiJam: "3" },
+  ]);
+  const [batch, setBatch] = useState("1");
   const [settings, setSettings] = useState<LocalSettings>(DEFAULT_LOCAL_SETTINGS);
   const [komponen, setKomponen] = useState<KomponenRow[]>([]);
   const [labor, setLabor] = useState<LaborRow[]>([]);
@@ -44,37 +47,29 @@ export function Calculator({ authenticated, paidCore = false, userId = null }: {
     setShowRincian(getRincianPref());
   }, []);
 
-  const g = Number(gramasi);
-  const d = Number(durasi);
-  const valid = Number.isFinite(g) && g > 0 && Number.isFinite(d) && d > 0;
+  const toCalcPlate = (p: PlateRow): CalcPlate => ({
+    id: p.id, nama: p.nama || undefined, tipe: p.tipe,
+    gramasi: Number(p.gramasi), durasiJam: Number(p.durasiJam),
+  });
+  const valid =
+    plates.length > 0 &&
+    plates.every((p) => Number(p.gramasi) > 0 && Number(p.durasiJam) > 0);
   const addon = paidCore ? { komponen, labor, packing } : {};
-  const view = valid ? fullView({ gramasi: g, durasiJam: d, tipe, ...addon }, settings) : null;
+  const view = valid
+    ? fullView({ plates: plates.map(toCalcPlate), batch: paidCore ? Number(batch) : 1, ...addon }, settings)
+    : null;
 
   return (
     <div className="grid md:grid-cols-2 gap-5 items-start">
         {/* Input */}
         <GlassCard className="p-4 flex flex-col gap-3">
-          <label className="text-[12px] g-t3 flex flex-col">
-            <span className="flex items-center gap-1">Berat (gram)
-              <InfoTip text="Berat total produk yang dicetak. Dikali harga material per gram untuk jadi Biaya modal." /></span>
-            <GlassInput type="number" inputMode="decimal" value={gramasi}
-              onChange={(e) => setGramasi(e.target.value)} className="w-full mt-1" />
-          </label>
-          <label className="text-[12px] g-t3 flex flex-col">
-            <span className="flex items-center gap-1">Durasi print (jam)
-              <InfoTip text="Lama cetak menurut slicer. Dikali Biaya mesin/jam (listrik + depresiasi + maintenance)." /></span>
-            <GlassInput type="number" inputMode="decimal" value={durasi}
-              onChange={(e) => setDurasi(e.target.value)} className="w-full mt-1" />
-          </label>
-          <label className="text-[12px] g-t3 flex flex-col">
-            <span className="flex items-center gap-1">Jenis filament
-              <InfoTip text="Menentukan tarif material yang dipakai: FDM pakai harga filament, SLA pakai harga resin." /></span>
-            <select value={tipe} onChange={(e) => setTipe(e.target.value as "FDM" | "SLA")}
-              className="glass-input rounded-[10px] px-3 h-10 text-sm w-full mt-1">
-              <option value="FDM">FDM (PLA/PETG)</option>
-              <option value="SLA">SLA (Resin)</option>
-            </select>
-          </label>
+          <PlateInput
+            locked={!paidCore}
+            plates={plates}
+            batch={batch}
+            onPlatesChange={setPlates}
+            onBatchChange={setBatch}
+          />
           <p className="text-[11px] g-t4">Printer: Default (Bambu P1P) · Printer & material custom di Pro 🔒</p>
 
           <KomponenLaborInput
@@ -131,7 +126,7 @@ export function Calculator({ authenticated, paidCore = false, userId = null }: {
 
               {!paidCore && (
                 <Link href="/beli" className="text-[11px] g-t4 text-left underline">
-                  Simpan hasil & multi-plate → Pro 🔒
+                  Simpan hasil → Pro 🔒
                 </Link>
               )}
             </div>

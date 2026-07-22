@@ -65,3 +65,18 @@ describe("Calculator: status & tooltip", () => {
     expect(screen.getByRole("tooltip").textContent).toMatch(/Berat total produk/i);
   });
 });
+
+describe("1b-3 multi-plate di Calculator", () => {
+  it("Pro: tampil kontrol multi-plate (tambah plate + batch)", () => {
+    render(<Calculator authenticated={true} paidCore={true} userId="u1" />);
+    expect(screen.getByText(/tambah plate/)).toBeTruthy();
+    expect(screen.getByText(/Batch/)).toBeTruthy();
+  });
+
+  it("Free: multi-plate terkunci, tetap tampil field Berat berlabel", () => {
+    render(<Calculator authenticated={true} paidCore={false} userId={null} />);
+    expect(screen.getByText(/Berat/)).toBeTruthy();
+    expect(screen.getByText(/Multi-plate/)).toBeTruthy();
+    expect(screen.queryByText(/tambah plate/)).toBeNull();
+  });
+});
