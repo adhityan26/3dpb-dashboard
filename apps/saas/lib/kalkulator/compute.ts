@@ -9,10 +9,22 @@ import { composeKomponen, composeLabor, type KomponenRow, type LaborRow } from "
 
 export { defaultSettings };
 
-export interface CalcInput {
+export interface CalcPlate {
+  id: string;
+  nama?: string;
+  tipe: "FDM" | "SLA";
   gramasi: number;
   durasiJam: number;
-  tipe: "FDM" | "SLA";
+}
+
+export interface CalcInput {
+  // legacy single-plate — tetap didukung agar seluruh test lama hijau
+  gramasi?: number;
+  durasiJam?: number;
+  tipe?: "FDM" | "SLA";
+  // multi-plate (1b-3) — kalau plates ada & non-kosong, dipakai; kalau tidak, fallback ke 3 field legacy
+  plates?: CalcPlate[];
+  batch?: number;
   hargaAktual?: { channelId: string; harga: number };
   komponen?: KomponenRow[];
   labor?: LaborRow[];
@@ -20,20 +32,30 @@ export interface CalcInput {
 }
 
 export function buildInputV2(c: CalcInput, ls: LocalSettings = DEFAULT_LOCAL_SETTINGS): KalkulasiInputV2 {
-  const m = ls.material[c.tipe];
-  return {
-    plates: [{
-      durasiJam: c.durasiJam,
+  const toPlate = (tipe: "FDM" | "SLA", gramasi: number, durasiJam: number, nama?: string) => {
+    const m = ls.material[tipe];
+    return {
+      ...(nama ? { namaPart: nama } : {}),
+      durasiJam,
       mesinPerJam: ls.mesinPerJam,
       mesinPerJamJual: ls.mesinPerJam,
       materials: [{
-        gramasi: c.gramasi,
+        gramasi,
         hppPerGram: m.hppPerGram,
         jualPerGram: m.jualPerGram,
         failureRatePct: m.failureRatePct,
       }],
-    }],
-    batch: 1,
+    };
+  };
+  const plates =
+    c.plates && c.plates.length > 0
+      ? c.plates.map((p) => toPlate(p.tipe, p.gramasi, p.durasiJam, p.nama))
+      : [toPlate(c.tipe ?? "FDM", c.gramasi ?? 0, c.durasiJam ?? 0)];
+  const safeBatch =
+    typeof c.batch === "number" && Number.isFinite(c.batch) && c.batch >= 1 ? c.batch : 1;
+  return {
+    plates,
+    batch: safeBatch,
     komponen: composeKomponen(c.packing, c.komponen ?? []),
     labor: composeLabor(c.labor ?? []),
     ...(c.hargaAktual ? { hargaAktual: c.hargaAktual } : {}),
