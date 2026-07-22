@@ -56,6 +56,7 @@ export type FieldPresetKey = keyof typeof FIELD_PRESETS
 export const LAYOUT_LIMITS = {
   maxPages: 8,
   maxCellsPerPage: 24,
+  maxGridRows: 8,
   maxFieldsPerRow: 3,
   maxRowsPerFieldsPageDefault: 8,
   maxRowsPerFieldsCellOverride: 3,

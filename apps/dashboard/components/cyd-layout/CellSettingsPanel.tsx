@@ -3,7 +3,16 @@
 
 import { motion } from 'framer-motion'
 import type { LayoutCellOut, FieldPresetKey } from '@/lib/cyd-layout/types'
-import { FIELD_PRESETS } from '@/lib/cyd-layout/types'
+import { FIELD_PRESETS, LAYOUT_LIMITS } from '@/lib/cyd-layout/types'
+
+// Preset per-SEL (override) dibatasi buffer tetap firmware (MAX_CELL_FIELD_ROWS=3) — beda dari
+// batas default per-halaman (8). Preset yang row-nya lebih banyak dari itu ("Detail", 5 baris)
+// difilter di sini supaya tidak bisa dipilih untuk sel individual sama sekali — kalau tetap
+// dipaksa lewat, firmware nolak SELURUH config (bukan cuma sel ini) saat parse.
+const CELL_OVERRIDE_PRESETS = (Object.keys(FIELD_PRESETS) as FieldPresetKey[]).filter(
+  (key) => FIELD_PRESETS[key].length <= LAYOUT_LIMITS.maxRowsPerFieldsCellOverride
+)
+const PRESET_LABELS: Record<FieldPresetKey, string> = { ringkas: 'Ringkas', detail: 'Detail' }
 
 // Batas kolom cuma sanity check editor (firmware bagi lebar layar / cols, tidak ada array
 // tetap yang bisa overflow). Batas baris WAJIB <=8 — firmware nolak config kalau rows >
@@ -94,9 +103,15 @@ export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurati
                     className="glass-input mt-1 w-full rounded-[8px] px-2 py-1.5 text-xs"
                     onChange={(e) => handlePresetChange(e.target.value as FieldPresetKey)}
                   >
-                    <option value="ringkas">Ringkas</option>
-                    <option value="detail">Detail</option>
+                    {CELL_OVERRIDE_PRESETS.map((key) => (
+                      <option key={key} value={key}>{PRESET_LABELS[key]}</option>
+                    ))}
                   </select>
+                  {CELL_OVERRIDE_PRESETS.length < Object.keys(FIELD_PRESETS).length && (
+                    <span className="g-t4 mt-1 block text-[10px] leading-relaxed">
+                      Preset dengan baris lebih banyak cuma bisa jadi default halaman, bukan per-sel (batas firmware).
+                    </span>
+                  )}
                 </label>
                 <motion.button
                   whileHover={{ scale: 1.02 }}

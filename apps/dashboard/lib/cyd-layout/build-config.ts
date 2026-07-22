@@ -10,6 +10,21 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
+// Firmware nolak SELURUH config (bukan cuma potong diam-diam) kalau field-rows melebihi buffer
+// tetapnya (layout_parser.cpp parseFieldRows: "reject seluruh config, jangan diam-diam potong") —
+// makanya harus dicek di sini juga, bukan cuma andalkan validasi runtime device.
+function validateFieldRows(rows: unknown, maxRows: number, context: string): string | null {
+  if (!Array.isArray(rows)) return `${context} wajib array`
+  if (rows.length > maxRows) return `${context} melebihi batas ${maxRows} baris`
+  for (let i = 0; i < rows.length; i++) {
+    if (!Array.isArray(rows[i])) return `${context}[${i}] wajib array`
+    if ((rows[i] as unknown[]).length > LAYOUT_LIMITS.maxFieldsPerRow) {
+      return `${context}[${i}] melebihi batas ${LAYOUT_LIMITS.maxFieldsPerRow} field per baris`
+    }
+  }
+  return null
+}
+
 function validatePage(page: unknown, index: number): string | null {
   if (!isPlainObject(page)) return `pages[${index}] bukan object`
   if (typeof page.id !== 'string' || !page.id) return `pages[${index}].id wajib string non-kosong`
@@ -17,7 +32,9 @@ function validatePage(page: unknown, index: number): string | null {
   const grid = page.grid
   if (!isPlainObject(grid)) return `pages[${index}].grid wajib object`
   if (typeof grid.cols !== 'number' || grid.cols < 1) return `pages[${index}].grid.cols wajib >= 1`
-  if (typeof grid.rows !== 'number' || grid.rows < 1) return `pages[${index}].grid.rows wajib >= 1`
+  if (typeof grid.rows !== 'number' || grid.rows < 1 || grid.rows > LAYOUT_LIMITS.maxGridRows) {
+    return `pages[${index}].grid.rows wajib antara 1-${LAYOUT_LIMITS.maxGridRows}`
+  }
 
   if (grid.rowWeights !== undefined) {
     if (!Array.isArray(grid.rowWeights) || grid.rowWeights.length !== grid.rows) {
@@ -30,6 +47,9 @@ function validatePage(page: unknown, index: number): string | null {
   if (typeof page.durationSec !== 'number' || page.durationSec < 0) {
     return `pages[${index}].durationSec wajib angka >= 0`
   }
+
+  const fieldsErr = validateFieldRows(page.fields, LAYOUT_LIMITS.maxRowsPerFieldsPageDefault, `pages[${index}].fields`)
+  if (fieldsErr) return fieldsErr
 
   const cells = page.cells
   if (!Array.isArray(cells)) return `pages[${index}].cells wajib array`
@@ -61,6 +81,11 @@ function validatePage(page: unknown, index: number): string | null {
         return `pages[${index}] printer "${printerCell.printer}" dipasang lebih dari sekali di halaman yang sama`
       }
       seenPrinters.add(printerCell.printer)
+    }
+
+    if ('fields' in cell && cell.fields !== undefined) {
+      const cellFieldsErr = validateFieldRows(cell.fields, LAYOUT_LIMITS.maxRowsPerFieldsCellOverride, `pages[${index}].cells[${i}].fields`)
+      if (cellFieldsErr) return cellFieldsErr
     }
   }
 

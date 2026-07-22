@@ -105,4 +105,56 @@ describe('validateLayoutConfig', () => {
     expect(validateLayoutConfig('string').valid).toBe(false)
     expect(validateLayoutConfig(42).valid).toBe(false)
   })
+
+  // Regresi nyata (2026-07-23): preset "Detail" (5 baris field) dipakai sebagai override per-sel
+  // -> lolos validasi lama -> device nolak SELURUH config diam-diam (parseFieldRows firmware:
+  // "reject seluruh config, jangan diam-diam potong"). Publish jadi "tersimpan, device belum
+  // konfirmasi" tanpa error yang jelas. Firmware: MAX_CELL_FIELD_ROWS=3.
+  it('cell.fields melebihi batas override per-sel (3 baris) -> invalid', () => {
+    const cfg = validConfig()
+    cfg.pages[0].cells[1] = {
+      printer: 'mars', col: 0, row: 1,
+      fields: [['name', 'type'], ['state', 'progress'], ['progressBar'], ['filename']], // 4 > 3
+    }
+    const result = validateLayoutConfig(cfg)
+    expect(result.valid).toBe(false)
+  })
+
+  it('cell.fields pas di batas (3 baris) -> valid', () => {
+    const cfg = validConfig()
+    cfg.pages[0].cells[1] = {
+      printer: 'mars', col: 0, row: 1,
+      fields: [['name'], ['state', 'progress'], ['progressBar']],
+    }
+    const result = validateLayoutConfig(cfg)
+    expect(result.valid).toBe(true)
+  })
+
+  it('page.fields melebihi batas default per-halaman (8 baris) -> invalid', () => {
+    const cfg = validConfig()
+    cfg.pages[0].fields = Array.from({ length: 9 }, () => ['name'])
+    const result = validateLayoutConfig(cfg)
+    expect(result.valid).toBe(false)
+  })
+
+  it('field row melebihi batas 3 field per baris -> invalid', () => {
+    const cfg = validConfig()
+    cfg.pages[0].fields = [['name', 'type', 'state', 'progress']] // 4 > 3
+    const result = validateLayoutConfig(cfg)
+    expect(result.valid).toBe(false)
+  })
+
+  it('grid.rows melebihi MAX_GRID_ROWS firmware (8) -> invalid', () => {
+    const cfg = validConfig()
+    cfg.pages[0].grid = { cols: 6, rows: 9, rowWeights: Array.from({ length: 9 }, () => 1 / 9) }
+    const result = validateLayoutConfig(cfg)
+    expect(result.valid).toBe(false)
+  })
+
+  it('grid.rows pas 8 (batas atas) -> valid', () => {
+    const cfg = validConfig()
+    cfg.pages[0].grid = { cols: 6, rows: 8 }
+    const result = validateLayoutConfig(cfg)
+    expect(result.valid).toBe(true)
+  })
 })
