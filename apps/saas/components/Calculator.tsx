@@ -62,7 +62,7 @@ export function Calculator({ authenticated, paidCore = false, userId = null }: {
   return (
     <div className="grid md:grid-cols-2 gap-5 items-start">
         {/* Input */}
-        <GlassCard className="p-4 flex flex-col gap-3">
+        <GlassCard className="p-4 flex flex-col gap-3 min-w-0">
           <PlateInput
             locked={!paidCore}
             plates={plates}
@@ -85,7 +85,7 @@ export function Calculator({ authenticated, paidCore = false, userId = null }: {
         </GlassCard>
 
         {/* Hasil */}
-        <GlassCard className="p-4">
+        <GlassCard className="p-4 min-w-0">
           {!view ? (
             <p className="text-[12px] g-t4">Isi berat & durasi (angka &gt; 0) untuk lihat hasil.</p>
           ) : (

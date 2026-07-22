@@ -57,11 +57,21 @@ export function KomponenLaborInput({
           <button type="button" onClick={() => onKomponenChange([...komponen, { id: newId(), nama: "", harga: 0, qty: 1 }])} className="text-[12px] g-t4 underline">＋ manual</button>
         </div>
         {komponen.map((r, i) => (
-          <div key={r.id} className="flex items-center gap-2 mb-1">
-            <GlassInput value={r.nama} placeholder="Nama" className="flex-1" onChange={(e) => onKomponenChange(komponen.map((x, j) => (j === i ? { ...x, nama: e.target.value } : x)))} />
-            <GlassInput type="number" inputMode="decimal" value={String(r.harga)} className="w-24" onChange={(e) => onKomponenChange(komponen.map((x, j) => (j === i ? { ...x, harga: Number(e.target.value) } : x)))} />
-            <GlassInput type="number" inputMode="numeric" value={String(r.qty)} className="w-16" onChange={(e) => onKomponenChange(komponen.map((x, j) => (j === i ? { ...x, qty: Number(e.target.value) } : x)))} />
-            <button type="button" aria-label="Hapus komponen" className="g-t4 text-sm px-1" onClick={() => onKomponenChange(komponen.filter((_, j) => j !== i))}>✕</button>
+          <div key={r.id} className="flex flex-col gap-1.5 mb-2 rounded-[12px] border border-[color:var(--g-row-border)] p-2.5">
+            <div className="flex items-center gap-2">
+              <GlassInput value={r.nama} placeholder="Nama komponen" className="flex-1 min-w-0" onChange={(e) => onKomponenChange(komponen.map((x, j) => (j === i ? { ...x, nama: e.target.value } : x)))} />
+              <button type="button" aria-label="Hapus komponen" className="g-t4 text-base px-1 shrink-0 leading-none" onClick={() => onKomponenChange(komponen.filter((_, j) => j !== i))}>✕</button>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 min-w-0">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">Rp</span>
+                <GlassInput type="number" inputMode="decimal" placeholder="harga" value={String(r.harga)} className="w-full min-w-0 pl-8" onChange={(e) => onKomponenChange(komponen.map((x, j) => (j === i ? { ...x, harga: Number(e.target.value) } : x)))} />
+              </div>
+              <div className="relative w-24 shrink-0">
+                <GlassInput type="number" inputMode="numeric" placeholder="qty" value={String(r.qty)} className="w-full pr-9" onChange={(e) => onKomponenChange(komponen.map((x, j) => (j === i ? { ...x, qty: Number(e.target.value) } : x)))} />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">pcs</span>
+              </div>
+            </div>
           </div>
         ))}
         {subKomp > 0 && <div className="text-[11px] g-t4">Subtotal komponen + packing: {rupiah(subKomp)}</div>}
@@ -78,12 +88,25 @@ export function KomponenLaborInput({
           <button type="button" onClick={() => onLaborChange([...labor, { id: newId(), nama: "" }])} className="text-[12px] g-t4 underline">＋ manual</button>
         </div>
         {labor.map((r, i) => (
-          <div key={r.id} className="flex items-center gap-2 mb-1 flex-wrap">
-            <GlassInput value={r.nama} placeholder="Nama" className="flex-1" onChange={(e) => onLaborChange(labor.map((x, j) => (j === i ? { ...x, nama: e.target.value } : x)))} />
-            <GlassInput type="number" inputMode="decimal" placeholder="jam" value={r.jam ?? ""} className="w-16" onChange={(e) => onLaborChange(labor.map((x, j) => (j === i ? { ...x, jam: e.target.value === "" ? undefined : Number(e.target.value) } : x)))} />
-            <GlassInput type="number" inputMode="decimal" placeholder="rate" value={r.ratePerJam ?? ""} className="w-24" onChange={(e) => onLaborChange(labor.map((x, j) => (j === i ? { ...x, ratePerJam: e.target.value === "" ? undefined : Number(e.target.value) } : x)))} />
-            <GlassInput type="number" inputMode="decimal" placeholder="flat" value={r.flat ?? ""} className="w-20" onChange={(e) => onLaborChange(labor.map((x, j) => (j === i ? { ...x, flat: e.target.value === "" ? undefined : Number(e.target.value) } : x)))} />
-            <button type="button" aria-label="Hapus labor" className="g-t4 text-sm px-1" onClick={() => onLaborChange(labor.filter((_, j) => j !== i))}>✕</button>
+          <div key={r.id} className="flex flex-col gap-1.5 mb-2 rounded-[12px] border border-[color:var(--g-row-border)] p-2.5">
+            <div className="flex items-center gap-2">
+              <GlassInput value={r.nama} placeholder="Nama pekerjaan" className="flex-1 min-w-0" onChange={(e) => onLaborChange(labor.map((x, j) => (j === i ? { ...x, nama: e.target.value } : x)))} />
+              <button type="button" aria-label="Hapus labor" className="g-t4 text-base px-1 shrink-0 leading-none" onClick={() => onLaborChange(labor.filter((_, j) => j !== i))}>✕</button>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1 min-w-0">
+                <GlassInput type="number" inputMode="decimal" placeholder="jam" value={r.jam ?? ""} className="w-full min-w-0 pr-9" onChange={(e) => onLaborChange(labor.map((x, j) => (j === i ? { ...x, jam: e.target.value === "" ? undefined : Number(e.target.value) } : x)))} />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">jam</span>
+              </div>
+              <div className="relative flex-1 min-w-0">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">Rp</span>
+                <GlassInput type="number" inputMode="decimal" placeholder="rate/jam" value={r.ratePerJam ?? ""} className="w-full min-w-0 pl-8" onChange={(e) => onLaborChange(labor.map((x, j) => (j === i ? { ...x, ratePerJam: e.target.value === "" ? undefined : Number(e.target.value) } : x)))} />
+              </div>
+              <div className="relative flex-1 min-w-0">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">Rp</span>
+                <GlassInput type="number" inputMode="decimal" placeholder="flat" value={r.flat ?? ""} className="w-full min-w-0 pl-8" onChange={(e) => onLaborChange(labor.map((x, j) => (j === i ? { ...x, flat: e.target.value === "" ? undefined : Number(e.target.value) } : x)))} />
+              </div>
+            </div>
           </div>
         ))}
         {subLab > 0 && <div className="text-[11px] g-t4">Subtotal labor: {rupiah(subLab)}</div>}
