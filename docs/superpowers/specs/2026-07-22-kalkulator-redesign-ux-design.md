@@ -98,6 +98,7 @@ Desktop: sticky (tetap terlihat saat form panjang). Struktur atas-ke-bawah:
 7. **Rincian biaya** (angka eksak, `rincian`): Produksi · Komponen · Finishing & tenaga kerja · Packing · **Total modal** (bold). Baris nol disembunyikan. Hapus baris "Rekomendasi (Standard)" lama (sekarang jadi headline).
 8. **Aksi**: `[Salin harga jual]` (copy harga rekomendasi ke clipboard, feedback "Tersalin"), `[Reset]` (kembalikan semua input ke default awal), `[Simpan]` disabled + badge "segera" (→ 1b-4).
 9. Status (AMAN/BAWAH_REKM/RUGI) tetap dari `view.status` bila relevan (map ke kalimat manusia; TIDAK_DISET disembunyikan — perilaku existing).
+10. **Penjelasan akurat** (opsional, collapsible "Tentang perhitungan"): kalimat singkat yang BENAR — "Margin = laba ÷ harga jual" dan "Harga aman minimum sudah menutup modal, overhead, dan margin minimum". **JANGAN** tampilkan rumus `Harga Jual = Modal / (1 − Margin)` (bukan formula app: app pakai `(material-jual + mesin-jual) × margin × fee`) dan **jangan** sebut angka margin-minimum spesifik yang tidak diturunkan dari perhitungan (mis. "20%" karangan). Istilah teknis lain cukup lewat tooltip ℹ.
 
 ### Gating
 Halaman ini **wajib login** (`page.tsx` redirect ke `/login`), jadi `authenticated` selalu true — channel & strategi **tampil untuk semua user login** (Free & Pro), sama seperti sekarang. Yang di-gate Pro (`paidCore`) tetap: komponen, finishing/labor, packing, multi-plate & batch (section-nya menampilkan blok 🔒 + CTA `/beli` untuk Free, pola existing). `LockedBlock` yang lama (`locked={!authenticated}`) efektif selalu terbuka; boleh dihapus/disederhanakan saat merakit ResultPanel.
@@ -153,8 +154,14 @@ Halaman ini **wajib login** (`page.tsx` redirect ke `/login`), jadi `authenticat
 - Kerja hanya di worktree `feat/saas-calc-redesign`; commit path spesifik, jangan `git add -A`.
 - Deploy homelab :3300 gated.
 
+## Referensi visual
+
+Mockup user (2026-07-22) = acuan visual/tata letak target: header + aksi (Salin/Reset/Simpan), 4 section bernomor, panel kanan (channel → 3 strategy card laba/margin → rekomendasi dominan → biaya modal → harga aman minimum → rincian), sticky bottom summary. Implementasi memakai sistem Glass existing (senada, tak harus pixel-identik). **Guardrail dari review mockup**: pembulatan tetap ceil-500 (headline Rp187.500, bukan eksak); tanpa rumus `Modal/(1−margin)` & tanpa "margin minimum 20%" karangan; tombol Simpan disabled ("segera").
+
 ## Di luar scope (follow-up)
 
 - **Simpan kalkulasi + history + muat ulang** = Fase 1b-4.
+- **Catatan (opsional) per kalkulasi** = Fase 1b-4 (digarap bareng Simpan supaya tak jadi field yatim tanpa persistensi).
 - **Format input angka live** (35000→35.000 saat mengetik, koma desimal) = polish pass terpisah.
 - Subtotal Rp per-plate detail & material/printer profile per-plate = tetap di luar (dari 1b-3).
+- Deskripsi teks per preset packing ("Kantong OPP + bubble wrap") = butuh field baru di Setting; di luar scope (preset saat ini hanya nama+harga).
