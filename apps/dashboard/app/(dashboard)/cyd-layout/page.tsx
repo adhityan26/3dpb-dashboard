@@ -1,11 +1,11 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
+import { DndContext, DragOverlay, PointerSensor, useSensor, useSensors, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion'
 import { PageShell } from '@/components/layout/PageShell'
 import { PrinterPalette, PrinterCardPreview, type PaletteItem } from '@/components/cyd-layout/PrinterPalette'
-import { GridCanvas } from '@/components/cyd-layout/GridCanvas'
+import { GridCanvas, CanvasCellPreview } from '@/components/cyd-layout/GridCanvas'
 import { PageTabs } from '@/components/cyd-layout/PageTabs'
 import { CellSettingsPanel } from '@/components/cyd-layout/CellSettingsPanel'
 import { FIELD_PRESETS } from '@/lib/cyd-layout/types'
@@ -27,6 +27,10 @@ export default function CydLayoutPage() {
   const [liveMap, setLiveMap] = useState<LiveMap>({})
   const [status, setStatus] = useState<'idle' | 'saving' | 'confirmed' | 'timeout' | 'error'>('idle')
   const [draggingPrinter, setDraggingPrinter] = useState<PaletteItem | null>(null)
+  const [draggingCanvasCell, setDraggingCanvasCell] = useState<LayoutCellOut | null>(null)
+  // distance:4 supaya klik-biasa (buat select) tetap bisa dibedakan dari drag di FilledCell —
+  // tanpa ini, PointerSensor default mulai drag pada gerakan sekecil apa pun, menelan onClick.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
   // Monotonic counter for generating new page ids — never reused even after a page is removed,
   // so a later add can't collide with an id still (or previously) present in `config.pages`.
   const nextPageNumberRef = useRef(DEFAULT_CONFIG.pages.length + 1)
@@ -70,20 +74,54 @@ export default function CydLayoutPage() {
     setSelectedCellIndex(null)
   }
 
+  // Tukar posisi (col/row) dua sel yang sudah terisi — ukuran (span) masing-masing tetap ikut sel-nya.
+  function swapCells(indexA: number, indexB: number) {
+    const a = activePage.cells[indexA]
+    const b = activePage.cells[indexB]
+    updateActivePage({
+      cells: activePage.cells.map((c, i) => {
+        if (i === indexA) return { ...a, col: b.col, row: b.row }
+        if (i === indexB) return { ...b, col: a.col, row: a.row }
+        return c
+      }),
+    })
+  }
+
+  function moveCellTo(index: number, col: number, row: number) {
+    updateActivePage({ cells: activePage.cells.map((c, i) => (i === index ? { ...c, col, row } : c)) })
+  }
+
   function handleDragStart(event: DragStartEvent) {
-    const activeData = event.active.data.current as { type: string; printer?: PaletteItem } | undefined
+    const activeData = event.active.data.current as { type: string; printer?: PaletteItem; cellIndex?: number } | undefined
     if (activeData?.type === 'printer' && activeData.printer) setDraggingPrinter(activeData.printer)
+    if (activeData?.type === 'canvas-cell' && activeData.cellIndex !== undefined) {
+      setDraggingCanvasCell(activePage.cells[activeData.cellIndex] ?? null)
+    }
   }
 
   function handleDragEnd(event: DragEndEvent) {
     setDraggingPrinter(null)
+    setDraggingCanvasCell(null)
     const { active, over } = event
     if (!over) return
-    const overData = over.data.current as { type: string; col: number; row: number } | undefined
-    const activeData = active.data.current as { type: string; printerId: string } | undefined
-    if (overData?.type === 'cell' && activeData?.type === 'printer') {
+    const overData = over.data.current as { type: string; col: number; row: number; cellIndex?: number } | undefined
+    const activeData = active.data.current as { type: string; printerId?: string; cellIndex?: number } | undefined
+    if (!overData || overData.type !== 'cell') return
+
+    if (activeData?.type === 'printer' && activeData.printerId) {
+      if (overData.cellIndex !== undefined) return  // drop dari palette ke sel yang sudah terisi: no-op
       if (usedSlugsOnActivePage.includes(activeData.printerId)) return  // dobel di halaman sama, cegah
       addCell({ printer: activeData.printerId, col: overData.col, row: overData.row })
+      return
+    }
+
+    if (activeData?.type === 'canvas-cell' && activeData.cellIndex !== undefined) {
+      const fromIndex = activeData.cellIndex
+      if (overData.cellIndex !== undefined) {
+        if (overData.cellIndex !== fromIndex) swapCells(fromIndex, overData.cellIndex)
+      } else {
+        moveCellTo(fromIndex, overData.col, overData.row)
+      }
     }
   }
 
@@ -221,7 +259,12 @@ export default function CydLayoutPage() {
           />
         </motion.div>
 
-        <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setDraggingPrinter(null)}>
+        <DndContext
+          sensors={sensors}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+          onDragCancel={() => { setDraggingPrinter(null); setDraggingCanvasCell(null) }}
+        >
           <div className="flex items-start gap-4">
             <motion.div
               initial={{ opacity: 0, x: -16 }}
@@ -283,6 +326,7 @@ export default function CydLayoutPage() {
               printer yang di-drag dulu ke-timpa canvas). */}
           <DragOverlay dropAnimation={null}>
             {draggingPrinter && <PrinterCardPreview printer={draggingPrinter} />}
+            {draggingCanvasCell && <CanvasCellPreview cell={draggingCanvasCell} />}
           </DragOverlay>
         </DndContext>
       </PageShell>

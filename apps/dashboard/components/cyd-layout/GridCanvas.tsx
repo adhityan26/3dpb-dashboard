@@ -1,8 +1,8 @@
 // components/cyd-layout/GridCanvas.tsx
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { useDroppable } from '@dnd-kit/core'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { motion, AnimatePresence } from 'framer-motion'
 import type { LayoutPageOut, LayoutCellOut } from '@/lib/cyd-layout/types'
 import { CYD_COLORS, stateColor } from '@/lib/cyd-layout/colors'
@@ -149,6 +149,32 @@ function ResizeHandle({ onResize }: { onResize: (deltaCol: number, deltaRow: num
 // dan tidak menyentuh warna konten canvas.
 const SELECTED_RING = `0 0 0 2px rgba(99,102,241,1), 0 0 18px rgba(99,102,241,0.45)`
 const UNSELECTED_RING = `0 0 0 0px rgba(99,102,241,0), 0 0 0px rgba(99,102,241,0)`
+// Ring target-tukar (amber) — beda warna dari SELECTED_RING (indigo) biar tidak ketuker maknanya.
+const SWAP_TARGET_RING = `0 0 0 2px rgba(245,158,11,0.9), 0 0 20px rgba(245,158,11,0.5)`
+
+// Preview drag utk sel kanvas yang sudah terisi (DragOverlay di page.tsx) — versi ringkas,
+// dipakai lepas dari pohon FilledCell (bukan dari useDraggable-nya langsung).
+export function CanvasCellPreview({ cell }: { cell: LayoutCellOut }) {
+  const isLabel = 'type' in cell
+  return (
+    <div
+      style={{
+        width: 96,
+        padding: '8px 10px',
+        background: isLabel ? '#050508' : '#0a0a10',
+        border: '1px solid rgba(99,102,241,0.7)',
+        borderRadius: 4,
+        boxShadow: '0 14px 32px rgba(0,0,0,0.4), 0 0 0 1.5px rgba(99,102,241,0.6)',
+        transform: 'scale(1.05) rotate(-1deg)',
+        fontFamily: 'monospace',
+        fontSize: 12,
+        color: isLabel ? CYD_COLORS.dim : '#fff',
+      }}
+    >
+      {isLabel ? cell.text : cell.printer}
+    </div>
+  )
+}
 
 function FilledCell({ cell, index, isSelected, live, onSelect, onUpdateCell, gridCols, gridRows }: {
   cell: LayoutCellOut; index: number; isSelected: boolean; live: LivePrinterInfo | undefined; onSelect: () => void
@@ -156,6 +182,18 @@ function FilledCell({ cell, index, isSelected, live, onSelect, onUpdateCell, gri
 }) {
   const gridColumn = `${cell.col + 1} / span ${cell.colSpan ?? 1}`
   const gridRow = `${cell.row + 1} / span ${cell.rowSpan ?? 1}`
+
+  // Sel terisi bisa DI-drag (pindah/tukar posisi) sekaligus jadi target DROP (buat ditukar
+  // sama sel lain yang di-drag ke sini) — dua hook beda, node DOM sama, ref digabung di bawah.
+  const { attributes, listeners, setNodeRef: setDragRef, isDragging } = useDraggable({
+    id: `canvas-cell-drag-${index}`,
+    data: { type: 'canvas-cell', cellIndex: index },
+  })
+  const { setNodeRef: setDropRef, isOver } = useDroppable({
+    id: `canvas-cell-drop-${index}`,
+    data: { type: 'cell', col: cell.col, row: cell.row, cellIndex: index },
+  })
+  const setNodeRef = useCallback((node: HTMLElement | null) => { setDragRef(node); setDropRef(node) }, [setDragRef, setDropRef])
 
   function handleResize(deltaCol: number, deltaRow: number) {
     const maxColSpan = gridCols - cell.col
@@ -165,9 +203,14 @@ function FilledCell({ cell, index, isSelected, live, onSelect, onUpdateCell, gri
     onUpdateCell(index, { ...cell, colSpan: newColSpan, rowSpan: newRowSpan })
   }
 
+  const ring = isOver ? SWAP_TARGET_RING : isSelected ? SELECTED_RING : UNSELECTED_RING
   const motionProps = {
+    ref: setNodeRef,
+    onClick: onSelect,
+    ...listeners,
+    ...attributes,
     initial: { opacity: 0, scale: 0.85 },
-    animate: { opacity: 1, scale: 1, boxShadow: isSelected ? SELECTED_RING : UNSELECTED_RING },
+    animate: { opacity: isDragging ? 0.35 : 1, scale: isOver ? 1.03 : 1, boxShadow: ring },
     exit: { opacity: 0, scale: 0.9, transition: { duration: 0.15, ease: 'easeIn' as const } },
     transition: { type: 'spring' as const, stiffness: 380, damping: 26, boxShadow: { duration: 0.18 } },
   }
@@ -176,11 +219,10 @@ function FilledCell({ cell, index, isSelected, live, onSelect, onUpdateCell, gri
     return (
       <motion.div
         data-cell-size
-        onClick={onSelect}
         {...motionProps}
         // Warna konten (bg/border/teks) = fidelitas firmware — JANGAN diubah.
         style={{ gridColumn, gridRow, background: '#050508', border: '1px solid rgba(255,255,255,.15)', position: 'relative', zIndex: isSelected ? 2 : 1 }}
-        className="flex cursor-pointer items-center justify-center px-1"
+        className="flex touch-none cursor-grab items-center justify-center px-1 active:cursor-grabbing"
       >
         <span style={{ color: CYD_COLORS.dim, fontFamily: 'monospace', fontSize: 13 }}>{cell.text}</span>
         {isSelected && <ResizeHandle onResize={handleResize} />}
@@ -192,11 +234,10 @@ function FilledCell({ cell, index, isSelected, live, onSelect, onUpdateCell, gri
   return (
     <motion.div
       data-cell-size
-      onClick={onSelect}
       {...motionProps}
       // Warna konten (bg/border/strip status/teks) = fidelitas firmware — JANGAN diubah.
       style={{ gridColumn, gridRow, background: '#0a0a10', border: '1px solid #1a1a22', position: 'relative', zIndex: isSelected ? 2 : 1 }}
-      className="cursor-pointer overflow-hidden"
+      className="touch-none cursor-grab overflow-hidden active:cursor-grabbing"
     >
       <div style={{ position: 'absolute', left: 0, top: 0, width: 4, height: '100%', background: color }} />
       <div style={{ paddingLeft: 10, paddingTop: 4, fontFamily: 'monospace' }}>
