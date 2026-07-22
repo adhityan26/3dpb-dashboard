@@ -128,3 +128,28 @@ describe("1b-3 multi-plate + batch", () => {
     expect(b2.rincian.produksi).toBe(Math.round(b1.rincian.produksi / 2));
   });
 });
+
+describe("fullView.strategi (redesign)", () => {
+  const base = { gramasi: 50, durasiJam: 3, tipe: "FDM" as const };
+  it("harga per tier = ceil500 dari channel; ada offline & shopee", () => {
+    const v = fullView(base);
+    expect(v.strategi.offline).toBeTruthy();
+    expect(v.strategi.shopee).toBeTruthy();
+    for (const t of ["A", "B", "C"] as const) {
+      const off = v.channels.find((c) => c.channelId === "offline")!;
+      expect(v.strategi.offline[t].harga).toBe(Math.ceil(off[t] / 500) * 500);
+    }
+  });
+  it("laba offline (fee 1) = harga − biaya modal", () => {
+    const v = fullView(base);
+    const cell = v.strategi.offline.B;
+    expect(cell.laba).toBe(Math.round(cell.harga - v.biayaModal));
+    expect(cell.marginPct).toBeCloseTo(Math.round((cell.laba / cell.harga) * 1000) / 10, 5);
+  });
+  it("shopee (fee 1.2) pakai net = harga/1.2 untuk laba", () => {
+    const v = fullView(base);
+    const cell = v.strategi.shopee.B;
+    const net = cell.harga / 1.2;
+    expect(cell.laba).toBe(Math.round(net - v.biayaModal));
+  });
+});
