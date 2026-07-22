@@ -16,7 +16,7 @@ const mockAuth = vi.mocked(auth)
 const req = (body: unknown) => ({ json: async () => body }) as unknown as NextRequest
 const ctx = (id: string) => ({ params: Promise.resolve({ id }) })
 
-beforeEach(() => { vi.clearAllMocks(); mockAuth.mockResolvedValue({ user: { name: 'a' } }) })
+beforeEach(() => { vi.clearAllMocks(); mockAuth.mockResolvedValue({ user: { id: 'u1', role: 'OWNER', name: 'a' }, expires: '2099-01-01T00:00:00.000Z' }) })
 
 describe('printer-profiles routes', () => {
   it('401 tanpa session', async () => {
