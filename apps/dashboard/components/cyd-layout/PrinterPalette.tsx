@@ -5,11 +5,33 @@ import { useDraggable } from '@dnd-kit/core'
 import { motion } from 'framer-motion'
 import { PrinterStatusBadge } from '@/components/printers/PrinterStatusBadge'
 
-interface PaletteItem {
+export interface PaletteItem {
   id: string // = slug
   name: string
   model: string
   live: { state: string; progress: number; remainingMin: number } | null
+}
+
+// Preview statis dipakai di dua tempat: kartu asli di palette (lewat DraggablePrinterCard)
+// dan DragOverlay (page.tsx) — DragOverlay butuh render lepas dari pohon useDraggable,
+// jadi dipisah dari logic drag itu sendiri.
+export function PrinterCardPreview({ printer }: { printer: PaletteItem }) {
+  return (
+    <div
+      className="g-inner w-[168px] rounded-xl px-2.5 py-2 backdrop-blur-sm"
+      style={{
+        boxShadow: '0 14px 32px rgba(0,0,0,0.35), 0 0 0 1.5px rgba(99,102,241,0.55)',
+        transform: 'scale(1.05) rotate(1.5deg)',
+        cursor: 'grabbing',
+      }}
+    >
+      <div className="flex items-center justify-between gap-1">
+        <span className="g-t1 truncate text-xs font-medium">🖨️ {printer.name}</span>
+        <PrinterStatusBadge state={printer.live?.state ?? null} />
+      </div>
+      {printer.model && <span className="g-t4 text-[10px]">{printer.model}</span>}
+    </div>
+  )
 }
 
 const listVariants = {
@@ -23,46 +45,41 @@ const itemVariants = {
 }
 
 function DraggablePrinterCard({ printer, disabled }: { printer: PaletteItem; disabled: boolean }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `palette-${printer.id}`,
-    data: { type: 'printer', printerId: printer.id },
+    data: { type: 'printer', printerId: printer.id, printer },
     disabled,
   })
 
+  // Preview yang mengikuti kursor dirender lewat <DragOverlay> di page.tsx (portal ke luar
+  // pohon DOM ini, jadi lolos dari stacking context lokal — makanya sebelumnya ke-timpa
+  // canvas: transform di sini cuma jalan di dalam stacking context milik motion.div
+  // pembungkusnya sendiri, tidak pernah bisa naik di atas sibling lain). Kartu asli di sini
+  // cukup jadi "ghost" pudar menandai titik asal drag.
   return (
-    <motion.div variants={itemVariants} className="relative" style={{ zIndex: isDragging ? 50 : undefined }}>
-      <div
-        ref={setNodeRef}
-        {...(disabled ? {} : { ...listeners, ...attributes })}
-        className="touch-none select-none"
-        style={{
-          transform: transform ? `translate(${transform.x}px, ${transform.y}px)` : undefined,
-          cursor: disabled ? 'not-allowed' : isDragging ? 'grabbing' : 'grab',
-        }}
+    <div
+      ref={setNodeRef}
+      {...(disabled ? {} : { ...listeners, ...attributes })}
+      className="touch-none select-none"
+      style={{ cursor: disabled ? 'not-allowed' : isDragging ? 'grabbing' : 'grab' }}
+    >
+      <motion.div
+        variants={itemVariants}
+        animate={{ opacity: isDragging ? 0.35 : 1 }}
+        whileHover={disabled || isDragging ? undefined : { y: -2, scale: 1.02 }}
+        transition={{ type: 'spring', stiffness: 480, damping: 30 }}
+        className={`g-inner rounded-xl px-2.5 py-2 backdrop-blur-sm transition-colors ${
+          disabled ? 'opacity-40 saturate-50' : 'hover:border-indigo-400/40'
+        }`}
+        title={disabled ? 'Sudah dipakai di halaman ini' : 'Tarik ke grid'}
       >
-        <motion.div
-          animate={{
-            scale: isDragging ? 1.05 : 1,
-            rotate: isDragging ? 1.5 : 0,
-            boxShadow: isDragging
-              ? '0 14px 32px rgba(0,0,0,0.35), 0 0 0 1.5px rgba(99,102,241,0.55)'
-              : '0 1px 2px rgba(0,0,0,0.05), 0 0 0 0px rgba(99,102,241,0)',
-          }}
-          whileHover={disabled || isDragging ? undefined : { y: -2, scale: 1.02 }}
-          transition={{ type: 'spring', stiffness: 480, damping: 30 }}
-          className={`g-inner rounded-xl px-2.5 py-2 backdrop-blur-sm transition-colors ${
-            disabled ? 'opacity-40 saturate-50' : 'hover:border-indigo-400/40'
-          }`}
-          title={disabled ? 'Sudah dipakai di halaman ini' : 'Tarik ke grid'}
-        >
-          <div className="flex items-center justify-between gap-1">
-            <span className="g-t1 truncate text-xs font-medium">🖨️ {printer.name}</span>
-            <PrinterStatusBadge state={printer.live?.state ?? null} />
-          </div>
-          {printer.model && <span className="g-t4 text-[10px]">{printer.model}</span>}
-        </motion.div>
-      </div>
-    </motion.div>
+        <div className="flex items-center justify-between gap-1">
+          <span className="g-t1 truncate text-xs font-medium">🖨️ {printer.name}</span>
+          <PrinterStatusBadge state={printer.live?.state ?? null} />
+        </div>
+        {printer.model && <span className="g-t4 text-[10px]">{printer.model}</span>}
+      </motion.div>
+    </div>
   )
 }
 

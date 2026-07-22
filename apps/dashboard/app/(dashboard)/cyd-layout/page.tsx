@@ -1,10 +1,10 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { DndContext, type DragEndEvent } from '@dnd-kit/core'
+import { DndContext, DragOverlay, type DragEndEvent, type DragStartEvent } from '@dnd-kit/core'
 import { motion, AnimatePresence, MotionConfig } from 'framer-motion'
 import { PageShell } from '@/components/layout/PageShell'
-import { PrinterPalette } from '@/components/cyd-layout/PrinterPalette'
+import { PrinterPalette, PrinterCardPreview, type PaletteItem } from '@/components/cyd-layout/PrinterPalette'
 import { GridCanvas } from '@/components/cyd-layout/GridCanvas'
 import { PageTabs } from '@/components/cyd-layout/PageTabs'
 import { CellSettingsPanel } from '@/components/cyd-layout/CellSettingsPanel'
@@ -14,7 +14,7 @@ import type { LayoutConfigOut, LayoutPageOut, LayoutCellOut } from '@/lib/cyd-la
 const DEFAULT_CONFIG: LayoutConfigOut = {
   schemaVersion: 1,
   pages: [
-    { id: 'rack', grid: { cols: 6, rows: 4, rowWeights: [0.06, 0.32, 0.36, 0.26] }, fields: FIELD_PRESETS.ringkas, durationSec: 0, cells: [] },
+    { id: 'rack', grid: { cols: 10, rows: 8 }, fields: FIELD_PRESETS.ringkas, durationSec: 0, cells: [] },
   ],
 }
 
@@ -26,6 +26,7 @@ export default function CydLayoutPage() {
   const [selectedCellIndex, setSelectedCellIndex] = useState<number | null>(null)
   const [liveMap, setLiveMap] = useState<LiveMap>({})
   const [status, setStatus] = useState<'idle' | 'saving' | 'confirmed' | 'timeout' | 'error'>('idle')
+  const [draggingPrinter, setDraggingPrinter] = useState<PaletteItem | null>(null)
   // Monotonic counter for generating new page ids — never reused even after a page is removed,
   // so a later add can't collide with an id still (or previously) present in `config.pages`.
   const nextPageNumberRef = useRef(DEFAULT_CONFIG.pages.length + 1)
@@ -63,7 +64,13 @@ export default function CydLayoutPage() {
     setSelectedCellIndex(null)
   }
 
+  function handleDragStart(event: DragStartEvent) {
+    const activeData = event.active.data.current as { type: string; printer?: PaletteItem } | undefined
+    if (activeData?.type === 'printer' && activeData.printer) setDraggingPrinter(activeData.printer)
+  }
+
   function handleDragEnd(event: DragEndEvent) {
+    setDraggingPrinter(null)
     const { active, over } = event
     if (!over) return
     const overData = over.data.current as { type: string; col: number; row: number } | undefined
@@ -78,7 +85,7 @@ export default function CydLayoutPage() {
     const newId = `halaman-${nextPageNumberRef.current++}`
     setConfig((cfg) => ({
       ...cfg,
-      pages: [...cfg.pages, { id: newId, grid: { cols: 1, rows: 1 }, fields: FIELD_PRESETS.ringkas, durationSec: 8, cells: [] }],
+      pages: [...cfg.pages, { id: newId, grid: { cols: 10, rows: 8 }, fields: FIELD_PRESETS.ringkas, durationSec: 8, cells: [] }],
     }))
     setActivePageIndex(config.pages.length)
   }
@@ -208,7 +215,7 @@ export default function CydLayoutPage() {
           />
         </motion.div>
 
-        <DndContext onDragEnd={handleDragEnd}>
+        <DndContext onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setDraggingPrinter(null)}>
           <div className="flex items-start gap-4">
             <motion.div
               initial={{ opacity: 0, x: -16 }}
@@ -261,6 +268,13 @@ export default function CydLayoutPage() {
               />
             </motion.div>
           </div>
+
+          {/* Preview yang ikut kursor — di-portal keluar dari pohon DOM (dnd-kit), jadi tidak
+              tersandera stacking context motion.div palette/canvas di atas (itu penyebab
+              printer yang di-drag dulu ke-timpa canvas). */}
+          <DragOverlay dropAnimation={null}>
+            {draggingPrinter && <PrinterCardPreview printer={draggingPrinter} />}
+          </DragOverlay>
         </DndContext>
       </PageShell>
     </MotionConfig>
