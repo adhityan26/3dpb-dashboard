@@ -94,7 +94,7 @@ Pola mengikuti `KomponenLaborInput.tsx` (locked block untuk Free, baris ringkas 
 **ID:** WAJIB pakai `newId()` dari `@/lib/id` — **jangan** `crypto.randomUUID()` (regresi bug produksi 2026-07-21: undefined di `http://<IP>` non-secure-context → TypeError diam).
 
 ### `apps/saas/components/Calculator.tsx` (EDIT)
-- Ganti state `gramasi/durasi/tipe` (3 `useState` string) → `plates: PlateRow[]` (seed 1 plate `{ id: newId(), nama:"", tipe:"FDM", gramasi:"50", durasiJam:"3" }`) + `batch: string` (seed "1").
+- Ganti state `gramasi/durasi/tipe` (3 `useState` string) → `plates: PlateRow[]` (seed 1 plate `{ id: "plate-1", nama:"", tipe:"FDM", gramasi:"50", durasiJam:"3" }` — id awal **literal stabil**, bukan `newId()`, agar tak ada mismatch hidrasi SSR/klien; baris tambahan pakai `newId()`) + `batch: string` (seed "1").
 - Valid = **semua** plate punya `Number(gramasi) > 0` dan `Number(durasiJam) > 0`.
 - Feed: `fullView({ plates: plates.map(toCalcPlate), batch: Number(batch), ...addon }, settings)` untuk Pro; untuk Free `addon` kosong dan `plates` = 1 plate saja (batch di-abaikan / dipaksa 1).
 - Render `<PlateInput locked={!paidCore} plates={plates} batch={batch} ... />` menggantikan blok input gram/durasi/tipe lama.
