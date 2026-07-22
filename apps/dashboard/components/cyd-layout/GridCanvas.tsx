@@ -250,7 +250,15 @@ function FilledCell({ cell, index, isSelected, live, onSelect, onUpdateCell, gri
   )
 }
 
-function RowDivider({ rowIndex, onDrag }: { rowIndex: number; onDrag: (rowIndex: number, deltaFraction: number) => void }) {
+// Tinggi layar fisik CYD (px) — dipakai buat snap batas baris, BUKAN tinggi render editor
+// (containerH di bawah cuma buat konversi gerak kursor -> fraksi, ukurannya bisa beda-beda
+// tergantung lebar layar browser).
+const DEVICE_HEIGHT_PX = 240
+const ROW_SNAP_PX = 10
+
+function RowDivider({ rowIndex, rowWeights, onDrag }: {
+  rowIndex: number; rowWeights: number[]; onDrag: (rowIndex: number, deltaFraction: number) => void
+}) {
   const mountedRef = useRef(true)
   useEffect(() => {
     return () => { mountedRef.current = false }
@@ -261,11 +269,22 @@ function RowDivider({ rowIndex, onDrag }: { rowIndex: number; onDrag: (rowIndex:
     const startY = startEvent.clientY
     const container = (startEvent.target as HTMLElement).closest('[data-canvas-height]') as HTMLElement | null
     const containerH = container?.offsetHeight ?? 240
+    // Beku di awal drag (bukan rowWeights terbaru per event) -- delta tiap pointermove dihitung
+    // dari titik awal ini, bukan dari hasil event sebelumnya, jadi tidak menumpuk salah.
+    const startWeights = rowWeights
+    const boundaryStart = startWeights.slice(0, rowIndex + 1).reduce((a, b) => a + b, 0)
+    const snapFraction = ROW_SNAP_PX / DEVICE_HEIGHT_PX
 
     function handlePointerMove(moveEvent: PointerEvent) {
       if (!mountedRef.current) { cleanup(); return }
-      const deltaFraction = (moveEvent.clientY - startY) / containerH
-      onDrag(rowIndex, deltaFraction)
+      const rawDeltaFraction = (moveEvent.clientY - startY) / containerH
+      if (moveEvent.shiftKey) {
+        onDrag(rowIndex, rawDeltaFraction)  // Shift ditahan -> bebas, tidak snap
+        return
+      }
+      const rawBoundary = boundaryStart + rawDeltaFraction
+      const snappedBoundary = Math.round(rawBoundary / snapFraction) * snapFraction
+      onDrag(rowIndex, snappedBoundary - boundaryStart)
     }
     function handlePointerUp() {
       cleanup()
@@ -380,7 +399,7 @@ export function GridCanvas({ page, livePrinters, selectedCellIndex, onSelectCell
           )}
 
           {Array.from({ length: page.grid.rows - 1 }, (_, i) => (
-            <RowDivider key={`divider-${i}`} rowIndex={i} onDrag={handleRowDrag} />
+            <RowDivider key={`divider-${i}`} rowIndex={i} rowWeights={rowWeights} onDrag={handleRowDrag} />
           ))}
         </div>
       </div>
