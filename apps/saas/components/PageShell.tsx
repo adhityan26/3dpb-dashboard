@@ -43,7 +43,7 @@ export function PageShell({
               <h1 className="text-xl font-semibold bg-gradient-to-br from-[#1a1a2e] to-indigo-600 dark:from-white dark:to-[#a5b4fc] bg-clip-text text-transparent">
                 {title}
               </h1>
-              {description && <p className="text-[12px] g-t4 mt-1">{description}</p>}
+              {description && <p className="text-[13px] g-t3 mt-1">{description}</p>}
             </div>
             {actions && <div className="flex items-center gap-2 flex-shrink-0">{actions}</div>}
           </div>

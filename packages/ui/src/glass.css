@@ -3,31 +3,37 @@
   --g-card: rgba(0,0,0,0.025); --g-card-border: rgba(0,0,0,0.09);
   --g-inner: rgba(0,0,0,0.03); --g-inner-border: rgba(0,0,0,0.07);
   --g-row-border: rgba(0,0,0,0.05); --g-dashed: rgba(0,0,0,0.1); --g-hover: rgba(99,102,241,0.06);
-  --g-t1: rgba(0,0,0,0.87); --g-t2: rgba(0,0,0,0.65); --g-t3: rgba(0,0,0,0.45);
-  --g-t4: rgba(0,0,0,0.35); --g-t5: rgba(0,0,0,0.25);
-  --g-accent: rgba(80,85,232,0.7); --g-label: rgba(0,0,0,0.55);
+  /* Kontras vs bg #f0f4ff: t1 14.9 · t2 6.7 · t3 5.2 · t4 3.3 · t5 2.1.
+     t1–t3 aman untuk teks; t4 hanya teks besar/ikon sekunder (≥3:1); t5 dekoratif, BUKAN teks. */
+  --g-t1: rgba(0,0,0,0.87); --g-t2: rgba(0,0,0,0.65); --g-t3: rgba(0,0,0,0.58);
+  --g-t4: rgba(0,0,0,0.45); --g-t5: rgba(0,0,0,0.30);
+  --g-accent: #4f46e5; --g-label: rgba(0,0,0,0.55);
+  --g-success: #047857; --g-warning: #b45309; --g-error: #b91c1c; --g-info: #4f46e5;
   --g-btn-ghost-bg: rgba(0,0,0,0.04); --g-btn-ghost-border: rgba(0,0,0,0.1); --g-btn-ghost-text: rgba(0,0,0,0.6);
 }
 .dark {
   --g-card: rgba(255,255,255,0.03); --g-card-border: rgba(255,255,255,0.07);
   --g-inner: rgba(255,255,255,0.025); --g-inner-border: rgba(255,255,255,0.06);
   --g-row-border: rgba(255,255,255,0.04); --g-dashed: rgba(255,255,255,0.1); --g-hover: rgba(99,102,241,0.06);
-  --g-t1: rgba(255,255,255,0.9); --g-t2: rgba(255,255,255,0.6); --g-t3: rgba(255,255,255,0.4);
-  --g-t4: rgba(255,255,255,0.25); --g-t5: rgba(255,255,255,0.18);
-  --g-accent: rgba(165,180,252,0.6); --g-label: rgba(255,255,255,0.6);
+  /* Kontras vs bg #0c0c26: t1 15.5 · t2 7.2 · t3 5.0 · t4 3.5 · t5 2.2. Tier sama dengan light. */
+  --g-t1: rgba(255,255,255,0.9); --g-t2: rgba(255,255,255,0.6); --g-t3: rgba(255,255,255,0.48);
+  --g-t4: rgba(255,255,255,0.38); --g-t5: rgba(255,255,255,0.25);
+  --g-accent: rgba(165,180,252,0.75); --g-label: rgba(255,255,255,0.6);
+  --g-success: #10b981; --g-warning: #f59e0b; --g-error: #ef4444; --g-info: #818cf8;
   --g-btn-ghost-bg: rgba(255,255,255,0.07); --g-btn-ghost-border: rgba(255,255,255,0.12); --g-btn-ghost-text: rgba(255,255,255,0.7);
 }
 .g-card { background: var(--g-card); border: 1px solid var(--g-card-border); }
 .g-inner { background: var(--g-inner); border: 1px solid var(--g-inner-border); }
 .g-t1{color:var(--g-t1)} .g-t2{color:var(--g-t2)} .g-t3{color:var(--g-t3)} .g-t4{color:var(--g-t4)} .g-t5{color:var(--g-t5)}
 .g-accent{color:var(--g-accent)} .g-label{color:var(--g-label)}
+.g-success{color:var(--g-success)} .g-warning{color:var(--g-warning)} .g-error{color:var(--g-error)} .g-info{color:var(--g-info)}
 .g-btn-ghost { background: var(--g-btn-ghost-bg); border: 1px solid var(--g-btn-ghost-border); color: var(--g-btn-ghost-text); }
 .glass-card { background: rgba(255,255,255,0.05); backdrop-filter: blur(12px) saturate(1.8); -webkit-backdrop-filter: blur(12px) saturate(1.8); border: 1px solid rgba(99,102,241,0.10); box-shadow: 0 4px 20px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.05); }
 .glass-input { background: rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.12); color: rgba(0,0,0,0.85); transition: border-color .2s, box-shadow .2s; caret-color: #6366f1; }
-.glass-input::placeholder { color: rgba(0,0,0,0.3); }
+.glass-input::placeholder { color: rgba(0,0,0,0.42); }
 .glass-input:focus { outline: none; border-color: rgba(99,102,241,0.5); box-shadow: 0 0 0 3px rgba(99,102,241,0.10); }
 .dark .glass-input { background: rgba(255,255,255,0.07); border: 1px solid rgba(255,255,255,0.1); color: #fff; caret-color: #a5b4fc; }
-.dark .glass-input::placeholder { color: rgba(255,255,255,0.25); }
+.dark .glass-input::placeholder { color: rgba(255,255,255,0.40); }
 .dark .glass-input:focus { border-color: rgba(99,102,241,0.5); box-shadow: 0 0 0 3px rgba(99,102,241,0.12); }
 .bg-glass-page { background: radial-gradient(ellipse at 20% 20%, rgba(255,200,220,0.30) 0%, transparent 50%), radial-gradient(ellipse at 80% 10%, rgba(180,200,255,0.35) 0%, transparent 45%), radial-gradient(ellipse at 60% 80%, rgba(200,230,255,0.25) 0%, transparent 50%), radial-gradient(ellipse at 10% 80%, rgba(255,220,180,0.20) 0%, transparent 45%), linear-gradient(135deg, #f8f4ff 0%, #f0f4ff 40%, #fef9ff 70%, #f5f8ff 100%); }
 .dark .bg-glass-page { background: radial-gradient(ellipse at 80% 0%, rgba(168,85,247,0.14) 0%, transparent 50%), radial-gradient(ellipse at 20% 100%, rgba(34,197,94,0.08) 0%, transparent 50%), linear-gradient(135deg, #080818 0%, #0c0c26 50%, #080820 100%); }

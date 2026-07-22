@@ -132,21 +132,25 @@ export function OrderRow({ order, onToggleLabel, isPending, linkedInvoice, onCre
                 </span>
               )}
             </div>
-            {shipBy && (
-              <div className="mt-0.5 flex items-center gap-1 text-[11px]">
-                <span style={{ color: shipBy.overdue ? "#f87171" : shipBy.urgent ? "#fb923c" : "#94a3b8" }}>
-                  {shipBy.overdue ? "⚠️" : shipBy.urgent ? "⏰" : "📅"}
-                </span>
-                <span
-                  style={{ color: shipBy.overdue ? "#f87171" : shipBy.urgent ? "#fb923c" : "#94a3b8" }}
-                  className="font-medium"
-                >
-                  Kirim sebelum {shipBy.text}
-                  {shipBy.overdue && " · TERLAMBAT"}
-                  {shipBy.urgent && !shipBy.overdue && " · Segera!"}
-                </span>
-              </div>
-            )}
+            {shipBy && (() => {
+              const shipByClass = shipBy.overdue
+                ? "text-red-600 dark:text-red-400"
+                : shipBy.urgent
+                ? "text-orange-700 dark:text-orange-400"
+                : "text-slate-600 dark:text-slate-400"
+              return (
+                <div className={`mt-0.5 flex items-center gap-1 text-[11px] ${shipByClass}`}>
+                  <span>
+                    {shipBy.overdue ? "⚠️" : shipBy.urgent ? "⏰" : "📅"}
+                  </span>
+                  <span className="font-medium">
+                    Kirim sebelum {shipBy.text}
+                    {shipBy.overdue && " · TERLAMBAT"}
+                    {shipBy.urgent && !shipBy.overdue && " · Segera!"}
+                  </span>
+                </div>
+              )
+            })()}
             <div className="mt-1 text-sm text-gray-700 dark:text-slate-300">
               {firstItem?.productName ?? "(no items)"}
               {firstItem?.variantName && (

@@ -20,7 +20,7 @@ export function GlassPageHeader({ title, subtitle, children }: GlassPageHeaderPr
           {title}
         </h1>
         {subtitle && (
-          <p className="text-sm dark:text-white/40 text-[rgba(30,27,75,0.45)]">{subtitle}</p>
+          <p className="text-sm g-t3">{subtitle}</p>
         )}
       </div>
       {children && <div className="flex items-center gap-2 flex-shrink-0">{children}</div>}
