@@ -4,7 +4,7 @@ import Credentials from "next-auth/providers/credentials"
 import { prisma } from "@/lib/db"
 import bcrypt from "bcryptjs"
 
-export const { handlers, signIn, signOut, auth } = NextAuth({
+export const { handlers, signIn, signOut, auth: nextAuthAuth } = NextAuth({
   providers: [
     // Primary: Authentik SSO
     Authentik({
@@ -85,3 +85,62 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     signIn: "/login",
   },
 })
+
+// ── Dev-only auth bypass ─────────────────────────────────────────────────────
+// Opt-in via DEV_AUTH_BYPASS=true in .env.local — never active unless BOTH that
+// flag is set AND the request host is localhost/127.0.0.1. NODE_ENV!=='production'
+// is a third, redundant gate (belt-and-suspenders: even a misconfigured prod
+// deploy with the env var accidentally set still can't trigger this). Exists
+// purely so `await auth()`/`auth((req) => ...)` call sites don't need a real
+// login during local manual QA. Remove or leave off (default) for normal use.
+const DEV_BYPASS_SESSION = {
+  user: { id: "dev-bypass", email: "dev-bypass@localhost", name: "Dev Bypass (auth disabled)", role: "OWNER" },
+  expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+}
+
+function isLocalHost(host: string | null | undefined): boolean {
+  if (!host) return false
+  const h = host.split(":")[0]
+  return h === "localhost" || h === "127.0.0.1" || h === "::1"
+}
+
+function devBypassEnabled(): boolean {
+  return process.env.NODE_ENV !== "production" && process.env.DEV_AUTH_BYPASS === "true"
+}
+
+type AuthHandler = (req: unknown, ctx: unknown) => unknown
+
+// NOT an async function: the `auth(handler)` middleware form must return the
+// wrapping function SYNCHRONOUSLY (Next.js's proxy loader calls it directly as
+// `export default auth(handler)`, not `await`ed) — wrapping the whole export in
+// `async function` broke that contract (every call became Promise<...>, which
+// Next.js's proxy loader rejected with "must export a function named `proxy`").
+// Only the no-args `await auth()` form is itself async.
+export function auth(
+  ...args: [] | [AuthHandler]
+): ReturnType<typeof nextAuthAuth> | Promise<unknown> {
+  if (args.length > 0 && typeof args[0] === "function") {
+    const handler = args[0]
+    return ((req: { headers?: { get?: (k: string) => string | null }; nextUrl?: { hostname?: string }; auth?: unknown }, ctx: unknown) => {
+      const host = req?.nextUrl?.hostname ?? req?.headers?.get?.("host") ?? null
+      if (devBypassEnabled() && isLocalHost(host)) {
+        req.auth = DEV_BYPASS_SESSION
+        return handler(req, ctx)
+      }
+      return (nextAuthAuth as unknown as (h: AuthHandler) => AuthHandler)(handler)(req, ctx)
+    }) as unknown as ReturnType<typeof nextAuthAuth>
+  }
+
+  return (async () => {
+    if (devBypassEnabled()) {
+      try {
+        const { headers } = await import("next/headers")
+        const h = await headers()
+        if (isLocalHost(h.get("host"))) return DEV_BYPASS_SESSION
+      } catch {
+        // headers() unavailable in this context (e.g. outside a request) — fall through to real auth
+      }
+    }
+    return (nextAuthAuth as unknown as () => Promise<unknown>)()
+  })()
+}
