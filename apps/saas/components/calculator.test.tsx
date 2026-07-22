@@ -8,18 +8,17 @@ vi.mock("@/lib/store/local-settings", () => ({ loadSettings: vi.fn(async () => (
 import { loadSettings } from "@/lib/store/local-settings";
 
 describe("Calculator", () => {
-  it("anonim → blok banding ter-blur (locked-blur hadir) + CTA login", () => {
-    const { container } = render(<Calculator authenticated={false} />);
-    expect(container.querySelector(".locked-blur")).not.toBeNull();
-    expect(screen.getByText(/Login gratis untuk buka/i)).toBeTruthy();
-  });
-  it("login → tak ada blur", () => {
-    const { container } = render(<Calculator authenticated={true} />);
-    expect(container.querySelector(".locked-blur")).toBeNull();
+  // Redesign: ResultPanel tak lagi memakai LockedBlock/.locked-blur — channel & strategi
+  // harga kini langsung tampil untuk user login (maksud test lama dipertahankan: konten hasil
+  // tersedia untuk user authenticated).
+  it("login → channel & strategi harga (ResultPanel) tampil", () => {
+    render(<Calculator authenticated={true} />);
+    expect(screen.getByText(/REKOMENDASI HARGA JUAL/)).toBeTruthy();
+    expect(screen.getByText(/Strategi harga/)).toBeTruthy();
   });
   it("menampilkan label margin Standard untuk rekomendasi", () => {
     render(<Calculator authenticated={true} />);
-    expect(screen.getByText(/margin Standard/i)).toBeTruthy();
+    expect(screen.getByText(/Standard · /)).toBeTruthy();
   });
 });
 
@@ -70,7 +69,7 @@ describe("1b-3 multi-plate di Calculator", () => {
   it("Pro: tampil kontrol multi-plate (tambah plate + batch)", () => {
     render(<Calculator authenticated={true} paidCore={true} userId="u1" />);
     expect(screen.getByText(/tambah plate/)).toBeTruthy();
-    expect(screen.getByText(/Batch/)).toBeTruthy();
+    expect(screen.getByText(/Hasil sekali cetak/)).toBeTruthy();
   });
 
   it("Free: multi-plate terkunci, tetap tampil field Berat berlabel", () => {
@@ -78,5 +77,25 @@ describe("1b-3 multi-plate di Calculator", () => {
     expect(screen.getByText(/Berat/)).toBeTruthy();
     expect(screen.getByText(/Multi-plate/)).toBeTruthy();
     expect(screen.queryByText(/tambah plate/)).toBeNull();
+  });
+});
+
+describe("Calculator redesign", () => {
+  it("Pro: section bernomor + ResultPanel terpasang", () => {
+    render(<Calculator authenticated={true} paidCore={true} userId="u1" />);
+    expect(screen.getByText(/1\. Produksi/)).toBeTruthy();
+    expect(screen.getByText(/REKOMENDASI HARGA JUAL/)).toBeTruthy();
+    expect(screen.getByText(/2\. Komponen tambahan/)).toBeTruthy();
+  });
+  it("Pro: klik strategi Premium mengubah headline harga", () => {
+    render(<Calculator authenticated={true} paidCore={true} userId="u1" />);
+    expect(screen.getByText(/Standard · /)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Premium/ }));
+    expect(screen.getByText(/Premium · /)).toBeTruthy();
+  });
+  it("Free: Produksi tetap tampil, section add-on terkunci", () => {
+    render(<Calculator authenticated={true} paidCore={false} userId={null} />);
+    expect(screen.getByText(/1\. Produksi/)).toBeTruthy();
+    expect(screen.getByText(/🔒 Komponen tambahan/)).toBeTruthy();
   });
 });
