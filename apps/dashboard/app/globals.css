@@ -174,16 +174,23 @@
   --g-dashed:       rgba(0,0,0,0.1);
   --g-hover:        rgba(99,102,241,0.06);
 
-  /* Text */
+  /* Text — kontras vs bg #f0f4ff: t1 14.9 · t2 6.7 · t3 5.2 · t4 3.3 · t5 2.1.
+     t1–t3 aman untuk teks; t4 hanya teks besar/ikon sekunder (≥3:1); t5 dekoratif, BUKAN teks. */
   --g-t1:  rgba(0,0,0,0.87);
   --g-t2:  rgba(0,0,0,0.65);
-  --g-t3:  rgba(0,0,0,0.45);
-  --g-t4:  rgba(0,0,0,0.35);
-  --g-t5:  rgba(0,0,0,0.25);
+  --g-t3:  rgba(0,0,0,0.58);
+  --g-t4:  rgba(0,0,0,0.45);
+  --g-t5:  rgba(0,0,0,0.30);
 
   /* Accent / labels */
-  --g-accent: rgba(80,85,232,0.7);
+  --g-accent: #4f46e5;
   --g-label:  rgba(0,0,0,0.55);
+
+  /* Status (varian light, ≥4.5:1) */
+  --g-success: #047857;
+  --g-warning: #b45309;
+  --g-error:   #b91c1c;
+  --g-info:    #4f46e5;
 
   /* Ghost button */
   --g-btn-ghost-bg:      rgba(0,0,0,0.04);
@@ -201,16 +208,22 @@
   --g-dashed:       rgba(255,255,255,0.1);
   --g-hover:        rgba(99,102,241,0.06);
 
-  /* Text */
+  /* Text — kontras vs bg #0c0c26: t1 15.5 · t2 7.2 · t3 5.0 · t4 3.5 · t5 2.2. Tier sama dengan light. */
   --g-t1:  rgba(255,255,255,0.9);
   --g-t2:  rgba(255,255,255,0.6);
-  --g-t3:  rgba(255,255,255,0.4);
-  --g-t4:  rgba(255,255,255,0.25);
-  --g-t5:  rgba(255,255,255,0.18);
+  --g-t3:  rgba(255,255,255,0.48);
+  --g-t4:  rgba(255,255,255,0.38);
+  --g-t5:  rgba(255,255,255,0.25);
 
   /* Accent / labels */
-  --g-accent: rgba(165,180,252,0.6);
+  --g-accent: rgba(165,180,252,0.75);
   --g-label:  rgba(255,255,255,0.6);
+
+  /* Status (varian dark) */
+  --g-success: #10b981;
+  --g-warning: #f59e0b;
+  --g-error:   #ef4444;
+  --g-info:    #818cf8;
 
   /* Ghost button */
   --g-btn-ghost-bg:      rgba(255,255,255,0.07);
@@ -235,6 +248,10 @@
   .g-t5  { color: var(--g-t5); }
   .g-accent { color: var(--g-accent); }
   .g-label  { color: var(--g-label); }
+  .g-success { color: var(--g-success); }
+  .g-warning { color: var(--g-warning); }
+  .g-error   { color: var(--g-error); }
+  .g-info    { color: var(--g-info); }
 
   /* Row item (used in list cards) */
   .g-row {
@@ -410,7 +427,7 @@
   transition: border-color 0.2s, box-shadow 0.2s;
   caret-color: #6366f1;
 }
-.glass-input::placeholder { color: rgba(0,0,0,0.3); }
+.glass-input::placeholder { color: rgba(0,0,0,0.42); }
 .glass-input:focus {
   outline: none;
   border-color: rgba(99,102,241,0.5);
@@ -424,7 +441,7 @@
   color: white;
   caret-color: #a5b4fc;
 }
-.dark .glass-input::placeholder { color: rgba(255,255,255,0.25); }
+.dark .glass-input::placeholder { color: rgba(255,255,255,0.40); }
 .dark .glass-input:focus {
   border-color: rgba(99,102,241,0.5);
   box-shadow: 0 0 0 3px rgba(99,102,241,0.12);

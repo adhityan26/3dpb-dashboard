@@ -57,7 +57,7 @@ export function RefreshIndicator({
         : `${Math.floor(timeAgoSec / 60)}m`
 
   return (
-    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+    <div className="flex items-center gap-2 text-xs g-t3">
       {timeAgoText && <span>Update {timeAgoText} lalu</span>}
       {intervalMs > 0 && <span>· refresh dalam {countdown}d</span>}
       <Button
