@@ -1,7 +1,7 @@
 // components/cyd-layout/CellSettingsPanel.tsx
 'use client'
 
-import { motion, AnimatePresence } from 'framer-motion'
+import { motion } from 'framer-motion'
 import type { LayoutCellOut, FieldPresetKey } from '@/lib/cyd-layout/types'
 import { FIELD_PRESETS } from '@/lib/cyd-layout/types'
 
@@ -39,36 +39,30 @@ export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurati
       <div className="g-card rounded-2xl p-3 backdrop-blur-[12px]">
         <div className="mb-2 flex items-center justify-between">
           <span className="g-t3 text-[10px] font-semibold uppercase tracking-[0.14em]">Sel Terpilih</span>
-          <AnimatePresence mode="wait" initial={false}>
-            {cell && (
-              <motion.span
-                key={isLabel ? 'label' : 'printer'}
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8, transition: { duration: 0.1 } }}
-                transition={{ type: 'spring', stiffness: 500, damping: 28 }}
-                className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
-                  isLabel
-                    ? 'bg-amber-500/12 text-amber-600 dark:text-amber-300'
-                    : 'bg-indigo-500/12 text-indigo-500 dark:text-indigo-300'
-                }`}
-              >
-                {isLabel ? 'Label' : 'Printer'}
-              </motion.span>
-            )}
-          </AnimatePresence>
+          {/* Badge & konten seleksi SENGAJA pakai animasi CSS (.glass-page-enter, jalan di
+              compositor), BUKAN AnimatePresence: rantai exit→enter mode="wait" bergantung
+              callback penyelesaian yang butuh rAF tick — di window yang rAF-nya di-throttle
+              (tab background/occluded, tool screenshot) rantai itu tak pernah selesai dan
+              form seleksi tidak pernah mount. Remount via key tetap memutar animasinya. */}
+          {cell && (
+            <span
+              key={isLabel ? 'label' : 'printer'}
+              className={`glass-page-enter rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${
+                isLabel
+                  ? 'bg-amber-500/12 text-amber-600 dark:text-amber-300'
+                  : 'bg-indigo-500/12 text-indigo-500 dark:text-indigo-300'
+              }`}
+            >
+              {isLabel ? 'Label' : 'Printer'}
+            </span>
+          )}
         </div>
 
         {/* key = selectedCellKey → remount konten (input uncontrolled baca ulang defaultValue)
-            setiap seleksi berpindah; AnimatePresence menambahkan transisi mulus di momen itu. */}
-        <AnimatePresence mode="wait" initial={false}>
-          <motion.div
-            key={selectedCellKey}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4, transition: { duration: 0.1 } }}
-            transition={{ duration: 0.18, ease: 'easeOut' }}
-          >
+            setiap seleksi berpindah; animasi masuknya CSS .glass-page-enter (bukan
+            AnimatePresence — lihat komentar badge di atas: konten form harus mount di commit
+            React yang sama dengan perubahan seleksi, tanpa menunggu exit animation). */}
+        <div key={selectedCellKey} className="glass-page-enter">
             {!cell && (
               <div className="rounded-xl border border-dashed px-2 py-5 text-center" style={{ borderColor: 'var(--g-dashed)' }}>
                 <motion.div
@@ -126,8 +120,7 @@ export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurati
                 </motion.button>
               </div>
             )}
-          </motion.div>
-        </AnimatePresence>
+        </div>
       </div>
 
       <div className="g-card rounded-2xl p-3 backdrop-blur-[12px]">
