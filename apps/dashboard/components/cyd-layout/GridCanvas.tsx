@@ -3,6 +3,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { useDroppable } from '@dnd-kit/core'
+import { motion, AnimatePresence } from 'framer-motion'
 import type { LayoutPageOut, LayoutCellOut } from '@/lib/cyd-layout/types'
 import { CYD_COLORS, stateColor } from '@/lib/cyd-layout/colors'
 
@@ -21,6 +22,9 @@ interface GridCanvasProps {
   onUpdatePage: (updates: Partial<LayoutPageOut>) => void
 }
 
+// Aksen editor (chrome) — indigo design system. Warna KONTEN canvas tetap CYD_COLORS (fidelitas firmware).
+const ACCENT = '#6366f1'
+
 // Posisi grid (col,row) -> index cell yang menempati situ (kalau ada), null kalau kosong.
 function findCellAt(cells: LayoutCellOut[], col: number, row: number): number | null {
   for (let i = 0; i < cells.length; i++) {
@@ -34,14 +38,26 @@ function findCellAt(cells: LayoutCellOut[], col: number, row: number): number | 
 
 function EmptyCellMenu({ onPickPrinter, onPickLabel, onClose }: { onPickPrinter: () => void; onPickLabel: () => void; onClose: () => void }) {
   return (
-    <div className="absolute z-10 top-full left-0 mt-1 bg-white dark:bg-slate-800 border border-gray-300 dark:border-slate-600 rounded-md shadow-lg overflow-hidden w-28">
-      <button onClick={() => { onPickPrinter(); onClose() }} className="w-full text-left px-2 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-800 dark:text-slate-100">
+    <motion.div
+      initial={{ opacity: 0, scale: 0.92, y: -4 }}
+      animate={{ opacity: 1, scale: 1, y: 0 }}
+      exit={{ opacity: 0, scale: 0.95, y: -2, transition: { duration: 0.1 } }}
+      transition={{ type: 'spring', stiffness: 520, damping: 30 }}
+      className="absolute left-0 top-full z-20 mt-1.5 w-32 overflow-hidden rounded-lg border border-black/10 bg-white/95 shadow-xl backdrop-blur-xl dark:border-indigo-500/25 dark:bg-[#12122a]/95"
+    >
+      <button
+        onClick={() => { onPickPrinter(); onClose() }}
+        className="w-full px-2.5 py-2 text-left text-xs text-gray-800 transition-colors hover:bg-indigo-500/10 dark:text-slate-100"
+      >
         🖨️ Printer
       </button>
-      <button onClick={() => { onPickLabel(); onClose() }} className="w-full text-left px-2 py-1.5 text-xs hover:bg-gray-100 dark:hover:bg-slate-700 text-gray-800 dark:text-slate-100">
+      <button
+        onClick={() => { onPickLabel(); onClose() }}
+        className="w-full px-2.5 py-2 text-left text-xs text-gray-800 transition-colors hover:bg-indigo-500/10 dark:text-slate-100"
+      >
         🏷️ Label
       </button>
-    </div>
+    </motion.div>
   )
 }
 
@@ -52,18 +68,32 @@ function EmptyCell({ col, row, onAddCell }: { col: number; row: number; onAddCel
   return (
     <div
       ref={setNodeRef}
-      className="relative border border-dashed flex items-center justify-center cursor-pointer"
-      style={{ borderColor: isOver ? CYD_COLORS.purple : 'rgba(255,255,255,.2)', background: isOver ? `${CYD_COLORS.purple}22` : 'transparent' }}
+      className="group relative flex cursor-pointer items-center justify-center border border-dashed transition-colors duration-150"
+      style={{
+        gridColumn: `${col + 1} / span 1`,
+        gridRow: `${row + 1} / span 1`,
+        borderColor: isOver ? ACCENT : 'rgba(255,255,255,.14)',
+        background: isOver ? 'rgba(99,102,241,0.16)' : 'transparent',
+      }}
       onClick={() => setMenuOpen((v) => !v)}
     >
-      <span className="text-gray-500 text-lg select-none">+</span>
-      {menuOpen && (
-        <EmptyCellMenu
-          onClose={() => setMenuOpen(false)}
-          onPickPrinter={() => { /* drag-drop dari palette yang isi beneran; klik cuma buka petunjuk */ }}
-          onPickLabel={() => onAddCell({ type: 'label', text: 'Label baru', col, row })}
-        />
-      )}
+      <motion.span
+        animate={{ scale: isOver ? 1.5 : 1 }}
+        transition={{ type: 'spring', stiffness: 500, damping: 26 }}
+        className={`select-none text-lg leading-none transition-opacity duration-150 ${isOver ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+        style={{ color: isOver ? '#a5b4fc' : 'rgba(255,255,255,0.3)' }}
+      >
+        +
+      </motion.span>
+      <AnimatePresence>
+        {menuOpen && (
+          <EmptyCellMenu
+            onClose={() => setMenuOpen(false)}
+            onPickPrinter={() => { /* drag-drop dari palette yang isi beneran; klik cuma buka petunjuk */ }}
+            onPickLabel={() => onAddCell({ type: 'label', text: 'Label baru', col, row })}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }
@@ -100,12 +130,25 @@ function ResizeHandle({ onResize }: { onResize: (deltaCol: number, deltaRow: num
   }
 
   return (
-    <div
+    <motion.div
       onPointerDown={handlePointerDown}
-      style={{ position: 'absolute', bottom: -4, right: -4, width: 10, height: 10, background: CYD_COLORS.purple, borderRadius: 2, cursor: 'nwse-resize' }}
+      initial={{ scale: 0, opacity: 0 }}
+      animate={{ scale: 1, opacity: 1 }}
+      whileHover={{ scale: 1.35 }}
+      transition={{ type: 'spring', stiffness: 500, damping: 26 }}
+      style={{
+        position: 'absolute', bottom: -5, right: -5, width: 12, height: 12,
+        background: ACCENT, borderRadius: 9999, border: '2px solid rgba(255,255,255,0.9)',
+        boxShadow: '0 2px 8px rgba(99,102,241,0.55)', cursor: 'nwse-resize', zIndex: 6, touchAction: 'none',
+      }}
     />
   )
 }
+
+// Ring seleksi via boxShadow (bukan ganti tebal border) — transisi mulus, tanpa layout shift,
+// dan tidak menyentuh warna konten canvas.
+const SELECTED_RING = `0 0 0 2px rgba(99,102,241,1), 0 0 18px rgba(99,102,241,0.45)`
+const UNSELECTED_RING = `0 0 0 0px rgba(99,102,241,0), 0 0 0px rgba(99,102,241,0)`
 
 function FilledCell({ cell, index, isSelected, live, onSelect, onUpdateCell, gridCols, gridRows }: {
   cell: LayoutCellOut; index: number; isSelected: boolean; live: LivePrinterInfo | undefined; onSelect: () => void
@@ -122,26 +165,37 @@ function FilledCell({ cell, index, isSelected, live, onSelect, onUpdateCell, gri
     onUpdateCell(index, { ...cell, colSpan: newColSpan, rowSpan: newRowSpan })
   }
 
+  const motionProps = {
+    initial: { opacity: 0, scale: 0.85 },
+    animate: { opacity: 1, scale: 1, boxShadow: isSelected ? SELECTED_RING : UNSELECTED_RING },
+    exit: { opacity: 0, scale: 0.9, transition: { duration: 0.15, ease: 'easeIn' as const } },
+    transition: { type: 'spring' as const, stiffness: 380, damping: 26, boxShadow: { duration: 0.18 } },
+  }
+
   if ('type' in cell) {
     return (
-      <div
+      <motion.div
         data-cell-size
         onClick={onSelect}
-        style={{ gridColumn, gridRow, background: '#050508', border: isSelected ? `2px solid ${CYD_COLORS.purple}` : '1px solid rgba(255,255,255,.15)', position: 'relative' }}
-        className="flex items-center justify-center px-1 cursor-pointer"
+        {...motionProps}
+        // Warna konten (bg/border/teks) = fidelitas firmware — JANGAN diubah.
+        style={{ gridColumn, gridRow, background: '#050508', border: '1px solid rgba(255,255,255,.15)', position: 'relative', zIndex: isSelected ? 2 : 1 }}
+        className="flex cursor-pointer items-center justify-center px-1"
       >
         <span style={{ color: CYD_COLORS.dim, fontFamily: 'monospace', fontSize: 13 }}>{cell.text}</span>
         {isSelected && <ResizeHandle onResize={handleResize} />}
-      </div>
+      </motion.div>
     )
   }
 
   const color = stateColor(live?.state ?? null)
   return (
-    <div
+    <motion.div
       data-cell-size
       onClick={onSelect}
-      style={{ gridColumn, gridRow, background: '#0a0a10', border: isSelected ? `2px solid ${CYD_COLORS.purple}` : '1px solid #1a1a22', position: 'relative' }}
+      {...motionProps}
+      // Warna konten (bg/border/strip status/teks) = fidelitas firmware — JANGAN diubah.
+      style={{ gridColumn, gridRow, background: '#0a0a10', border: '1px solid #1a1a22', position: 'relative', zIndex: isSelected ? 2 : 1 }}
       className="cursor-pointer overflow-hidden"
     >
       <div style={{ position: 'absolute', left: 0, top: 0, width: 4, height: '100%', background: color }} />
@@ -151,7 +205,7 @@ function FilledCell({ cell, index, isSelected, live, onSelect, onUpdateCell, gri
         {!live && <div style={{ color: CYD_COLORS.dim, fontSize: 12 }}>— tak ada data —</div>}
       </div>
       {isSelected && <ResizeHandle onResize={handleResize} />}
-    </div>
+    </motion.div>
   )
 }
 
@@ -186,8 +240,11 @@ function RowDivider({ rowIndex, onDrag }: { rowIndex: number; onDrag: (rowIndex:
   return (
     <div
       onPointerDown={handlePointerDown}
-      style={{ gridColumn: '1 / -1', gridRow: `${rowIndex + 1} / span 1`, alignSelf: 'end', height: 4, marginBottom: -2, background: CYD_COLORS.purple, cursor: 'ns-resize', zIndex: 5 }}
-    />
+      className="group flex items-center"
+      style={{ gridColumn: '1 / -1', gridRow: `${rowIndex + 1} / span 1`, alignSelf: 'end', height: 10, marginBottom: -5, cursor: 'ns-resize', zIndex: 5, touchAction: 'none' }}
+    >
+      <div className="h-[2px] w-full rounded-full bg-white/15 transition-all duration-150 group-hover:h-[3px] group-hover:bg-indigo-400 group-hover:shadow-[0_0_10px_rgba(99,102,241,0.8)]" />
+    </div>
   )
 }
 
@@ -204,50 +261,99 @@ export function GridCanvas({ page, livePrinters, selectedCellIndex, onSelectCell
   }
 
   return (
-    <div
-      data-canvas-height
-      style={{
-        aspectRatio: '320 / 240',
-        background: CYD_COLORS.bg,
-        border: '2px solid #333',
-        borderRadius: 4,
-        display: 'grid',
-        gridTemplateColumns: `repeat(${page.grid.cols}, 1fr)`,
-        gridTemplateRows: rowWeights.map((w) => `${w}fr`).join(' '),
-        gap: 1,
-        width: '100%',
-        maxWidth: 900,
-        position: 'relative',
-      }}
-    >
-      {Array.from({ length: page.grid.rows }, (_, row) =>
-        Array.from({ length: page.grid.cols }, (_, col) => {
-          const cellIndex = findCellAt(page.cells, col, row)
-          if (cellIndex === null) {
-            return <EmptyCell key={`${col}-${row}`} col={col} row={row} onAddCell={onAddCell} />
-          }
-          const cell = page.cells[cellIndex]
-          // Cuma render sekali per cell multi-span, di posisi (cell.col, cell.row)-nya sendiri
-          if (cell.col !== col || cell.row !== row) return null
-          const live = 'printer' in cell ? livePrinters[cell.printer] : undefined
-          return (
-            <FilledCell
-              key={`${col}-${row}`}
-              cell={cell}
-              index={cellIndex}
-              isSelected={selectedCellIndex === cellIndex}
-              live={live}
-              onSelect={() => onSelectCell(cellIndex)}
-              onUpdateCell={onUpdateCell}
-              gridCols={page.grid.cols}
-              gridRows={page.grid.rows}
-            />
-          )
-        })
-      )}
-      {Array.from({ length: page.grid.rows - 1 }, (_, i) => (
-        <RowDivider key={`divider-${i}`} rowIndex={i} onDrag={handleRowDrag} />
-      ))}
+    <div className="w-full" style={{ maxWidth: 940 }}>
+      {/* Bezel device — chrome editor, meniru fisik LCD. Layar di dalamnya tetap warna firmware. */}
+      <div
+        className="rounded-[20px] p-2.5"
+        style={{
+          background: 'linear-gradient(160deg, #23232e 0%, #15151c 60%, #101016 100%)',
+          border: '1px solid rgba(255,255,255,0.08)',
+          boxShadow: '0 16px 44px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.09)',
+        }}
+      >
+        <div
+          data-canvas-height
+          style={{
+            aspectRatio: '320 / 240',
+            background: CYD_COLORS.bg, // warna layar persis firmware — JANGAN diubah
+            border: '1px solid #333',
+            borderRadius: 4,
+            display: 'grid',
+            gridTemplateColumns: `repeat(${page.grid.cols}, 1fr)`,
+            gridTemplateRows: rowWeights.map((w) => `${w}fr`).join(' '),
+            gap: 1,
+            width: '100%',
+            position: 'relative',
+          }}
+        >
+          <AnimatePresence>
+            {Array.from({ length: page.grid.rows }, (_, row) =>
+              Array.from({ length: page.grid.cols }, (_, col) => {
+                const cellIndex = findCellAt(page.cells, col, row)
+                if (cellIndex === null) {
+                  return <EmptyCell key={`empty-${col}-${row}`} col={col} row={row} onAddCell={onAddCell} />
+                }
+                const cell = page.cells[cellIndex]
+                // Cuma render sekali per cell multi-span, di posisi (cell.col, cell.row)-nya sendiri
+                if (cell.col !== col || cell.row !== row) return null
+                const live = 'printer' in cell ? livePrinters[cell.printer] : undefined
+                // Key by identitas cell (bukan posisi murni) supaya AnimatePresence bisa mainkan
+                // exit animation saat cell dihapus — EmptyCell pengganti punya prefix key beda.
+                const cellKey = 'printer' in cell ? `cell-p-${cell.printer}` : `cell-l-${cell.col}-${cell.row}`
+                return (
+                  <FilledCell
+                    key={cellKey}
+                    cell={cell}
+                    index={cellIndex}
+                    isSelected={selectedCellIndex === cellIndex}
+                    live={live}
+                    onSelect={() => onSelectCell(cellIndex)}
+                    onUpdateCell={onUpdateCell}
+                    gridCols={page.grid.cols}
+                    gridRows={page.grid.rows}
+                  />
+                )
+              })
+            )}
+          </AnimatePresence>
+
+          {page.cells.length === 0 && (
+            <motion.div
+              className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1.5"
+              style={{ zIndex: 4 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.25, duration: 0.3 }}
+            >
+              <motion.span
+                className="text-2xl"
+                animate={{ y: [0, -5, 0] }}
+                transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}
+              >
+                🖨️
+              </motion.span>
+              <span className="font-mono text-xs" style={{ color: 'rgba(255,255,255,0.35)' }}>
+                Tarik printer ke sini, atau klik sel untuk label
+              </span>
+            </motion.div>
+          )}
+
+          {Array.from({ length: page.grid.rows - 1 }, (_, i) => (
+            <RowDivider key={`divider-${i}`} rowIndex={i} onDrag={handleRowDrag} />
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-1.5 flex items-center justify-between px-1.5">
+        <span className="g-t4 flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-widest">
+          <span className="relative flex h-1.5 w-1.5">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
+            <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          </span>
+          Preview CYD
+        </span>
+        <span className="g-t4 font-mono text-[10px]">320×240 • grid {page.grid.cols}×{page.grid.rows}</span>
+      </div>
     </div>
   )
 }
