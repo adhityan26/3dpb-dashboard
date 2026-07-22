@@ -1,6 +1,8 @@
 import NextAuth from "next-auth"
+import type { NextAuthRequest, Session } from "next-auth"
 import Authentik from "next-auth/providers/authentik"
 import Credentials from "next-auth/providers/credentials"
+import type { NextFetchEvent, NextMiddleware } from "next/server"
 import { prisma } from "@/lib/db"
 import bcrypt from "bcryptjs"
 
@@ -93,7 +95,7 @@ export const { handlers, signIn, signOut, auth: nextAuthAuth } = NextAuth({
 // deploy with the env var accidentally set still can't trigger this). Exists
 // purely so `await auth()`/`auth((req) => ...)` call sites don't need a real
 // login during local manual QA. Remove or leave off (default) for normal use.
-const DEV_BYPASS_SESSION = {
+const DEV_BYPASS_SESSION: Session = {
   user: { id: "dev-bypass", email: "dev-bypass@localhost", name: "Dev Bypass (auth disabled)", role: "OWNER" },
   expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
 }
@@ -108,7 +110,7 @@ function devBypassEnabled(): boolean {
   return process.env.NODE_ENV !== "production" && process.env.DEV_AUTH_BYPASS === "true"
 }
 
-type AuthHandler = (req: unknown, ctx: unknown) => unknown
+type MiddlewareHandler = (req: NextAuthRequest, event: NextFetchEvent) => ReturnType<NextMiddleware>
 
 // NOT an async function: the `auth(handler)` middleware form must return the
 // wrapping function SYNCHRONOUSLY (Next.js's proxy loader calls it directly as
@@ -116,19 +118,25 @@ type AuthHandler = (req: unknown, ctx: unknown) => unknown
 // `async function` broke that contract (every call became Promise<...>, which
 // Next.js's proxy loader rejected with "must export a function named `proxy`").
 // Only the no-args `await auth()` form is itself async.
+//
+// Overload order matters beyond call-site resolution: tools that extract a
+// type from an overloaded function (`ReturnType<typeof auth>`, `vi.mocked`)
+// use the LAST declared signature. The no-args session form is declared last
+// so `vi.mocked(auth).mockResolvedValue(session)` in tests infers correctly.
+export function auth(handler: MiddlewareHandler): NextMiddleware
+export function auth(): Promise<Session | null>
 export function auth(
-  ...args: [] | [AuthHandler]
-): ReturnType<typeof nextAuthAuth> | Promise<unknown> {
-  if (args.length > 0 && typeof args[0] === "function") {
-    const handler = args[0]
-    return ((req: { headers?: { get?: (k: string) => string | null }; nextUrl?: { hostname?: string }; auth?: unknown }, ctx: unknown) => {
-      const host = req?.nextUrl?.hostname ?? req?.headers?.get?.("host") ?? null
+  handler?: MiddlewareHandler
+): Promise<Session | null> | NextMiddleware {
+  if (handler) {
+    return ((req: NextAuthRequest, event: NextFetchEvent) => {
+      const host = req.nextUrl.hostname || req.headers.get("host")
       if (devBypassEnabled() && isLocalHost(host)) {
         req.auth = DEV_BYPASS_SESSION
-        return handler(req, ctx)
+        return handler(req, event)
       }
-      return (nextAuthAuth as unknown as (h: AuthHandler) => AuthHandler)(handler)(req, ctx)
-    }) as unknown as ReturnType<typeof nextAuthAuth>
+      return nextAuthAuth(handler)(req, event)
+    }) as NextMiddleware
   }
 
   return (async () => {
@@ -141,6 +149,6 @@ export function auth(
         // headers() unavailable in this context (e.g. outside a request) — fall through to real auth
       }
     }
-    return (nextAuthAuth as unknown as () => Promise<unknown>)()
+    return nextAuthAuth()
   })()
 }
