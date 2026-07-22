@@ -16,7 +16,7 @@ import type { KomponenRow, LaborRow } from "@/lib/kalkulator/compose";
 
 const INITIAL_PLATES: PlateRow[] = [{ id: "plate-1", nama: "", tipe: "FDM", gramasi: "50", durasiJam: "3" }];
 
-export function Calculator({ authenticated, paidCore = false, userId = null }: { authenticated: boolean; paidCore?: boolean; userId?: string | null }) {
+export function Calculator({ paidCore = false, userId = null }: { paidCore?: boolean; userId?: string | null }) {
   const [plates, setPlates] = useState<PlateRow[]>(INITIAL_PLATES);
   const [batch, setBatch] = useState("1");
   const [settings, setSettings] = useState<LocalSettings>(DEFAULT_LOCAL_SETTINGS);
