@@ -11,6 +11,7 @@ import { KomponenInput } from "./KomponenInput";
 import { LaborInput } from "./LaborInput";
 import { PackingInput } from "./PackingInput";
 import { ResultPanel } from "./ResultPanel";
+import { MobileSummaryBar } from "./MobileSummaryBar";
 import type { KomponenRow, LaborRow } from "@/lib/kalkulator/compose";
 
 const INITIAL_PLATES: PlateRow[] = [{ id: "plate-1", nama: "", tipe: "FDM", gramasi: "50", durasiJam: "3" }];
@@ -24,6 +25,7 @@ export function Calculator({ authenticated, paidCore = false, userId = null }: {
   const [packing, setPacking] = useState<{ nama: string; harga: number } | undefined>(undefined);
   const [channel, setChannel] = useState("offline");
   const [tier, setTier] = useState<MarginTier>("B");
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   useEffect(() => {
     if (paidCore && userId) loadSettings(userId).then(setSettings);
@@ -86,13 +88,31 @@ export function Calculator({ authenticated, paidCore = false, userId = null }: {
       </div>
 
       {/* Kolom kanan: hasil (sticky desktop) */}
-      <div className="lg:sticky lg:top-6 min-w-0">
+      <div className="hidden lg:block lg:sticky lg:top-6 min-w-0">
         {view ? (
           <ResultPanel view={view} channel={channel} tier={tier} onChannel={setChannel} onTier={setTier} onCopy={onCopy} onReset={onReset} />
         ) : (
           <div className="text-[12px] g-t4 p-4">Isi berat &amp; durasi (angka &gt; 0) untuk melihat hasil.</div>
         )}
       </div>
+
+      {view && (
+        <>
+          <MobileSummaryBar modal={view.rincian.biayaModal} harga={view.strategi[channel]?.[tier]?.harga ?? 0} onOpen={() => setSheetOpen(true)} />
+          {sheetOpen && (
+            <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end" role="dialog" aria-modal="true">
+              <button type="button" aria-label="Tutup" className="absolute inset-0 bg-black/50" onClick={() => setSheetOpen(false)} />
+              <div className="relative max-h-[85vh] overflow-y-auto rounded-t-2xl p-4 modal-surface">
+                <div className="flex justify-between items-center mb-3">
+                  <span className="text-sm font-semibold g-t1">Hasil perhitungan</span>
+                  <button type="button" aria-label="Tutup rincian" className="g-t3 text-lg leading-none" onClick={() => setSheetOpen(false)}>✕</button>
+                </div>
+                <ResultPanel view={view} channel={channel} tier={tier} onChannel={setChannel} onTier={setTier} onCopy={onCopy} onReset={onReset} />
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
