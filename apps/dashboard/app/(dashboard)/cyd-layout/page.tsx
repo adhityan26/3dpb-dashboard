@@ -51,6 +51,12 @@ export default function CydLayoutPage() {
     }))
   }
 
+  // Ganti cols/rows manual selalu drop rowWeights lama (bisa beda panjang dari rows baru) —
+  // GridCanvas jatuh balik ke bagi rata otomatis begitu rowWeights undefined.
+  function updateGrid(updates: { cols?: number; rows?: number }) {
+    updateActivePage({ grid: { cols: activePage.grid.cols, rows: activePage.grid.rows, ...updates } })
+  }
+
   function addCell(cell: LayoutCellOut) {
     updateActivePage({ cells: [...activePage.cells, cell] })
   }
@@ -265,6 +271,9 @@ export default function CydLayoutPage() {
                 onRemoveCell={() => selectedCellIndex !== null && removeCell(selectedCellIndex)}
                 pageDurationSec={activePage.durationSec}
                 onUpdateDuration={(seconds) => updateActivePage({ durationSec: seconds })}
+                gridCols={activePage.grid.cols}
+                gridRows={activePage.grid.rows}
+                onUpdateGrid={updateGrid}
               />
             </motion.div>
           </div>

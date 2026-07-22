@@ -5,13 +5,22 @@ import { motion } from 'framer-motion'
 import type { LayoutCellOut, FieldPresetKey } from '@/lib/cyd-layout/types'
 import { FIELD_PRESETS } from '@/lib/cyd-layout/types'
 
-export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurationSec, onUpdateDuration, activePageId }: {
+// Batas kolom cuma sanity check editor (firmware bagi lebar layar / cols, tidak ada array
+// tetap yang bisa overflow). Batas baris WAJIB <=8 — firmware nolak config kalau rows >
+// MAX_GRID_ROWS (rowWeights[MAX_GRID_ROWS] array tetap di layout_types.h firmware).
+const GRID_COLS_RANGE = { min: 1, max: 20 }
+const GRID_ROWS_RANGE = { min: 1, max: 8 }
+
+export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurationSec, onUpdateDuration, activePageId, gridCols, gridRows, onUpdateGrid }: {
   cell: LayoutCellOut | null
   onUpdateCell: (cell: LayoutCellOut) => void
   onRemoveCell: () => void
   pageDurationSec: number
   onUpdateDuration: (seconds: number) => void
   activePageId: string
+  gridCols: number
+  gridRows: number
+  onUpdateGrid: (updates: { cols?: number; rows?: number }) => void
 }) {
   function handlePresetChange(preset: FieldPresetKey) {
     if (!cell || ('type' in cell && cell.type === 'label')) return
@@ -136,6 +145,39 @@ export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurati
             className="glass-input mt-1 w-full rounded-[8px] px-2 py-1.5 text-xs"
           />
         </label>
+        <div className="mt-2.5 grid grid-cols-2 gap-2">
+          <label className="g-t2 block text-xs">
+            Kolom
+            <input
+              key={`cols-${activePageId}-${gridCols}`}
+              type="number"
+              min={GRID_COLS_RANGE.min}
+              max={GRID_COLS_RANGE.max}
+              defaultValue={gridCols}
+              onBlur={(e) => {
+                const clamped = Math.min(GRID_COLS_RANGE.max, Math.max(GRID_COLS_RANGE.min, Number(e.target.value) || gridCols))
+                onUpdateGrid({ cols: clamped })
+              }}
+              className="glass-input mt-1 w-full rounded-[8px] px-2 py-1.5 text-xs"
+            />
+          </label>
+          <label className="g-t2 block text-xs">
+            Baris
+            <input
+              key={`rows-${activePageId}-${gridRows}`}
+              type="number"
+              min={GRID_ROWS_RANGE.min}
+              max={GRID_ROWS_RANGE.max}
+              defaultValue={gridRows}
+              onBlur={(e) => {
+                const clamped = Math.min(GRID_ROWS_RANGE.max, Math.max(GRID_ROWS_RANGE.min, Number(e.target.value) || gridRows))
+                onUpdateGrid({ rows: clamped })
+              }}
+              className="glass-input mt-1 w-full rounded-[8px] px-2 py-1.5 text-xs"
+            />
+          </label>
+        </div>
+        <p className="g-t4 mt-1.5 text-[10px] leading-relaxed">Maks {GRID_ROWS_RANGE.max} baris (batas firmware). Ubah ukuran mereset penyesuaian tinggi baris manual.</p>
       </div>
     </div>
   )
