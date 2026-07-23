@@ -102,5 +102,7 @@ export function buildKalkulasi3mfDraft(input: BuildDraftInput): Kalkulasi3mfDraf
     )
   }
 
-  return { nama: deriveNama(fileName), batch, plates, isSliced, warnings }
+  // thumbnails diisi belakangan oleh import3mfFile() (index.ts) via readPlateThumbnails —
+  // default [] di sini murni buat memenuhi tipe Kalkulasi3mfDraft, selalu di-overwrite.
+  return { nama: deriveNama(fileName), batch, plates, isSliced, warnings, thumbnails: [] }
 }
