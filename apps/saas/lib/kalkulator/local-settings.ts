@@ -1,4 +1,6 @@
+import { randomUUID } from "crypto";
 import type { SettingsV2 } from "@3pb/kalkulator-core";
+import { isValidHexColor } from "@3pb/ui";
 import { defaultSettings, DEFAULT_MATERIAL, DEFAULT_MESIN_PER_JAM } from "./default-settings";
 
 export interface KomponenPreset { id: string; nama: string; harga: number }
@@ -6,6 +8,18 @@ export type PackingPreset = KomponenPreset;
 export interface LaborItemInput { nama: string; jam?: number; ratePerJam?: number; flat?: number }
 export interface LaborPreset { id: string; nama: string; items: LaborItemInput[] }
 export interface LaborJob { id: string; nama: string; ratePerJam?: number; flat?: number }
+
+export interface FilamentEntry {
+  id: string;
+  brand: string;
+  material: string;         // polimer: "PLA+", "PETG", "Resin"
+  tipe: "FDM" | "SLA";
+  warna: string;
+  warnaHex?: string;
+  hppPerGram: number;
+  jualPerGram: number;
+  failureRatePct?: number;
+}
 
 export interface LocalSettings {
   material: {
@@ -22,6 +36,7 @@ export interface LocalSettings {
   packingPresets: PackingPreset[];
   laborPresets: LaborPreset[];
   laborJobs: LaborJob[];
+  filaments: FilamentEntry[];
 }
 
 export const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
@@ -71,6 +86,11 @@ export const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
     { id: "job-sanding", nama: "Sanding", ratePerJam: 35000 },
     { id: "job-painting", nama: "Painting", ratePerJam: 75000 },
   ],
+  filaments: [
+    { id: "fil-pla-putih",  brand: "eSUN",     material: "PLA+",  tipe: "FDM", warna: "Putih", warnaHex: "#f5f5f5", hppPerGram: 300,  jualPerGram: 900 },
+    { id: "fil-petg-hitam", brand: "eSUN",     material: "PETG",  tipe: "FDM", warna: "Hitam", warnaHex: "#1a1a1a", hppPerGram: 300,  jualPerGram: 900 },
+    { id: "fil-resin-abu",  brand: "Anycubic", material: "Resin", tipe: "SLA", warna: "Abu",   warnaHex: "#9ca3af", hppPerGram: 1750, jualPerGram: 3500 },
+  ],
 };
 
 export function toSettingsV2(ls: LocalSettings): SettingsV2 {
@@ -84,6 +104,10 @@ export function toSettingsV2(ls: LocalSettings): SettingsV2 {
       { id: "shopee", nama: "Shopee", feeMultiplier: ls.channels.shopee },
     ],
   };
+}
+
+export function newFilamentEntry(): FilamentEntry {
+  return { id: randomUUID(), brand: "", material: "", tipe: "FDM", warna: "", hppPerGram: 0, jualPerGram: 0 };
 }
 
 export function validateLocalSettings(ls: LocalSettings): string[] {
@@ -130,5 +154,15 @@ export function validateLocalSettings(ls: LocalSettings): string[] {
   });
   const jobNames = ls.laborJobs.map((j) => j.nama.trim().toLowerCase()).filter(Boolean);
   if (new Set(jobNames).size !== jobNames.length) errs.push("Ada nama pekerjaan yang sama — nama harus unik");
+  ls.filaments.forEach((f, i) => {
+    const label = `${f.brand} ${f.material} ${f.warna}`.trim() || `#${i + 1}`;
+    if (!`${f.brand}${f.material}${f.warna}`.trim()) errs.push(`Filament #${i + 1} brand/material/warna kosong`);
+    if (!(f.hppPerGram > 0)) errs.push(`Filament "${label}" harga modal harus > 0`);
+    if (!(f.jualPerGram > 0)) errs.push(`Filament "${label}" harga jual harus > 0`);
+    if (f.warnaHex != null && f.warnaHex.trim() !== "" && !isValidHexColor(f.warnaHex)) errs.push(`Filament "${label}" warna hex tidak valid`);
+    if (f.failureRatePct != null && (f.failureRatePct < 0 || f.failureRatePct > 100)) errs.push(`Filament "${label}" failure rate harus 0–100`);
+  });
+  const filKeys = ls.filaments.map((f) => `${f.brand}|${f.material}|${f.warna}`.trim().toLowerCase()).filter((k) => k !== "||");
+  if (new Set(filKeys).size !== filKeys.length) errs.push("Ada filament dengan identitas sama — brand+material+warna harus unik");
   return errs;
 }
