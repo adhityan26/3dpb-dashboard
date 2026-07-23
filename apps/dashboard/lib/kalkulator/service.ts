@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db'
+import { deleteFromMinio } from '@/lib/lg-storage'
 import { loadRates } from './rates'
 import { loadSettingsV2 } from './settings-v2'
 import { listPrinterProfiles, listMaterialProfiles } from './profiles-service'
@@ -44,6 +45,7 @@ function toKalkulasiData(raw: any): KalkulasiData {
       materialProfileId: p.materialProfileId ?? undefined,
       mesinPerJam: p.mesinPerJam ?? undefined,
       color: p.color ?? undefined,
+      thumbnailKey: p.thumbnailKey ?? undefined,
     })),
     komponenKustom: raw.komponenKustom ?? [],
     labor: (raw.labor ?? []).map(({ id, kalkulasiId, urutan, ...l }: any) => ({
@@ -163,7 +165,13 @@ export async function updateKalkulasi(id: string, input: KalkulasiInput): Promis
 }
 
 export async function deleteKalkulasi(id: string): Promise<void> {
+  const plates = await prisma.kalkulasiPlate.findMany({ where: { kalkulasiId: id }, select: { thumbnailKey: true } })
   await prisma.kalkulasiHarga.delete({ where: { id } })
+  await Promise.all(
+    plates
+      .filter((p): p is { thumbnailKey: string } => !!p.thumbnailKey)
+      .map(p => deleteFromMinio(p.thumbnailKey).catch(() => undefined)),
+  )
 }
 
 export async function duplicateKalkulasi(id: string, newNama: string, newBatch?: number): Promise<KalkulasiData> {

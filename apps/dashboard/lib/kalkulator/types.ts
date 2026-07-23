@@ -20,6 +20,7 @@ export interface PlateData extends PlateInput {
   printerProfileId?: string | null
   materialProfileId?: string | null
   mesinPerJam?: number | null
+  thumbnailKey?: string | null
 }
 
 export interface KomponenKustomData extends KomponenKustomInput {

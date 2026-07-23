@@ -235,6 +235,7 @@ model KalkulasiPlate {
   mesinPerJam          Float?                           // cache rate aktual saat save
   materialProfileId    String?                          // FK lunak ke KalkMaterialProfile (single-material mode)
   color                String?                          // hex warna filament, single-material mode (informational)
+  thumbnailKey         String?                          // MinIO object key preview render plate (informational)
 }
 
 model KomponenKustom {
