@@ -48,17 +48,17 @@ export const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
     { id: "pack-xl", nama: "Packing XL", harga: 8000 },
   ],
   laborPresets: [
-    { id: "lbr-mask-minimal", nama: "Mask Minimal", items: [
+    { id: "lbr-mask-minimal", nama: "Finishing Ringan", items: [
       { nama: "Assembly", jam: 0.25, ratePerJam: 35000 },
       { nama: "Sanding", jam: 0.5, ratePerJam: 35000 },
       { nama: "Painting", jam: 0.5, ratePerJam: 75000 },
     ] },
-    { id: "lbr-mask-medium", nama: "Mask Medium", items: [
+    { id: "lbr-mask-medium", nama: "Finishing Standar", items: [
       { nama: "Assembly", jam: 0.5, ratePerJam: 35000 },
       { nama: "Sanding", jam: 1, ratePerJam: 35000 },
       { nama: "Painting", jam: 2, ratePerJam: 75000 },
     ] },
-    { id: "lbr-mask-heavy", nama: "Mask Heavy", items: [
+    { id: "lbr-mask-heavy", nama: "Finishing Lengkap", items: [
       { nama: "Assembly", jam: 1, ratePerJam: 35000 },
       { nama: "Sanding", jam: 4, ratePerJam: 35000 },
       { nama: "Painting", jam: 3.5, ratePerJam: 75000 },

@@ -22,10 +22,11 @@ describe("LaborInput", () => {
     expect(screen.getByPlaceholderText("tarif")).toBeTruthy();
     expect(screen.queryByPlaceholderText("biaya")).toBeNull();
   });
-  it("ganti ke Biaya flat → sembunyikan jam/tarif, tampil biaya", () => {
+  it("chip metode → ganti ke flat: sembunyikan jam/tarif, tampil biaya", () => {
     const onC = vi.fn();
     const { rerender } = render(<LaborInput locked={false} presets={presets} labor={[{ id: "x", nama: "Assembly", jam: 0.5, ratePerJam: 35000 }]} onChange={onC} />);
-    fireEvent.click(screen.getByRole("button", { name: /Biaya flat/ }));
+    // Baris waktu → chip menampilkan "⏱ Per jam"; klik chip untuk ganti ke tetap.
+    fireEvent.click(screen.getByRole("button", { name: /Ganti cara hitung/ }));
     // jam & rate dikosongkan
     expect(onC.mock.calls[0][0][0]).toMatchObject({ jam: undefined, ratePerJam: undefined });
     rerender(<LaborInput locked={false} presets={presets} labor={[{ id: "x", nama: "Assembly", flat: 0 }]} onChange={onC} />);
