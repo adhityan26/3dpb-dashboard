@@ -36,6 +36,7 @@
     "framer-motion": "^12.38.0",
     "html2canvas": "^1.4.1",
     "ioredis": "^5.11.1",
+    "jszip": "^3.10.1",
     "lucide-react": "^1.7.0",
     "mqtt": "^5.15.2",
     "next": "16.2.3",
