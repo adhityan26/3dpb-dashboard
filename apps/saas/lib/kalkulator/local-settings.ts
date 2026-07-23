@@ -128,5 +128,7 @@ export function validateLocalSettings(ls: LocalSettings): string[] {
     if (j.ratePerJam != null && j.ratePerJam < 0) errs.push(`Pekerjaan "${j.nama || i + 1}" tarif negatif`);
     if (j.flat != null && j.flat < 0) errs.push(`Pekerjaan "${j.nama || i + 1}" tarif negatif`);
   });
+  const jobNames = ls.laborJobs.map((j) => j.nama.trim().toLowerCase()).filter(Boolean);
+  if (new Set(jobNames).size !== jobNames.length) errs.push("Ada nama pekerjaan yang sama — nama harus unik");
   return errs;
 }

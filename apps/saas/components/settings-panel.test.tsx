@@ -141,8 +141,9 @@ describe("SettingsPanel daftar pekerjaan", () => {
       expect(jobRows.some((el) => el.value === "Painting")).toBe(true);
     });
     expect(screen.getByText(/Daftar pekerjaan/)).toBeTruthy();
+    const before = screen.getAllByPlaceholderText("Nama pekerjaan").length;
     fireEvent.click(screen.getByRole("button", { name: /Tambah pekerjaan/ }));
-    // baris kosong baru muncul (input nama tambahan)
-    expect(screen.getAllByPlaceholderText("Nama pekerjaan").length).toBeGreaterThanOrEqual(1);
+    // klik menambah tepat satu baris kosong
+    expect(screen.getAllByPlaceholderText("Nama pekerjaan").length).toBe(before + 1);
   });
 });
