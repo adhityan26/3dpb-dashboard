@@ -234,6 +234,7 @@ model KalkulasiPlate {
   printerProfileId     String?                          // FK lunak ke KalkPrinterProfile (tanpa relasi — profil bisa dihapus)
   mesinPerJam          Float?                           // cache rate aktual saat save
   materialProfileId    String?                          // FK lunak ke KalkMaterialProfile (single-material mode)
+  color                String?                          // hex warna filament, single-material mode (informational)
 }
 
 model KomponenKustom {

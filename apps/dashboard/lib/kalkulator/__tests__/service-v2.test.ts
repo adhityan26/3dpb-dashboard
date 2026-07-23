@@ -86,6 +86,26 @@ describe('createKalkulasi (jalur v2)', () => {
     expect(data.komponenKustom.create).toEqual([])
     expect(data.labor.create).toEqual([])
   })
+
+  it('color di plate single-material ke-persist ke kolom color', async () => {
+    await createKalkulasi({
+      nama: 'Warna', batch: 1, marginTier: 'A',
+      plates: [{ tipe: 'FDM', gramasi: 10, durasiJam: 1, color: '#A99077' }],
+      komponen: [], labor: [],
+    })
+    const data = db.kalkulasiHarga.create.mock.calls[0][0].data
+    expect(data.plates.create[0]).toMatchObject({ color: '#A99077' })
+  })
+
+  it('color tidak diisi → kolom color null (bukan undefined/error)', async () => {
+    await createKalkulasi({
+      nama: 'TanpaWarna', batch: 1, marginTier: 'A',
+      plates: [{ tipe: 'FDM', gramasi: 10, durasiJam: 1 }],
+      komponen: [], labor: [],
+    })
+    const data = db.kalkulasiHarga.create.mock.calls[0][0].data
+    expect(data.plates.create[0].color).toBeNull()
+  })
 })
 
 describe('duplicateKalkulasi', () => {

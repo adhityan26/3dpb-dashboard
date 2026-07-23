@@ -43,6 +43,7 @@ function toKalkulasiData(raw: any): KalkulasiData {
       printerProfileId: p.printerProfileId ?? undefined,
       materialProfileId: p.materialProfileId ?? undefined,
       mesinPerJam: p.mesinPerJam ?? undefined,
+      color: p.color ?? undefined,
     })),
     komponenKustom: raw.komponenKustom ?? [],
     labor: (raw.labor ?? []).map(({ id, kalkulasiId, urutan, ...l }: any) => ({
@@ -78,6 +79,7 @@ function platesCreate(input: KalkulasiInput, deps: ResolveDeps) {
     printerProfileId: p.printerProfileId ?? null,
     materialProfileId: p.materialProfileId ?? null,
     mesinPerJam: resolveMesinAktual(p, deps),
+    color: p.color ?? null,
   }))
 }
 

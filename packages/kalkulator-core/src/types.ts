@@ -45,6 +45,7 @@ export interface PlateInput {
   durasiJam: number
   filamentHargaId?: string  // link to FilamentHarga (single-material override)
   hargaPerGram?: number     // cached rate from FilamentHarga
+  color?: string            // hex warna filament, single-material mode (informational, tidak dipakai kalkulasi HPP)
 }
 
 export interface KomponenKustomInput {
