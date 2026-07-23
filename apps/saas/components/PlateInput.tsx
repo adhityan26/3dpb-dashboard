@@ -71,6 +71,12 @@ export function PlateInput({
       <div className="text-[11px] g-t3 flex items-center gap-1">Bagian cetak (plate)
         <InfoTip text="Satu produk bisa terdiri dari beberapa bagian cetak. Tiap plate punya berat & durasi sendiri; totalnya dijumlahkan jadi biaya produksi." /></div>
 
+      <div className="flex items-center gap-2 text-[10px] g-t4 uppercase tracking-wide">
+        <span className="w-[4.75rem] shrink-0">Metode cetak</span>
+        <span className="flex-1 min-w-0">Berat filament</span>
+        <span className="flex-1 min-w-0">Durasi cetak</span>
+      </div>
+
       {plates.map((p, i) => (
         <div key={p.id} className="flex flex-col gap-1.5 rounded-[12px] border border-[color:var(--g-row-border)] p-2.5">
           {(multi || p.nama) && (
@@ -117,9 +123,9 @@ export function PlateInput({
       )}
 
       <label className="text-[12px] g-t3 flex flex-col">
-        <span className="flex items-center gap-1">Batch (pcs sekali cetak)
-          <InfoTip text="Jumlah unit identik dari sekali gabungan cetak. Biaya produksi dibagi angka ini." /></span>
-        <GlassInput type="number" inputMode="numeric" value={batch} className="w-24 mt-1"
+        <span className="flex items-center gap-1">Hasil sekali cetak</span>
+        <span className="text-[11px] g-t4 mb-1">Berapa produk yang dihasilkan dari sekali proses cetak di atas?</span>
+        <GlassInput type="number" inputMode="numeric" min={1} value={batch} className="w-28"
           onChange={(e) => onBatchChange(e.target.value)} />
       </label>
 

@@ -6,6 +6,7 @@ import {
 import { defaultSettings } from "./default-settings";
 import { DEFAULT_LOCAL_SETTINGS, toSettingsV2, type LocalSettings } from "./local-settings";
 import { composeKomponen, composeLabor, type KomponenRow, type LaborRow } from "./compose";
+import { ceil500 } from "./format";
 
 export { defaultSettings };
 
@@ -66,6 +67,11 @@ export function compute(c: CalcInput, ls: LocalSettings = DEFAULT_LOCAL_SETTINGS
   return hitungKalkulasiV2(buildInputV2(c, ls), toSettingsV2(ls));
 }
 
+// Sel strategi per channel×tier — turunan tampilan (harga dibulatkan ke atas kelipatan 500,
+// laba & margin dihitung dari net setelah fee terhadap hppTotal). Formula core tidak berubah.
+export interface StrategiCell { harga: number; laba: number; marginPct: number }
+export type Strategi = Record<string, Record<"A" | "B" | "C", StrategiCell>>;
+
 export interface FullView {
   biayaModal: number;
   hargaJualMinimum: number;
@@ -76,6 +82,7 @@ export interface FullView {
     produksi: number; komponen: number; packing: number; labor: number;
     biayaModal: number; hargaJualMinimum: number; rekomendasi: number;
   };
+  strategi: Strategi;
 }
 
 export function fullView(c: CalcInput, ls: LocalSettings = DEFAULT_LOCAL_SETTINGS): FullView {
@@ -85,6 +92,20 @@ export function fullView(c: CalcInput, ls: LocalSettings = DEFAULT_LOCAL_SETTING
   const namaOf = (id: string) => settings.channels.find((ch) => ch.id === id)?.nama ?? id;
   const off = h.hargaPerChannel.find((ch) => ch.channelId === "offline")!;
   const packingHarga = c.packing?.harga ?? 0;
+  // Strategi harga per channel×tier: harga dibulatkan ke atas kelipatan 500 (ceil500),
+  // laba & margin dihitung dari net (harga dibagi fee channel) dikurangi hppTotal.
+  const round1 = (x: number) => Math.round(x * 10) / 10;
+  const strategi: Strategi = {};
+  for (const ch of h.hargaPerChannel) {
+    const fee = settings.channels.find((s) => s.id === ch.channelId)?.feeMultiplier ?? 1;
+    const cell = (tierVal: number) => {
+      const harga = ceil500(tierVal);
+      const net = fee > 0 ? harga / fee : 0;
+      const laba = Math.round(net - h.hppTotal);
+      return { harga, laba, marginPct: net > 0 ? round1((laba / net) * 100) : 0 };
+    };
+    strategi[ch.channelId] = { A: cell(ch.A), B: cell(ch.B), C: cell(ch.C) };
+  }
   return {
     biayaModal: r(h.hppTotal),
     hargaJualMinimum: r(h.floorPrice),
@@ -107,5 +128,6 @@ export function fullView(c: CalcInput, ls: LocalSettings = DEFAULT_LOCAL_SETTING
       hargaJualMinimum: r(h.floorPrice),
       rekomendasi: r(off.B),
     },
+    strategi,
   };
 }

@@ -84,3 +84,19 @@ describe("PlateInput tanpa crypto.randomUUID (http:// + IP)", () => {
     expect(onP.mock.calls[0][0][1].id).toBeTruthy();
   });
 });
+
+describe("PlateInput redesign", () => {
+  const row = (over: Partial<PlateRow> = {}): PlateRow => ({ id: "p1", nama: "", tipe: "FDM", gramasi: "50", durasiJam: "3", ...over });
+  const base = { plates: [row()], batch: "1", onPlatesChange: () => {}, onBatchChange: () => {} };
+  it("unlocked → label kolom permanen tampil", () => {
+    render(<PlateInput {...base} locked={false} />);
+    expect(screen.getByText("Metode cetak")).toBeTruthy();
+    expect(screen.getByText("Berat filament")).toBeTruthy();
+    expect(screen.getByText("Durasi cetak")).toBeTruthy();
+  });
+  it("unlocked → 'Hasil sekali cetak' menggantikan 'Batch'", () => {
+    render(<PlateInput {...base} locked={false} />);
+    expect(screen.getByText(/Hasil sekali cetak/)).toBeTruthy();
+    expect(screen.queryByText(/^Batch/)).toBeNull();
+  });
+});
