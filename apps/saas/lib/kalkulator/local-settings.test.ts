@@ -62,3 +62,20 @@ describe("1b-2 preset komponen/packing/labor-bundle", () => {
     expect(e.filter((x) => /labor/i.test(x)).length).toBeGreaterThanOrEqual(2);
   });
 });
+
+describe("laborJobs katalog", () => {
+  it("default berisi Assembly/Sanding/Painting dengan tarif", () => {
+    const namas = DEFAULT_LOCAL_SETTINGS.laborJobs.map((j) => j.nama);
+    expect(namas).toEqual(expect.arrayContaining(["Assembly", "Sanding", "Painting"]));
+    const painting = DEFAULT_LOCAL_SETTINGS.laborJobs.find((j) => j.nama === "Painting")!;
+    expect(painting.ratePerJam).toBe(75000);
+  });
+  it("validate menolak job tarif negatif", () => {
+    const bad: LocalSettings = { ...DEFAULT_LOCAL_SETTINGS, laborJobs: [{ id: "x", nama: "X", ratePerJam: -1 }] };
+    expect(validateLocalSettings(bad)).toContain('Pekerjaan "X" tarif negatif');
+  });
+  it("validate menolak job nama kosong", () => {
+    const bad: LocalSettings = { ...DEFAULT_LOCAL_SETTINGS, laborJobs: [{ id: "x", nama: "  ", ratePerJam: 100 }] };
+    expect(validateLocalSettings(bad).some((e) => /Pekerjaan #1 nama kosong/.test(e))).toBe(true);
+  });
+});

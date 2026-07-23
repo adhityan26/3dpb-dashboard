@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 import { MARGIN_TIER_LABEL } from "@3pb/kalkulator-core";
 import { GlassButton, GlassInput } from "@3pb/ui";
-import { DEFAULT_LOCAL_SETTINGS, validateLocalSettings, type LocalSettings, type KomponenPreset, type LaborItemInput } from "@/lib/kalkulator/local-settings";
+import { DEFAULT_LOCAL_SETTINGS, validateLocalSettings, type LocalSettings, type KomponenPreset, type LaborItemInput, type LaborJob } from "@/lib/kalkulator/local-settings";
 import { loadSettings, saveSettings, resetSettings } from "@/lib/store/local-settings";
 import { getRincianPref, setRincianPref } from "@/lib/store/display-prefs";
 import { InfoTip } from "./InfoTip";
@@ -97,6 +97,14 @@ export function SettingsPanel({ editable, userId }: { editable: boolean; userId:
     setS((p) => ({ ...p, laborPresets: p.laborPresets.map((l, j) => (j === pi ? { ...l, items: l.items.filter((_, k) => k !== ii) } : l)) }));
   const numOrUndef = (v: string) => (v === "" ? undefined : Number(v));
 
+  const setJob = (i: number, patch: Partial<LaborJob>) =>
+    setS((p) => ({ ...p, laborJobs: p.laborJobs.map((j, k) => (k === i ? { ...j, ...patch } : j)) }));
+  const addJob = () => setS((p) => ({ ...p, laborJobs: [...p.laborJobs, { id: newId(), nama: "", ratePerJam: 0 }] }));
+  const delJob = (i: number) => setS((p) => ({ ...p, laborJobs: p.laborJobs.filter((_, k) => k !== i) }));
+  const jobMetode = (j: LaborJob): "waktu" | "flat" => (j.flat != null && j.ratePerJam == null ? "flat" : "waktu");
+  const setJobMetode = (i: number, m: "waktu" | "flat") =>
+    setJob(i, m === "flat" ? { ratePerJam: undefined, flat: s.laborJobs[i].flat ?? 0 } : { flat: undefined, ratePerJam: s.laborJobs[i].ratePerJam ?? 0 });
+
   async function save() {
     const errs = validateLocalSettings(s);
     if (errs.length) { setMsg(errs[0]); return; }
@@ -171,6 +179,28 @@ export function SettingsPanel({ editable, userId }: { editable: boolean; userId:
             </div>
           ))}
           {!disabled && <button type="button" onClick={addLaborPreset} className="text-[12px] g-t4 underline self-start">＋ Tambah preset labor</button>}
+        </div>
+      </Section>
+
+      <Section title="Daftar pekerjaan" purpose="Tarif tiap pekerjaan finishing. Dipakai auto-lengkap saat mengisi kalkulator." locked={disabled}>
+        <div className="flex flex-col gap-2">
+          {s.laborJobs.map((j, i) => {
+            const m = jobMetode(j);
+            return (
+              <div key={j.id} className="flex items-center gap-2">
+                <GlassInput value={j.nama} disabled={disabled} placeholder="Nama pekerjaan" className="flex-1" onChange={(e) => setJob(i, { nama: e.target.value })} />
+                <button type="button" disabled={disabled} onClick={() => setJobMetode(i, m === "waktu" ? "flat" : "waktu")}
+                  className="g-btn-ghost rounded-[5px] h-9 px-2 text-[11px] shrink-0 whitespace-nowrap disabled:opacity-60">
+                  {m === "waktu" ? "⏱ /jam" : "Rp tetap"}
+                </button>
+                <GlassInput type="number" inputMode="decimal" disabled={disabled} className="w-28"
+                  value={String(m === "waktu" ? (j.ratePerJam ?? 0) : (j.flat ?? 0))}
+                  onChange={(e) => setJob(i, m === "waktu" ? { ratePerJam: Number(e.target.value) } : { flat: Number(e.target.value) })} />
+                {!disabled && <button type="button" onClick={() => delJob(i)} className="g-t4 text-sm px-1" aria-label="Hapus pekerjaan">✕</button>}
+              </div>
+            );
+          })}
+          {!disabled && <button type="button" onClick={addJob} className="text-[12px] g-t4 underline self-start">＋ Tambah pekerjaan</button>}
         </div>
       </Section>
 
