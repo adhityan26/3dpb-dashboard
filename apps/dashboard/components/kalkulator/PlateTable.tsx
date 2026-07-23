@@ -4,7 +4,9 @@ import { useState, useRef, useEffect } from "react"
 import type { PlateInputApp, PrintTipe, FilamentEntry, FilamentHargaData } from "@/lib/kalkulator/types"
 import type { MaterialProfileData } from "@/lib/kalkulator/profiles-service"
 import { useFilamentHarga, usePrinterProfiles, useMaterialProfiles } from "@/lib/hooks/use-kalkulator"
-import { HexColorSwatch, isValidHexColor } from "@3pb/ui"
+import { useCatalog } from "@/lib/hooks/use-filamen"
+import { HexColorSwatch, HexColorPicker, isValidHexColor, type HexColorPickerOption } from "@3pb/ui"
+import { findCatalogColorsForFilament, sortCatalogColors } from "@/lib/kalkulator/color-catalog"
 
 interface PlateRow extends PlateInputApp {
   key: string
@@ -170,6 +172,13 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
   const filamentCatalog: FilamentHargaData[] = filamentHargaData ?? []
   const { data: printerProfiles } = usePrinterProfiles()
   const { data: materialProfiles } = useMaterialProfiles()
+  const { data: catalogData } = useCatalog()
+
+  function colorOptionsFor(brand: string, material: string, referenceColor: string | undefined): HexColorPickerOption[] {
+    const catalog = catalogData?.catalog ?? {}
+    const matched = findCatalogColorsForFilament(catalog, brand, material)
+    return sortCatalogColors(matched, referenceColor).map(e => ({ id: e.id, colorName: e.colorName, colorHex: e.colorHex }))
+  }
 
   function addPlate() {
     const key = nextKey()
@@ -339,7 +348,7 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
             {/* SINGLE MATERIAL MODE */}
             {!isMultiMode && (
               <>
-                <div className="grid gap-2" style={{ gridTemplateColumns: "80px 1fr 1fr" }}>
+                <div className="grid gap-2" style={{ gridTemplateColumns: "80px 1fr 1fr 90px" }}>
 
                   {/* Tipe: FDM / SLA */}
                   <div>
@@ -392,6 +401,31 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
                           {formatDurasiDisplay(plate.durasiJam)}
                         </span>
                       )}
+                    </div>
+                  </div>
+
+                  {/* Warna */}
+                  <div>
+                    <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 g-accent">Warna</div>
+                    <div className="relative flex items-center h-10">
+                      <HexColorPicker
+                        color={plate.color ?? ""}
+                        options={colorOptionsFor(
+                          filamentCatalog.find(f => f.id === plate.filamentHargaId)?.brand ?? "",
+                          filamentCatalog.find(f => f.id === plate.filamentHargaId)?.material ?? "",
+                          plate.color,
+                        )}
+                        onSelect={hex => updatePlate(plate.key, "color", hex)}
+                        className="absolute left-2 z-10"
+                      />
+                      <input
+                        type="text"
+                        placeholder="#RRGGBB"
+                        value={plate.color ?? ""}
+                        onChange={e => updatePlate(plate.key, "color", e.target.value)}
+                        className="glass-input w-full h-10 rounded-[8px] text-xs font-mono tracking-tight"
+                        style={{ paddingLeft: isValidHexColor(plate.color ?? "") ? "26px" : "12px", paddingRight: "6px" }}
+                      />
                     </div>
                   </div>
                 </div>
@@ -454,7 +488,12 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
                       />
                     </div>
                     <div className="relative">
-                      <HexColorSwatch color={mat.color} className="absolute left-2 top-1/2 -translate-y-1/2" />
+                      <HexColorPicker
+                        color={mat.color}
+                        options={colorOptionsFor(mat.brand, mat.material, mat.color)}
+                        onSelect={hex => updateMaterial(plate.key, mIdx, "color", hex)}
+                        className="absolute left-2 top-1/2 -translate-y-1/2 z-10"
+                      />
                       <input
                         type="text"
                         placeholder="Warna"
