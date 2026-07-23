@@ -63,4 +63,15 @@ describe("parseSliceInfo", () => {
     expect(parseSliceInfo("")).toEqual([])
     expect(parseSliceInfo("not xml at all")).toEqual([])
   })
+
+  it("parses <filament> attributes regardless of order (e.g. OrcaSlicer may emit a different order than Bambu Studio)", () => {
+    const xml = `<config><plate>
+      <metadata key="index" value="1"/>
+      <metadata key="prediction" value="100"/>
+      <metadata key="weight" value="5"/>
+      <filament color="#123456" used_g="5.5" id="1" type="PETG"/>
+    </plate></config>`
+    const plates = parseSliceInfo(xml)
+    expect(plates[0].filaments).toEqual([{ id: 1, type: "PETG", color: "#123456", usedG: 5.5 }])
+  })
 })

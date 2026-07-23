@@ -15,16 +15,27 @@ function parseObjects(block: string): { skipped: boolean }[] {
   return Array.from(matches, m => ({ skipped: m[1] === "true" }))
 }
 
+function attrValue(tag: string, attr: string): string | null {
+  const m = tag.match(new RegExp(`\\s${attr}="([^"]*)"`))
+  return m ? m[1] : null
+}
+
+/** Order-independent per-attribute extraction — slicer versions (Bambu Studio,
+ *  OrcaSlicer) don't guarantee a fixed attribute order on <filament> tags. */
 function parseFilaments(block: string): SliceInfoFilament[] {
-  const matches = block.matchAll(
-    /<filament\s+id="(\d+)"[^>]*type="([^"]*)"[^>]*color="([^"]*)"[^>]*used_g="([^"]*)"/g
-  )
-  return Array.from(matches, m => ({
-    id: parseInt(m[1], 10),
-    type: m[2],
-    color: m[3],
-    usedG: parseFloat(m[4]) || 0,
-  }))
+  const tags = block.match(/<filament\s[^>]*\/>/g) ?? []
+  return tags
+    .map(tag => {
+      const id = attrValue(tag, "id")
+      if (id == null) return null
+      return {
+        id: parseInt(id, 10),
+        type: attrValue(tag, "type") ?? "",
+        color: attrValue(tag, "color") ?? "",
+        usedG: parseFloat(attrValue(tag, "used_g") ?? "") || 0,
+      }
+    })
+    .filter((f): f is SliceInfoFilament => f !== null)
 }
 
 /** Parse Metadata/slice_info.config. Returns [] if the file has no <plate> block
