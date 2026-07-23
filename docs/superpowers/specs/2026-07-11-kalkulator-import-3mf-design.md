@@ -48,9 +48,9 @@ File `.gcode.3mf` bisa 20-30MB+ karena embed G-code (`Metadata/plate_N.gcode`), 
 | **Durasi** | `prediction` (detik) ÷ 3600 → ditulis sebagai string `"H:MM"` ke input (field ini sudah punya parser `"H:MM"` di `PlateTable.tsx`) | — |
 | **Mode Multi + Filament** | Auto-**ON** kalau plate punya > 1 `<filament>` entry. Tiap entry jadi 1 `FilamentEntry`: `material` dari `filament_type[]`, `brand` dari `filament_vendor[]` (index by `filament id`, 1-based), `color` dari `slice_info` hex, `gramasi` dari `used_g` | Kalau cuma 1 filament di plate → tetap mode single (field Gramasi di atas) |
 | **Filament katalog match** | String match exact `brand + material` terhadap `FilamentHarga` (hook `useFilamentHarga`) yang sudah ter-fetch di client | **Tidak ketemu → filament di part itu dibiarkan kosong/default** (gramasi tetap ke-fill, cost pakai rate default sampai user pilih manual) |
-| **Printer** | String-match `printer_model_id` dari `slice_info.config` ke daftar hardcoded (`PRINTERS` di `PlateTable.tsx`) via tabel mapping id Bambu → nama printer | `printer_model_id` tidak dikenal → field printer dibiarkan kosong |
+| **Printer** | String-match `printer_model_id` dari `slice_info.config` (via tabel mapping id Bambu → nama printer) terhadap `PrinterProfileData[]` (hook `usePrinterProfiles`, sudah ter-fetch di client dari tabel `KalkPrinterProfile`). Match ketemu → set **keduanya** `printer: pp.nama` dan `printerProfileId: pp.id` | `printer_model_id` tidak dikenal ATAU nama hasil mapping tidak ada di `printerProfiles` user → field printer & printerProfileId dibiarkan kosong (fallback default rate global, sama seperti behavior tombol "—" di `PlateTable.tsx`) |
 
-Mapping id yang **sudah terverifikasi** dari sample file nyata: `C12` → `Bambu Lab P1S`. ID lain (A1, A1 Mini, P1P, X1C, P2S) belum terverifikasi dari file sample — akan diisi ke tabel mapping saat implementasi berdasarkan dokumentasi Bambu Studio atau sample file tambahan, bukan ditebak. Tabel mapping ditulis eksplisit & growable di kode (bukan hardcode logic), supaya gampang ditambah begitu ID baru ketemu.
+**Koreksi dari riset awal**: printer di kalkulator BUKAN daftar hardcoded string lagi — sejak refactor V2 (merged ke master setelah spec draft pertama), printer sudah nyambung ke tabel `KalkPrinterProfile` sungguhan lewat `usePrinterProfiles()`/`printerProfileId`. Jadi matching-nya dua langkah: (1) `printer_model_id` 3MF → nama printer generik lewat tabel mapping kecil di kode (contoh terverifikasi dari sample file: `C12` → `"Bambu Lab P1S"`; ID lain ditambahkan seiring ditemukan, bukan ditebak), (2) nama itu di-substring-match (case-insensitive) ke `nama` di `printerProfiles` milik user — karena user bisa kasih nama custom profile ("Bambu P1P (Mars)"), match dilakukan by substring bukan exact-equal.
 
 ## Handling file yang belum di-slice (`.3mf` biasa)
 
@@ -72,6 +72,6 @@ Deteksi: `slice_info.config` ada tapi tidak punya `<plate>` block sama sekali (a
 ## Scope non-implementasi (di luar spec ini)
 
 - Tidak menambah UI untuk multi-file import (1 file 3MF per klik import).
-- Tidak mengubah `KalkPrinterProfile` (tabel profile printer v2) — printer tetap string free-text seperti sekarang, hanya di-auto-fill by string match ke list existing.
+- Tidak mengubah/membuat entry baru di `KalkPrinterProfile` — hanya match ke profile yang **sudah ada** di akun user. Kalau user belum punya profile printer yang cocok, field printer dibiarkan kosong (tidak auto-create profile baru).
 - Tidak melakukan auto-create entry baru di katalog `FilamentHarga` untuk filament yang tidak ke-match — sesuai keputusan user, dibiarkan kosong untuk diisi manual.
 - Tidak mendukung format project SLA (`SLA` tipe) — 3MF dari printer resin punya struktur metadata berbeda dan di luar scope spec ini.
