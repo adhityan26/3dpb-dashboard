@@ -20,7 +20,7 @@ import { loadRates } from '@/lib/kalkulator/rates'
 import { loadSettingsV2 } from '@/lib/kalkulator/settings-v2'
 import { listPrinterProfiles, listMaterialProfiles } from '@/lib/kalkulator/profiles-service'
 import type { PrinterProfileData } from '@/lib/kalkulator/profiles-service'
-import { createKalkulasi, duplicateKalkulasi, listKalkulasi, getKalkulasi, deleteKalkulasi, parsePagination } from '../service'
+import { createKalkulasi, updateKalkulasi, duplicateKalkulasi, listKalkulasi, getKalkulasi, deleteKalkulasi, parsePagination } from '../service'
 import type { KalkulatorRates, SettingsV2 } from '@3pb/kalkulator-core'
 
 type MockedPrisma = {
@@ -219,6 +219,31 @@ describe('toKalkulasiData: hargaChannelJson korup', () => {
     db.kalkulasiHarga.findUnique.mockResolvedValue({ ...rawBase, hargaChannelJson: '{}' })
     const data = await getKalkulasi('k1')
     expect(data?.hargaChannel).toBeUndefined()
+  })
+})
+
+describe('updateKalkulasi', () => {
+  it('thumbnailKey plate lama ke-preserve ke plate baru (posisi/urutan sama) setelah edit-resave', async () => {
+    db.kalkulasiPlate.findMany.mockResolvedValue([
+      { thumbnailKey: 'kalkulator-thumbnails/old-p1.png' },
+      { thumbnailKey: null },
+    ])
+    db.kalkulasiHarga.update.mockImplementation(async (args: { data: Record<string, unknown> }) => ({
+      ...args.data, id: 'k1', createdAt: new Date(), updatedAt: new Date(),
+      plates: [], komponenKustom: [], labor: [], produkLinks: [],
+    }))
+    await updateKalkulasi('k1', {
+      nama: 'Edited', batch: 1, marginTier: 'A',
+      plates: [
+        { tipe: 'FDM', gramasi: 10, durasiJam: 1 },
+        { tipe: 'FDM', gramasi: 5, durasiJam: 0.5 },
+      ],
+      komponen: [], labor: [],
+    })
+    const data = db.kalkulasiHarga.update.mock.calls[0][0].data
+    expect(data.plates.create[0]).toMatchObject({ thumbnailKey: 'kalkulator-thumbnails/old-p1.png' })
+    expect(data.plates.create[1]).toMatchObject({ thumbnailKey: null })
+    expect(db.kalkulasiPlate.findMany).toHaveBeenCalledWith({ where: { kalkulasiId: 'k1' }, orderBy: { urutan: 'asc' }, select: { thumbnailKey: true } })
   })
 })
 

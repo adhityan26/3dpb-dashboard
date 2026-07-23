@@ -140,6 +140,11 @@ export async function createKalkulasi(input: KalkulasiInput): Promise<KalkulasiD
 export async function updateKalkulasi(id: string, input: KalkulasiInput): Promise<KalkulasiData> {
   const deps = await loadDeps()
   const hasil = buildHasilV2(input, deps)
+  const existingPlates = await prisma.kalkulasiPlate.findMany({
+    where: { kalkulasiId: id },
+    orderBy: { urutan: 'asc' },
+    select: { thumbnailKey: true },
+  })
   await prisma.$transaction([
     prisma.kalkulasiPlate.deleteMany({ where: { kalkulasiId: id } }),
     prisma.komponenKustom.deleteMany({ where: { kalkulasiId: id } }),
@@ -155,7 +160,9 @@ export async function updateKalkulasi(id: string, input: KalkulasiInput): Promis
       hargaOfflineAktual: input.hargaOfflineAktual,
       packingType: null,
       ...hasil,
-      plates: { create: platesCreate(input, deps) },
+      plates: {
+        create: platesCreate(input, deps).map((p, i) => ({ ...p, thumbnailKey: existingPlates[i]?.thumbnailKey ?? null })),
+      },
       komponenKustom: { create: komponenCreate(input) },
       labor: { create: laborCreate(input) },
     },
