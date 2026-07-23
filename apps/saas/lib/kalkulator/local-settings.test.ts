@@ -41,7 +41,7 @@ describe("1b-2 preset komponen/packing/labor-bundle", () => {
     expect(DEFAULT_LOCAL_SETTINGS.komponenPresets).toHaveLength(6);
     expect(DEFAULT_LOCAL_SETTINGS.packingPresets).toHaveLength(4);
     expect(DEFAULT_LOCAL_SETTINGS.laborPresets).toHaveLength(3);
-    expect(DEFAULT_LOCAL_SETTINGS.laborPresets[1]).toMatchObject({ nama: "Mask Medium" });
+    expect(DEFAULT_LOCAL_SETTINGS.laborPresets[1]).toMatchObject({ nama: "Finishing Standar" });
     expect(DEFAULT_LOCAL_SETTINGS.laborPresets[1].items).toHaveLength(3);
     expect(DEFAULT_LOCAL_SETTINGS.packingPresets[0]).toMatchObject({ nama: "Packing S", harga: 1500 });
   });

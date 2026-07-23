@@ -79,11 +79,11 @@ describe("SettingsPanel 1b-2 komponen/packing/tampilan", () => {
 describe("SettingsPanel labor bundle", () => {
   it("Free → labor preset & item disabled", async () => {
     render(<SettingsPanel editable={false} userId={null} />);
-    expect((screen.getByDisplayValue("Mask Medium") as HTMLInputElement).disabled).toBe(true);
+    expect((screen.getByDisplayValue("Finishing Standar") as HTMLInputElement).disabled).toBe(true);
   });
   it("Beli → tambah item ke bundle lalu Simpan", async () => {
     render(<SettingsPanel editable={true} userId="u1" />);
-    await waitFor(() => expect(screen.getByDisplayValue("Mask Minimal")).toBeTruthy());
+    await waitFor(() => expect(screen.getByDisplayValue("Finishing Ringan")).toBeTruthy());
     fireEvent.click(screen.getAllByText(/Tambah item/i)[0]);
     fireEvent.click(screen.getByText("Simpan"));
     await waitFor(() => expect(saveMock).toHaveBeenCalled());
