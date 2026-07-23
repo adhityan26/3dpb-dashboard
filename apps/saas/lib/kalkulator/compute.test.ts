@@ -153,3 +153,35 @@ describe("fullView.strategi (redesign)", () => {
     expect(cell.laba).toBe(Math.round(net - v.biayaModal));
   });
 });
+
+describe("1b-6a multi-material", () => {
+  const p = (over = {}): CalcPlate => ({ id: "x", tipe: "FDM", gramasi: 50, durasiJam: 3, ...over });
+
+  it("paritas: plate 1 material tanpa filamentId == perilaku legacy", () => {
+    const legacy = buildInputV2({ plates: [p()] });
+    const viaMaterials = buildInputV2({ plates: [{ id: "x", durasiJam: 3, materials: [{ tipe: "FDM", gramasi: 50 }] }] });
+    expect(viaMaterials.plates[0].materials).toEqual(legacy.plates[0].materials);
+  });
+
+  it("plate 2 material dari katalog: gram & tarif per material dari filaments", () => {
+    const ls = DEFAULT_LOCAL_SETTINGS;
+    const out = buildInputV2({ plates: [{
+      id: "x", durasiJam: 3, materials: [
+        { filamentId: "fil-pla-putih", tipe: "FDM", gramasi: 40 },
+        { filamentId: "fil-resin-abu", tipe: "SLA", gramasi: 10 },
+      ],
+    }] }, ls);
+    expect(out.plates[0].materials).toHaveLength(2);
+    expect(out.plates[0].materials[0]).toMatchObject({ gramasi: 40, hppPerGram: 300, jualPerGram: 900 });
+    expect(out.plates[0].materials[1]).toMatchObject({ gramasi: 10, hppPerGram: 1750, jualPerGram: 3500 });
+  });
+
+  it("filamentId tak dikenal → fallback material[tipe]", () => {
+    const out = buildInputV2({ plates: [{ id: "x", durasiJam: 3, materials: [{ filamentId: "tidak-ada", tipe: "SLA", gramasi: 20 }] }] }, DEFAULT_LOCAL_SETTINGS);
+    expect(out.plates[0].materials[0]).toMatchObject({
+      gramasi: 20,
+      hppPerGram: DEFAULT_LOCAL_SETTINGS.material.SLA.hppPerGram,
+      jualPerGram: DEFAULT_LOCAL_SETTINGS.material.SLA.jualPerGram,
+    });
+  });
+});

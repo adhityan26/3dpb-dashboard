@@ -147,3 +147,25 @@ describe("SettingsPanel daftar pekerjaan", () => {
     expect(screen.getAllByPlaceholderText("Nama pekerjaan").length).toBe(before + 1);
   });
 });
+
+describe("1b-6a Daftar filament", () => {
+  it("Pro: render section + tambah/hapus filament", async () => {
+    (loadSettings as any).mockResolvedValue(DEFAULT_LOCAL_SETTINGS);
+    render(<SettingsPanel editable={true} userId="u1" />);
+    expect(await screen.findByText("Daftar filament")).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.getAllByPlaceholderText("Brand").length).toBeGreaterThan(0);
+    });
+    const before = screen.getAllByPlaceholderText("Brand").length;
+    fireEvent.click(screen.getByText("＋ Tambah filament"));
+    expect(screen.getAllByPlaceholderText("Brand").length).toBe(before + 1);
+    fireEvent.click(screen.getAllByLabelText("Hapus filament")[before]);
+    expect(screen.getAllByPlaceholderText("Brand").length).toBe(before);
+  });
+
+  it("Free: baris filament disabled, tak ada tombol tambah/hapus", () => {
+    render(<SettingsPanel editable={false} userId={null} />);
+    expect((screen.getAllByPlaceholderText("Brand")[0] as HTMLInputElement).disabled).toBe(true);
+    expect(screen.queryByText("＋ Tambah filament")).toBeNull();
+  });
+});

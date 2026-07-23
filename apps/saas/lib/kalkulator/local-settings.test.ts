@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { defaultSettings } from "@/lib/kalkulator/default-settings";
-import { DEFAULT_LOCAL_SETTINGS, toSettingsV2, validateLocalSettings } from "@/lib/kalkulator/local-settings";
+import { DEFAULT_LOCAL_SETTINGS, toSettingsV2, validateLocalSettings, newFilamentEntry, type LocalSettings } from "@/lib/kalkulator/local-settings";
 
 describe("toSettingsV2 parity", () => {
   it("DEFAULT_LOCAL_SETTINGS → deep-equal defaultSettings existing", () => {
@@ -84,5 +84,44 @@ describe("laborJobs katalog", () => {
       { id: "b", nama: "painting", ratePerJam: 50000 },
     ] };
     expect(validateLocalSettings(bad).some((e) => /nama harus unik/.test(e))).toBe(true);
+  });
+});
+
+describe("1b-6a filament catalog", () => {
+  it("DEFAULT punya minimal 3 filament valid", () => {
+    expect(DEFAULT_LOCAL_SETTINGS.filaments.length).toBeGreaterThanOrEqual(3);
+    expect(validateLocalSettings(DEFAULT_LOCAL_SETTINGS)).toEqual([]);
+  });
+
+  it("newFilamentEntry: baris kosong murni (id \"\" diisi caller via newId), tipe FDM default", () => {
+    const f = newFilamentEntry();
+    expect(f).toMatchObject({ id: "", brand: "", material: "", warna: "", tipe: "FDM", hppPerGram: 0, jualPerGram: 0 });
+  });
+
+  it("menolak filament harga modal / jual ≤ 0", () => {
+    const bad: LocalSettings = { ...DEFAULT_LOCAL_SETTINGS, filaments: [
+      { id: "f1", brand: "A", material: "PLA", tipe: "FDM", warna: "Putih", hppPerGram: 0, jualPerGram: 500 },
+    ] };
+    expect(validateLocalSettings(bad).some((e) => /harga modal|modal.*> 0|hpp/i.test(e))).toBe(true);
+  });
+
+  it("menolak warnaHex tidak valid", () => {
+    const bad: LocalSettings = { ...DEFAULT_LOCAL_SETTINGS, filaments: [
+      { id: "f1", brand: "A", material: "PLA", tipe: "FDM", warna: "Putih", warnaHex: "bukan-hex", hppPerGram: 300, jualPerGram: 500 },
+    ] };
+    expect(validateLocalSettings(bad).some((e) => /warna|hex/i.test(e))).toBe(true);
+  });
+
+  it("menolak filament identitas duplikat (brand+material+warna)", () => {
+    const dup = { brand: "eSUN", material: "PLA", tipe: "FDM" as const, warna: "Putih", hppPerGram: 300, jualPerGram: 500 };
+    const bad: LocalSettings = { ...DEFAULT_LOCAL_SETTINGS, filaments: [
+      { id: "f1", ...dup }, { id: "f2", ...dup },
+    ] };
+    expect(validateLocalSettings(bad).some((e) => /sama|unik|duplik/i.test(e))).toBe(true);
+  });
+
+  it("menerima katalog filament kosong", () => {
+    const empty: LocalSettings = { ...DEFAULT_LOCAL_SETTINGS, filaments: [] };
+    expect(validateLocalSettings(empty)).toEqual([]);
   });
 });
