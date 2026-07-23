@@ -23,13 +23,9 @@ function findFilamentCatalogMatch(
   brand: string,
   material: string,
   catalog: FilamentHargaData[],
-  usedIds: Set<string>,
 ): FilamentHargaData | undefined {
   return catalog.find(
-    f =>
-      !usedIds.has(f.id) &&
-      f.brand.toLowerCase() === brand.toLowerCase() &&
-      f.material.toLowerCase() === material.toLowerCase(),
+    f => f.brand.toLowerCase() === brand.toLowerCase() && f.material.toLowerCase() === material.toLowerCase(),
   )
 }
 
@@ -59,20 +55,13 @@ function buildPlate(
   const filaments = slicePlate?.filaments ?? []
   if (filaments.length === 0) return base
 
-  const usedCatalogIds = new Set<string>()
   const resolved = filaments.map(f => {
     const slot = filamentSlots[f.id - 1]
     const brand = slot?.vendor ?? ""
     const material = slot?.type || f.type
     unmatchedFilamentCounter.total += 1
-    // Match ignoring per-plate consumption — used only to decide the warning count,
-    // so a duplicate color of an already-priced material isn't reported as "unmatched".
-    const existsInCatalog = findFilamentCatalogMatch(brand, material, filamentCatalog, new Set())
-    if (!existsInCatalog) unmatchedFilamentCounter.unmatched += 1
-    // Match respecting per-plate consumption — each catalog entry is only assigned to
-    // one filament per plate, so a second same-material color is left for manual entry.
-    const match = findFilamentCatalogMatch(brand, material, filamentCatalog, usedCatalogIds)
-    if (match) usedCatalogIds.add(match.id)
+    const match = findFilamentCatalogMatch(brand, material, filamentCatalog)
+    if (!match) unmatchedFilamentCounter.unmatched += 1
     return { brand, material, color: f.color, gramasi: f.usedG, filamentId: match?.id, hargaPerGram: match?.hargaPerGram }
   })
 

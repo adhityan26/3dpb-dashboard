@@ -92,10 +92,11 @@ describe("buildKalkulasi3mfDraft — sliced file", () => {
       brand: "Bambu Lab", material: "PLA", color: "#000000", gramasi: 96.26,
       filamentId: "fh1", hargaPerGram: 300,
     })
-    // filament id=2 (vendor Bambu Lab/PLA juga di FILAMENT_SLOTS index 1) tapi TIDAK ada
-    // di FILAMENT_CATALOG (cuma 1 entry di situ) → harus tetap masuk tanpa match
+    // filament id=2 has the SAME brand+material as id=1 (both "Bambu Lab"/"PLA") — a catalog
+    // entry is just a price reference (Rp/gram), not consumed inventory, so it matches too.
     expect(plate1.materials?.[1]).toEqual({
       brand: "Bambu Lab", material: "PLA", color: "#FE7E62", gramasi: 1.28,
+      filamentId: "fh1", hargaPerGram: 300,
     })
   })
 
