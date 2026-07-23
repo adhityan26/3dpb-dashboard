@@ -1,13 +1,13 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useRef } from "react"
 import { PlateTable } from "./PlateTable"
 import { KomponenSection } from "./KomponenSection"
 import { LaborSection } from "./LaborSection"
 import { HasilPanel } from "./HasilPanel"
 import {
   useCreateKalkulasi, useUpdateKalkulasi, useKalkulatorRates,
-  useSettingsV2, usePrinterProfiles, useMaterialProfiles,
+  useSettingsV2, usePrinterProfiles, useMaterialProfiles, useFilamentHarga,
 } from "@/lib/hooks/use-kalkulator"
 import { useKatalogList } from "@/lib/hooks/use-katalog"
 import { useProducts } from "@/lib/hooks/use-products"
@@ -17,6 +17,7 @@ import { buildHasilV2, type ResolveDeps } from "@/lib/kalkulator/resolve-v2"
 import { composeKomponen, splitPackingRow, hitungPerbandinganPrinter, type KomponenRow, type LaborRow } from "@/lib/kalkulator/form-v2"
 import { PrintableQuote } from "./PrintableQuote"
 import { RincianPanel } from "./RincianPanel"
+import { import3mfFile } from "@/lib/kalkulator/import-3mf"
 
 type PlateRow = PlateInputApp & { key: string }
 
@@ -55,6 +56,31 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   const { data: settingsV2 } = useSettingsV2()
   const { data: printerProfiles } = usePrinterProfiles()
   const { data: materialProfiles } = useMaterialProfiles()
+  const { data: filamentCatalog } = useFilamentHarga()
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [import3mfPending, setImport3mfPending] = useState(false)
+  const [import3mfError, setImport3mfError] = useState<string | null>(null)
+  const [import3mfWarnings, setImport3mfWarnings] = useState<string[]>([])
+
+  async function handleImport3mf(file: File) {
+    setImport3mfError(null)
+    setImport3mfWarnings([])
+    setImport3mfPending(true)
+    try {
+      const draft = await import3mfFile(file, {
+        filamentCatalog: filamentCatalog ?? [],
+        printerProfiles: printerProfiles ?? [],
+      })
+      setNama(draft.nama)
+      setBatch(draft.batch)
+      setPlates(draft.plates.map((p, i) => ({ ...p, key: `p-3mf-${i}` })))
+      setImport3mfWarnings(draft.warnings)
+    } catch (e) {
+      setImport3mfError(e instanceof Error ? e.message : "Gagal membaca file 3MF")
+    } finally {
+      setImport3mfPending(false)
+    }
+  }
   // Deps untuk jalur v2 — buildHasilV2/RincianPanel butuh keempatnya sudah ter-load.
   const deps: ResolveDeps | null = useMemo(() =>
     ratesData && settingsV2 && printerProfiles && materialProfiles
@@ -203,6 +229,39 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
 
         {/* Nama + Batch + Margin */}
         <div className="space-y-3">
+          {!isEditing && (
+            <div className="flex items-center justify-end">
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".3mf"
+                className="hidden"
+                onChange={e => {
+                  const f = e.target.files?.[0]
+                  if (f) handleImport3mf(f)
+                  e.target.value = ""
+                }}
+              />
+              <button
+                onClick={() => fileRef.current?.click()}
+                disabled={import3mfPending}
+                className="h-8 px-3 rounded-[8px] text-xs font-semibold transition-all g-btn-ghost"
+                title="Auto-fill dari file .gcode.3mf hasil slice Bambu Studio/OrcaSlicer"
+              >
+                {import3mfPending ? "⏳ Membaca..." : "📥 Import dari 3MF"}
+              </button>
+            </div>
+          )}
+          {import3mfError && (
+            <div className="text-xs px-3 py-2 rounded-[8px]" style={{ background: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}>
+              ⚠️ {import3mfError}
+            </div>
+          )}
+          {import3mfWarnings.map((w, i) => (
+            <div key={i} className="text-xs px-3 py-2 rounded-[8px]" style={{ background: "rgba(245,158,11,0.08)", color: "#fbbf24", border: "1px solid rgba(245,158,11,0.2)" }}>
+              ⚠️ {w}
+            </div>
+          ))}
           <div>
             <div className="text-xs font-semibold uppercase tracking-wider mb-1.5 g-accent">
               Nama Kalkulasi
