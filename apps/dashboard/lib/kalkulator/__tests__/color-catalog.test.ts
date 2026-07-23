@@ -73,4 +73,9 @@ describe('sortCatalogColors', () => {
     sortCatalogColors(entries, undefined)
     expect(entries).toEqual(original)
   })
+
+  it('referenceColor 8-digit hex (valid format, unparseable by hexToRgb) → fallback ke alfabetis, bukan no-op', () => {
+    const sorted = sortCatalogColors(entries, '#11111100') // isValidHexColor(...) === true, tapi hexToRgb tidak bisa parse 8-digit
+    expect(sorted.map(e => e.id)).toEqual(['b', 'c', 'a']) // sama seperti hasil alfabetis (Abu, Merah, Zebra)
+  })
 })

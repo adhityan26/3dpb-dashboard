@@ -1,4 +1,3 @@
-import { isValidHexColor } from '@3pb/ui'
 import type { FilamentCatalogEntry } from '@/lib/filamen/types'
 
 /** Cocokin dua string (brand ATAU material) pakai substring dua arah, case-insensitive.
@@ -49,7 +48,7 @@ function hexDistance(a: string, b: string): number {
 /** Sort katalog warna: kalau referenceColor hex valid (biasa dari hasil import 3MF),
  *  urutkan by jarak RGB terdekat dulu. Kalau kosong/invalid, urutkan alfabetis by nama. */
 export function sortCatalogColors(entries: FilamentCatalogEntry[], referenceColor: string | undefined): FilamentCatalogEntry[] {
-  const ref = referenceColor && isValidHexColor(referenceColor) ? referenceColor : null
+  const ref = referenceColor && hexToRgb(referenceColor) ? referenceColor : null
   const sorted = [...entries]
   if (ref) {
     sorted.sort((a, b) => hexDistance(a.colorHex, ref) - hexDistance(b.colorHex, ref))

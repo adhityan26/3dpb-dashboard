@@ -175,6 +175,7 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
   const { data: catalogData } = useCatalog()
 
   function colorOptionsFor(brand: string, material: string, referenceColor: string | undefined): HexColorPickerOption[] {
+    if (!brand.trim() && !material.trim()) return []
     const catalog = catalogData?.catalog ?? {}
     const matched = findCatalogColorsForFilament(catalog, brand, material)
     return sortCatalogColors(matched, referenceColor).map(e => ({ id: e.id, colorName: e.colorName, colorHex: e.colorHex }))
