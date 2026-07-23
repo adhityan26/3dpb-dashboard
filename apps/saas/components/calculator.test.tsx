@@ -103,7 +103,7 @@ describe("Calculator redesign", () => {
 describe("Calculator katalog pekerjaan", () => {
   it("Pro: LaborInput menerima jobs dari settings (datalist terisi)", async () => {
     (loadSettings as any).mockResolvedValue(DEFAULT_LOCAL_SETTINGS);
-    const { container } = render(<Calculator authenticated paidCore userId="u1" />);
+    const { container } = render(<Calculator paidCore userId="u1" />);
     await waitFor(() => {
       const opts = Array.from(container.querySelectorAll("datalist option")).map((o) => (o as HTMLOptionElement).value);
       expect(opts).toEqual(expect.arrayContaining(["Painting"]));
