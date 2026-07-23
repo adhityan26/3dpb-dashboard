@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
-import { GlassInput } from "@3pb/ui";
+import { GlassInput, HexColorPicker, type HexColorPickerOption } from "@3pb/ui";
 import { InfoTip } from "./InfoTip";
 import { newId } from "@/lib/id";
+import type { FilamentEntry } from "@/lib/kalkulator/local-settings";
 
 export interface PlateMaterial {
   id: string;
@@ -30,11 +31,12 @@ export function newPlateRow(): PlateRow {
 const tnum = { fontVariantNumeric: "tabular-nums" as const };
 
 export function PlateInput({
-  locked, plates, batch, onPlatesChange, onBatchChange,
+  locked, plates, batch, filaments = [], onPlatesChange, onBatchChange,
 }: {
   locked: boolean;
   plates: PlateRow[];
   batch: string;
+  filaments?: FilamentEntry[];
   onPlatesChange: (p: PlateRow[]) => void;
   onBatchChange: (b: string) => void;
 }) {
@@ -42,6 +44,59 @@ export function PlateInput({
     onPlatesChange(plates.map((p, j) => (j === i ? { ...p, ...patch } : p)));
   const setMat0 = (i: number, patch: Partial<PlateMaterial>) =>
     onPlatesChange(plates.map((p, j) => (j === i ? { ...p, materials: p.materials.map((m, k) => (k === 0 ? { ...m, ...patch } : m)) } : p)));
+  const setMat = (pi: number, mi: number, patch: Partial<PlateMaterial>) =>
+    onPlatesChange(plates.map((p, j) => (j === pi ? { ...p, materials: p.materials.map((m, k) => (k === mi ? { ...m, ...patch } : m)) } : p)));
+  const addMat = (pi: number) =>
+    onPlatesChange(plates.map((p, j) => (j === pi ? { ...p, materials: [...p.materials, newPlateMaterial()] } : p)));
+  const delMat = (pi: number, mi: number) =>
+    onPlatesChange(plates.map((p, j) => (j === pi ? { ...p, materials: p.materials.filter((_, k) => k !== mi) } : p)));
+  const pickFilament = (pi: number, mi: number, filamentId: string) => {
+    const f = filaments.find((x) => x.id === filamentId);
+    setMat(pi, mi, f ? { filamentId: f.id, tipe: f.tipe, warnaHex: f.warnaHex } : { filamentId: undefined });
+  };
+  const swatchOptions = (f: FilamentEntry | undefined): HexColorPickerOption[] =>
+    !f ? [] : filaments
+      .filter((x) => x.brand === f.brand && x.material === f.material && x.warnaHex)
+      .map((x) => ({ id: x.id, colorName: x.warna, colorHex: x.warnaHex! }));
+
+  const MaterialRows = ({ pi }: { pi: number }) => {
+    const p = plates[pi];
+    if (p.materials.length === 1) {
+      return (
+        <button type="button" onClick={() => addMat(pi)} className="text-[11px] underline self-start" style={{ color: "var(--g-accent)" }}>🎨 Multi-material</button>
+      );
+    }
+    return (
+      <div className="flex flex-col gap-1.5 pl-4 border-l-2 border-[color:var(--g-row-border)]">
+        {p.materials.map((m, mi) => {
+          const f = filaments.find((x) => x.id === m.filamentId);
+          return (
+            <div key={m.id} className="flex items-center gap-1.5">
+              <select aria-label="Pilih filament" value={m.filamentId ?? ""} onChange={(e) => pickFilament(pi, mi, e.target.value)}
+                className="glass-input rounded-[5px] px-2 h-9 text-[13px] flex-1 min-w-0">
+                <option value="">— tarif default —</option>
+                {filaments.map((x) => <option key={x.id} value={x.id}>{`${x.brand} ${x.material} ${x.warna}`}</option>)}
+              </select>
+              {!m.filamentId && (
+                <select aria-label="Tipe material" value={m.tipe} onChange={(e) => setMat(pi, mi, { tipe: e.target.value as "FDM" | "SLA" })}
+                  className="glass-input rounded-[5px] px-1.5 h-9 text-[13px] w-16 shrink-0">
+                  <option value="FDM">FDM</option><option value="SLA">SLA</option>
+                </select>
+              )}
+              <div className="relative w-[4.5rem] shrink-0">
+                <GlassInput type="number" inputMode="decimal" placeholder="berat" value={m.gramasi} className="w-full px-2 pr-5"
+                  onChange={(e) => setMat(pi, mi, { gramasi: e.target.value })} />
+                <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] g-t4 pointer-events-none">g</span>
+              </div>
+              <HexColorPicker color={m.warnaHex ?? ""} options={swatchOptions(f)} onSelect={(hex) => setMat(pi, mi, { warnaHex: hex })} />
+              <button type="button" aria-label="Hapus material" className="g-t4 text-sm px-1 shrink-0" onClick={() => delMat(pi, mi)}>✕</button>
+            </div>
+          );
+        })}
+        <button type="button" onClick={() => addMat(pi)} className="text-[11px] underline self-start" style={{ color: "var(--g-accent)" }}>＋ material</button>
+      </div>
+    );
+  };
 
   if (locked) {
     const p = plates[0];
@@ -101,23 +156,28 @@ export function PlateInput({
                 onChange={(e) => setRow(0, { nama: e.target.value })} />
             )}
             <div className="flex items-center gap-2">
-              <select value={p0.materials[0].tipe} onChange={(e) => setMat0(0, { tipe: e.target.value as "FDM" | "SLA" })}
-                className="glass-input rounded-[5px] px-2 h-10 text-sm w-[4.75rem] shrink-0">
-                <option value="FDM">FDM</option>
-                <option value="SLA">SLA</option>
-              </select>
-              <div className="relative flex-1 min-w-0">
-                <GlassInput type="number" inputMode="decimal" placeholder="berat" value={p0.materials[0].gramasi} className="w-full min-w-0 pr-8"
-                  onChange={(e) => setMat0(0, { gramasi: e.target.value })} />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">g</span>
-              </div>
+              {p0.materials.length === 1 && (
+                <>
+                  <select value={p0.materials[0].tipe} onChange={(e) => setMat0(0, { tipe: e.target.value as "FDM" | "SLA" })}
+                    className="glass-input rounded-[5px] px-2 h-10 text-sm w-[4.75rem] shrink-0">
+                    <option value="FDM">FDM</option>
+                    <option value="SLA">SLA</option>
+                  </select>
+                  <div className="relative flex-1 min-w-0">
+                    <GlassInput type="number" inputMode="decimal" placeholder="berat" value={p0.materials[0].gramasi} className="w-full min-w-0 pr-8"
+                      onChange={(e) => setMat0(0, { gramasi: e.target.value })} />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">g</span>
+                  </div>
+                </>
+              )}
               <div className="relative flex-1 min-w-0">
                 <GlassInput type="number" inputMode="decimal" placeholder="durasi" value={p0.durasiJam} className="w-full min-w-0 pr-9"
                   onChange={(e) => setRow(0, { durasiJam: e.target.value })} />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">jam</span>
               </div>
             </div>
-            {!p0.nama && <div className="text-[10px] g-t5">Tipe · berat (g) · durasi (jam)</div>}
+            {!p0.nama && p0.materials.length === 1 && <div className="text-[10px] g-t5">Tipe · berat (g) · durasi (jam)</div>}
+            <MaterialRows pi={0} />
           </div>
         </>
       ) : (
@@ -139,20 +199,27 @@ export function PlateInput({
                 onChange={(e) => setRow(i, { nama: e.target.value })} />
               <button type="button" aria-label="Hapus plate" className="order-3 sm:order-6 w-4 shrink-0 g-t4 text-base leading-none"
                 onClick={() => onPlatesChange(plates.filter((_, j) => j !== i))}>✕</button>
-              <select value={p.materials[0].tipe} onChange={(e) => setMat0(i, { tipe: e.target.value as "FDM" | "SLA" })}
-                className="order-4 sm:order-3 glass-input rounded-[5px] px-1.5 h-10 text-[13px] w-16 shrink-0">
-                <option value="FDM">FDM</option>
-                <option value="SLA">SLA</option>
-              </select>
-              <div className="order-5 sm:order-4 relative w-[4.5rem] shrink-0">
-                <GlassInput type="number" inputMode="decimal" placeholder="berat" value={p.materials[0].gramasi} className="w-full px-2 pr-5"
-                  onChange={(e) => setMat0(i, { gramasi: e.target.value })} />
-                <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] g-t4 pointer-events-none">g</span>
-              </div>
+              {p.materials.length === 1 && (
+                <>
+                  <select value={p.materials[0].tipe} onChange={(e) => setMat0(i, { tipe: e.target.value as "FDM" | "SLA" })}
+                    className="order-4 sm:order-3 glass-input rounded-[5px] px-1.5 h-10 text-[13px] w-16 shrink-0">
+                    <option value="FDM">FDM</option>
+                    <option value="SLA">SLA</option>
+                  </select>
+                  <div className="order-5 sm:order-4 relative w-[4.5rem] shrink-0">
+                    <GlassInput type="number" inputMode="decimal" placeholder="berat" value={p.materials[0].gramasi} className="w-full px-2 pr-5"
+                      onChange={(e) => setMat0(i, { gramasi: e.target.value })} />
+                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] g-t4 pointer-events-none">g</span>
+                  </div>
+                </>
+              )}
               <div className="order-6 sm:order-5 relative w-[4.75rem] shrink-0">
                 <GlassInput type="number" inputMode="decimal" placeholder="durasi" value={p.durasiJam} className="w-full px-2 pr-7"
                   onChange={(e) => setRow(i, { durasiJam: e.target.value })} />
                 <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] g-t4 pointer-events-none">jam</span>
+              </div>
+              <div className="order-7 basis-full">
+                <MaterialRows pi={i} />
               </div>
             </div>
           ))}

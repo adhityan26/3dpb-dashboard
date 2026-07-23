@@ -71,7 +71,7 @@ export function Calculator({ paidCore = false, userId = null }: { paidCore?: boo
       <div className="flex flex-col gap-4 min-w-0">
         <CalcSection n={1} title="Produksi (Cetak 3D)" subtitle="Biaya material dan waktu cetak" icon="🖨️"
           subtotalLabel="Subtotal per produk" subtotal={r?.produksi}>
-          <PlateInput locked={!paidCore} plates={plates} batch={batch} onPlatesChange={setPlates} onBatchChange={setBatch} />
+          <PlateInput locked={!paidCore} plates={plates} batch={batch} filaments={settings.filaments} onPlatesChange={setPlates} onBatchChange={setBatch} />
           {paidCore && (
             <div className="mt-3 rounded-[5px] p-3 flex gap-2 text-[11px] g-t3 leading-relaxed"
               style={{ background: "color-mix(in srgb, var(--g-accent) 6%, transparent)" }}>

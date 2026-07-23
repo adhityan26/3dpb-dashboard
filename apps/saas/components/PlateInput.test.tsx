@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { PlateInput, newPlateRow, type PlateRow } from "./PlateInput";
 
 const mat = (over = {}) => ({ id: "m1", tipe: "FDM" as const, gramasi: "50", ...over });
@@ -101,5 +102,40 @@ describe("PlateInput redesign", () => {
     render(<PlateInput {...base} locked={false} />);
     expect(screen.getByText(/Hasil sekali cetak/)).toBeTruthy();
     expect(screen.queryByText(/^Batch/)).toBeNull();
+  });
+});
+
+describe("1b-6a multi-material di plate", () => {
+  const mat = (over = {}) => ({ id: "m1", tipe: "FDM" as const, gramasi: "50", ...over });
+  const row = (over = {}): PlateRow => ({ id: "p1", nama: "", durasiJam: "3", materials: [mat()], ...over });
+  const fil = [
+    { id: "fil-a", brand: "eSUN", material: "PLA+", tipe: "FDM" as const, warna: "Putih", warnaHex: "#f5f5f5", hppPerGram: 300, jualPerGram: 900 },
+  ];
+
+  it("tombol Multi-material menambah material ke-2", async () => {
+    const user = userEvent.setup();
+    const onP = vi.fn();
+    render(<PlateInput locked={false} plates={[row()]} batch="1" filaments={fil} onPlatesChange={onP} onBatchChange={vi.fn()} />);
+    await user.click(screen.getByRole("button", { name: /multi-material/i }));
+    expect(onP.mock.calls[0][0][0].materials).toHaveLength(2);
+  });
+
+  it("hapus material ke-2 kembali single", async () => {
+    const user = userEvent.setup();
+    const onP = vi.fn();
+    const multi = row({ materials: [mat(), mat({ id: "m2", gramasi: "20" })] });
+    render(<PlateInput locked={false} plates={[multi]} batch="1" filaments={fil} onPlatesChange={onP} onBatchChange={vi.fn()} />);
+    await user.click(screen.getAllByRole("button", { name: /hapus material/i })[1]);
+    expect(onP.mock.calls[0][0][0].materials).toHaveLength(1);
+  });
+
+  it("pilih filament dari katalog mengisi filamentId + tipe", async () => {
+    const user = userEvent.setup();
+    const onP = vi.fn();
+    const multi = row({ materials: [mat(), mat({ id: "m2" })] });
+    render(<PlateInput locked={false} plates={[multi]} batch="1" filaments={fil} onPlatesChange={onP} onBatchChange={vi.fn()} />);
+    const selects = screen.getAllByRole("combobox").filter((el) => (el as HTMLSelectElement).name === "filament" || el.getAttribute("aria-label") === "Pilih filament");
+    await user.selectOptions(selects[0], "fil-a");
+    expect(onP.mock.calls[0][0][0].materials[0]).toMatchObject({ filamentId: "fil-a", tipe: "FDM" });
   });
 });
