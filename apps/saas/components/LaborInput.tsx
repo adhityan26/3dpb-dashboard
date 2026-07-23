@@ -1,9 +1,11 @@
 "use client";
+import { useState, useId } from "react";
 import Link from "next/link";
 import { GlassInput } from "@3pb/ui";
 import type { LaborRow } from "@/lib/kalkulator/compose";
 import { rupiah } from "@/lib/kalkulator/format";
 import { newId } from "@/lib/id";
+import type { LaborJob } from "@/lib/kalkulator/local-settings";
 
 type Metode = "waktu" | "flat";
 const metodeOf = (r: LaborRow): Metode =>
@@ -11,12 +13,14 @@ const metodeOf = (r: LaborRow): Metode =>
 const biayaOf = (r: LaborRow) => (r.jam ?? 0) * (r.ratePerJam ?? 0) + (r.flat ?? 0);
 
 export function LaborInput({
-  locked, presets, labor, onChange,
+  locked, presets, labor, onChange, jobs = [], onAddJob = () => {},
 }: {
   locked: boolean;
   presets: { id: string; nama: string; items: { nama: string; jam?: number; ratePerJam?: number; flat?: number }[] }[];
   labor: LaborRow[];
   onChange: (r: LaborRow[]) => void;
+  jobs?: LaborJob[];
+  onAddJob?: (job: { nama: string; ratePerJam?: number; flat?: number }) => void;
 }) {
   if (locked) {
     return (
@@ -28,6 +32,27 @@ export function LaborInput({
   }
   const setRow = (i: number, patch: Partial<LaborRow>) =>
     onChange(labor.map((x, j) => (j === i ? { ...x, ...patch } : x)));
+
+  const listId = useId();
+  const [dialog, setDialog] = useState<{ i: number; nama: string } | null>(null);
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+  const findJob = (nama: string) => jobs.find((j) => j.nama.trim().toLowerCase() === nama.trim().toLowerCase());
+  const rowKosong = (r: LaborRow) => r.jam == null && r.ratePerJam == null && r.flat == null;
+
+  const onNamaChange = (i: number, nama: string) => {
+    const j = findJob(nama);
+    if (j && rowKosong(labor[i])) {
+      setRow(i, j.ratePerJam != null ? { nama, ratePerJam: j.ratePerJam, jam: labor[i].jam ?? 1, flat: undefined } : { nama, flat: j.flat, jam: undefined, ratePerJam: undefined });
+    } else {
+      setRow(i, { nama });
+    }
+  };
+  const onNamaBlur = (i: number) => {
+    const r = labor[i];
+    if (r.nama.trim() && !findJob(r.nama) && rowKosong(r) && !dismissed.has(r.id)) {
+      setDialog({ i, nama: r.nama.trim() });
+    }
+  };
   // Chip metode: satu klik bolak-balik per jam ⇄ biaya tetap. Model data tetap sama.
   const toggleMetode = (i: number) => {
     const m = metodeOf(labor[i]);
@@ -63,7 +88,9 @@ export function LaborInput({
               <div key={r.id} className="rounded-[5px] border border-[color:var(--g-row-border)] p-2.5">
                 <div className="flex items-center gap-2 flex-wrap">
                   <GlassInput value={r.nama} placeholder="Nama pekerjaan (mis. Amplas)" className="flex-1 min-w-[130px]"
-                    onChange={(e) => setRow(i, { nama: e.target.value })} />
+                    list={listId}
+                    onChange={(e) => onNamaChange(i, e.target.value)}
+                    onBlur={() => onNamaBlur(i)} />
 
                   <button type="button" onClick={() => toggleMetode(i)} aria-label="Ganti cara hitung"
                     className="g-btn-ghost rounded-[5px] h-9 px-2.5 text-[12px] shrink-0 whitespace-nowrap"
@@ -107,6 +134,65 @@ export function LaborInput({
           <div className="text-[11px] g-t4 text-right pt-0.5">Subtotal finishing: <span className="g-t2 font-medium" style={{ fontVariantNumeric: "tabular-nums" }}>{rupiah(total)}</span></div>
         </div>
       )}
+
+      <datalist id={listId}>
+        {jobs.map((j) => <option key={j.id} value={j.nama} />)}
+      </datalist>
+
+      {dialog && (
+        <NewJobDialog
+          nama={dialog.nama}
+          onCancel={() => { setDismissed((s) => new Set(s).add(labor[dialog.i].id)); setDialog(null); }}
+          onSave={(patch) => {
+            onAddJob({ nama: dialog.nama, ...patch });
+            setRow(dialog.i, patch.ratePerJam != null ? { ratePerJam: patch.ratePerJam, jam: labor[dialog.i].jam ?? 1, flat: undefined } : { flat: patch.flat, jam: undefined, ratePerJam: undefined });
+            setDialog(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function NewJobDialog({ nama, onSave, onCancel }: {
+  nama: string;
+  onSave: (patch: { ratePerJam?: number; flat?: number }) => void;
+  onCancel: () => void;
+}) {
+  const [metode, setMetode] = useState<"waktu" | "flat">("waktu");
+  const [nilai, setNilai] = useState("");
+  const id = useId();
+  const n = Number(nilai);
+  const valid = Number.isFinite(n) && n >= 0 && nilai !== "";
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <button type="button" aria-label="Tutup" className="absolute inset-0 bg-black/50" onClick={onCancel} />
+      <div className="relative w-full max-w-sm rounded-[5px] p-4 modal-surface flex flex-col gap-3"
+        onKeyDown={(e) => { if (e.key === "Escape") onCancel(); }}>
+        <div className="text-sm font-semibold g-t1">Pekerjaan baru: {nama}</div>
+        <p className="text-[11px] g-t4">Set tarifnya sekali, nanti otomatis terpakai lagi.</p>
+        <div className="flex gap-1">
+          {(["waktu", "flat"] as const).map((m) => (
+            <button key={m} type="button" onClick={() => setMetode(m)}
+              className="g-btn-ghost rounded-[5px] px-2.5 h-8 text-[12px]"
+              style={metode === m ? { outline: "2px solid var(--g-accent)", color: "var(--g-accent)" } : undefined}>
+              {m === "waktu" ? "⏱ Per jam" : "Rp Tetap"}
+            </button>
+          ))}
+        </div>
+        <label className="text-[11px] g-t3 flex flex-col gap-1">
+          <span>{metode === "waktu" ? "Tarif per jam (Rp)" : "Biaya tetap (Rp)"}</span>
+          <GlassInput id={id} aria-label="Tarif" type="number" inputMode="decimal" value={nilai} autoFocus
+            onChange={(e) => setNilai(e.target.value)} />
+        </label>
+        <div className="flex gap-2 justify-end">
+          <button type="button" onClick={onCancel} className="g-btn-ghost rounded-[5px] h-9 px-3 text-[12px]">Nanti</button>
+          <button type="button" disabled={!valid}
+            onClick={() => onSave(metode === "waktu" ? { ratePerJam: n } : { flat: n })}
+            className="rounded-[5px] h-9 px-3 text-[12px] font-medium text-white disabled:opacity-40"
+            style={{ background: "var(--g-accent)" }}>Simpan &amp; pakai</button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -41,3 +41,47 @@ describe("LaborInput", () => {
     expect(onC.mock.calls[0][0][0].id).toBeTruthy();
   });
 });
+
+const jobs = [
+  { id: "j1", nama: "Painting", ratePerJam: 75000 },
+  { id: "j2", nama: "Packing", flat: 3000 },
+];
+const withCat = { jobs, onAddJob: vi.fn() };
+
+describe("LaborInput katalog", () => {
+  it("datalist berisi nama job dari katalog", () => {
+    const { container } = render(<LaborInput locked={false} presets={presets} labor={[]} onChange={() => {}} {...withCat} />);
+    const opts = Array.from(container.querySelectorAll("datalist option")).map((o) => (o as HTMLOptionElement).value);
+    expect(opts).toEqual(expect.arrayContaining(["Painting", "Packing"]));
+  });
+  it("ketik nama cocok katalog (baris kosong) → auto-isi ratePerJam", () => {
+    const onC = vi.fn();
+    render(<LaborInput locked={false} presets={presets} labor={[{ id: "x", nama: "" }]} onChange={onC} {...withCat} />);
+    fireEvent.change(screen.getByPlaceholderText(/Nama pekerjaan/), { target: { value: "Painting" } });
+    expect(onC.mock.calls.at(-1)![0][0]).toMatchObject({ nama: "Painting", ratePerJam: 75000 });
+  });
+  it("nama cocok tapi baris SUDAH ada tarif → tidak menimpa", () => {
+    const onC = vi.fn();
+    render(<LaborInput locked={false} presets={presets} labor={[{ id: "x", nama: "", jam: 1, ratePerJam: 10000 }]} onChange={onC} {...withCat} />);
+    fireEvent.change(screen.getByPlaceholderText(/Nama pekerjaan/), { target: { value: "Painting" } });
+    expect(onC.mock.calls.at(-1)![0][0]).toMatchObject({ nama: "Painting", ratePerJam: 10000 });
+  });
+  it("blur nama BARU (tak di katalog, baris kosong) → dialog muncul; Simpan panggil onAddJob + isi baris", () => {
+    const onC = vi.fn(); const onAdd = vi.fn();
+    render(<LaborInput locked={false} presets={presets} labor={[{ id: "x", nama: "Coating" }]} onChange={onC} jobs={jobs} onAddJob={onAdd} />);
+    fireEvent.blur(screen.getByDisplayValue("Coating"));
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    fireEvent.change(screen.getByLabelText(/Tarif/i), { target: { value: "50000" } });
+    fireEvent.click(screen.getByRole("button", { name: /Simpan & pakai/ }));
+    expect(onAdd).toHaveBeenCalledWith(expect.objectContaining({ nama: "Coating", ratePerJam: 50000 }));
+    expect(onC.mock.calls.at(-1)![0][0]).toMatchObject({ ratePerJam: 50000 });
+  });
+  it("blur nama baru → 'Nanti' menutup dialog tanpa onAddJob", () => {
+    const onAdd = vi.fn();
+    render(<LaborInput locked={false} presets={presets} labor={[{ id: "x", nama: "Coating" }]} onChange={() => {}} jobs={jobs} onAddJob={onAdd} />);
+    fireEvent.blur(screen.getByDisplayValue("Coating"));
+    fireEvent.click(screen.getByRole("button", { name: /Nanti/ }));
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(onAdd).not.toHaveBeenCalled();
+  });
+});
