@@ -4,8 +4,8 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { Calculator } from "@/components/Calculator";
 import { DEFAULT_LOCAL_SETTINGS } from "@/lib/kalkulator/local-settings";
 
-vi.mock("@/lib/store/local-settings", () => ({ loadSettings: vi.fn(async () => ({})) }));
-import { loadSettings } from "@/lib/store/local-settings";
+vi.mock("@/lib/store/local-settings", () => ({ loadSettings: vi.fn(async () => ({})), saveSettings: vi.fn(async () => {}) }));
+import { loadSettings, saveSettings } from "@/lib/store/local-settings";
 
 describe("Calculator", () => {
   // Redesign: ResultPanel tak lagi memakai LockedBlock/.locked-blur — channel & strategi
@@ -97,5 +97,16 @@ describe("Calculator redesign", () => {
     render(<Calculator paidCore={false} userId={null} />);
     expect(screen.getByText(/1\. Produksi/)).toBeTruthy();
     expect(screen.getByText(/🔒 Komponen tambahan/)).toBeTruthy();
+  });
+});
+
+describe("Calculator katalog pekerjaan", () => {
+  it("Pro: LaborInput menerima jobs dari settings (datalist terisi)", async () => {
+    (loadSettings as any).mockResolvedValue(DEFAULT_LOCAL_SETTINGS);
+    const { container } = render(<Calculator authenticated paidCore userId="u1" />);
+    await waitFor(() => {
+      const opts = Array.from(container.querySelectorAll("datalist option")).map((o) => (o as HTMLOptionElement).value);
+      expect(opts).toEqual(expect.arrayContaining(["Painting"]));
+    });
   });
 });

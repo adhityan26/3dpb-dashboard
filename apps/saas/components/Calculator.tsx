@@ -3,9 +3,10 @@ import { useEffect, useState } from "react";
 import type { MarginTier } from "@3pb/kalkulator-core";
 import { fullView, type CalcPlate } from "@/lib/kalkulator/compute";
 import { DEFAULT_LOCAL_SETTINGS, type LocalSettings } from "@/lib/kalkulator/local-settings";
-import { loadSettings } from "@/lib/store/local-settings";
+import { loadSettings, saveSettings } from "@/lib/store/local-settings";
 import { getRincianPref } from "@/lib/store/display-prefs";
 import { rupiah } from "@/lib/kalkulator/format";
+import { newId } from "@/lib/id";
 import { CalcSection } from "./CalcSection";
 import { PlateInput, type PlateRow } from "./PlateInput";
 import { KomponenInput } from "./KomponenInput";
@@ -52,6 +53,12 @@ export function Calculator({ paidCore = false, userId = null }: { paidCore?: boo
   const onCopy = () => {
     if (view) navigator.clipboard?.writeText(String(view.strategi[channel]?.[tier]?.harga ?? "")).catch(() => {});
   };
+  const onAddJob = (job: { nama: string; ratePerJam?: number; flat?: number }) => {
+    if (settings.laborJobs.some((j) => j.nama.trim().toLowerCase() === job.nama.trim().toLowerCase())) return;
+    const next = { ...settings, laborJobs: [...settings.laborJobs, { id: newId(), ...job }] };
+    setSettings(next);
+    if (paidCore && userId) saveSettings(userId, next).catch(() => {});
+  };
 
   const r = view?.rincian;
   const hasil = Math.max(1, Number(batch) || 1);
@@ -97,7 +104,8 @@ export function Calculator({ paidCore = false, userId = null }: { paidCore?: boo
         <CalcSection n={3} title="Finishing & tenaga kerja" subtitle="Perakitan, pengamplasan, pengecatan, dll." icon="🛠️"
           subtotal={paidCore ? (r?.labor ?? 0) : undefined}
           summary={labor.length ? `${labor.length} pekerjaan · ${rupiah(r?.labor ?? 0)}` : "Belum ada"}>
-          <LaborInput locked={!paidCore} presets={settings.laborPresets} labor={labor} onChange={setLabor} />
+          <LaborInput locked={!paidCore} presets={settings.laborPresets} labor={labor} onChange={setLabor}
+            jobs={settings.laborJobs} onAddJob={onAddJob} />
         </CalcSection>
 
         <CalcSection n={4} title="Packing" subtitle="Biaya kemasan & pelindung produk" icon="📦"
