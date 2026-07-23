@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@3pb/kalkulator-core": "workspace:*",
+    "@3pb/ui": "workspace:*",
     "@auth/prisma-adapter": "^2.11.1",
     "@aws-sdk/client-s3": "^3.1053.0",
     "@aws-sdk/s3-request-presigner": "^3.1053.0",
