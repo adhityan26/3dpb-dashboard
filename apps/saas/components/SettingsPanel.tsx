@@ -2,8 +2,8 @@
 import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 import { MARGIN_TIER_LABEL } from "@3pb/kalkulator-core";
-import { GlassButton, GlassInput } from "@3pb/ui";
-import { DEFAULT_LOCAL_SETTINGS, validateLocalSettings, type LocalSettings, type KomponenPreset, type LaborItemInput, type LaborJob } from "@/lib/kalkulator/local-settings";
+import { GlassButton, GlassInput, isValidHexColor } from "@3pb/ui";
+import { DEFAULT_LOCAL_SETTINGS, validateLocalSettings, type LocalSettings, type KomponenPreset, type LaborItemInput, type LaborJob, type FilamentEntry, newFilamentEntry } from "@/lib/kalkulator/local-settings";
 import { loadSettings, saveSettings, resetSettings } from "@/lib/store/local-settings";
 import { getRincianPref, setRincianPref } from "@/lib/store/display-prefs";
 import { InfoTip } from "./InfoTip";
@@ -105,6 +105,11 @@ export function SettingsPanel({ editable, userId }: { editable: boolean; userId:
   const setJobMetode = (i: number, m: "waktu" | "flat") =>
     setJob(i, m === "flat" ? { ratePerJam: undefined, flat: s.laborJobs[i].flat ?? 0 } : { flat: undefined, ratePerJam: s.laborJobs[i].ratePerJam ?? 0 });
 
+  const setFil = (i: number, patch: Partial<FilamentEntry>) =>
+    setS((p) => ({ ...p, filaments: p.filaments.map((f, k) => (k === i ? { ...f, ...patch } : f)) }));
+  const addFil = () => setS((p) => ({ ...p, filaments: [...p.filaments, { ...newFilamentEntry(), id: newId() }] }));
+  const delFil = (i: number) => setS((p) => ({ ...p, filaments: p.filaments.filter((_, k) => k !== i) }));
+
   async function save() {
     const errs = validateLocalSettings(s);
     if (errs.length) { setMsg(errs[0]); return; }
@@ -201,6 +206,30 @@ export function SettingsPanel({ editable, userId }: { editable: boolean; userId:
             );
           })}
           {!disabled && <button type="button" onClick={addJob} className="text-[12px] g-t4 underline self-start">＋ Tambah pekerjaan</button>}
+        </div>
+      </Section>
+
+      <Section title="Daftar filament" purpose="Merek & harga filament/resin. Dipakai saat memilih material per plate di kalkulator." locked={disabled}>
+        <div className="flex flex-col gap-2">
+          {s.filaments.map((f, i) => (
+            <div key={f.id} className="flex flex-wrap items-center gap-2">
+              <GlassInput value={f.brand} disabled={disabled} placeholder="Brand" className="w-24" onChange={(e) => setFil(i, { brand: e.target.value })} />
+              <GlassInput value={f.material} disabled={disabled} placeholder="Material" className="w-24" onChange={(e) => setFil(i, { material: e.target.value })} />
+              <select value={f.tipe} disabled={disabled} className="glass-input rounded-[5px] px-2 h-10 text-sm w-[4.5rem]" onChange={(e) => setFil(i, { tipe: e.target.value as "FDM" | "SLA" })}>
+                <option value="FDM">FDM</option>
+                <option value="SLA">SLA</option>
+              </select>
+              <span className="inline-flex items-center gap-1">
+                <span className="w-4 h-4 rounded-full shrink-0" style={isValidHexColor(f.warnaHex ?? "") ? { background: f.warnaHex, border: "1px solid rgba(255,255,255,0.25)" } : { border: "1px dashed rgba(255,255,255,0.35)" }} />
+                <GlassInput value={f.warna} disabled={disabled} placeholder="Warna" className="w-20" onChange={(e) => setFil(i, { warna: e.target.value })} />
+                <GlassInput value={f.warnaHex ?? ""} disabled={disabled} placeholder="#hex" className="w-20" onChange={(e) => setFil(i, { warnaHex: e.target.value })} />
+              </span>
+              <GlassInput type="number" inputMode="decimal" value={String(f.hppPerGram)} disabled={disabled} placeholder="modal/g" className="w-24" onChange={(e) => setFil(i, { hppPerGram: Number(e.target.value) })} />
+              <GlassInput type="number" inputMode="decimal" value={String(f.jualPerGram)} disabled={disabled} placeholder="jual/g" className="w-24" onChange={(e) => setFil(i, { jualPerGram: Number(e.target.value) })} />
+              {!disabled && <button type="button" onClick={() => delFil(i)} className="g-t4 text-sm px-1" aria-label="Hapus filament">✕</button>}
+            </div>
+          ))}
+          {!disabled && <button type="button" onClick={addFil} className="text-[12px] g-t4 underline self-start">＋ Tambah filament</button>}
         </div>
       </Section>
 
