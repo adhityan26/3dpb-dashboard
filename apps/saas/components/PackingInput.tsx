@@ -32,7 +32,7 @@ export function PackingInput({
   );
   const isNone = packing == null;
   return (
-    <div className="grid sm:grid-cols-2 gap-2">
+    <div className="grid sm:grid-cols-2 gap-2" role="radiogroup" aria-label="Pilih packing">
       {presets.map((p) => (
         <Card key={p.id} active={packing?.nama === p.nama && packing?.harga === p.harga}
           label={p.nama} right={rupiah(p.harga)} onClick={() => onChange({ nama: p.nama, harga: p.harga })} />

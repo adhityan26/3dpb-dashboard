@@ -78,4 +78,11 @@ describe("laborJobs katalog", () => {
     const bad: LocalSettings = { ...DEFAULT_LOCAL_SETTINGS, laborJobs: [{ id: "x", nama: "  ", ratePerJam: 100 }] };
     expect(validateLocalSettings(bad).some((e) => /Pekerjaan #1 nama kosong/.test(e))).toBe(true);
   });
+  it("validate menolak nama pekerjaan dobel (case-insensitive)", () => {
+    const bad: LocalSettings = { ...DEFAULT_LOCAL_SETTINGS, laborJobs: [
+      { id: "a", nama: "Painting", ratePerJam: 75000 },
+      { id: "b", nama: "painting", ratePerJam: 50000 },
+    ] };
+    expect(validateLocalSettings(bad).some((e) => /nama harus unik/.test(e))).toBe(true);
+  });
 });
