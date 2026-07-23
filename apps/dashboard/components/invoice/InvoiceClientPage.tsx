@@ -51,7 +51,7 @@ export function InvoiceClientPage() {
       <div className="flex justify-end">
         <button
           onClick={() => setShowForm(true)}
-          className="h-9 px-4 rounded-[10px] text-sm font-semibold text-white"
+          className="h-9 px-4 rounded-[5px] text-sm font-semibold text-white"
           style={{ background: "linear-gradient(135deg, #5055e8, #7c84f8)" }}
         >
           + Buat Invoice
@@ -64,7 +64,7 @@ export function InvoiceClientPage() {
           <button
             key={s}
             onClick={() => setFilterStatus(s)}
-            className="h-7 px-3 rounded-[8px] text-xs font-medium transition-all"
+            className="h-7 px-3 rounded-[5px] text-xs font-medium transition-all"
             style={filterStatus === s
               ? { background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", color: "#a5b4fc" }
               : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t3)" }
@@ -80,7 +80,7 @@ export function InvoiceClientPage() {
         <div className="text-sm text-center py-12 g-t4">Memuat...</div>
       )}
       {!isLoading && filtered.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 rounded-[16px] gap-3 g-card"
+        <div className="flex flex-col items-center justify-center py-16 rounded-[5px] gap-3 g-card"
              style={{ borderStyle: "dashed" }}>
           <div className="text-4xl">📄</div>
           <div className="text-sm g-t4">
@@ -95,7 +95,7 @@ export function InvoiceClientPage() {
           return (
             <div
               key={inv.id}
-              className="flex items-center gap-4 px-5 py-4 rounded-[12px] group transition-all cursor-pointer g-row"
+              className="flex items-center gap-4 px-5 py-4 rounded-[5px] group transition-all cursor-pointer g-row"
               onClick={() => setViewId(inv.id)}
             >
               {/* Nomor + buyer */}
@@ -144,7 +144,7 @@ export function InvoiceClientPage() {
               <button
                 onClick={e => { e.stopPropagation(); handleDelete(inv.id, inv.nomor) }}
                 disabled={deleteMut.isPending}
-                className="opacity-0 group-hover:opacity-100 h-7 w-7 rounded-[6px] flex items-center justify-center text-xs flex-shrink-0 transition-all"
+                className="opacity-0 group-hover:opacity-100 h-7 w-7 rounded-[5px] flex items-center justify-center text-xs flex-shrink-0 transition-all"
                 style={{ background: "rgba(239,68,68,0.1)", color: "#f87171" }}
               >
                 ✕

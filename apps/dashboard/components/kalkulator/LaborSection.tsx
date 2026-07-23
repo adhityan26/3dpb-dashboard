@@ -29,7 +29,7 @@ export function LaborSection({ rows, onRowsChange }: Props) {
           {(presets ?? []).map(p => (
             <button key={p.id}
               onClick={() => onRowsChange([...rows, ...p.items.map(i => ({ id: nextId(), ...i }))])}
-              className="px-3 py-1.5 rounded-[8px] text-[11px] font-medium transition-all hover:opacity-80"
+              className="px-3 py-1.5 rounded-[5px] text-[11px] font-medium transition-all hover:opacity-80"
               style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.6)" }}
               title={p.items.map(i => `${i.nama}: ${fmt(rowCost({ id: '', ...i }))}`).join(" · ")}>
               + {p.nama}
@@ -42,19 +42,19 @@ export function LaborSection({ rows, onRowsChange }: Props) {
         <div key={r.id} className="grid gap-2 mb-2 items-center" style={{ gridTemplateColumns: "1fr 64px 90px 90px 70px 32px" }}>
           <input type="text" placeholder="Sanding, painting..." value={r.nama}
             onChange={e => set(r.id, { nama: e.target.value })}
-            className="glass-input w-full h-9 rounded-[6px] px-3 text-xs" />
+            className="glass-input w-full h-9 rounded-[5px] px-3 text-xs" />
           <input type="number" min="0" step="0.25" placeholder="jam" value={r.jam ?? ""}
             onChange={e => set(r.id, { jam: num(e.target.value) })}
-            className="glass-input w-full h-9 rounded-[6px] px-2 text-xs" />
+            className="glass-input w-full h-9 rounded-[5px] px-2 text-xs" />
           <input type="number" min="0" step="1000" placeholder="Rp/jam" value={r.ratePerJam ?? ""}
             onChange={e => set(r.id, { ratePerJam: num(e.target.value) })}
-            className="glass-input w-full h-9 rounded-[6px] px-2 text-xs" />
+            className="glass-input w-full h-9 rounded-[5px] px-2 text-xs" />
           <input type="number" min="0" step="1000" placeholder="flat Rp" value={r.flat ?? ""}
             onChange={e => set(r.id, { flat: num(e.target.value) })}
-            className="glass-input w-full h-9 rounded-[6px] px-2 text-xs" />
+            className="glass-input w-full h-9 rounded-[5px] px-2 text-xs" />
           <span className="text-[10px] font-mono text-right g-t3">{fmt(rowCost(r))}</span>
           <button onClick={() => onRowsChange(rows.filter(x => x.id !== r.id))}
-            className="h-9 w-8 rounded-[6px] flex items-center justify-center text-sm"
+            className="h-9 w-8 rounded-[5px] flex items-center justify-center text-sm"
             style={{ color: "var(--g-t4)", background: "var(--g-inner)" }}>✕</button>
         </div>
       ))}

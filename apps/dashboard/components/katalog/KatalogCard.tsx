@@ -66,7 +66,7 @@ export function KatalogCard({ produk, onEdit }: Props) {
   const shopeeDisplayPrice = actualShopeePrice ?? (produk.hargaShopeeAktual && produk.hargaShopeeAktual > 0 ? produk.hargaShopeeAktual : null)
 
   return (
-    <div className="rounded-[14px] overflow-hidden g-card">
+    <div className="rounded-[5px] overflow-hidden g-card">
       {/* Table-style main row */}
       <div
         className="items-center px-5 py-4 gap-3"
@@ -75,7 +75,7 @@ export function KatalogCard({ produk, onEdit }: Props) {
         {/* Col 1: Image thumbnail */}
         <div className="relative flex-shrink-0">
           <div
-            className="w-12 h-12 rounded-[8px] overflow-hidden flex items-center justify-center cursor-pointer g-inner"
+            className="w-12 h-12 rounded-[5px] overflow-hidden flex items-center justify-center cursor-pointer g-inner"
             onClick={() => fileInputRef.current?.click()}
             title="Klik untuk upload gambar"
             style={produk.imageUrl ? { background: "transparent", border: "none" } : undefined}
@@ -183,7 +183,7 @@ export function KatalogCard({ produk, onEdit }: Props) {
         <div className="flex items-center justify-end gap-1.5">
           <button
             onClick={() => setExpanded(v => !v)}
-            className="h-8 px-2.5 rounded-[8px] text-[11px] font-medium transition-all"
+            className="h-8 px-2.5 rounded-[5px] text-[11px] font-medium transition-all"
             style={expanded
               ? { background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.35)", color: "#a5b4fc" }
               : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t3)" }
@@ -193,7 +193,7 @@ export function KatalogCard({ produk, onEdit }: Props) {
           </button>
           <button
             onClick={() => onEdit(produk)}
-            className="h-8 w-8 rounded-[8px] text-[11px] flex items-center justify-center transition-all"
+            className="h-8 w-8 rounded-[5px] text-[11px] flex items-center justify-center transition-all"
             style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.2)", color: "#a5b4fc" }}
           >
             ✏️
@@ -201,7 +201,7 @@ export function KatalogCard({ produk, onEdit }: Props) {
           <button
             onClick={handleDelete}
             disabled={deleteMut.isPending}
-            className="h-8 w-8 rounded-[8px] text-[11px] flex items-center justify-center transition-all"
+            className="h-8 w-8 rounded-[5px] text-[11px] flex items-center justify-center transition-all"
             style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.15)", color: "#f87171" }}
           >
             {deleteMut.isPending ? "·" : "🗑️"}
@@ -267,7 +267,7 @@ export function KatalogCard({ produk, onEdit }: Props) {
                   Batch: {produk.kalkulasiBatch} unit · nilai per-unit = total ÷ {produk.kalkulasiBatch}
                 </div>
               )}
-              <div className="rounded-[10px] overflow-hidden g-inner">
+              <div className="rounded-[5px] overflow-hidden g-inner">
                 {/* Table header */}
                 <div
                   className="grid text-[9px] font-semibold uppercase tracking-wider px-3 py-2 g-accent"

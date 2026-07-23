@@ -292,7 +292,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
               <button
                 onClick={() => fileRef.current?.click()}
                 disabled={import3mfPending}
-                className="h-8 px-3 rounded-[8px] text-xs font-semibold transition-all g-btn-ghost"
+                className="h-8 px-3 rounded-[5px] text-xs font-semibold transition-all g-btn-ghost"
                 title="Auto-fill dari file .gcode.3mf hasil slice Bambu Studio/OrcaSlicer"
               >
                 {import3mfPending ? "⏳ Membaca..." : "📥 Import dari 3MF"}
@@ -300,12 +300,12 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
             </div>
           )}
           {import3mfError && (
-            <div className="text-xs px-3 py-2 rounded-[8px]" style={{ background: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}>
+            <div className="text-xs px-3 py-2 rounded-[5px]" style={{ background: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}>
               ⚠️ {import3mfError}
             </div>
           )}
           {import3mfWarnings.map((w, i) => (
-            <div key={i} className="text-xs px-3 py-2 rounded-[8px]" style={{ background: "rgba(245,158,11,0.08)", color: "#fbbf24", border: "1px solid rgba(245,158,11,0.2)" }}>
+            <div key={i} className="text-xs px-3 py-2 rounded-[5px]" style={{ background: "rgba(245,158,11,0.08)", color: "#fbbf24", border: "1px solid rgba(245,158,11,0.2)" }}>
               ⚠️ {w}
             </div>
           ))}
@@ -318,7 +318,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
               placeholder='e.g. "Flexi Shark 10pcs"'
               value={nama}
               onChange={e => setNama(e.target.value)}
-              className="glass-input w-full h-10 rounded-[10px] px-3 text-sm"
+              className="glass-input w-full h-10 rounded-[5px] px-3 text-sm"
             />
           </div>
 
@@ -332,7 +332,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
                 min="1"
                 value={batch}
                 onChange={e => setBatch(parseInt(e.target.value) || 1)}
-                className="glass-input w-full h-10 rounded-[10px] px-3 text-sm"
+                className="glass-input w-full h-10 rounded-[5px] px-3 text-sm"
               />
             </div>
             <div>
@@ -344,7 +344,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
                   <button
                     key={tier}
                     onClick={() => setMarginTier(tier)}
-                    className="flex-1 h-10 rounded-[8px] text-[11px] font-bold transition-all px-1"
+                    className="flex-1 h-10 rounded-[5px] text-[11px] font-bold transition-all px-1"
                     style={
                       marginTier === tier
                         ? {
@@ -414,7 +414,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
               const n = parseInt(e.target.value.replace(/\D/g, ""))
               setHargaShopee(n > 0 ? n : undefined)
             }}
-            className="glass-input w-full h-10 rounded-[10px] px-3 text-sm"
+            className="glass-input w-full h-10 rounded-[5px] px-3 text-sm"
             style={shopeeIsLocked ? { opacity: 0.6, cursor: "not-allowed" } : undefined}
           />
         </div>
@@ -436,12 +436,12 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
               const n = parseInt(e.target.value.replace(/\D/g, ""))
               setHargaOffline(n > 0 ? n : undefined)
             }}
-            className="glass-input w-full h-10 rounded-[10px] px-3 text-sm"
+            className="glass-input w-full h-10 rounded-[5px] px-3 text-sm"
           />
         </div>
 
         {/* Custom Risk % */}
-        <div className="rounded-[10px] px-3 py-2.5 space-y-2" style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)" }}>
+        <div className="rounded-[5px] px-3 py-2.5 space-y-2" style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)" }}>
           <div className="flex items-center justify-between">
             <div>
               <span className="text-xs font-medium g-t2">⚠️ Custom Failure Rate</span>
@@ -484,7 +484,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           {hasil && hasValidInput && (
             <button
               onClick={() => setShowPrint(true)}
-              className="h-12 px-4 rounded-[12px] text-sm font-semibold transition-all flex-shrink-0 g-btn-ghost"
+              className="h-12 px-4 rounded-[5px] text-sm font-semibold transition-all flex-shrink-0 g-btn-ghost"
               title="Buat quote untuk customer"
             >
               🖨️
@@ -494,7 +494,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           <button
             onClick={handleSave}
             disabled={!hasValidInput || isSaving}
-            className="flex-1 h-12 rounded-[12px] text-sm font-semibold text-white transition-all"
+            className="flex-1 h-12 rounded-[5px] text-sm font-semibold text-white transition-all"
             style={{
               background:
                 hasValidInput && !isSaving
@@ -515,7 +515,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
 
       {/* RIGHT: Results */}
       <div
-        className="g-card rounded-[14px] p-4"
+        className="g-card rounded-[5px] p-4"
         style={{ border: "1px solid rgba(99,102,241,0.1)" }}
       >
         <div className="text-xs font-bold uppercase tracking-wider mb-4 g-accent">

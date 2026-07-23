@@ -34,7 +34,7 @@ export function CategoryPicker({ selectedCategoryId, onSelect }: Props) {
 
   return (
     <div
-      className="rounded-[10px] overflow-hidden"
+      className="rounded-[5px] overflow-hidden"
       style={{ background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.08)" }}
     >
       {/* Breadcrumb */}

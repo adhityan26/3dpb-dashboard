@@ -25,7 +25,7 @@ export function ControlIsland({ userName = "A", isDark = true }: ControlIslandPr
 
   return (
     <div
-      className="flex items-center gap-1 flex-shrink-0 rounded-[28px] p-[5px]"
+      className="flex items-center gap-1 flex-shrink-0 rounded-[5px] p-[5px]"
       style={islandStyle}
     >
       {/* Theme toggle */}

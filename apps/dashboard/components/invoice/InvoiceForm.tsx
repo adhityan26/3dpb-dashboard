@@ -163,7 +163,7 @@ export function InvoiceForm({ onClose, onCreated, orderPrefill }: Props) {
       onClick={onClose}
     >
       <div
-        className="w-[720px] max-h-[90vh] flex flex-col rounded-[20px] overflow-hidden"
+        className="w-[720px] max-h-[90vh] flex flex-col rounded-[5px] overflow-hidden"
         style={{ background: "rgba(14,14,44,0.97)", border: "1px solid rgba(99,102,241,0.2)" }}
         onClick={e => e.stopPropagation()}
       >
@@ -180,7 +180,7 @@ export function InvoiceForm({ onClose, onCreated, orderPrefill }: Props) {
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
           {/* Shopee order banner */}
           {orderPrefill && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-[8px] text-xs font-medium"
+            <div className="flex items-center gap-2 px-3 py-2 rounded-[5px] text-xs font-medium"
                  style={{ background: "rgba(238,77,45,0.1)", border: "1px solid rgba(238,77,45,0.25)", color: "#f87171" }}>
               <span>🛍️</span>
               <span>Dari Shopee Order <span className="font-mono font-bold">#{orderPrefill.shopeeOrderSn}</span></span>
@@ -191,27 +191,27 @@ export function InvoiceForm({ onClose, onCreated, orderPrefill }: Props) {
             <div>
               <div className={`${fieldLabel} g-accent`}>Nama Buyer *</div>
               <input type="text" value={buyerNama} onChange={e => setBuyerNama(e.target.value)}
-                placeholder="Nama pembeli..." className="glass-input w-full h-10 rounded-[10px] px-3 text-sm" autoFocus />
+                placeholder="Nama pembeli..." className="glass-input w-full h-10 rounded-[5px] px-3 text-sm" autoFocus />
             </div>
             <div>
               <div className={`${fieldLabel} g-accent`}>No. HP / WA (opsional)</div>
               <input type="text" value={buyerContact} onChange={e => setBuyerContact(e.target.value)}
-                placeholder="08xx..." className="glass-input w-full h-10 rounded-[10px] px-3 text-sm" />
+                placeholder="08xx..." className="glass-input w-full h-10 rounded-[5px] px-3 text-sm" />
             </div>
             <div>
               <div className={`${fieldLabel} g-accent`}>Tanggal Invoice</div>
               <input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)}
-                className="glass-input w-full h-10 rounded-[10px] px-3 text-sm" />
+                className="glass-input w-full h-10 rounded-[5px] px-3 text-sm" />
             </div>
             <div>
               <div className={`${fieldLabel} g-accent`}>Due Date (opsional)</div>
               <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
-                className="glass-input w-full h-10 rounded-[10px] px-3 text-sm" />
+                className="glass-input w-full h-10 rounded-[5px] px-3 text-sm" />
             </div>
             <div>
               <div className={`${fieldLabel} g-accent`}>Catatan (opsional)</div>
               <input type="text" value={catatan} onChange={e => setCatatan(e.target.value)}
-                placeholder="Catatan untuk buyer..." className="glass-input w-full h-10 rounded-[10px] px-3 text-sm" />
+                placeholder="Catatan untuk buyer..." className="glass-input w-full h-10 rounded-[5px] px-3 text-sm" />
             </div>
           </div>
 
@@ -219,10 +219,10 @@ export function InvoiceForm({ onClose, onCreated, orderPrefill }: Props) {
           <div style={{ borderTop: "1px solid var(--g-inner-border)", paddingTop: 20 }}>
             <div className={`${fieldLabel} g-accent mb-2`}>Tambah Produk dari Katalog</div>
             <input type="text" value={search} onChange={e => setSearch(e.target.value)}
-              placeholder="🔍 Cari produk..." className="glass-input w-full h-9 rounded-[8px] px-3 text-sm mb-2" />
+              placeholder="🔍 Cari produk..." className="glass-input w-full h-9 rounded-[5px] px-3 text-sm mb-2" />
             <div className="space-y-1">
               {searchResults.map(p => (
-                <div key={p.id} className="g-inner flex items-center gap-3 px-3 py-2 rounded-[8px]">
+                <div key={p.id} className="g-inner flex items-center gap-3 px-3 py-2 rounded-[5px]">
                   <div className="flex-1 min-w-0">
                     <div className="text-xs font-medium truncate g-t1">{p.nama}</div>
                     <div className="text-[10px] g-t4">
@@ -282,22 +282,22 @@ export function InvoiceForm({ onClose, onCreated, orderPrefill }: Props) {
                       <input type="text" value={item.namaProduk}
                         onChange={e => updateItem(item.key, { namaProduk: e.target.value })}
                         placeholder="Nama produk"
-                        className="glass-input h-9 rounded-[8px] px-3 text-xs" />
+                        className="glass-input h-9 rounded-[5px] px-3 text-xs" />
                       <input type="number" min="1" value={item.qty}
                         onChange={e => updateItem(item.key, { qty: parseInt(e.target.value) || 1 })}
-                        className="glass-input h-9 rounded-[8px] px-3 text-xs" />
+                        className="glass-input h-9 rounded-[5px] px-3 text-xs" />
                       <input type="number" min="0" value={item.hargaPerUnit || ""}
                         onChange={e => updateItem(item.key, { hargaPerUnit: parseInt(e.target.value) || 0 })}
                         placeholder="Harga/unit"
-                        className="glass-input h-9 rounded-[8px] px-3 text-xs" />
+                        className="glass-input h-9 rounded-[5px] px-3 text-xs" />
                       <button onClick={() => removeItem(item.key)}
-                        className="h-9 w-7 rounded-[6px] flex items-center justify-center text-xs"
+                        className="h-9 w-7 rounded-[5px] flex items-center justify-center text-xs"
                         style={{ color: "#f87171", background: "rgba(239,68,68,0.08)" }}>✕</button>
                     </div>
                     {/* Diskon per item */}
                     <div className="flex items-center gap-2 pl-1">
                       <span className="text-[10px] g-t5">Diskon:</span>
-                      <div className="flex rounded-[6px] overflow-hidden" style={{ border: "1px solid var(--g-inner-border)" }}>
+                      <div className="flex rounded-[5px] overflow-hidden" style={{ border: "1px solid var(--g-inner-border)" }}>
                         {(['Rp', '%'] as const).map(m => (
                           <button key={m} onClick={() => {
                             const base = item.qty * item.hargaPerUnit
@@ -325,7 +325,7 @@ export function InvoiceForm({ onClose, onCreated, orderPrefill }: Props) {
                           updateItem(item.key, { diskon, diskonPct })
                         }}
                         placeholder="0"
-                        className="glass-input h-7 w-20 rounded-[6px] px-2 text-xs" />
+                        className="glass-input h-7 w-20 rounded-[5px] px-2 text-xs" />
                       {item.diskon > 0 && (
                         <span className="text-[10px] g-t4">= -{fmt(item.diskon)}</span>
                       )}
@@ -339,7 +339,7 @@ export function InvoiceForm({ onClose, onCreated, orderPrefill }: Props) {
 
           {/* Total */}
           {items.length > 0 && (
-            <div className="rounded-[10px] overflow-hidden"
+            <div className="rounded-[5px] overflow-hidden"
                  style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.15)" }}>
               <div className="px-4 py-3 space-y-2">
                 <div className="flex justify-between items-center">
@@ -355,7 +355,7 @@ export function InvoiceForm({ onClose, onCreated, orderPrefill }: Props) {
                 <div className="flex justify-between items-center gap-3">
                   <span className="text-xs g-t3 shrink-0">- Diskon global</span>
                   <div className="flex items-center gap-1.5 ml-auto">
-                    <div className="flex rounded-[6px] overflow-hidden" style={{ border: "1px solid var(--g-inner-border)" }}>
+                    <div className="flex rounded-[5px] overflow-hidden" style={{ border: "1px solid var(--g-inner-border)" }}>
                       {(['Rp', '%'] as const).map(m => (
                         <button key={m} onClick={() => {
                           setDiskonGlobalMode(m)
@@ -381,7 +381,7 @@ export function InvoiceForm({ onClose, onCreated, orderPrefill }: Props) {
                         setDiskonGlobalPct(diskonPct)
                       }}
                       placeholder="0"
-                      className="glass-input h-7 w-24 rounded-[6px] px-2 text-xs" />
+                      className="glass-input h-7 w-24 rounded-[5px] px-2 text-xs" />
                     {diskonGlobal > 0 && diskonGlobalMode === '%' && (
                       <span className="text-[10px] g-t4">= -{fmt(diskonGlobal)}</span>
                     )}
@@ -397,18 +397,18 @@ export function InvoiceForm({ onClose, onCreated, orderPrefill }: Props) {
           )}
 
           {error && (
-            <div className="text-xs px-3 py-2 rounded-[8px]"
+            <div className="text-xs px-3 py-2 rounded-[5px]"
                  style={{ background: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}>
               {error}
             </div>
           )}
 
           <div className="flex gap-2">
-            <button onClick={onClose} className="g-btn-ghost flex-1 h-10 rounded-[10px] text-sm font-medium">
+            <button onClick={onClose} className="g-btn-ghost flex-1 h-10 rounded-[5px] text-sm font-medium">
               Batal
             </button>
             <button onClick={handleSave} disabled={createMut.isPending}
-                    className="flex-1 h-10 rounded-[10px] text-sm font-semibold text-white"
+                    className="flex-1 h-10 rounded-[5px] text-sm font-semibold text-white"
                     style={{ background: createMut.isPending ? "rgba(99,102,241,0.3)" : "linear-gradient(135deg, #5055e8, #7c84f8)" }}>
               {createMut.isPending ? "Menyimpan..." : "Buat Invoice"}
             </button>

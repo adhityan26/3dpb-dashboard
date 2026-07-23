@@ -71,7 +71,7 @@ export function LaborPresetsSection() {
       {isLoading && <div className="text-xs g-t5 py-2">Memuat…</div>}
       <div className="space-y-1 mb-3">
         {(presets ?? []).map(p => (
-          <div key={p.id} className="px-2 py-1.5 rounded-[6px]"
+          <div key={p.id} className="px-2 py-1.5 rounded-[5px]"
                style={{ background: 'var(--g-inner)', border: '1px solid var(--g-inner-border)' }}>
             <div className="flex items-center gap-2">
               <span className="text-xs g-t2 flex-1">{p.nama}</span>
@@ -99,19 +99,19 @@ export function LaborPresetsSection() {
       <div className="mb-2">
         <label className="block text-[10px] g-t4 uppercase tracking-wide mb-1">Nama preset</label>
         <input value={nama} onChange={e => setNama(e.target.value)}
-          placeholder="Helm CUSTOM" className="glass-input w-full h-9 rounded-[8px] px-3 text-sm" />
+          placeholder="Helm CUSTOM" className="glass-input w-full h-9 rounded-[5px] px-3 text-sm" />
       </div>
       <div className="space-y-1.5">
         {rows.map((r, i) => (
           <div key={i} className="grid grid-cols-9 gap-1.5 items-center">
             <input value={r.nama} onChange={e => setRow(i, { nama: e.target.value })}
-              placeholder="Sanding" className="glass-input col-span-3 h-8 rounded-[6px] px-2 text-xs" />
+              placeholder="Sanding" className="glass-input col-span-3 h-8 rounded-[5px] px-2 text-xs" />
             <input type="number" min="0" step="0.25" value={r.jam} onChange={e => setRow(i, { jam: e.target.value })}
-              placeholder="jam" className="glass-input col-span-1 h-8 rounded-[6px] px-2 text-xs" />
+              placeholder="jam" className="glass-input col-span-1 h-8 rounded-[5px] px-2 text-xs" />
             <input type="number" min="0" value={r.ratePerJam} onChange={e => setRow(i, { ratePerJam: e.target.value })}
-              placeholder="Rp/jam" className="glass-input col-span-2 h-8 rounded-[6px] px-2 text-xs" />
+              placeholder="Rp/jam" className="glass-input col-span-2 h-8 rounded-[5px] px-2 text-xs" />
             <input type="number" min="0" value={r.flat} onChange={e => setRow(i, { flat: e.target.value })}
-              placeholder="flat Rp" className="glass-input col-span-2 h-8 rounded-[6px] px-2 text-xs" />
+              placeholder="flat Rp" className="glass-input col-span-2 h-8 rounded-[5px] px-2 text-xs" />
             <button onClick={() => setRows(rs => rs.length > 1 ? rs.filter((_, idx) => idx !== i) : rs)}
               className="text-[10px] g-t4 hover:text-red-400 transition-colors col-span-1">✕</button>
           </div>

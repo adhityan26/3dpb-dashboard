@@ -110,14 +110,14 @@ function ReloadConfirmDialog({
         <div className="flex gap-2 justify-end pt-1">
           <button
             onClick={onCancel}
-            className="text-[11px] px-3 py-1.5 rounded-[6px] transition-opacity hover:opacity-80"
+            className="text-[11px] px-3 py-1.5 rounded-[5px] transition-opacity hover:opacity-80"
             style={{ background: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.6)" }}
           >
             Batal
           </button>
           <button
             onClick={onConfirm}
-            className="text-[11px] font-semibold px-3 py-1.5 rounded-[6px] transition-opacity hover:opacity-80 flex items-center gap-1.5"
+            className="text-[11px] font-semibold px-3 py-1.5 rounded-[5px] transition-opacity hover:opacity-80 flex items-center gap-1.5"
             style={{ background: "rgba(99,102,241,0.3)", color: "#a5b4fc" }}
           >
             <RefreshCw className="w-3 h-3" />
@@ -369,7 +369,7 @@ export function LgOrdersManager() {
                   <button
                     onClick={() => handleConfirm(item.orderId)}
                     disabled={confirming === item.orderId}
-                    className="text-[11px] font-semibold px-3 py-1 rounded-[6px] transition-opacity hover:opacity-80 disabled:opacity-40"
+                    className="text-[11px] font-semibold px-3 py-1 rounded-[5px] transition-opacity hover:opacity-80 disabled:opacity-40"
                     style={{ background: "rgba(99,102,241,0.25)", color: "#a5b4fc" }}
                   >
                     {confirming === item.orderId ? "..." : "Confirm"}

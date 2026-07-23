@@ -157,7 +157,7 @@ export function MobileBottomNav({ role, badges = {}, userName = "A" }: MobileBot
                     href={tab.href}
                 prefetch={false}
                     onClick={() => setSheetOpen(false)}
-                    className="flex flex-col items-center gap-2 p-3 rounded-[12px]"
+                    className="flex flex-col items-center gap-2 p-3 rounded-[5px]"
                     style={{
                       background: "rgba(255,255,255,0.05)",
                       border: "1px solid rgba(99,102,241,0.1)",

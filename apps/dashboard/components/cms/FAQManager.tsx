@@ -47,11 +47,11 @@ export function FAQManager() {
           <h2 className="text-[15px] font-bold text-white">❓ FAQ</h2>
           <p className="text-[12px] mt-0.5" style={{ color: "rgba(255,255,255,0.35)" }}>{items.length} pertanyaan</p>
         </div>
-        <button onClick={openCreate} className="px-4 py-2 rounded-[8px] text-[12px] font-semibold text-white" style={{ background: "linear-gradient(135deg,#5055e8,#818cf8)" }}>+ Tambah</button>
+        <button onClick={openCreate} className="px-4 py-2 rounded-[5px] text-[12px] font-semibold text-white" style={{ background: "linear-gradient(135deg,#5055e8,#818cf8)" }}>+ Tambah</button>
       </div>
 
       {(creating || editing) && (
-        <div className="p-4 rounded-[12px] border space-y-4" style={{ background: "rgba(99,102,241,0.06)", borderColor: "rgba(99,102,241,0.2)" }}>
+        <div className="p-4 rounded-[5px] border space-y-4" style={{ background: "rgba(99,102,241,0.06)", borderColor: "rgba(99,102,241,0.2)" }}>
           <h3 className="text-[13px] font-semibold text-white">{creating ? "Tambah FAQ" : "Edit FAQ"}</h3>
           <LocalizedField label="Pertanyaan *" value={form.question} onChange={(v) => setForm((f) => ({ ...f, question: v }))} required />
           <LocalizedField label="Jawaban *" value={form.answer} onChange={(v) => setForm((f) => ({ ...f, answer: v }))} multiline required />
@@ -67,10 +67,10 @@ export function FAQManager() {
             </div>
           </div>
           <div className="flex gap-3">
-            <button onClick={handleSave} disabled={create.isPending || update.isPending} className="px-4 py-2 rounded-[8px] text-[12px] font-semibold text-white disabled:opacity-50" style={{ background: "linear-gradient(135deg,#5055e8,#818cf8)" }}>
+            <button onClick={handleSave} disabled={create.isPending || update.isPending} className="px-4 py-2 rounded-[5px] text-[12px] font-semibold text-white disabled:opacity-50" style={{ background: "linear-gradient(135deg,#5055e8,#818cf8)" }}>
               {create.isPending || update.isPending ? "Menyimpan..." : "Simpan"}
             </button>
-            <button onClick={closeForm} className="px-4 py-2 rounded-[8px] text-[12px] text-white/50 hover:text-white/80">Batal</button>
+            <button onClick={closeForm} className="px-4 py-2 rounded-[5px] text-[12px] text-white/50 hover:text-white/80">Batal</button>
           </div>
         </div>
       )}
@@ -86,8 +86,8 @@ export function FAQManager() {
             <td className="px-3 py-2"><div className="flex gap-1 flex-wrap">{item.tags.map((t) => <span key={t} className="text-[9px] px-1.5 py-0.5 rounded-full" style={{ background: "rgba(99,102,241,0.2)", color: "rgba(165,180,252,0.8)" }}>{t}</span>)}</div></td>
             <td className="px-3 py-2">
               <div className="flex gap-2 justify-end">
-                <button onClick={() => openEdit(item)} className="text-[11px] px-2 py-1 rounded-[6px]" style={{ background: "rgba(99,102,241,0.15)", color: "rgba(165,180,252,0.9)" }}>Edit</button>
-                <button onClick={() => remove.mutate(item._id)} disabled={remove.isPending} className="text-[11px] px-2 py-1 rounded-[6px]" style={{ background: "rgba(239,68,68,0.12)", color: "rgba(252,165,165,0.8)" }}>Hapus</button>
+                <button onClick={() => openEdit(item)} className="text-[11px] px-2 py-1 rounded-[5px]" style={{ background: "rgba(99,102,241,0.15)", color: "rgba(165,180,252,0.9)" }}>Edit</button>
+                <button onClick={() => remove.mutate(item._id)} disabled={remove.isPending} className="text-[11px] px-2 py-1 rounded-[5px]" style={{ background: "rgba(239,68,68,0.12)", color: "rgba(252,165,165,0.8)" }}>Hapus</button>
               </div>
             </td>
           </>

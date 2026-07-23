@@ -83,7 +83,7 @@ export function KomponenSection({ packingType, onPackingChange, rows, onRowsChan
               <button
                 key={size}
                 onClick={() => onPackingChange(size === "none" ? undefined : size as PackingType)}
-                className="flex flex-col items-center rounded-[10px] px-4 py-2.5 transition-all"
+                className="flex flex-col items-center rounded-[5px] px-4 py-2.5 transition-all"
                 style={isSelected
                   ? { background: "rgba(99,102,241,0.25)", border: "1px solid rgba(99,102,241,0.5)" }
                   : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)" }
@@ -113,7 +113,7 @@ export function KomponenSection({ packingType, onPackingChange, rows, onRowsChan
             {(presets ?? []).filter(p => p.isActive).map(p => (
               <button key={p.id}
                 onClick={() => onRowsChange([...rows, { id: nextId(), nama: p.nama, harga: p.harga, qty: 1 }])}
-                className="rounded-[10px] px-3 py-2 text-xs transition-all"
+                className="rounded-[5px] px-3 py-2 text-xs transition-all"
                 style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t2)" }}>
                 + {p.nama} <span className="g-t4">({(p.harga / 1000).toFixed(1)}k)</span>
               </button>
@@ -129,7 +129,7 @@ export function KomponenSection({ packingType, onPackingChange, rows, onRowsChan
               placeholder="LED Strip, MCU..."
               value={kk.nama}
               onChange={e => onRowsChange(rows.map(r => r.id === kk.id ? { ...r, nama: e.target.value } : r))}
-              className="glass-input w-full h-9 rounded-[6px] px-3 text-xs"
+              className="glass-input w-full h-9 rounded-[5px] px-3 text-xs"
             />
             <input
               type="number"
@@ -137,7 +137,7 @@ export function KomponenSection({ packingType, onPackingChange, rows, onRowsChan
               placeholder="Harga"
               value={kk.harga || ""}
               onChange={e => onRowsChange(rows.map(r => r.id === kk.id ? { ...r, harga: parseInt(e.target.value) || 0 } : r))}
-              className="glass-input w-full h-9 rounded-[6px] px-3 text-xs"
+              className="glass-input w-full h-9 rounded-[5px] px-3 text-xs"
             />
             <input
               type="number"
@@ -145,11 +145,11 @@ export function KomponenSection({ packingType, onPackingChange, rows, onRowsChan
               placeholder="Qty"
               value={kk.qty}
               onChange={e => onRowsChange(rows.map(r => r.id === kk.id ? { ...r, qty: parseInt(e.target.value) || 1 } : r))}
-              className="glass-input w-full h-9 rounded-[6px] px-3 text-xs"
+              className="glass-input w-full h-9 rounded-[5px] px-3 text-xs"
             />
             <button
               onClick={() => onRowsChange(rows.filter(r => r.id !== kk.id))}
-              className="h-9 w-8 rounded-[6px] flex items-center justify-center text-sm"
+              className="h-9 w-8 rounded-[5px] flex items-center justify-center text-sm"
               style={{ color: "var(--g-t4)", background: "var(--g-inner)" }}
             >✕</button>
           </div>
@@ -179,7 +179,7 @@ export function KomponenSection({ packingType, onPackingChange, rows, onRowsChan
             </button>
 
             {kalkPickerOpen && (
-              <div className="absolute z-50 bottom-full mb-1 left-0 w-72 rounded-[10px] shadow-2xl overflow-hidden"
+              <div className="absolute z-50 bottom-full mb-1 left-0 w-72 rounded-[5px] shadow-2xl overflow-hidden"
                    style={{
                      background: "rgba(10, 10, 30, 0.92)",
                      backdropFilter: "blur(20px) saturate(1.8)",
@@ -197,7 +197,7 @@ export function KomponenSection({ packingType, onPackingChange, rows, onRowsChan
                     placeholder="Cari kalkulasi..."
                     value={kalkSearch}
                     onChange={e => setKalkSearch(e.target.value)}
-                    className="glass-input w-full h-8 rounded-[6px] px-2 text-xs"
+                    className="glass-input w-full h-8 rounded-[5px] px-2 text-xs"
                   />
                 </div>
                 <div className="max-h-52 overflow-y-auto">

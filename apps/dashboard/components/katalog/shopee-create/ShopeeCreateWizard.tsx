@@ -90,7 +90,7 @@ export function ShopeeCreateWizard({ katalog, onClose, onSuccess }: Props) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-xl max-h-[90vh] flex flex-col rounded-[20px] overflow-hidden"
+        className="w-full max-w-xl max-h-[90vh] flex flex-col rounded-[5px] overflow-hidden"
         style={{ background: "rgba(14,14,44,0.99)", border: "1px solid rgba(99,102,241,0.2)" }}
         onClick={e => e.stopPropagation()}
       >
@@ -160,7 +160,7 @@ export function ShopeeCreateWizard({ katalog, onClose, onSuccess }: Props) {
         >
           <button
             onClick={state.step === 1 ? onClose : goPrev}
-            className="text-[12px] px-4 py-2 rounded-[8px] transition-opacity hover:opacity-70"
+            className="text-[12px] px-4 py-2 rounded-[5px] transition-opacity hover:opacity-70"
             style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}
           >
             {state.step === 1 ? "Batal" : "← Kembali"}
@@ -169,7 +169,7 @@ export function ShopeeCreateWizard({ katalog, onClose, onSuccess }: Props) {
           {state.step < maxStep ? (
             <button
               onClick={goNext}
-              className="text-[12px] font-semibold px-4 py-2 rounded-[8px] transition-opacity hover:opacity-80"
+              className="text-[12px] font-semibold px-4 py-2 rounded-[5px] transition-opacity hover:opacity-80"
               style={{ background: "rgba(99,102,241,0.3)", color: "#a5b4fc" }}
             >
               Lanjut →
@@ -241,14 +241,14 @@ function SubmitButton({ state, katalogId, onSuccess }: {
   return (
     <div className="flex flex-col items-end gap-2">
       {error && (
-        <div className="text-[10px] px-3 py-1 rounded-[6px]" style={{ background: "rgba(239,68,68,0.1)", color: "#f87171" }}>
+        <div className="text-[10px] px-3 py-1 rounded-[5px]" style={{ background: "rgba(239,68,68,0.1)", color: "#f87171" }}>
           ❌ {error}
         </div>
       )}
       <button
         onClick={handleSubmit}
         disabled={isPending}
-        className="text-[12px] font-semibold px-4 py-2 rounded-[8px] transition-opacity hover:opacity-80 disabled:opacity-40"
+        className="text-[12px] font-semibold px-4 py-2 rounded-[5px] transition-opacity hover:opacity-80 disabled:opacity-40"
         style={{ background: "linear-gradient(135deg, rgba(99,102,241,0.5), rgba(124,132,248,0.5))", color: "#a5b4fc" }}
       >
         {isPending ? "Membuat..." : "🛒 Buat Produk di Shopee"}

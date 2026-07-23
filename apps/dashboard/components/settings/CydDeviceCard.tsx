@@ -9,7 +9,7 @@ const LINKS = [
 
 export function CydDeviceCard() {
   return (
-    <div className="rounded-[16px] p-5 space-y-4 g-card">
+    <div className="rounded-[5px] p-5 space-y-4 g-card">
       <div>
         <div className="text-sm font-semibold g-t1">🖥️ CYD Display</div>
         <div className="text-xs mt-0.5 g-t4">Konfigurasi layar monitoring printer (Cheap Yellow Display)</div>
@@ -20,7 +20,7 @@ export function CydDeviceCard() {
           <Link
             key={l.href}
             href={l.href}
-            className="rounded-[8px] p-4 flex items-start gap-3 transition-opacity hover:opacity-80"
+            className="rounded-[5px] p-4 flex items-start gap-3 transition-opacity hover:opacity-80"
             style={{ background: "var(--g-inner)" }}
           >
             <span className="text-xl">{l.icon}</span>

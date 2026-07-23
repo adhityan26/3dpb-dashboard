@@ -6,7 +6,7 @@ export default function TagihanPage() {
       title="Tagihan"
       description="Modul ini belum tersedia — belum ada implementasi di balik halaman ini."
     >
-      <div className="g-card rounded-[12px] p-4">
+      <div className="g-card rounded-[5px] p-4">
         <p className="text-sm g-t4">
           Belum ada data tagihan untuk ditampilkan. Untuk sementara, penagihan ke
           buyer dikelola lewat <strong>Finance → Invoice</strong>.

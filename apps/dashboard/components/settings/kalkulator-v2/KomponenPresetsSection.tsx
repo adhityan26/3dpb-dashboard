@@ -41,7 +41,7 @@ export function KomponenPresetsSection() {
       {isLoading && <div className="text-xs g-t5 py-2">Memuat…</div>}
       <div className="space-y-1 mb-3">
         {(presets ?? []).map(k => (
-          <div key={k.id} className="flex items-center gap-2 px-2 py-1.5 rounded-[6px]"
+          <div key={k.id} className="flex items-center gap-2 px-2 py-1.5 rounded-[5px]"
                style={{ background: 'var(--g-inner)', border: '1px solid var(--g-inner-border)', opacity: k.isActive ? 1 : 0.5 }}>
             <span className="text-xs g-t2 flex-1">{k.nama}</span>
             <span className="text-xs font-mono g-t1">Rp {k.harga}</span>

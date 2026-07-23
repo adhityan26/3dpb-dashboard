@@ -12,7 +12,7 @@ export function ShopeeFeeAnalyticsCard() {
   const settingFeeRatePct = rates ? (1 - 1 / rates.adminEcommerce) * 100 : null
 
   return (
-    <div className="rounded-[16px] p-5 space-y-4 g-card">
+    <div className="rounded-[5px] p-5 space-y-4 g-card">
       <div>
         <div className="text-sm font-semibold g-t1">📊 Analitik Biaya Shopee</div>
         <div className="text-xs mt-0.5 g-t4">
@@ -36,7 +36,7 @@ export function ShopeeFeeAnalyticsCard() {
       {data && (
         <>
           {/* Fee rate comparison */}
-          <div className="rounded-[10px] p-3 space-y-2"
+          <div className="rounded-[5px] p-3 space-y-2"
                style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)" }}>
             <div className="text-xs font-semibold g-accent uppercase tracking-wider">Fee Rate</div>
             <div className="flex items-center justify-between">
@@ -75,7 +75,7 @@ export function ShopeeFeeAnalyticsCard() {
               { label: "Total Diterima", value: fmt(data.totalReceived), highlight: true },
               { label: "Order Dianalisa", value: `${data.ordersAnalyzed} order` },
             ].map(({ label, value, highlight }) => (
-              <div key={label} className="rounded-[8px] px-3 py-2"
+              <div key={label} className="rounded-[5px] px-3 py-2"
                    style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)" }}>
                 <div className="text-[10px] g-t4">{label}</div>
                 <div className="text-sm font-semibold mt-0.5"

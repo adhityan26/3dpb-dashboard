@@ -99,7 +99,7 @@ export function KatalogForm({ initial, prefill, onClose, onSaved }: Props) {
       onClick={onClose}
     >
       <div
-        className="w-[480px] max-h-[90vh] flex flex-col rounded-[20px] overflow-hidden"
+        className="w-[480px] max-h-[90vh] flex flex-col rounded-[5px] overflow-hidden"
         style={{ background: "rgba(14,14,44,0.97)", border: "1px solid rgba(99,102,241,0.2)" }}
         onClick={e => e.stopPropagation()}
       >
@@ -127,7 +127,7 @@ export function KatalogForm({ initial, prefill, onClose, onSaved }: Props) {
               onChange={e => { setNama(e.target.value); setError(null) }}
               onKeyDown={e => e.key === "Enter" && handleSubmit()}
               placeholder="Contoh: Flexi Shark, Bacang..."
-              className="glass-input w-full h-10 rounded-[10px] px-3 text-sm" autoFocus />
+              className="glass-input w-full h-10 rounded-[5px] px-3 text-sm" autoFocus />
           </div>
 
           {/* Kategori — appendable dropdown */}
@@ -139,11 +139,11 @@ export function KatalogForm({ initial, prefill, onClose, onSaved }: Props) {
               onChange={e => { setKategori(e.target.value); setShowKategoriDropdown(true) }}
               onFocus={() => setShowKategoriDropdown(true)}
               placeholder="Cth: Keychain, Figurine, Aksesori..."
-              className="glass-input w-full h-10 rounded-[10px] px-3 text-sm"
+              className="glass-input w-full h-10 rounded-[5px] px-3 text-sm"
             />
             {showKategoriDropdown && existingKategoris.length > 0 && (
               <div
-                className="absolute top-full left-0 right-0 mt-1 rounded-[10px] overflow-hidden z-10"
+                className="absolute top-full left-0 right-0 mt-1 rounded-[5px] overflow-hidden z-10"
                 style={{ background: "rgba(14,14,44,0.98)", border: "1px solid rgba(99,102,241,0.2)" }}
               >
                 {existingKategoris
@@ -199,7 +199,7 @@ export function KatalogForm({ initial, prefill, onClose, onSaved }: Props) {
                   }
                 }}
                 placeholder="Ketik tag lalu Enter..."
-                className="glass-input w-full h-9 rounded-[10px] px-3 text-sm"
+                className="glass-input w-full h-9 rounded-[5px] px-3 text-sm"
               />
               {/* Suggestion chips */}
               {tagInput.trim() === "" && existingTags.length > 0 && (
@@ -229,7 +229,7 @@ export function KatalogForm({ initial, prefill, onClose, onSaved }: Props) {
               value={sourceModel}
               onChange={e => setSourceModel(e.target.value)}
               placeholder="URL, path folder, atau keterangan bebas..."
-              className="glass-input w-full h-10 rounded-[10px] px-3 text-sm"
+              className="glass-input w-full h-10 rounded-[5px] px-3 text-sm"
             />
             <div className="text-[10px] mt-1 g-t5">
               Cth: https://makerworld.com/... · /Designs/Flexi Shark/ · Dibuat dari scratch
@@ -242,24 +242,24 @@ export function KatalogForm({ initial, prefill, onClose, onSaved }: Props) {
             <textarea value={deskripsi} onChange={e => setDeskripsi(e.target.value)}
               placeholder="Catatan singkat tentang produk ini..."
               rows={3}
-              className="glass-input w-full rounded-[10px] px-3 py-2.5 text-sm resize-none"
+              className="glass-input w-full rounded-[5px] px-3 py-2.5 text-sm resize-none"
               style={{ lineHeight: 1.5 }}
             />
           </div>
 
           {error && (
-            <div className="text-[11px] px-3 py-2 rounded-[8px]"
+            <div className="text-[11px] px-3 py-2 rounded-[5px]"
                  style={{ background: "rgba(239,68,68,0.1)", border: "1px solid rgba(239,68,68,0.2)", color: "#f87171" }}>
               ⚠️ {error}
             </div>
           )}
 
           <div className="flex gap-2 pt-1">
-            <button onClick={onClose} className="g-btn-ghost flex-1 h-10 rounded-[10px] text-[12px] font-medium transition-all">
+            <button onClick={onClose} className="g-btn-ghost flex-1 h-10 rounded-[5px] text-[12px] font-medium transition-all">
               Batal
             </button>
             <button onClick={handleSubmit} disabled={isPending || !nama.trim()}
-                    className="flex-1 h-10 rounded-[10px] text-[12px] font-semibold text-white transition-all"
+                    className="flex-1 h-10 rounded-[5px] text-[12px] font-semibold text-white transition-all"
                     style={{
                       background: isPending || !nama.trim() ? "rgba(99,102,241,0.3)" : "linear-gradient(135deg, #5055e8, #7c84f8)",
                       cursor: isPending || !nama.trim() ? "not-allowed" : "pointer",

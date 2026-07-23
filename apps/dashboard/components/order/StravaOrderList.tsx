@@ -36,7 +36,7 @@ export function StravaOrderList({
 
   return (
     <div
-      className="rounded-[10px] border overflow-hidden"
+      className="rounded-[5px] border overflow-hidden"
       style={{
         borderColor: "rgba(99,102,241,0.15)",
         background: "rgba(255,255,255,0.03)",

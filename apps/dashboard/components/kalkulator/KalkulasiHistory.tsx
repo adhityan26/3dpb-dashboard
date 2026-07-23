@@ -78,7 +78,7 @@ export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
             placeholder="Cari..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="glass-input h-7 rounded-[8px] px-2 text-[10px]"
+            className="glass-input h-7 rounded-[5px] px-2 text-[10px]"
             style={{ width: 120 }}
           />
         </div>
@@ -89,7 +89,7 @@ export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
             <button
               key={s}
               onClick={() => setFilterStatus(s)}
-              className="h-7 px-3 rounded-[8px] text-[9px] font-medium transition-all flex-shrink-0"
+              className="h-7 px-3 rounded-[5px] text-[9px] font-medium transition-all flex-shrink-0"
               style={filterStatus === s
                 ? { background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", color: "#a5b4fc" }
                 : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t3)" }
@@ -115,7 +115,7 @@ export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
           const offlinePrice = tier === "B" ? k.offlineB : tier === "C" ? k.offlineC : k.offlineA
           const shopeePrice  = tier === "B" ? k.shopeeB  : tier === "C" ? k.shopeeC  : k.shopeeA
           return (
-            <div key={k.id} className="rounded-[10px] overflow-hidden transition-all"
+            <div key={k.id} className="rounded-[5px] overflow-hidden transition-all"
                  style={{ background: "var(--g-card)", border: "1px solid var(--g-card-border)" }}>
 
               {/* Collapsed row */}
@@ -218,28 +218,28 @@ export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
                   {/* Actions — wrap nicely */}
                   <div className="flex gap-1.5 flex-wrap">
                     <button onClick={() => { onEdit(k); setExpandedId(null) }}
-                      className="h-8 px-3 rounded-[6px] text-[10px] font-medium flex-1"
+                      className="h-8 px-3 rounded-[5px] text-[10px] font-medium flex-1"
                       style={{ background: "rgba(99,102,241,0.15)", color: "#a5b4fc", minWidth: 60 }}>
                       ✏️ Edit
                     </button>
                     <button onClick={() => { setDupNama(k.nama + " (copy)"); setDupBatch(k.batch); setDupDialog({ id: k.id, nama: k.nama }); setExpandedId(null) }}
-                      className="h-8 px-3 rounded-[6px] text-[10px] font-medium flex-1"
+                      className="h-8 px-3 rounded-[5px] text-[10px] font-medium flex-1"
                       style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)", minWidth: 60 }}>
                       📋 Duplikat
                     </button>
                     <button onClick={() => { onLinkProduk(k); setExpandedId(null) }}
-                      className="h-8 px-3 rounded-[6px] text-[10px] font-medium"
+                      className="h-8 px-3 rounded-[5px] text-[10px] font-medium"
                       style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>
                       🔗 Link
                     </button>
                     <button onClick={() => { setNewProdukPrefill({ nama: k.nama, primaryKalkulasiId: k.id }); setExpandedId(null) }}
-                      className="h-8 px-3 rounded-[6px] text-[10px] font-medium"
+                      className="h-8 px-3 rounded-[5px] text-[10px] font-medium"
                       style={{ background: "rgba(52,211,153,0.1)", color: "#34d399" }}>
                       📦 Buat Produk
                     </button>
                     <button onClick={() => handleDelete(k.id)}
                       disabled={deleteMut.isPending}
-                      className="h-8 px-3 rounded-[6px] text-[10px] font-medium"
+                      className="h-8 px-3 rounded-[5px] text-[10px] font-medium"
                       style={{ background: "rgba(239,68,68,0.1)", color: "#f87171" }}>
                       🗑️
                     </button>
@@ -254,11 +254,11 @@ export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
       {!filterAktif && totalPages > 1 && (
         <div className="flex items-center justify-center gap-3 mt-3">
           <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
-            className="h-7 px-3 rounded-[8px] text-[10px] disabled:opacity-30"
+            className="h-7 px-3 rounded-[5px] text-[10px] disabled:opacity-30"
             style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t2)" }}>‹ Prev</button>
           <span className="text-[10px] g-t4">Hal {page} / {totalPages} · {total} kalkulasi</span>
           <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}
-            className="h-7 px-3 rounded-[8px] text-[10px] disabled:opacity-30"
+            className="h-7 px-3 rounded-[5px] text-[10px] disabled:opacity-30"
             style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t2)" }}>Next ›</button>
         </div>
       )}
@@ -277,28 +277,28 @@ export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
         <div className="fixed inset-0 z-50 flex items-center justify-center"
              style={{ background: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)" }}
              onClick={() => setDupDialog(null)}>
-          <div className="w-80 rounded-[16px] p-6 space-y-4 mx-4"
+          <div className="w-80 rounded-[5px] p-6 space-y-4 mx-4"
                style={{ background: "rgba(14,14,44,0.95)", border: "1px solid rgba(99,102,241,0.2)" }}
                onClick={e => e.stopPropagation()}>
             <div className="text-[13px] font-bold">Duplikat Kalkulasi</div>
             <div>
               <div className="text-[9px] font-semibold uppercase mb-1" style={{ color: "rgba(165,180,252,0.6)" }}>Nama Baru</div>
               <input type="text" value={dupNama} onChange={e => setDupNama(e.target.value)}
-                className="glass-input w-full h-9 rounded-[8px] px-3 text-[12px]" />
+                className="glass-input w-full h-9 rounded-[5px] px-3 text-[12px]" />
             </div>
             <div>
               <div className="text-[9px] font-semibold uppercase mb-1" style={{ color: "rgba(165,180,252,0.6)" }}>Batch Baru</div>
               <input type="number" min="1" value={dupBatch} onChange={e => setDupBatch(parseInt(e.target.value) || 1)}
-                className="glass-input w-full h-9 rounded-[8px] px-3 text-[12px]" />
+                className="glass-input w-full h-9 rounded-[5px] px-3 text-[12px]" />
             </div>
             <div className="flex gap-2">
               <button onClick={() => setDupDialog(null)}
-                className="flex-1 h-9 rounded-[8px] text-[11px]"
+                className="flex-1 h-9 rounded-[5px] text-[11px]"
                 style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>
                 Batal
               </button>
               <button onClick={handleDuplicate} disabled={!dupNama.trim() || dupMut.isPending}
-                className="flex-1 h-9 rounded-[8px] text-[11px] font-semibold text-white"
+                className="flex-1 h-9 rounded-[5px] text-[11px] font-semibold text-white"
                 style={{ background: "linear-gradient(135deg, #5055e8, #7c84f8)" }}>
                 {dupMut.isPending ? "..." : "Duplikat"}
               </button>

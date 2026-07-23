@@ -174,7 +174,7 @@ export default function CydLayoutPage() {
             whileHover={{ scale: 1.03, y: -1 }}
             whileTap={{ scale: 0.96 }}
             transition={{ type: 'spring', stiffness: 500, damping: 30 }}
-            className="relative h-10 rounded-[12px] px-5 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-60"
+            className="relative h-10 rounded-[5px] px-5 text-sm font-semibold text-white disabled:cursor-wait disabled:opacity-60"
             style={{
               background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 55%, #818cf8 100%)',
               boxShadow: '0 4px 18px rgba(99,102,241,0.35), inset 0 1px 0 rgba(255,255,255,0.25)',

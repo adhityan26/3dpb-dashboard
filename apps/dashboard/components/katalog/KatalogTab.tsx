@@ -29,7 +29,7 @@ export function KatalogTab() {
       <div className="flex justify-end">
         <button
           onClick={() => { setEditingProduk(null); setShowForm(true) }}
-          className="h-9 px-4 rounded-[10px] text-[12px] font-semibold text-white flex items-center gap-1.5 transition-all"
+          className="h-9 px-4 rounded-[5px] text-[12px] font-semibold text-white flex items-center gap-1.5 transition-all"
           style={{ background: "linear-gradient(135deg, #5055e8, #7c84f8)" }}
           onMouseEnter={e => (e.currentTarget.style.opacity = "0.9")}
           onMouseLeave={e => (e.currentTarget.style.opacity = "1")}
@@ -46,7 +46,7 @@ export function KatalogTab() {
       )}
 
       {!isLoading && items.length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 rounded-[16px] gap-4 g-card"
+        <div className="flex flex-col items-center justify-center py-16 rounded-[5px] gap-4 g-card"
              style={{ borderStyle: "dashed" }}>
           <div className="text-4xl">📦</div>
           <div className="text-[13px] font-medium text-center g-t4">
@@ -54,7 +54,7 @@ export function KatalogTab() {
           </div>
           <button
             onClick={() => { setEditingProduk(null); setShowForm(true) }}
-            className="h-9 px-5 rounded-[10px] text-[12px] font-semibold text-white transition-all"
+            className="h-9 px-5 rounded-[5px] text-[12px] font-semibold text-white transition-all"
             style={{ background: "linear-gradient(135deg, #5055e8, #7c84f8)" }}
           >
             Tambah produk pertama →

@@ -17,6 +17,7 @@ import { useLgOrders, useCreateInternalLgOrder } from "@/lib/hooks/use-light-gen
 import { LgOrderTable } from "@/components/light-generator/LgOrderTable"
 import { Button } from "@/components/ui/button"
 import { PageShell } from "@/components/layout/PageShell"
+import { SidebarDrawerShell } from "@/components/layout/SidebarDrawerShell"
 import { OrderSidebar, type OrderChannel } from "@/components/order/OrderSidebar"
 import { StravaOrderList } from "@/components/order/StravaOrderList"
 import { InvoiceForm } from "@/components/invoice/InvoiceForm"
@@ -356,6 +357,7 @@ const VALID_CHANNELS: OrderChannel[] = ["shopee", "tokopedia", "light-generator"
 function OrderPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const rawChannel = searchParams.get("channel") ?? "shopee"
   const channel: OrderChannel = VALID_CHANNELS.includes(rawChannel as OrderChannel)
     ? (rawChannel as OrderChannel)
@@ -365,21 +367,27 @@ function OrderPageInner() {
     const params = new URLSearchParams(searchParams.toString())
     params.set("channel", ch)
     router.replace(`?${params.toString()}`, { scroll: false })
+    setSidebarOpen(false)
   }
 
   return (
-    <PageShell title="Order" description="Kelola pesanan dari berbagai channel">
-      <div className="flex gap-4">
+    <div className="flex min-h-screen -mx-4 -mt-4 md:-mx-6 md:-mt-6">
+      <SidebarDrawerShell
+        open={sidebarOpen}
+        onOpen={() => setSidebarOpen(true)}
+        onClose={() => setSidebarOpen(false)}
+      >
         <OrderSidebar active={channel} onChange={(ch) => setChannel(ch)} />
+      </SidebarDrawerShell>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto p-4 md:p-6">
+        <PageShell title="Order" description="Kelola pesanan dari berbagai channel">
           {channel === "shopee" && <ShopeeOrderView />}
           {channel === "tokopedia" && <TokopediaOrderView />}
           {channel === "light-generator" && <LightGeneratorOrderView />}
           {channel === "strava" && <StravaOrderView />}
-        </div>
+        </PageShell>
       </div>
-    </PageShell>
+    </div>
   )
 }

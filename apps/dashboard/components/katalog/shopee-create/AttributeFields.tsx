@@ -69,7 +69,7 @@ export function AttributeFields({ attributes, values, onChange }: Props) {
 
             {attr.input_type === "MULTIPLE_SELECT" && (
               <div
-                className="rounded-[8px] max-h-32 overflow-y-auto"
+                className="rounded-[5px] max-h-32 overflow-y-auto"
                 style={{ border: "1px solid rgba(255,255,255,0.1)", background: "rgba(255,255,255,0.03)" }}
               >
                 {attr.attribute_value_list.map(opt => {

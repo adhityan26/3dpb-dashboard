@@ -40,7 +40,7 @@ export function MaterialProfilesSection() {
       {isLoading && <div className="text-xs g-t5 py-2">Memuat…</div>}
       <div className="space-y-1 mb-3">
         {(materials ?? []).map(m => (
-          <div key={m.id} className="flex items-center gap-2 px-2 py-1.5 rounded-[6px]"
+          <div key={m.id} className="flex items-center gap-2 px-2 py-1.5 rounded-[5px]"
                style={{ background: 'var(--g-inner)', border: '1px solid var(--g-inner-border)' }}>
             <span className="text-[9px] px-1.5 py-0.5 rounded-full font-medium"
                   style={{ background: m.tipe === 'SLA' ? 'rgba(244,114,182,0.2)' : 'rgba(99,102,241,0.2)', color: m.tipe === 'SLA' ? '#f9a8d4' : '#a5b4fc' }}>
@@ -70,12 +70,12 @@ export function MaterialProfilesSection() {
         <div className="col-span-2">
           <label className="block text-[10px] g-t4 uppercase tracking-wide mb-1">Nama (PLA, PETG, …)</label>
           <input value={form.nama} onChange={e => setForm(f => ({ ...f, nama: e.target.value }))}
-            placeholder="PLA" className="glass-input w-full h-9 rounded-[8px] px-3 text-sm" />
+            placeholder="PLA" className="glass-input w-full h-9 rounded-[5px] px-3 text-sm" />
         </div>
         <div>
           <label className="block text-[10px] g-t4 uppercase tracking-wide mb-1">Tipe</label>
           <select value={form.tipe} onChange={e => setForm(f => ({ ...f, tipe: e.target.value as 'FDM' | 'SLA' }))}
-            className="glass-input w-full h-9 rounded-[8px] px-2 text-sm">
+            className="glass-input w-full h-9 rounded-[5px] px-2 text-sm">
             <option value="FDM">FDM</option>
             <option value="SLA">SLA</option>
           </select>
@@ -83,17 +83,17 @@ export function MaterialProfilesSection() {
         <div>
           <label className="block text-[10px] g-t4 uppercase tracking-wide mb-1">HPP/g</label>
           <input type="number" min="0" value={form.hppPerGram} onChange={e => setForm(f => ({ ...f, hppPerGram: e.target.value }))}
-            placeholder="300" className="glass-input w-full h-9 rounded-[8px] px-2 text-sm" />
+            placeholder="300" className="glass-input w-full h-9 rounded-[5px] px-2 text-sm" />
         </div>
         <div>
           <label className="block text-[10px] g-t4 uppercase tracking-wide mb-1">Jual/g</label>
           <input type="number" min="0" value={form.jualPerGram} onChange={e => setForm(f => ({ ...f, jualPerGram: e.target.value }))}
-            placeholder="900" className="glass-input w-full h-9 rounded-[8px] px-2 text-sm" />
+            placeholder="900" className="glass-input w-full h-9 rounded-[5px] px-2 text-sm" />
         </div>
         <div>
           <label className="block text-[10px] g-t4 uppercase tracking-wide mb-1">Fail %</label>
           <input type="number" min="0" max="100" value={form.failureRatePct} onChange={e => setForm(f => ({ ...f, failureRatePct: e.target.value }))}
-            className="glass-input w-full h-9 rounded-[8px] px-2 text-sm" />
+            className="glass-input w-full h-9 rounded-[5px] px-2 text-sm" />
         </div>
       </div>
       {error && <div className="text-xs text-red-400 mt-2">{error}</div>}

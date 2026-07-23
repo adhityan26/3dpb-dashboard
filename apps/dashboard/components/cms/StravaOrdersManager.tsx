@@ -74,7 +74,7 @@ export function StravaOrdersManager() {
                 value={item.status}
                 onChange={(e) => patch.mutate({ id: item._id, status: e.target.value })}
                 disabled={patch.isPending}
-                className="rounded-[6px] px-2 py-1 text-[11px] font-medium border-0 cursor-pointer"
+                className="rounded-[5px] px-2 py-1 text-[11px] font-medium border-0 cursor-pointer"
                 style={{ ...(STATUS_COLORS[item.status] ?? {}), background: STATUS_COLORS[item.status]?.bg }}
               >
                 <option value="new">new</option>

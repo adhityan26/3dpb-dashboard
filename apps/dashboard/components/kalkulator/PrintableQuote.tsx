@@ -138,7 +138,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
       onClick={onClose}
     >
       <div
-        className="w-[680px] max-h-[90vh] flex flex-col rounded-[20px] overflow-hidden"
+        className="w-[680px] max-h-[90vh] flex flex-col rounded-[5px] overflow-hidden"
         style={{ background: "rgba(14,14,44,0.97)", border: "1px solid rgba(255,255,255,0.1)" }}
         onClick={e => e.stopPropagation()}
       >
@@ -152,7 +152,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
             <button
               onClick={handleExportJpeg}
               disabled={exportingJpeg}
-              className="h-8 px-4 rounded-[8px] text-xs font-semibold transition-all"
+              className="h-8 px-4 rounded-[5px] text-xs font-semibold transition-all"
               style={{
                 background: exportingJpeg ? "rgba(255,255,255,0.06)" : "rgba(255,255,255,0.08)",
                 border: "1px solid rgba(255,255,255,0.15)",
@@ -163,7 +163,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
             </button>
             <button
               onClick={handlePrint}
-              className="h-8 px-4 rounded-[8px] text-xs font-semibold text-white"
+              className="h-8 px-4 rounded-[5px] text-xs font-semibold text-white"
               style={{ background: "linear-gradient(135deg, #5055e8, #7c84f8)" }}
             >
               🖨️ Print / PDF
@@ -184,7 +184,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
               <input
                 type="text" value={title}
                 onChange={e => setTitle(e.target.value)}
-                className="glass-input w-full h-9 rounded-[8px] px-3 text-sm"
+                className="glass-input w-full h-9 rounded-[5px] px-3 text-sm"
               />
             </div>
 
@@ -194,7 +194,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
                 type="text" value={buyerName}
                 onChange={e => setBuyerName(e.target.value)}
                 placeholder="Nama pembeli..."
-                className="glass-input w-full h-9 rounded-[8px] px-3 text-sm"
+                className="glass-input w-full h-9 rounded-[5px] px-3 text-sm"
               />
             </div>
 
@@ -204,7 +204,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
                 type="text" value={buyerContact}
                 onChange={e => setBuyerContact(e.target.value)}
                 placeholder="08xx..."
-                className="glass-input w-full h-9 rounded-[8px] px-3 text-sm"
+                className="glass-input w-full h-9 rounded-[5px] px-3 text-sm"
               />
             </div>
 
@@ -213,7 +213,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
               <input
                 type="number" min="1" value={qty}
                 onChange={e => setQty(Math.max(1, parseInt(e.target.value) || 1))}
-                className="glass-input w-full h-9 rounded-[8px] px-3 text-sm"
+                className="glass-input w-full h-9 rounded-[5px] px-3 text-sm"
               />
               <div className="text-[10px] mt-1" style={{ color: "rgba(255,255,255,0.25)" }}>
                 Batch kalkulasi: {batch}
@@ -226,7 +226,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
                 type="text" value={offlineStr}
                 onChange={e => setOfflineStr(e.target.value)}
                 placeholder={`${fmt(roundUp5000(computedOffline))} (auto)`}
-                className="glass-input w-full h-9 rounded-[8px] px-3 text-sm"
+                className="glass-input w-full h-9 rounded-[5px] px-3 text-sm"
               />
               <div className="text-[10px] mt-1" style={{ color: "rgba(255,255,255,0.25)" }}>
                 Kosong = pakai {fmt(roundUp5000(computedOffline))}
@@ -239,7 +239,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
                 type="text" value={shopeeStr}
                 onChange={e => setShopeeStr(e.target.value)}
                 placeholder={`${fmt(roundUp5000(computedShopee))} (auto)`}
-                className="glass-input w-full h-9 rounded-[8px] px-3 text-sm"
+                className="glass-input w-full h-9 rounded-[5px] px-3 text-sm"
               />
               <div className="text-[10px] mt-1" style={{ color: "rgba(255,255,255,0.25)" }}>
                 Kosong = pakai {fmt(roundUp5000(computedShopee))}
@@ -248,7 +248,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
 
             <div>
               <div className={ctrlLabel} style={ctrlColor}>Tampilan</div>
-              <label className="flex items-center gap-2 cursor-pointer py-2 px-3 rounded-[8px] transition-all"
+              <label className="flex items-center gap-2 cursor-pointer py-2 px-3 rounded-[5px] transition-all"
                      style={{ background: showDetail ? "rgba(99,102,241,0.1)" : "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
                 <input type="checkbox" checked={showDetail} onChange={e => setShowDetail(e.target.checked)} className="w-4 h-4 accent-indigo-500" />
                 <span className="text-xs" style={{ color: "rgba(255,255,255,0.7)" }}>
@@ -262,7 +262,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
 
             <div>
               <div className={ctrlLabel} style={ctrlColor}>Ongkir</div>
-              <label className="flex items-center gap-2 cursor-pointer py-2 px-3 rounded-[8px] transition-all"
+              <label className="flex items-center gap-2 cursor-pointer py-2 px-3 rounded-[5px] transition-all"
                      style={{ background: includeOngkir ? "rgba(99,102,241,0.1)" : "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)" }}>
                 <input
                   type="checkbox" checked={includeOngkir}
@@ -282,7 +282,7 @@ export function PrintableQuote({ nama, batch, plates, hasil, marginTier, initial
 
           {/* RIGHT: Preview */}
           <div className="flex-1 overflow-y-auto p-5">
-            <div ref={printRef} className="bg-white rounded-[12px] p-8" style={{ color: "#111" }}>
+            <div ref={printRef} className="bg-white rounded-[5px] p-8" style={{ color: "#111" }}>
 
               {/* Header */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 16 }}>

@@ -64,7 +64,7 @@ export function LinkProdukModal({ kalkulasi, onClose }: Props) {
       onClick={onClose}
     >
       <div
-        className="w-[440px] max-h-[80vh] flex flex-col rounded-[20px] overflow-hidden"
+        className="w-[440px] max-h-[80vh] flex flex-col rounded-[5px] overflow-hidden"
         style={{
           background: "rgba(14,14,44,0.97)",
           border: "1px solid rgba(99,102,241,0.2)",
@@ -102,7 +102,7 @@ export function LinkProdukModal({ kalkulasi, onClose }: Props) {
             placeholder="Cari produk katalog..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="glass-input w-full h-9 rounded-[10px] px-3 text-sm"
+            className="glass-input w-full h-9 rounded-[5px] px-3 text-sm"
             autoFocus
           />
         </div>
@@ -120,7 +120,7 @@ export function LinkProdukModal({ kalkulasi, onClose }: Props) {
             return (
               <div
                 key={p.id}
-                className="flex items-center gap-3 px-3 py-3 rounded-[10px] transition-all"
+                className="flex items-center gap-3 px-3 py-3 rounded-[5px] transition-all"
                 style={{
                   background: isCurrent ? "rgba(99,102,241,0.15)" : "rgba(255,255,255,0.03)",
                   border: `1px solid ${isCurrent ? "rgba(99,102,241,0.35)" : "rgba(255,255,255,0.06)"}`,
@@ -147,7 +147,7 @@ export function LinkProdukModal({ kalkulasi, onClose }: Props) {
                   <button
                     onClick={() => handlePilih(p.id)}
                     disabled={isPending}
-                    className="h-7 px-3 rounded-[8px] text-[10px] font-semibold text-white flex-shrink-0 transition-all"
+                    className="h-7 px-3 rounded-[5px] text-[10px] font-semibold text-white flex-shrink-0 transition-all"
                     style={{
                       background: isPending ? "rgba(99,102,241,0.3)" : "linear-gradient(135deg, #5055e8, #7c84f8)",
                       cursor: isPending ? "not-allowed" : "pointer",
@@ -166,7 +166,7 @@ export function LinkProdukModal({ kalkulasi, onClose }: Props) {
           {!showCreate ? (
             <button
               onClick={() => { setShowCreate(true); setNewNama(kalkulasi.nama) }}
-              className="w-full h-9 rounded-[10px] text-[11px] font-medium transition-all flex items-center justify-center gap-1.5"
+              className="w-full h-9 rounded-[5px] text-[11px] font-medium transition-all flex items-center justify-center gap-1.5"
               style={{
                 background: "rgba(255,255,255,0.04)",
                 border: "1px dashed rgba(255,255,255,0.14)",
@@ -194,12 +194,12 @@ export function LinkProdukModal({ kalkulasi, onClose }: Props) {
                 onChange={e => { setNewNama(e.target.value); setCreateError(null) }}
                 onKeyDown={e => e.key === "Enter" && handleCreateAndLink()}
                 placeholder="Contoh: Flexi Shark..."
-                className="glass-input w-full h-10 rounded-[10px] px-3 text-sm"
+                className="glass-input w-full h-10 rounded-[5px] px-3 text-sm"
                 autoFocus
               />
               {createError && (
                 <div
-                  className="text-[10px] px-3 py-1.5 rounded-[7px]"
+                  className="text-[10px] px-3 py-1.5 rounded-[5px]"
                   style={{
                     background: "rgba(239,68,68,0.1)",
                     border: "1px solid rgba(239,68,68,0.2)",
@@ -212,7 +212,7 @@ export function LinkProdukModal({ kalkulasi, onClose }: Props) {
               <div className="flex gap-2">
                 <button
                   onClick={() => setShowCreate(false)}
-                  className="flex-1 h-9 rounded-[9px] text-[11px] transition-all"
+                  className="flex-1 h-9 rounded-[5px] text-[11px] transition-all"
                   style={{
                     background: "rgba(255,255,255,0.05)",
                     border: "1px solid rgba(255,255,255,0.09)",
@@ -224,7 +224,7 @@ export function LinkProdukModal({ kalkulasi, onClose }: Props) {
                 <button
                   onClick={handleCreateAndLink}
                   disabled={isPending || !newNama.trim()}
-                  className="flex-1 h-9 rounded-[9px] text-[11px] font-semibold text-white transition-all"
+                  className="flex-1 h-9 rounded-[5px] text-[11px] font-semibold text-white transition-all"
                   style={{
                     background: isPending || !newNama.trim() ? "rgba(99,102,241,0.3)" : "linear-gradient(135deg, #5055e8, #7c84f8)",
                     cursor: isPending || !newNama.trim() ? "not-allowed" : "pointer",

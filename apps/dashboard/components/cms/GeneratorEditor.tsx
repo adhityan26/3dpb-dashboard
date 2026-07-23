@@ -24,7 +24,7 @@ export function GeneratorEditor() {
   useEffect(() => { if (data && !form) setForm(data) }, [data, form])
   if (isLoading || !form) return <div className="p-6 text-white/40 text-sm">Memuat...</div>
 
-  const inputClass = "w-full bg-white/[0.04] border border-white/10 rounded-[8px] px-3 py-2 text-[13px] text-white/80 focus:outline-none focus:border-indigo-500/60"
+  const inputClass = "w-full bg-white/[0.04] border border-white/10 rounded-[5px] px-3 py-2 text-[13px] text-white/80 focus:outline-none focus:border-indigo-500/60"
   const screenshots: Screenshot[] = (form.devScreenshots ?? []) as Screenshot[]
 
   function addScreenshot() {
@@ -84,7 +84,7 @@ export function GeneratorEditor() {
             Dev Screenshots ({screenshots.length})
           </h3>
           {!adding && (
-            <button onClick={() => setAdding(true)} className="px-3 py-1 rounded-[6px] text-[11px] font-semibold text-white" style={{ background: "linear-gradient(135deg,#5055e8,#818cf8)" }}>
+            <button onClick={() => setAdding(true)} className="px-3 py-1 rounded-[5px] text-[11px] font-semibold text-white" style={{ background: "linear-gradient(135deg,#5055e8,#818cf8)" }}>
               + Tambah
             </button>
           )}
@@ -93,7 +93,7 @@ export function GeneratorEditor() {
         {screenshots.length > 0 && (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             {screenshots.map((ss, i) => (
-              <div key={i} className="relative rounded-[8px] overflow-hidden border border-white/8 group" style={{ background: "rgba(255,255,255,0.03)" }}>
+              <div key={i} className="relative rounded-[5px] overflow-hidden border border-white/8 group" style={{ background: "rgba(255,255,255,0.03)" }}>
                 {ss.imageUrl
                   ? <img src={`${ss.imageUrl}?w=200&h=140&fit=crop`} alt={ss.alt} onClick={() => setZoomSrc({ src: ss.imageUrl!, alt: ss.alt })} className="w-full h-[100px] object-cover cursor-zoom-in" />
                   : <div className="w-full h-[100px] bg-white/5 flex items-center justify-center text-white/20 text-[11px]">No image</div>
@@ -122,7 +122,7 @@ export function GeneratorEditor() {
         )}
 
         {adding && (
-          <div className="p-4 rounded-[10px] border space-y-3" style={{ background: "rgba(99,102,241,0.06)", borderColor: "rgba(99,102,241,0.2)" }}>
+          <div className="p-4 rounded-[5px] border space-y-3" style={{ background: "rgba(99,102,241,0.06)", borderColor: "rgba(99,102,241,0.2)" }}>
             <ImageUpload
               currentUrl={newSS.imageUrl}
               label="Screenshot *"
@@ -133,17 +133,17 @@ export function GeneratorEditor() {
               <input className={inputClass} value={newSS.alt} onChange={(e) => setNewSS((s) => ({ ...s, alt: e.target.value }))} placeholder="Deskripsi singkat gambar" />
             </div>
             <div className="flex gap-2">
-              <button onClick={addScreenshot} disabled={!newSS.imageRef} className="px-3 py-1.5 rounded-[6px] text-[12px] font-semibold text-white disabled:opacity-40" style={{ background: "linear-gradient(135deg,#5055e8,#818cf8)" }}>
+              <button onClick={addScreenshot} disabled={!newSS.imageRef} className="px-3 py-1.5 rounded-[5px] text-[12px] font-semibold text-white disabled:opacity-40" style={{ background: "linear-gradient(135deg,#5055e8,#818cf8)" }}>
                 Tambah ke List
               </button>
-              <button onClick={() => { setAdding(false); setNewSS(EMPTY_SS) }} className="px-3 py-1.5 rounded-[6px] text-[12px] text-white/50 hover:text-white/80">Batal</button>
+              <button onClick={() => { setAdding(false); setNewSS(EMPTY_SS) }} className="px-3 py-1.5 rounded-[5px] text-[12px] text-white/50 hover:text-white/80">Batal</button>
             </div>
           </div>
         )}
       </div>
 
       <div className="flex items-center gap-3">
-        <button onClick={handleSave} disabled={patch.isPending} className="px-5 py-2 rounded-[8px] text-[13px] font-semibold text-white disabled:opacity-50" style={{ background: "linear-gradient(135deg,#5055e8,#818cf8)" }}>
+        <button onClick={handleSave} disabled={patch.isPending} className="px-5 py-2 rounded-[5px] text-[13px] font-semibold text-white disabled:opacity-50" style={{ background: "linear-gradient(135deg,#5055e8,#818cf8)" }}>
           {patch.isPending ? "Menyimpan..." : "Simpan"}
         </button>
         {saved && <span className="text-[12px]" style={{ color: "rgba(74,222,128,0.8)" }}>✓ Tersimpan</span>}

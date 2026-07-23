@@ -53,7 +53,7 @@ export function KalkulasiLinkSection({
 
       {currentKalkulasiId ? (
         <div
-          className="flex items-center gap-3 px-3 py-2.5 rounded-[10px]"
+          className="flex items-center gap-3 px-3 py-2.5 rounded-[5px]"
           style={{
             background: "rgba(52,211,153,0.07)",
             border: "1px solid rgba(52,211,153,0.18)",
@@ -72,7 +72,7 @@ export function KalkulasiLinkSection({
           <div className="flex gap-1.5">
             <button
               onClick={() => setShowList(v => !v)}
-              className="h-7 px-2.5 rounded-[7px] text-[9px] font-medium transition-all"
+              className="h-7 px-2.5 rounded-[5px] text-[9px] font-medium transition-all"
               style={{ background: "rgba(99,102,241,0.15)", color: "#a5b4fc" }}
             >
               Ganti
@@ -80,7 +80,7 @@ export function KalkulasiLinkSection({
             <button
               onClick={handleClear}
               disabled={setKalkulasi.isPending}
-              className="h-7 px-2.5 rounded-[7px] text-[9px] font-medium transition-all"
+              className="h-7 px-2.5 rounded-[5px] text-[9px] font-medium transition-all"
               style={{ background: "rgba(239,68,68,0.1)", color: "#f87171" }}
             >
               Lepas
@@ -94,7 +94,7 @@ export function KalkulasiLinkSection({
           </span>
           <button
             onClick={() => setShowList(v => !v)}
-            className="h-7 px-2.5 rounded-[7px] text-[9px] font-medium transition-all"
+            className="h-7 px-2.5 rounded-[5px] text-[9px] font-medium transition-all"
             style={{
               background: "rgba(99,102,241,0.12)",
               border: "1px solid rgba(99,102,241,0.2)",
@@ -108,7 +108,7 @@ export function KalkulasiLinkSection({
 
       {showList && (
         <div
-          className="rounded-[12px] p-3 space-y-2"
+          className="rounded-[5px] p-3 space-y-2"
           style={{
             background: "rgba(0,0,0,0.25)",
             border: "1px solid var(--g-card-border)",
@@ -119,7 +119,7 @@ export function KalkulasiLinkSection({
             placeholder="Cari kalkulasi..."
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="glass-input w-full h-8 rounded-[8px] px-3 text-[11px]"
+            className="glass-input w-full h-8 rounded-[5px] px-3 text-[11px]"
             autoFocus
           />
           <div className="space-y-1 max-h-48 overflow-y-auto">
@@ -128,7 +128,7 @@ export function KalkulasiLinkSection({
               return (
                 <div
                   key={k.id}
-                  className="flex items-center gap-2 px-2.5 py-2 rounded-[8px] transition-all"
+                  className="flex items-center gap-2 px-2.5 py-2 rounded-[5px] transition-all"
                   style={{
                     background: isCurrent ? "rgba(99,102,241,0.15)" : "var(--g-card)",
                     border: `1px solid ${isCurrent ? "rgba(99,102,241,0.35)" : "var(--g-card-border)"}`,
@@ -148,7 +148,7 @@ export function KalkulasiLinkSection({
                     <span className="text-[10px] flex-shrink-0" style={{ color: "#a5b4fc" }}>✓ Aktif</span>
                   ) : (
                     <button
-                      className="h-6 px-2 rounded-[6px] text-[9px] font-semibold text-white flex-shrink-0"
+                      className="h-6 px-2 rounded-[5px] text-[9px] font-semibold text-white flex-shrink-0"
                       style={{ background: "linear-gradient(135deg, #5055e8, #7c84f8)" }}
                       onClick={e => { e.stopPropagation(); handleSelect(k.id) }}
                     >

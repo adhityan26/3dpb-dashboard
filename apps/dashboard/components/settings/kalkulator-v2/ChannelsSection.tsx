@@ -79,7 +79,7 @@ export function ChannelsSection() {
             <label className="block text-[10px] g-t4 uppercase tracking-wide mb-1">{c.nama}</label>
             <input type="number" min="1" step="0.01" value={fees[c.id] ?? ''} disabled={c.id === 'offline'}
               onChange={e => setFees(f => ({ ...f, [c.id]: e.target.value }))}
-              className="glass-input w-full h-9 rounded-[8px] px-3 text-sm disabled:opacity-50" />
+              className="glass-input w-full h-9 rounded-[5px] px-3 text-sm disabled:opacity-50" />
           </div>
         ))}
       </div>
@@ -108,7 +108,7 @@ export function ChannelsSection() {
             <label className="block text-[10px] g-t4 uppercase tracking-wide mb-1">{label}</label>
             <input type="number" min="1" step="0.05" value={margins[key]}
               onChange={e => setMargins(m => ({ ...m, [key]: e.target.value }))}
-              className="glass-input w-full h-9 rounded-[8px] px-3 text-sm" />
+              className="glass-input w-full h-9 rounded-[5px] px-3 text-sm" />
           </div>
         ))}
       </div>

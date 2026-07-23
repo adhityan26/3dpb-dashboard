@@ -37,7 +37,7 @@ export function CollectionList<T extends { _id: string }>({
   }
 
   return (
-    <div className="rounded-[10px] overflow-hidden border border-white/8">
+    <div className="rounded-[5px] overflow-hidden border border-white/8">
       <table className="w-full text-[12px]">
         <thead>
           <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
@@ -77,7 +77,7 @@ export function CollectionList<T extends { _id: string }>({
                     {onEdit && (
                       <button
                         onClick={() => onEdit(item)}
-                        className="text-[11px] px-2 py-1 rounded-[6px]"
+                        className="text-[11px] px-2 py-1 rounded-[5px]"
                         style={{ background: "rgba(99,102,241,0.15)", color: "rgba(165,180,252,0.9)" }}
                       >
                         Edit
@@ -87,7 +87,7 @@ export function CollectionList<T extends { _id: string }>({
                       <button
                         onClick={() => onDelete(item._id)}
                         disabled={isDeleting === item._id}
-                        className="text-[11px] px-2 py-1 rounded-[6px]"
+                        className="text-[11px] px-2 py-1 rounded-[5px]"
                         style={{ background: "rgba(239,68,68,0.12)", color: "rgba(252,165,165,0.8)" }}
                       >
                         {isDeleting === item._id ? "..." : "Hapus"}

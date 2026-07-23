@@ -30,7 +30,7 @@ export function TokopediaSessionCard() {
 
   const expired = status?.expired
   return (
-    <div className="rounded-[16px] p-5 space-y-4 g-card">
+    <div className="rounded-[5px] p-5 space-y-4 g-card">
       <div>
         <div className="text-sm font-semibold g-t1">🟢 Tokopedia Session</div>
         <div className="text-xs mt-0.5 g-t4">Paste cookies dari EditThisCookies (login seller-id.tokopedia.com dari jaringan server)</div>
@@ -47,16 +47,16 @@ export function TokopediaSessionCard() {
 
       <textarea value={raw} onChange={e => setRaw(e.target.value)} rows={4}
         placeholder='[{"name":"SELLER_TOKEN","value":"..."}, ...]'
-        className="glass-input w-full rounded-[8px] px-3 py-2 text-xs font-mono" />
+        className="glass-input w-full rounded-[5px] px-3 py-2 text-xs font-mono" />
 
       <div className="flex gap-2 items-center">
         <button onClick={handleSave} disabled={!raw.trim() || saveMut.isPending}
-          className="h-9 px-4 rounded-[8px] text-sm font-semibold text-white"
+          className="h-9 px-4 rounded-[5px] text-sm font-semibold text-white"
           style={{ background: raw.trim() ? "linear-gradient(135deg,#5055e8,#7c84f8)" : "var(--g-inner)" }}>
           Simpan
         </button>
         <button onClick={handleTest} disabled={!status?.exists || testMut.isPending}
-          className="h-9 px-4 rounded-[8px] text-sm font-semibold" style={{ background: "var(--g-inner)", color: "var(--g-t2)" }}>
+          className="h-9 px-4 rounded-[5px] text-sm font-semibold" style={{ background: "var(--g-inner)", color: "var(--g-t2)" }}>
           {testMut.isPending ? "Menguji..." : "Test koneksi"}
         </button>
         {msg && <span className="text-xs">{msg}</span>}

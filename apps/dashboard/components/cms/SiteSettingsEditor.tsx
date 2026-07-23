@@ -34,7 +34,7 @@ export function SiteSettingsEditor() {
     setForm((f) => f ? { ...f, seo: { ...f.seo, [field]: val } } : f)
   }
 
-  const inputClass = "w-full bg-white/[0.04] border border-white/10 rounded-[8px] px-3 py-2 text-[13px] text-white/80 placeholder-white/20 focus:outline-none focus:border-indigo-500/60"
+  const inputClass = "w-full bg-white/[0.04] border border-white/10 rounded-[5px] px-3 py-2 text-[13px] text-white/80 placeholder-white/20 focus:outline-none focus:border-indigo-500/60"
   const sectionClass = "space-y-4 pb-6 border-b border-white/6"
 
   return (
@@ -85,7 +85,7 @@ export function SiteSettingsEditor() {
         <button
           onClick={handleSave}
           disabled={patch.isPending}
-          className="px-5 py-2 rounded-[8px] text-[13px] font-semibold text-white transition-opacity disabled:opacity-50"
+          className="px-5 py-2 rounded-[5px] text-[13px] font-semibold text-white transition-opacity disabled:opacity-50"
           style={{ background: "linear-gradient(135deg,#5055e8,#818cf8)" }}
         >
           {patch.isPending ? "Menyimpan..." : "Simpan Perubahan"}

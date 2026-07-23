@@ -68,7 +68,7 @@ function MaterialProfilePicker({ profiles, tipe, selectedId, onSelect, filamentM
     <select
       value={selectedId ?? ""}
       onChange={e => onSelect(e.target.value || undefined)}
-      className="glass-input h-7 rounded-[6px] px-2 text-[10px]"
+      className="glass-input h-7 rounded-[5px] px-2 text-[10px]"
       title="Profil material (hpp/jual/failure per jenis)"
     >
       <option value="">Profil material: default {tipe}</option>
@@ -109,7 +109,7 @@ function FilamentPicker({ filaments, selectedId, onSelect, onClear }: {
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(v => !v)}
-        className="h-8 px-2.5 rounded-[6px] text-[10px] font-medium transition-all flex items-center gap-1 max-w-full"
+        className="h-8 px-2.5 rounded-[5px] text-[10px] font-medium transition-all flex items-center gap-1 max-w-full"
         style={selected
           ? { background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.35)", color: "#a5b4fc" }
           : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t3)" }
@@ -128,7 +128,7 @@ function FilamentPicker({ filaments, selectedId, onSelect, onClear }: {
       </button>
 
       {open && (
-        <div className="absolute z-50 top-full left-0 mt-1 w-64 rounded-[10px] shadow-xl overflow-hidden"
+        <div className="absolute z-50 top-full left-0 mt-1 w-64 rounded-[5px] shadow-xl overflow-hidden"
              style={{ background: "rgba(22,23,38,0.97)", border: "1px solid rgba(99,102,241,0.2)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)" }}>
           <div className="p-2">
             <input
@@ -137,7 +137,7 @@ function FilamentPicker({ filaments, selectedId, onSelect, onClear }: {
               placeholder="Cari brand / material..."
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="glass-input w-full h-8 rounded-[6px] px-2 text-xs"
+              className="glass-input w-full h-8 rounded-[5px] px-2 text-xs"
             />
           </div>
           <div className="max-h-48 overflow-y-auto">
@@ -299,7 +299,7 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
 
         return (
           <div key={plate.key}
-            className="rounded-[10px] p-3"
+            className="rounded-[5px] p-3"
             style={{ background: "var(--g-card)", border: "1px solid var(--g-card-border)" }}>
 
             {/* Row label for multi-plate */}
@@ -309,7 +309,7 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
                   <img
                     src={thumbnailUrls[plate.key]}
                     alt=""
-                    className="w-10 h-10 rounded-[6px] object-cover flex-shrink-0"
+                    className="w-10 h-10 rounded-[5px] object-cover flex-shrink-0"
                     style={{ border: "1px solid var(--g-inner-border)" }}
                   />
                 )}
@@ -321,12 +321,12 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
                   placeholder="Nama part (opsional)"
                   value={plate.namaPart ?? ""}
                   onChange={e => updatePlate(plate.key, "namaPart", e.target.value || undefined)}
-                  className="glass-input flex-1 h-8 rounded-[6px] px-3 text-xs"
+                  className="glass-input flex-1 h-8 rounded-[5px] px-3 text-xs"
                 />
                 {/* Multi-material toggle */}
                 <button
                   onClick={() => toggleMultiMaterial(plate.key)}
-                  className="h-8 px-2.5 rounded-[6px] text-[10px] font-semibold transition-all flex-shrink-0"
+                  className="h-8 px-2.5 rounded-[5px] text-[10px] font-semibold transition-all flex-shrink-0"
                   style={isMultiMode
                     ? { background: "rgba(99,102,241,0.25)", border: "1px solid rgba(99,102,241,0.5)", color: "#a5b4fc" }
                     : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t3)" }
@@ -337,7 +337,7 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
                 </button>
                 <button
                   onClick={() => removePlate(plate.key)}
-                  className="h-8 w-8 rounded-[6px] flex items-center justify-center text-sm transition-all flex-shrink-0"
+                  className="h-8 w-8 rounded-[5px] flex items-center justify-center text-sm transition-all flex-shrink-0"
                   style={{ color: "var(--g-t4)", background: "var(--g-inner)" }}
                   onMouseEnter={e => (e.currentTarget.style.color = "rgba(239,68,68,0.7)")}
                   onMouseLeave={e => (e.currentTarget.style.color = "var(--g-t4)")}
@@ -352,7 +352,7 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
               <div className="flex justify-end mb-2">
                 <button
                   onClick={() => toggleMultiMaterial(plate.key)}
-                  className="h-7 px-2.5 rounded-[6px] text-[10px] font-semibold transition-all"
+                  className="h-7 px-2.5 rounded-[5px] text-[10px] font-semibold transition-all"
                   style={isMultiMode
                     ? { background: "rgba(99,102,241,0.25)", border: "1px solid rgba(99,102,241,0.5)", color: "#a5b4fc" }
                     : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t3)" }
@@ -377,7 +377,7 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
                         <button
                           key={t}
                           onClick={() => updatePlate(plate.key, "tipe", t)}
-                          className="flex-1 rounded-[6px] text-xs font-bold transition-all"
+                          className="flex-1 rounded-[5px] text-xs font-bold transition-all"
                           style={plate.tipe === t
                             ? { background: "rgba(99,102,241,0.3)", border: "1px solid rgba(99,102,241,0.5)", color: "#a5b4fc" }
                             : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t3)" }
@@ -399,7 +399,7 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
                       placeholder="21"
                       value={plate.gramasi || ""}
                       onChange={e => updatePlate(plate.key, "gramasi", parseFloat(e.target.value) || 0)}
-                      className="glass-input w-full h-10 rounded-[8px] px-3 text-sm"
+                      className="glass-input w-full h-10 rounded-[5px] px-3 text-sm"
                     />
                   </div>
 
@@ -412,7 +412,7 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
                         placeholder="1:30 atau 1.5"
                         value={durasiRaw[plate.key] ?? (plate.durasiJam ? String(parseFloat(plate.durasiJam.toFixed(2))) : "")}
                         onChange={e => handleDurasiChange(plate.key, e.target.value)}
-                        className="glass-input w-full h-10 rounded-[8px] px-3 text-sm"
+                        className="glass-input w-full h-10 rounded-[5px] px-3 text-sm"
                       />
                       {plate.durasiJam > 0 && (
                         <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px]"
@@ -442,7 +442,7 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
                         placeholder="#RRGGBB"
                         value={plate.color ?? ""}
                         onChange={e => updatePlate(plate.key, "color", e.target.value)}
-                        className="glass-input w-full h-10 rounded-[8px] text-xs font-mono tracking-tight"
+                        className="glass-input w-full h-10 rounded-[5px] text-xs font-mono tracking-tight"
                         style={{ paddingLeft: isValidHexColor(plate.color ?? "") ? "26px" : "12px", paddingRight: "6px" }}
                       />
                     </div>
@@ -530,7 +530,7 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
                         placeholder="Warna"
                         value={mat.color}
                         onChange={e => updateMaterial(plate.key, mIdx, "color", e.target.value)}
-                        className="glass-input h-8 rounded-[6px] pr-1.5 text-[11px] w-full font-mono tracking-tight"
+                        className="glass-input h-8 rounded-[5px] pr-1.5 text-[11px] w-full font-mono tracking-tight"
                         style={{ paddingLeft: isValidHexColor(mat.color) ? "24px" : "8px" }}
                       />
                       {(() => {
@@ -550,7 +550,7 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
                         placeholder="0"
                         value={mat.gramasi || ""}
                         onChange={e => updateMaterial(plate.key, mIdx, "gramasi", parseFloat(e.target.value) || 0)}
-                        className="glass-input h-8 rounded-[6px] px-2 text-xs w-full"
+                        className="glass-input h-8 rounded-[5px] px-2 text-xs w-full"
                         style={{ paddingRight: "14px" }}
                       />
                       <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] g-accent"
@@ -569,7 +569,7 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
                     </div>
                     <button
                       onClick={() => removeMaterial(plate.key, mIdx)}
-                      className="h-8 w-6 flex items-center justify-center rounded-[4px] text-xs transition-all flex-shrink-0"
+                      className="h-8 w-6 flex items-center justify-center rounded-[5px] text-xs transition-all flex-shrink-0"
                       style={{ color: "var(--g-t5)", background: "var(--g-inner)" }}
                       onMouseEnter={e => (e.currentTarget.style.color = "rgba(239,68,68,0.7)")}
                       onMouseLeave={e => (e.currentTarget.style.color = "var(--g-t5)")}
@@ -604,7 +604,7 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
                       placeholder="1:30 atau 1.5"
                       value={durasiRaw[plate.key] ?? (plate.durasiJam ? String(parseFloat(plate.durasiJam.toFixed(2))) : "")}
                       onChange={e => handleDurasiChange(plate.key, e.target.value)}
-                      className="glass-input w-full h-9 rounded-[8px] px-3 text-sm"
+                      className="glass-input w-full h-9 rounded-[5px] px-3 text-sm"
                     />
                     {plate.durasiJam > 0 && (
                       <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px]"
@@ -623,7 +623,7 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
               <div className="flex gap-2 flex-wrap">
                 <button
                   onClick={() => updatePlateFields(plate.key, { printer: undefined, printerProfileId: undefined })}
-                  className="h-8 px-3 rounded-[6px] text-xs transition-all"
+                  className="h-8 px-3 rounded-[5px] text-xs transition-all"
                   style={!plate.printerProfileId
                     ? { background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", color: "#a5b4fc" }
                     : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t4)" }}
@@ -633,7 +633,7 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
                   <button
                     key={pp.id}
                     onClick={() => updatePlateFields(plate.key, { printer: pp.nama, printerProfileId: pp.id })}
-                    className="h-8 px-3 rounded-[6px] text-xs font-medium transition-all"
+                    className="h-8 px-3 rounded-[5px] text-xs font-medium transition-all"
                     style={plate.printerProfileId === pp.id
                       ? { background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", color: "#a5b4fc" }
                       : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t2)" }}
@@ -644,7 +644,7 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
                 ))}
               </div>
               {plate.printerProfileId && printerProfiles && !printerProfiles.some(pp => pp.id === plate.printerProfileId) && (
-                <div className="flex items-center gap-2 mt-1.5 px-2 py-1.5 rounded-[6px] text-[10px]"
+                <div className="flex items-center gap-2 mt-1.5 px-2 py-1.5 rounded-[5px] text-[10px]"
                      style={{ background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.25)", color: "#fbbf24" }}>
                   ⚠️ Profil printer &quot;{plate.printer ?? plate.printerProfileId}&quot; sudah dihapus — perhitungan jatuh ke rate global.
                   <button onClick={() => updatePlateFields(plate.key, { printer: undefined, printerProfileId: undefined })}

@@ -97,20 +97,20 @@ export function POTab() {
           <button
             onClick={() => fileRef.current?.click()}
             disabled={ocrMut.isPending}
-            className="h-9 px-4 rounded-[10px] text-sm font-semibold transition-all g-btn-ghost"
+            className="h-9 px-4 rounded-[5px] text-sm font-semibold transition-all g-btn-ghost"
             title="Upload file atau Ctrl+V untuk paste dari clipboard"
           >
             {ocrMut.isPending ? "⏳ Scanning..." : "📷 Scan"}
           </button>
           <button
             onClick={() => { setShowJsonImport(v => !v); setJsonError(null) }}
-            className="h-9 px-4 rounded-[10px] text-sm font-semibold transition-all g-btn-ghost"
+            className="h-9 px-4 rounded-[5px] text-sm font-semibold transition-all g-btn-ghost"
           >
             { } Import JSON
           </button>
           <button
             onClick={() => { setOcrDraft(null); setView("create") }}
-            className="h-9 px-4 rounded-[10px] text-sm font-semibold text-white"
+            className="h-9 px-4 rounded-[5px] text-sm font-semibold text-white"
             style={{ background: "linear-gradient(135deg, #5055e8, #7c84f8)" }}
           >
             + Buat PO
@@ -120,7 +120,7 @@ export function POTab() {
 
       {/* JSON Import panel */}
       {showJsonImport && (
-        <div className="g-card rounded-[12px] p-4 space-y-3">
+        <div className="g-card rounded-[5px] p-4 space-y-3">
           <div className="text-xs font-semibold uppercase tracking-wider g-accent">
             Import JSON dari Discord OCR
           </div>
@@ -131,21 +131,21 @@ export function POTab() {
             value={jsonText}
             onChange={e => setJsonText(e.target.value)}
             placeholder={'{\n  "vendorNama": "xyz garage",\n  "tanggal": "2026-05-18",\n  "items": [...]\n}'}
-            className="glass-input w-full rounded-[8px] px-3 py-2 text-xs font-mono"
+            className="glass-input w-full rounded-[5px] px-3 py-2 text-xs font-mono"
             style={{ height: 160, resize: "vertical" }}
             autoFocus
           />
           {jsonError && (
-            <div className="text-xs px-3 py-2 rounded-[8px]"
+            <div className="text-xs px-3 py-2 rounded-[5px]"
                  style={{ background: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}>
               ⚠️ {jsonError}
             </div>
           )}
           <div className="flex gap-2">
             <button onClick={() => { setShowJsonImport(false); setJsonText(""); setJsonError(null) }}
-                    className="g-btn-ghost flex-1 h-9 rounded-[8px] text-xs">Batal</button>
+                    className="g-btn-ghost flex-1 h-9 rounded-[5px] text-xs">Batal</button>
             <button onClick={handleJsonImport} disabled={!jsonText.trim()}
-                    className="flex-1 h-9 rounded-[8px] text-xs font-semibold text-white"
+                    className="flex-1 h-9 rounded-[5px] text-xs font-semibold text-white"
                     style={{ background: jsonText.trim() ? "linear-gradient(135deg, #5055e8, #7c84f8)" : "var(--g-inner)",
                              color: jsonText.trim() ? "white" : "var(--g-t4)" }}>
               Import & Buka Form
@@ -161,14 +161,14 @@ export function POTab() {
       )}
 
       {ocrMut.isPending && (
-        <div className="text-xs px-3 py-2 rounded-[8px] text-center"
+        <div className="text-xs px-3 py-2 rounded-[5px] text-center"
              style={{ background: "rgba(99,102,241,0.08)", color: "#a5b4fc", border: "1px solid rgba(99,102,241,0.2)" }}>
           ⏳ Scanning invoice... (Claude Vision bisa 30-60 detik)
         </div>
       )}
 
       {ocrError && (
-        <div className="text-xs px-3 py-2 rounded-[8px]"
+        <div className="text-xs px-3 py-2 rounded-[5px]"
              style={{ background: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}>
           ⚠️ {ocrError}
         </div>
@@ -177,7 +177,7 @@ export function POTab() {
       {isLoading && <div className="text-sm text-center py-12 g-t4">Memuat...</div>}
 
       {!isLoading && (items ?? []).length === 0 && (
-        <div className="flex flex-col items-center justify-center py-16 rounded-[16px] gap-3 g-card"
+        <div className="flex flex-col items-center justify-center py-16 rounded-[5px] gap-3 g-card"
              style={{ borderStyle: "dashed" }}>
           <div className="text-4xl">📋</div>
           <div className="text-sm g-t4">
@@ -191,7 +191,7 @@ export function POTab() {
           const cfg = STATUS_CONFIG[po.status] ?? STATUS_CONFIG.DRAFT
           return (
             <div key={po.id}
-                 className="flex items-center gap-4 px-5 py-4 rounded-[12px] group cursor-pointer transition-all g-row"
+                 className="flex items-center gap-4 px-5 py-4 rounded-[5px] group cursor-pointer transition-all g-row"
                  onClick={() => { setSelectedId(po.id); setView("detail") }}>
 
               <div className="flex-1 min-w-0">
@@ -223,7 +223,7 @@ export function POTab() {
 
               <button
                 onClick={e => { e.stopPropagation(); if (confirm(`Hapus PO?`)) deleteMut.mutate(po.id) }}
-                className="opacity-0 group-hover:opacity-100 h-7 w-7 rounded-[6px] flex items-center justify-center text-xs transition-all"
+                className="opacity-0 group-hover:opacity-100 h-7 w-7 rounded-[5px] flex items-center justify-center text-xs transition-all"
                 style={{ background: "rgba(239,68,68,0.1)", color: "#f87171" }}
               >✕</button>
             </div>

@@ -26,7 +26,7 @@ export function ImageZoomModal({ src, alt = "", onClose }: ImageZoomModalProps) 
         <img
           src={src}
           alt={alt}
-          className="max-w-full max-h-[85vh] rounded-[12px] object-contain shadow-2xl"
+          className="max-w-full max-h-[85vh] rounded-[5px] object-contain shadow-2xl"
           style={{ boxShadow: "0 0 60px rgba(0,0,0,0.6)" }}
         />
         <button

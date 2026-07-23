@@ -100,7 +100,7 @@ export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurati
                 <label className="g-t2 block text-xs">
                   Field preset
                   <select
-                    className="glass-input mt-1 w-full rounded-[8px] px-2 py-1.5 text-xs"
+                    className="glass-input mt-1 w-full rounded-[5px] px-2 py-1.5 text-xs"
                     onChange={(e) => handlePresetChange(e.target.value as FieldPresetKey)}
                   >
                     {CELL_OVERRIDE_PRESETS.map((key) => (
@@ -117,7 +117,7 @@ export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurati
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.96 }}
                   onClick={onRemoveCell}
-                  className="w-full rounded-[8px] border border-red-500/25 bg-red-500/5 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/10 dark:text-red-400"
+                  className="w-full rounded-[5px] border border-red-500/25 bg-red-500/5 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/10 dark:text-red-400"
                 >
                   Hapus dari grid
                 </motion.button>
@@ -131,14 +131,14 @@ export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurati
                   <input
                     defaultValue={cell.text}
                     onBlur={(e) => onUpdateCell({ ...cell, text: e.target.value })}
-                    className="glass-input mt-1 w-full rounded-[8px] px-2 py-1.5 text-xs"
+                    className="glass-input mt-1 w-full rounded-[5px] px-2 py-1.5 text-xs"
                   />
                 </label>
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.96 }}
                   onClick={onRemoveCell}
-                  className="w-full rounded-[8px] border border-red-500/25 bg-red-500/5 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/10 dark:text-red-400"
+                  className="w-full rounded-[5px] border border-red-500/25 bg-red-500/5 py-1.5 text-xs font-medium text-red-500 transition-colors hover:bg-red-500/10 dark:text-red-400"
                 >
                   Hapus dari grid
                 </motion.button>
@@ -157,7 +157,7 @@ export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurati
             min={0}
             defaultValue={pageDurationSec}
             onBlur={(e) => onUpdateDuration(Number(e.target.value))}
-            className="glass-input mt-1 w-full rounded-[8px] px-2 py-1.5 text-xs"
+            className="glass-input mt-1 w-full rounded-[5px] px-2 py-1.5 text-xs"
           />
         </label>
         <div className="mt-2.5 grid grid-cols-2 gap-2">
@@ -173,7 +173,7 @@ export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurati
                 const clamped = Math.min(GRID_COLS_RANGE.max, Math.max(GRID_COLS_RANGE.min, Number(e.target.value) || gridCols))
                 onUpdateGrid({ cols: clamped })
               }}
-              className="glass-input mt-1 w-full rounded-[8px] px-2 py-1.5 text-xs"
+              className="glass-input mt-1 w-full rounded-[5px] px-2 py-1.5 text-xs"
             />
           </label>
           <label className="g-t2 block text-xs">
@@ -188,7 +188,7 @@ export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurati
                 const clamped = Math.min(GRID_ROWS_RANGE.max, Math.max(GRID_ROWS_RANGE.min, Number(e.target.value) || gridRows))
                 onUpdateGrid({ rows: clamped })
               }}
-              className="glass-input mt-1 w-full rounded-[8px] px-2 py-1.5 text-xs"
+              className="glass-input mt-1 w-full rounded-[5px] px-2 py-1.5 text-xs"
             />
           </label>
         </div>

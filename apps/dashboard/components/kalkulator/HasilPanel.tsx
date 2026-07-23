@@ -43,7 +43,7 @@ export function HasilPanel({
     return (
       <div className="space-y-3 animate-pulse">
         {[...Array(6)].map((_, i) => (
-          <div key={i} className="h-8 rounded-[8px]" style={{ background: "var(--g-inner)" }} />
+          <div key={i} className="h-8 rounded-[5px]" style={{ background: "var(--g-inner)" }} />
         ))}
       </div>
     )
@@ -81,7 +81,7 @@ export function HasilPanel({
 
       {/* Hero: Floor Price + Rekm Shopee (margin-aware) */}
       <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-[10px] p-4 text-center"
+        <div className="rounded-[5px] p-4 text-center"
              style={{ background: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.2)" }}>
           <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5"
                style={{ color: "rgba(251,191,36,0.7)" }}>Floor Price</div>
@@ -90,7 +90,7 @@ export function HasilPanel({
           </div>
           <div className="text-[11px] mt-1" style={{ color: "var(--g-t4)" }}>batas diskon</div>
         </div>
-        <div className="rounded-[10px] p-4 text-center"
+        <div className="rounded-[5px] p-4 text-center"
              style={{ background: "rgba(99,102,241,0.12)", border: "1px solid rgba(99,102,241,0.25)" }}>
           <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5"
                style={{ color: "rgba(165,180,252,0.7)" }}>Rekm. Shopee {MARGIN_TIER_LABEL[marginTier]}</div>
@@ -102,7 +102,7 @@ export function HasilPanel({
       </div>
 
       {/* HPP Breakdown */}
-      <div className="rounded-[10px] p-4" style={{ background: "var(--g-card)", border: "1px solid var(--g-card-border)" }}>
+      <div className="rounded-[5px] p-4" style={{ background: "var(--g-card)", border: "1px solid var(--g-card-border)" }}>
         <div className="text-xs font-semibold uppercase tracking-wider mb-3 g-accent">HPP Breakdown</div>
         <Row label="HPP Produksi (cetak)" value={fmt(hasil.hppProduksi)} />
         <Row label="HPP Komponen (aksesori)" value={fmt(hasil.hppKomponen)} />
@@ -118,7 +118,7 @@ export function HasilPanel({
       </div>
 
       {/* Harga Lengkap */}
-      <div className="rounded-[10px] p-4" style={{ background: "var(--g-card)", border: "1px solid var(--g-card-border)" }}>
+      <div className="rounded-[5px] p-4" style={{ background: "var(--g-card)", border: "1px solid var(--g-card-border)" }}>
         <div className="text-xs font-semibold uppercase tracking-wider mb-3 g-accent">Harga Lengkap</div>
         <Row label="Floor Price" value={fmt(hasil.floorPrice)} color="#fbbf24" />
         {hargaChannel && channels ? (
@@ -169,7 +169,7 @@ export function HasilPanel({
 
       {/* Perbandingan Printer */}
       {printerComparison && printerComparison.length >= 2 && (
-        <div className="rounded-[10px] p-4" style={{ background: "var(--g-card)", border: "1px solid var(--g-card-border)" }}>
+        <div className="rounded-[5px] p-4" style={{ background: "var(--g-card)", border: "1px solid var(--g-card-border)" }}>
           <div className="text-xs font-semibold uppercase tracking-wider mb-1 g-accent">Perbandingan Printer</div>
           <div className="text-[10px] g-t5 mb-2">Harga jual tetap (mesin acuan) — HPP & margin kalau semua plate dicetak di printer tsb.</div>
           {printerComparison.map(r => (
@@ -186,7 +186,7 @@ export function HasilPanel({
 
       {/* Status vs Shopee Aktual */}
       {hargaShopeeAktual !== undefined && hargaShopeeAktual > 0 && (
-        <div className="rounded-[10px] p-4" style={{ background: statusCfg.bg, border: `1px solid ${statusCfg.border}` }}>
+        <div className="rounded-[5px] p-4" style={{ background: statusCfg.bg, border: `1px solid ${statusCfg.border}` }}>
           <div className="flex justify-between items-center mb-2">
             <div className="text-xs font-semibold uppercase tracking-wider"
                  style={{ color: "var(--g-t2)" }}>vs Harga Shopee Saat Ini</div>
@@ -216,7 +216,7 @@ export function HasilPanel({
 
       {/* vs Harga Offline Aktual — status badge NOT shown, acuan aman tetap dari Shopee A */}
       {hargaOfflineAktual !== undefined && hargaOfflineAktual > 0 && (
-        <div className="rounded-[10px] p-4"
+        <div className="rounded-[5px] p-4"
              style={{ background: "rgba(52,211,153,0.06)", border: "1px solid rgba(52,211,153,0.15)" }}>
           <div className="flex justify-between items-center mb-2">
             <div className="text-xs font-semibold uppercase tracking-wider"

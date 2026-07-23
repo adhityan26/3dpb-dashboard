@@ -82,7 +82,7 @@ export function SortableList<T extends { _id: string }>({
 
   return (
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-      <div className="rounded-[10px] overflow-hidden border border-white/8">
+      <div className="rounded-[5px] overflow-hidden border border-white/8">
         <table className="w-full text-[12px]">
           <thead>
             <tr style={{ background: "rgba(255,255,255,0.03)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}>

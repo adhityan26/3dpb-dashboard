@@ -70,7 +70,7 @@ export function PODetail({ poId, onBack }: Props) {
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex items-center gap-3 flex-wrap">
-        <button onClick={onBack} className="g-btn-ghost h-8 px-3 rounded-[8px] text-xs font-medium">
+        <button onClick={onBack} className="g-btn-ghost h-8 px-3 rounded-[5px] text-xs font-medium">
           ← Kembali
         </button>
         <div className="flex-1" />
@@ -79,7 +79,7 @@ export function PODetail({ poId, onBack }: Props) {
           return (
             <button key={s} onClick={() => changeStatus(s)}
                     disabled={receiveMut.isPending || updateMut.isPending}
-                    className="h-8 px-3 rounded-[8px] text-xs font-semibold"
+                    className="h-8 px-3 rounded-[5px] text-xs font-semibold"
                     style={{ background: c.bg, color: c.color, border: `1px solid ${c.color}33` }}>
               → {c.label}{s === 'RECEIVED' ? ` (${po.filamentItemCount} roll)` : ""}
             </button>
@@ -88,7 +88,7 @@ export function PODetail({ poId, onBack }: Props) {
       </div>
 
       {/* PO Header */}
-      <div className="g-card rounded-[14px] p-5 space-y-3">
+      <div className="g-card rounded-[5px] p-5 space-y-3">
         <div className="flex items-start justify-between gap-4 flex-wrap">
           <div>
             <div className="text-lg font-bold g-t1">
@@ -110,7 +110,7 @@ export function PODetail({ poId, onBack }: Props) {
       </div>
 
       {/* Items table */}
-      <div className="rounded-[14px] overflow-hidden"
+      <div className="rounded-[5px] overflow-hidden"
            style={{ border: "1px solid var(--g-card-border)" }}>
         <div className="grid text-[9px] font-semibold uppercase tracking-wider px-4 py-2 g-accent"
              style={{ gridTemplateColumns: "1fr 50px 80px 50px 90px", background: "var(--g-card)" }}>
@@ -157,7 +157,7 @@ export function PODetail({ poId, onBack }: Props) {
             <>
               <span className="text-xs g-t3">🚚 Ongkir:</span>
               <input type="number" min="0" value={ongkirVal} onChange={e => setOngkirVal(e.target.value)}
-                autoFocus className="glass-input h-7 w-32 rounded-[6px] px-2 text-xs"
+                autoFocus className="glass-input h-7 w-32 rounded-[5px] px-2 text-xs"
                 onKeyDown={e => { if (e.key === "Enter") handleSaveOngkir(); if (e.key === "Escape") setOngkirEdit(false) }} />
               <button onClick={handleSaveOngkir} disabled={updateMut.isPending}
                 className="h-7 px-2 rounded-[5px] text-xs font-semibold text-white"
@@ -188,7 +188,7 @@ export function PODetail({ poId, onBack }: Props) {
       </div>
 
       {po.status === 'RECEIVED' && po.filamentItemCount > 0 && (
-        <div className="text-xs px-4 py-3 rounded-[10px]"
+        <div className="text-xs px-4 py-3 rounded-[5px]"
              style={{ background: "rgba(52,211,153,0.08)", color: "#34d399", border: "1px solid rgba(52,211,153,0.15)" }}>
           ✅ {po.filamentItemCount} roll filament sudah ditambahkan ke stok saat order diterima
         </div>

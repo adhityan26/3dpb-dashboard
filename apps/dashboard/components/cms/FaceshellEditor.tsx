@@ -25,7 +25,7 @@ export function FaceshellEditor() {
   if (isLoading || !form) return <div className="p-6 text-white/40 text-sm">Memuat...</div>
 
   const items: Item[] = form.items ?? []
-  const inputClass = "w-full bg-white/[0.04] border border-white/10 rounded-[8px] px-3 py-2 text-[13px] text-white/80 focus:outline-none focus:border-indigo-500/60"
+  const inputClass = "w-full bg-white/[0.04] border border-white/10 rounded-[5px] px-3 py-2 text-[13px] text-white/80 focus:outline-none focus:border-indigo-500/60"
 
   function openEdit(i: number) {
     setItemForm({ imageUrl: items[i].imageUrl, imageRef: items[i].imageRef, alt: items[i].alt, title: items[i].title, caption: items[i].caption })
@@ -70,10 +70,10 @@ export function FaceshellEditor() {
       <LocalizedField label="Judul" value={itemForm.title} onChange={(v) => setItemForm((f) => ({ ...f, title: v }))} />
       <LocalizedField label="Caption" value={itemForm.caption} onChange={(v) => setItemForm((f) => ({ ...f, caption: v }))} multiline />
       <div className="flex gap-2">
-        <button onClick={commitItem} disabled={!itemForm.imageRef} className="px-3 py-1.5 rounded-[6px] text-[12px] font-semibold text-white disabled:opacity-40" style={{ background: "linear-gradient(135deg,#5055e8,#818cf8)" }}>
+        <button onClick={commitItem} disabled={!itemForm.imageRef} className="px-3 py-1.5 rounded-[5px] text-[12px] font-semibold text-white disabled:opacity-40" style={{ background: "linear-gradient(135deg,#5055e8,#818cf8)" }}>
           {expandedIdx === "new" ? "Tambah ke List" : "Simpan Perubahan"}
         </button>
-        <button onClick={closeExpanded} className="px-3 py-1.5 rounded-[6px] text-[12px] text-white/50 hover:text-white/80">Batal</button>
+        <button onClick={closeExpanded} className="px-3 py-1.5 rounded-[5px] text-[12px] text-white/50 hover:text-white/80">Batal</button>
       </div>
     </div>
   )
@@ -105,18 +105,18 @@ export function FaceshellEditor() {
           <h3 className="text-[12px] font-semibold uppercase tracking-wider" style={{ color: "rgba(165,180,252,0.7)" }}>
             Collection Items ({items.length})
           </h3>
-          <button onClick={openAdd} className="px-3 py-1 rounded-[6px] text-[11px] font-semibold text-white" style={{ background: "linear-gradient(135deg,#5055e8,#818cf8)" }}>
+          <button onClick={openAdd} className="px-3 py-1 rounded-[5px] text-[11px] font-semibold text-white" style={{ background: "linear-gradient(135deg,#5055e8,#818cf8)" }}>
             + Tambah
           </button>
         </div>
 
         {/* Existing items */}
         {items.map((item, i) => (
-          <div key={i} className="rounded-[8px] border border-white/8 overflow-hidden" style={{ background: expandedIdx === i ? "rgba(99,102,241,0.06)" : "rgba(255,255,255,0.02)", borderColor: expandedIdx === i ? "rgba(99,102,241,0.25)" : undefined }}>
+          <div key={i} className="rounded-[5px] border border-white/8 overflow-hidden" style={{ background: expandedIdx === i ? "rgba(99,102,241,0.06)" : "rgba(255,255,255,0.02)", borderColor: expandedIdx === i ? "rgba(99,102,241,0.25)" : undefined }}>
             <div className="flex items-center gap-3 p-2">
               {item.imageUrl
-                ? <img src={`${item.imageUrl}?w=64&h=64&fit=crop`} alt={item.alt} onClick={() => setZoomSrc({ src: item.imageUrl!, alt: item.alt })} className="w-10 h-10 rounded-[6px] object-cover flex-shrink-0 cursor-zoom-in" />
-                : <div className="w-10 h-10 rounded-[6px] bg-white/5 flex-shrink-0" />
+                ? <img src={`${item.imageUrl}?w=64&h=64&fit=crop`} alt={item.alt} onClick={() => setZoomSrc({ src: item.imageUrl!, alt: item.alt })} className="w-10 h-10 rounded-[5px] object-cover flex-shrink-0 cursor-zoom-in" />
+                : <div className="w-10 h-10 rounded-[5px] bg-white/5 flex-shrink-0" />
               }
               <div className="flex-1 min-w-0">
                 <div className="text-[12px] text-white/80 truncate">{item.title?.id || item.title?.en || "(no title)"}</div>
@@ -139,7 +139,7 @@ export function FaceshellEditor() {
 
         {/* New item form */}
         {expandedIdx === "new" && (
-          <div className="rounded-[8px] border overflow-hidden" style={{ background: "rgba(99,102,241,0.06)", borderColor: "rgba(99,102,241,0.25)" }}>
+          <div className="rounded-[5px] border overflow-hidden" style={{ background: "rgba(99,102,241,0.06)", borderColor: "rgba(99,102,241,0.25)" }}>
             <div className="px-3 pt-3 pb-1">
               <span className="text-[12px] font-semibold text-white/60">Item Baru</span>
             </div>
@@ -149,7 +149,7 @@ export function FaceshellEditor() {
       </div>
 
       <div className="flex items-center gap-3">
-        <button onClick={handleSave} disabled={patch.isPending} className="px-5 py-2 rounded-[8px] text-[13px] font-semibold text-white disabled:opacity-50" style={{ background: "linear-gradient(135deg,#5055e8,#818cf8)" }}>
+        <button onClick={handleSave} disabled={patch.isPending} className="px-5 py-2 rounded-[5px] text-[13px] font-semibold text-white disabled:opacity-50" style={{ background: "linear-gradient(135deg,#5055e8,#818cf8)" }}>
           {patch.isPending ? "Menyimpan..." : "Simpan"}
         </button>
         {saved && <span className="text-[12px]" style={{ color: "rgba(74,222,128,0.8)" }}>✓ Tersimpan</span>}

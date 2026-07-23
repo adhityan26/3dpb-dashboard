@@ -99,7 +99,7 @@ export function StepInfo({ state, update }: Props) {
             <button
               key={c}
               onClick={() => update({ condition: c })}
-              className="px-4 py-2 rounded-[8px] text-[12px] font-medium transition-all"
+              className="px-4 py-2 rounded-[5px] text-[12px] font-medium transition-all"
               style={{
                 background: state.condition === c ? "rgba(99,102,241,0.2)" : "rgba(255,255,255,0.04)",
                 border: `1px solid ${state.condition === c ? "rgba(99,102,241,0.4)" : "rgba(255,255,255,0.1)"}`,

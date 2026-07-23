@@ -85,7 +85,7 @@ export function StepMedia({ state, update, katalogImageUrl }: Props) {
               <img
                 src={img.imageUrl}
                 alt={`Image ${idx + 1}`}
-                className="w-full h-full object-cover rounded-[8px]"
+                className="w-full h-full object-cover rounded-[5px]"
                 style={{ border: "1px solid rgba(255,255,255,0.1)" }}
               />
               <button
@@ -102,7 +102,7 @@ export function StepMedia({ state, update, katalogImageUrl }: Props) {
           {canAddMore && (
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="aspect-square rounded-[8px] flex flex-col items-center justify-center gap-1 transition-opacity hover:opacity-70"
+              className="aspect-square rounded-[5px] flex flex-col items-center justify-center gap-1 transition-opacity hover:opacity-70"
               style={{
                 border: "1px dashed rgba(99,102,241,0.3)",
                 background: "rgba(99,102,241,0.05)",
@@ -117,7 +117,7 @@ export function StepMedia({ state, update, katalogImageUrl }: Props) {
 
           {uploading && (
             <div
-              className="aspect-square rounded-[8px] flex items-center justify-center"
+              className="aspect-square rounded-[5px] flex items-center justify-center"
               style={{ border: "1px dashed rgba(255,255,255,0.15)", background: "rgba(255,255,255,0.02)" }}
             >
               <span className="text-[10px] animate-pulse" style={{ color: "rgba(255,255,255,0.3)" }}>
@@ -136,7 +136,7 @@ export function StepMedia({ state, update, katalogImageUrl }: Props) {
         />
 
         {uploadError && (
-          <div className="text-[10px] mt-2 px-3 py-1.5 rounded-[6px]" style={{ background: "rgba(239,68,68,0.1)", color: "#f87171" }}>
+          <div className="text-[10px] mt-2 px-3 py-1.5 rounded-[5px]" style={{ background: "rgba(239,68,68,0.1)", color: "#f87171" }}>
             ❌ {uploadError}
           </div>
         )}

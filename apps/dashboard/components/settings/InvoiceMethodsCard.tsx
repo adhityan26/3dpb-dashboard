@@ -74,7 +74,7 @@ export function InvoiceMethodsCard() {
   if (isLoading) return <div className="text-sm text-center py-6 g-t4">Memuat...</div>
 
   return (
-    <div className="rounded-[16px] p-5 space-y-4 g-card">
+    <div className="rounded-[5px] p-5 space-y-4 g-card">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-sm font-semibold g-t1">💳 Metode Pembayaran Invoice</div>
@@ -115,12 +115,12 @@ export function InvoiceMethodsCard() {
           onChange={e => setNewMethod(e.target.value)}
           onKeyDown={e => e.key === "Enter" && handleAdd()}
           placeholder="Bank Jago, QRIS, Shopee..."
-          className="glass-input flex-1 h-9 rounded-[8px] px-3 text-sm"
+          className="glass-input flex-1 h-9 rounded-[5px] px-3 text-sm"
         />
         <button
           onClick={handleAdd}
           disabled={!newMethod.trim() || updateMut.isPending}
-          className="h-9 px-4 rounded-[8px] text-sm font-semibold text-white"
+          className="h-9 px-4 rounded-[5px] text-sm font-semibold text-white"
           style={{ background: newMethod.trim() ? "linear-gradient(135deg, #5055e8, #7c84f8)" : "var(--g-inner)", color: newMethod.trim() ? "white" : "var(--g-t4)" }}
         >
           + Tambah
@@ -141,13 +141,13 @@ export function InvoiceMethodsCard() {
           onChange={e => setBankDraft(e.target.value)}
           rows={3}
           placeholder={"BCA 1234567890\na/n Nama Pemilik"}
-          className="glass-input w-full rounded-[8px] px-3 py-2 text-sm"
+          className="glass-input w-full rounded-[5px] px-3 py-2 text-sm"
         />
         <div className="flex justify-end mt-2">
           <button
             onClick={handleSaveBank}
             disabled={bankDraft === (bankAccount ?? "") || updateBankMut.isPending}
-            className="h-9 px-4 rounded-[8px] text-sm font-semibold"
+            className="h-9 px-4 rounded-[5px] text-sm font-semibold"
             style={{
               background: bankDraft !== (bankAccount ?? "") ? "linear-gradient(135deg, #5055e8, #7c84f8)" : "var(--g-inner)",
               color: bankDraft !== (bankAccount ?? "") ? "white" : "var(--g-t4)",
@@ -171,21 +171,21 @@ export function InvoiceMethodsCard() {
         {qris ? (
           <div className="flex items-center gap-3">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={qris} alt="QRIS" className="w-24 h-24 rounded-[8px] object-contain" style={{ background: "#fff", padding: 4 }} />
+            <img src={qris} alt="QRIS" className="w-24 h-24 rounded-[5px] object-contain" style={{ background: "#fff", padding: 4 }} />
             <div className="flex flex-col gap-2">
-              <label className="h-8 px-3 rounded-[8px] text-xs font-semibold flex items-center cursor-pointer" style={{ background: "var(--g-inner)", color: "var(--g-t2)" }}>
+              <label className="h-8 px-3 rounded-[5px] text-xs font-semibold flex items-center cursor-pointer" style={{ background: "var(--g-inner)", color: "var(--g-t2)" }}>
                 Ganti Gambar
                 <input type="file" accept="image/*" className="hidden"
                   onChange={e => { const f = e.target.files?.[0]; if (f) handleQrisFile(f); e.target.value = "" }} />
               </label>
               <button onClick={handleRemoveQris} disabled={updateQrisMut.isPending}
-                className="h-8 px-3 rounded-[8px] text-xs font-semibold" style={{ color: "#f87171", background: "rgba(248,113,113,0.1)" }}>
+                className="h-8 px-3 rounded-[5px] text-xs font-semibold" style={{ color: "#f87171", background: "rgba(248,113,113,0.1)" }}>
                 Hapus
               </button>
             </div>
           </div>
         ) : (
-          <label className="h-9 px-4 rounded-[8px] text-sm font-semibold inline-flex items-center cursor-pointer text-white" style={{ background: "linear-gradient(135deg, #5055e8, #7c84f8)" }}>
+          <label className="h-9 px-4 rounded-[5px] text-sm font-semibold inline-flex items-center cursor-pointer text-white" style={{ background: "linear-gradient(135deg, #5055e8, #7c84f8)" }}>
             ⬆️ Upload QRIS
             <input type="file" accept="image/*" className="hidden"
               onChange={e => { const f = e.target.files?.[0]; if (f) handleQrisFile(f); e.target.value = "" }} />

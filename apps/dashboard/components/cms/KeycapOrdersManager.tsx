@@ -77,7 +77,7 @@ export function KeycapOrdersManager() {
                     <span
                       key={k._key}
                       title={`${k.char} (${k.baseColor?.name})`}
-                      className="inline-block w-3.5 h-3.5 rounded-[3px] border border-white/20"
+                      className="inline-block w-3.5 h-3.5 rounded-[5px] border border-white/20"
                       style={{ background: k.baseColor?.hex ?? "#888" }}
                     />
                   ))}
@@ -104,7 +104,7 @@ export function KeycapOrdersManager() {
                 value={item.status}
                 onChange={(e) => patch.mutate({ id: item._id, status: e.target.value })}
                 disabled={patch.isPending}
-                className="rounded-[6px] px-2 py-1 text-[11px] font-medium border-0 cursor-pointer"
+                className="rounded-[5px] px-2 py-1 text-[11px] font-medium border-0 cursor-pointer"
                 style={{ ...(STATUS_COLORS[item.status] ?? {}), background: STATUS_COLORS[item.status]?.bg }}
               >
                 {STATUSES.map((s) => (

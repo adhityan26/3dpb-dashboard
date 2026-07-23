@@ -118,7 +118,7 @@ export function RincianPanel({ input, deps, hasil, hargaShopeeAktual }: Props) {
   const m = deps.settings.marginMultipliers
 
   return (
-    <details className="mt-3 rounded-[10px] px-3 py-2"
+    <details className="mt-3 rounded-[5px] px-3 py-2"
              style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)" }}>
       <summary className="text-[11px] font-semibold g-t2 cursor-pointer select-none">
         🔍 Rincian Perhitungan (debug)
@@ -132,7 +132,7 @@ export function RincianPanel({ input, deps, hasil, hargaShopeeAktual }: Props) {
 
       <div className="mt-2 space-y-3">
         {plateLines.map((p, i) => (
-          <div key={i} className="rounded-[8px] px-2.5 py-2" style={{ border: "1px solid var(--g-inner-border)" }}>
+          <div key={i} className="rounded-[5px] px-2.5 py-2" style={{ border: "1px solid var(--g-inner-border)" }}>
             <div className="text-[11px] font-semibold g-t2 mb-1">{p.nama}</div>
             {p.mats.map((mt, j) => (
               <Row key={j} label={`Material ${mt.label}`}
@@ -154,7 +154,7 @@ export function RincianPanel({ input, deps, hasil, hargaShopeeAktual }: Props) {
           </div>
         ))}
 
-        <div className="rounded-[8px] px-2.5 py-2" style={{ border: "1px solid var(--g-inner-border)" }}>
+        <div className="rounded-[5px] px-2.5 py-2" style={{ border: "1px solid var(--g-inner-border)" }}>
           <div className="text-[11px] font-semibold g-t2 mb-1">Agregasi ÷ batch {batch}</div>
           <Row label="Total run" formula={`${num(totalGram)} g · ${jamFmt(totalJam)} · HPP ${rp(sumHpp)} · jual ${rp(sumJual)}`} value="" />
           <Row label="Per unit" formula={`${num(totalGram / batch)} g · ${jamFmt(totalJam / batch)}`} value="" />
@@ -162,7 +162,7 @@ export function RincianPanel({ input, deps, hasil, hargaShopeeAktual }: Props) {
           <Row label="Basis jual" formula={`${rp(sumJual)} ÷ ${batch}`} value={rp(v2.jualBase)} />
         </div>
 
-        <div className="rounded-[8px] px-2.5 py-2" style={{ border: "1px solid var(--g-inner-border)" }}>
+        <div className="rounded-[5px] px-2.5 py-2" style={{ border: "1px solid var(--g-inner-border)" }}>
           <div className="text-[11px] font-semibold g-t2 mb-1">Komponen &amp; Labor (per unit)</div>
           {v2input.komponen.length === 0 && v2input.labor.length === 0 && (
             <div className="text-[11px] g-t5">Tidak ada.</div>
@@ -180,7 +180,7 @@ export function RincianPanel({ input, deps, hasil, hargaShopeeAktual }: Props) {
           )}
         </div>
 
-        <div className="rounded-[8px] px-2.5 py-2" style={{ border: "1px solid rgba(250,204,21,0.25)" }}>
+        <div className="rounded-[5px] px-2.5 py-2" style={{ border: "1px solid rgba(250,204,21,0.25)" }}>
           <div className="text-[11px] font-semibold g-t2 mb-1">Harga (angka final = panel Hasil di atas)</div>
           <Row label="HPP total" formula={`${rp(v2.hppProduksi)} + ${rp(v2.hppKomponen)} + labor(bulat) ${rp(Math.round(v2.hppLabor))}`} value={rp(hasil.hppTotal)} />
           <Row label="Floor price" formula={`${rp(v2.jualBase)} + ${rp(v2.hppKomponen)} + ${rp(Math.round(v2.hppLabor))}`} value={rp(hasil.floorPrice)} />

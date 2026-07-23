@@ -84,7 +84,7 @@ export function StepShipping({ state, update }: Props) {
           </span>
         </label>
         <div
-          className="rounded-[10px] overflow-hidden"
+          className="rounded-[5px] overflow-hidden"
           style={{ border: "1px solid rgba(255,255,255,0.08)", background: "rgba(255,255,255,0.02)" }}
         >
           {isLoading && (
@@ -117,7 +117,7 @@ export function StepShipping({ state, update }: Props) {
 
       {/* Toggle variasi */}
       <div
-        className="flex items-center justify-between p-3 rounded-[10px]"
+        className="flex items-center justify-between p-3 rounded-[5px]"
         style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.15)" }}
       >
         <div>

@@ -229,45 +229,45 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
     return (
       <div className="space-y-4">
         <div className="flex items-center gap-3">
-          <button onClick={() => setEditMode(false)} className="g-btn-ghost h-8 px-3 rounded-[8px] text-xs font-medium">
+          <button onClick={() => setEditMode(false)} className="g-btn-ghost h-8 px-3 rounded-[5px] text-xs font-medium">
             ← Batal Edit
           </button>
           <div className="text-sm font-semibold g-t1">{invoice.nomor}</div>
           <div className="flex-1" />
           <button onClick={handleSaveEdit} disabled={updateMut.isPending}
-                  className="h-8 px-4 rounded-[8px] text-xs font-semibold text-white"
+                  className="h-8 px-4 rounded-[5px] text-xs font-semibold text-white"
                   style={{ background: "linear-gradient(135deg, #5055e8, #7c84f8)" }}>
             {updateMut.isPending ? "Menyimpan..." : "💾 Simpan"}
           </button>
         </div>
 
-        <div className="g-card rounded-[14px] p-5 space-y-4">
+        <div className="g-card rounded-[5px] p-5 space-y-4">
           {/* Buyer info */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-wider mb-1 g-accent">Nama Buyer</div>
               <input type="text" value={editBuyerNama} onChange={e => setEditBuyerNama(e.target.value)}
-                     className="glass-input w-full h-9 rounded-[8px] px-3 text-sm" />
+                     className="glass-input w-full h-9 rounded-[5px] px-3 text-sm" />
             </div>
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-wider mb-1 g-accent">No. HP / WA</div>
               <input type="text" value={editBuyerContact} onChange={e => setEditBuyerContact(e.target.value)}
-                     placeholder="08xx..." className="glass-input w-full h-9 rounded-[8px] px-3 text-sm" />
+                     placeholder="08xx..." className="glass-input w-full h-9 rounded-[5px] px-3 text-sm" />
             </div>
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-wider mb-1 g-accent">Due Date</div>
               <input type="date" value={editDueDate} onChange={e => setEditDueDate(e.target.value)}
-                     className="glass-input w-full h-9 rounded-[8px] px-3 text-sm" />
+                     className="glass-input w-full h-9 rounded-[5px] px-3 text-sm" />
             </div>
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-wider mb-1 g-accent">Ongkir</div>
               <input type="number" min="0" value={editOngkir} onChange={e => setEditOngkir(e.target.value)}
-                     placeholder="0" className="glass-input w-full h-9 rounded-[8px] px-3 text-sm" />
+                     placeholder="0" className="glass-input w-full h-9 rounded-[5px] px-3 text-sm" />
             </div>
             <div className="col-span-2">
               <div className="text-[10px] font-semibold uppercase tracking-wider mb-1 g-accent">Catatan</div>
               <input type="text" value={editCatatan} onChange={e => setEditCatatan(e.target.value)}
-                     placeholder="Catatan untuk buyer..." className="glass-input w-full h-9 rounded-[8px] px-3 text-sm" />
+                     placeholder="Catatan untuk buyer..." className="glass-input w-full h-9 rounded-[5px] px-3 text-sm" />
             </div>
           </div>
 
@@ -283,20 +283,20 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
                        style={{ gridTemplateColumns: "1fr 80px 120px 28px" }}>
                     <input type="text" value={item.namaProduk}
                       onChange={e => setEditItems(prev => prev.map(i => i.key === item.key ? { ...i, namaProduk: e.target.value } : i))}
-                      placeholder="Nama produk" className="glass-input h-9 rounded-[8px] px-3 text-xs" />
+                      placeholder="Nama produk" className="glass-input h-9 rounded-[5px] px-3 text-xs" />
                     <input type="number" min="1" value={item.qty}
                       onChange={e => setEditItems(prev => prev.map(i => i.key === item.key ? { ...i, qty: parseInt(e.target.value) || 1 } : i))}
-                      className="glass-input h-9 rounded-[8px] px-3 text-xs" />
+                      className="glass-input h-9 rounded-[5px] px-3 text-xs" />
                     <input type="number" min="0" value={item.hargaPerUnit || ""}
                       onChange={e => setEditItems(prev => prev.map(i => i.key === item.key ? { ...i, hargaPerUnit: parseInt(e.target.value) || 0 } : i))}
-                      placeholder="Harga/unit" className="glass-input h-9 rounded-[8px] px-3 text-xs" />
+                      placeholder="Harga/unit" className="glass-input h-9 rounded-[5px] px-3 text-xs" />
                     <button onClick={() => setEditItems(prev => prev.filter(i => i.key !== item.key))}
-                      className="h-9 w-7 rounded-[6px] flex items-center justify-center text-xs"
+                      className="h-9 w-7 rounded-[5px] flex items-center justify-center text-xs"
                       style={{ color: "#f87171", background: "rgba(239,68,68,0.08)" }}>✕</button>
                   </div>
                   <div className="flex items-center gap-2 pl-1 mt-1">
                     <span className="text-[10px] g-t5">Diskon:</span>
-                    <div className="flex rounded-[6px] overflow-hidden" style={{ border: "1px solid var(--g-inner-border)" }}>
+                    <div className="flex rounded-[5px] overflow-hidden" style={{ border: "1px solid var(--g-inner-border)" }}>
                       {(['Rp', '%'] as const).map(m => (
                         <button key={m} onClick={() => {
                           const base = item.qty * item.hargaPerUnit
@@ -324,7 +324,7 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
                         updateEditItem(item.key, { diskon, diskonPct })
                       }}
                       placeholder="0"
-                      className="glass-input h-7 w-20 rounded-[6px] px-2 text-xs" />
+                      className="glass-input h-7 w-20 rounded-[5px] px-2 text-xs" />
                     {item.diskon > 0 && (
                       <span className="text-[10px] g-t4">= -{fmt(item.diskon)}</span>
                     )}
@@ -344,14 +344,14 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
 
           {/* Running total */}
           {editItems.length > 0 && (
-            <div className="flex items-center justify-between px-4 py-3 rounded-[10px]"
+            <div className="flex items-center justify-between px-4 py-3 rounded-[5px]"
                  style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.15)" }}>
               <div className="text-xs g-t3 space-y-0.5">
                 <div>Subtotal: {fmt(editSubtotal)}</div>
                 {/* Global diskon in edit mode */}
                 <div className="flex items-center gap-2 mt-2">
                   <span className="text-xs g-t3 shrink-0">Diskon global:</span>
-                  <div className="flex rounded-[6px] overflow-hidden" style={{ border: "1px solid var(--g-inner-border)" }}>
+                  <div className="flex rounded-[5px] overflow-hidden" style={{ border: "1px solid var(--g-inner-border)" }}>
                     {(['Rp', '%'] as const).map(m => (
                       <button key={m} onClick={() => {
                         setEditDiskonGlobalMode(m)
@@ -378,7 +378,7 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
                       setEditDiskonGlobalPct(diskonPct)
                     }}
                     placeholder="0"
-                    className="glass-input h-7 w-24 rounded-[6px] px-2 text-xs" />
+                    className="glass-input h-7 w-24 rounded-[5px] px-2 text-xs" />
                   {editDiskonGlobal > 0 && editDiskonGlobalMode === '%' && (
                     <span className="text-[10px] g-t4">= -{fmt(editDiskonGlobal)}</span>
                   )}
@@ -398,12 +398,12 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
     <div className="space-y-4">
       {/* Toolbar */}
       <div className="flex items-center gap-3 flex-wrap">
-        <button onClick={onBack} className="g-btn-ghost h-8 px-3 rounded-[8px] text-xs font-medium">
+        <button onClick={onBack} className="g-btn-ghost h-8 px-3 rounded-[5px] text-xs font-medium">
           ← Kembali
         </button>
         {canEdit && (
           <button onClick={enterEditMode}
-                  className="h-8 px-3 rounded-[8px] text-xs font-semibold"
+                  className="h-8 px-3 rounded-[5px] text-xs font-semibold"
                   style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t2)" }}>
             ✏️ Edit
           </button>
@@ -415,25 +415,25 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
         {transitions.map(s => (
           <button key={s} onClick={() => handleStatusChange(s)}
                   disabled={updateMut.isPending}
-                  className="h-8 px-3 rounded-[8px] text-xs font-semibold"
+                  className="h-8 px-3 rounded-[5px] text-xs font-semibold"
                   style={{ background: STATUS_CONFIG[s].bg, color: STATUS_CONFIG[s].color, border: `1px solid ${STATUS_CONFIG[s].border}` }}>
             → {STATUS_CONFIG[s].label}
           </button>
         ))}
         <button onClick={handleExportJpeg} disabled={exportingJpeg}
-                className="h-8 px-3 rounded-[8px] text-xs font-semibold"
+                className="h-8 px-3 rounded-[5px] text-xs font-semibold"
                 style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t2)" }}>
           {exportingJpeg ? "⋯" : "📸 JPEG"}
         </button>
         <button onClick={handlePrint}
-                className="h-8 px-3 rounded-[8px] text-xs font-semibold text-white"
+                className="h-8 px-3 rounded-[5px] text-xs font-semibold text-white"
                 style={{ background: "linear-gradient(135deg, #5055e8, #7c84f8)" }}>
           🖨️ Print
         </button>
       </div>
 
       {/* Payment panel */}
-      <div className="g-card rounded-[14px] p-4 space-y-3">
+      <div className="g-card rounded-[5px] p-4 space-y-3">
         <div className="flex items-center justify-between">
           <div className="text-xs font-semibold uppercase tracking-wider g-accent">Riwayat Pembayaran</div>
           <div className="flex items-center gap-2">
@@ -443,7 +443,7 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
                 <div className="flex items-center gap-1.5">
                   <span className="text-[10px] g-t4">Ongkir:</span>
                   <input type="number" min="0" value={ongkirVal} onChange={e => setOngkirVal(e.target.value)}
-                    autoFocus className="glass-input h-7 w-28 rounded-[6px] px-2 text-xs"
+                    autoFocus className="glass-input h-7 w-28 rounded-[5px] px-2 text-xs"
                     onKeyDown={e => { if (e.key === "Enter") handleSaveOngkir(); if (e.key === "Escape") setOngkirEdit(false) }} />
                   <button onClick={handleSaveOngkir} disabled={updateMut.isPending}
                     className="h-7 px-2 rounded-[5px] text-xs font-semibold text-white"
@@ -452,14 +452,14 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
                 </div>
               ) : (
                 <button onClick={() => setOngkirEdit(true)}
-                  className="h-7 px-2.5 rounded-[6px] text-[10px] font-medium g-btn-ghost">
+                  className="h-7 px-2.5 rounded-[5px] text-[10px] font-medium g-btn-ghost">
                   {invoice.ongkir > 0 ? `🚚 Ongkir: ${fmt(invoice.ongkir)}` : "+ Ongkir"}
                 </button>
               )
             )}
             {!ongkirEdit && (
               <button onClick={() => setShowPayForm(v => !v)}
-                      className="h-7 px-3 rounded-[7px] text-xs font-semibold text-white"
+                      className="h-7 px-3 rounded-[5px] text-xs font-semibold text-white"
                       style={{ background: "linear-gradient(135deg, #5055e8, #7c84f8)" }}>
                 + Bayar
               </button>
@@ -472,7 +472,7 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
           <div className="text-xs g-t4 py-1">Belum ada pembayaran</div>
         )}
         {invoice.payments.map(p => (
-          <div key={p.id} className="flex items-center gap-3 px-3 py-2 rounded-[8px]"
+          <div key={p.id} className="flex items-center gap-3 px-3 py-2 rounded-[5px]"
                style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)" }}>
             <div className="text-xs g-t4 flex-shrink-0 w-24">{formatDateShort(p.tanggal)}</div>
             <div className="text-xs font-medium flex-shrink-0"
@@ -489,13 +489,13 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
 
         {/* Add payment form */}
         {showPayForm && (
-          <div className="rounded-[10px] p-3 space-y-3"
+          <div className="rounded-[5px] p-3 space-y-3"
                style={{ background: "rgba(99,102,241,0.06)", border: "1px solid rgba(99,102,241,0.2)" }}>
             <div className="grid grid-cols-2 gap-2">
               <div>
                 <div className="text-[10px] font-semibold uppercase tracking-wider mb-1 g-accent">Metode</div>
                 <select value={payMetode || methods[0] || ""} onChange={e => setPayMetode(e.target.value)}
-                        className="glass-input w-full h-9 rounded-[8px] px-3 text-xs">
+                        className="glass-input w-full h-9 rounded-[5px] px-3 text-xs">
                   {methods.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </div>
@@ -503,28 +503,28 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
                 <div className="text-[10px] font-semibold uppercase tracking-wider mb-1 g-accent">Jumlah (Rp)</div>
                 <input type="number" min="0" value={payJumlah} onChange={e => setPayJumlah(e.target.value)}
                        placeholder={invoice.sisaBayar > 0 ? String(invoice.sisaBayar) : "0"}
-                       className="glass-input w-full h-9 rounded-[8px] px-3 text-xs" />
+                       className="glass-input w-full h-9 rounded-[5px] px-3 text-xs" />
               </div>
               <div>
                 <div className="text-[10px] font-semibold uppercase tracking-wider mb-1 g-accent">Tanggal</div>
                 <input type="date" value={payTanggal} onChange={e => setPayTanggal(e.target.value)}
-                       className="glass-input w-full h-9 rounded-[8px] px-3 text-xs" />
+                       className="glass-input w-full h-9 rounded-[5px] px-3 text-xs" />
               </div>
               <div>
                 <div className="text-[10px] font-semibold uppercase tracking-wider mb-1 g-accent">Catatan (opsional)</div>
                 <input type="text" value={payCatatan} onChange={e => setPayCatatan(e.target.value)}
-                       placeholder="Catatan..." className="glass-input w-full h-9 rounded-[8px] px-3 text-xs" />
+                       placeholder="Catatan..." className="glass-input w-full h-9 rounded-[5px] px-3 text-xs" />
               </div>
             </div>
             {payError && (
-              <div className="text-xs px-2 py-1.5 rounded-[6px]"
+              <div className="text-xs px-2 py-1.5 rounded-[5px]"
                    style={{ background: "rgba(239,68,68,0.1)", color: "#f87171" }}>{payError}</div>
             )}
             <div className="flex gap-2">
               <button onClick={() => { setShowPayForm(false); setPayError(null) }}
-                      className="g-btn-ghost flex-1 h-8 rounded-[7px] text-xs">Batal</button>
+                      className="g-btn-ghost flex-1 h-8 rounded-[5px] text-xs">Batal</button>
               <button onClick={handleSavePayment} disabled={addPaymentMut.isPending}
-                      className="flex-1 h-8 rounded-[7px] text-xs font-semibold text-white"
+                      className="flex-1 h-8 rounded-[5px] text-xs font-semibold text-white"
                       style={{ background: addPaymentMut.isPending ? "rgba(99,102,241,0.3)" : "linear-gradient(135deg, #5055e8, #7c84f8)" }}>
                 {addPaymentMut.isPending ? "Menyimpan..." : "Simpan Bayar"}
               </button>
@@ -548,8 +548,8 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
       </div>
 
       {/* White paper preview */}
-      <div className="g-card rounded-[14px] p-5">
-        <div ref={printRef} className="bg-white rounded-[10px] p-8" style={{ color: "#111" }}>
+      <div className="g-card rounded-[5px] p-5">
+        <div ref={printRef} className="bg-white rounded-[5px] p-8" style={{ color: "#111" }}>
           {/* Header */}
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 }}>
             <div>

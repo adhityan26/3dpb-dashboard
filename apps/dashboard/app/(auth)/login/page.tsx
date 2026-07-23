@@ -25,7 +25,7 @@ export default async function LoginPage({
 
   return (
     <div
-      className="relative w-full max-w-sm rounded-[24px] overflow-hidden"
+      className="relative w-full max-w-sm rounded-[5px] overflow-hidden"
       style={{
         background: "rgba(14,14,44,0.75)",
         backdropFilter: "blur(28px) saturate(1.8)",
@@ -127,7 +127,7 @@ export default async function LoginPage({
               type="email"
               placeholder="owner@example.com"
               required
-              className="glass-input w-full h-10 rounded-[10px] px-3 text-[13px]"
+              className="glass-input w-full h-10 rounded-[5px] px-3 text-[13px]"
             />
           </div>
 
@@ -145,7 +145,7 @@ export default async function LoginPage({
               type="password"
               placeholder="••••••••"
               required
-              className="glass-input w-full h-10 rounded-[10px] px-3 text-[13px]"
+              className="glass-input w-full h-10 rounded-[5px] px-3 text-[13px]"
             />
           </div>
 

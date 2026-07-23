@@ -87,7 +87,7 @@ export function PrinterProfilesSection() {
       {isLoading && <div className="text-xs g-t5 py-2">Memuat…</div>}
       <div className="space-y-1 mb-3">
         {(profiles ?? []).map(p => (
-          <div key={p.id} className="flex items-center gap-2 px-2 py-1.5 rounded-[6px]"
+          <div key={p.id} className="flex items-center gap-2 px-2 py-1.5 rounded-[5px]"
                style={{ background: 'var(--g-inner)', border: '1px solid var(--g-inner-border)' }}>
             <span className="text-xs g-t2 flex-1">
               {p.nama}
@@ -143,14 +143,14 @@ export function PrinterProfilesSection() {
         <div className="col-span-2">
           <label className="block text-[10px] g-t4 uppercase tracking-wide mb-1">Nama printer</label>
           <input value={form.nama} onChange={e => setForm(f => ({ ...f, nama: e.target.value }))}
-            placeholder="Bambu Lab P1P" className="glass-input w-full h-9 rounded-[8px] px-3 text-sm" />
+            placeholder="Bambu Lab P1P" className="glass-input w-full h-9 rounded-[5px] px-3 text-sm" />
         </div>
         <div>
           <label className="block text-[10px] g-t4 uppercase tracking-wide mb-1">Mesin/jam (Rp)</label>
           <input type="number" min="0" value={form.mesinPerJam}
             onChange={e => setForm(f => ({ ...f, mesinPerJam: e.target.value }))}
             placeholder={preview !== undefined ? String(Math.round(preview)) : '4000'}
-            className="glass-input w-full h-9 rounded-[8px] px-3 text-sm" />
+            className="glass-input w-full h-9 rounded-[5px] px-3 text-sm" />
         </div>
       </div>
 
@@ -165,14 +165,14 @@ export function PrinterProfilesSection() {
               <label className="block text-[10px] g-t4 uppercase tracking-wide mb-1">{label}</label>
               <input type="number" min="0" value={form[key]} placeholder={hint}
                 onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                className="glass-input w-full h-9 rounded-[8px] px-2 text-xs" />
+                className="glass-input w-full h-9 rounded-[5px] px-2 text-xs" />
             </div>
           ))}
         </div>
         {preview !== undefined && (
           <div className="text-[10px] mt-1 g-t4">Hasil hitung: <span className="font-mono g-t1">Rp {Math.round(preview)}/jam</span></div>
         )}
-        <details className="mt-2 rounded-[8px] px-3 py-2"
+        <details className="mt-2 rounded-[5px] px-3 py-2"
                  style={{ background: 'var(--g-inner)', border: '1px solid var(--g-inner-border)' }}>
           <summary className="text-[11px] g-t3 cursor-pointer select-none">💡 Cara mengisi breakdown</summary>
           <div className="text-[10px] g-t4 mt-2 space-y-1.5 leading-relaxed">

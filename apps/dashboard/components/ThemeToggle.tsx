@@ -40,10 +40,10 @@ function LaptopIcon() {
   return (
     <div className="relative w-[16px] h-[12px]">
       <div
-        className="absolute top-0 left-0 right-0 h-[8px] rounded-[2px]"
+        className="absolute top-0 left-0 right-0 h-[8px] rounded-[5px]"
         style={{ border: "1px solid rgba(165,180,252,0.8)", background: "rgba(99,102,241,0.25)" }}
       />
-      <div className="absolute bottom-0 left-0 right-0 h-[2px] rounded-[1px] bg-[#a5b4fc]" />
+      <div className="absolute bottom-0 left-0 right-0 h-[2px] rounded-[5px] bg-[#a5b4fc]" />
     </div>
   )
 }

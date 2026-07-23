@@ -324,7 +324,7 @@ export function GridCanvas({ page, livePrinters, selectedCellIndex, onSelectCell
     <div className="w-full" style={{ maxWidth: 940 }}>
       {/* Bezel device — chrome editor, meniru fisik LCD. Layar di dalamnya tetap warna firmware. */}
       <div
-        className="rounded-[20px] p-2.5"
+        className="rounded-[5px] p-2.5"
         style={{
           background: 'linear-gradient(160deg, #23232e 0%, #15151c 60%, #101016 100%)',
           border: '1px solid rgba(255,255,255,0.08)',

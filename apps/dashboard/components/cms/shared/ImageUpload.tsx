@@ -36,13 +36,13 @@ export function ImageUpload({ currentUrl, label = "Gambar", onUpload }: ImageUpl
         {label}
       </label>
       <div
-        className="flex items-center gap-3 p-3 rounded-[8px] border border-dashed cursor-pointer"
+        className="flex items-center gap-3 p-3 rounded-[5px] border border-dashed cursor-pointer"
         style={{ borderColor: "rgba(99,102,241,0.3)", background: "rgba(99,102,241,0.05)" }}
         onClick={() => inputRef.current?.click()}
       >
         {currentUrl && (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={`${currentUrl}?w=80&h=80&fit=crop`} alt="" className="w-[60px] h-[60px] rounded-[6px] object-cover flex-shrink-0" />
+          <img src={`${currentUrl}?w=80&h=80&fit=crop`} alt="" className="w-[60px] h-[60px] rounded-[5px] object-cover flex-shrink-0" />
         )}
         <div>
           <div className="text-[12px]" style={{ color: "rgba(255,255,255,0.5)" }}>

@@ -22,7 +22,7 @@ export function StepPricing({ state, update }: Props) {
   if (state.variantsEnabled) {
     return (
       <div
-        className="flex items-center gap-3 p-4 rounded-[10px]"
+        className="flex items-center gap-3 p-4 rounded-[5px]"
         style={{ background: "rgba(245,158,11,0.06)", border: "1px solid rgba(245,158,11,0.2)" }}
       >
         <span className="text-xl">⚡</span>

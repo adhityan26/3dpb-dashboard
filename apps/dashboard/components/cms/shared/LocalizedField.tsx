@@ -11,7 +11,7 @@ interface LocalizedFieldProps {
 }
 
 export function LocalizedField({ label, value, onChange, multiline = false, required = false }: LocalizedFieldProps) {
-  const inputClass = "w-full bg-white/[0.04] border border-white/10 rounded-[8px] px-3 py-2 text-[13px] text-white/80 placeholder-white/20 focus:outline-none focus:border-indigo-500/60 resize-none"
+  const inputClass = "w-full bg-white/[0.04] border border-white/10 rounded-[5px] px-3 py-2 text-[13px] text-white/80 placeholder-white/20 focus:outline-none focus:border-indigo-500/60 resize-none"
 
   return (
     <div className="space-y-1.5">

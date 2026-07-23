@@ -68,7 +68,7 @@ export function KalkulatorSettingsCard() {
   )
 
   return (
-    <div className="rounded-[16px] p-5 space-y-5 g-card">
+    <div className="rounded-[5px] p-5 space-y-5 g-card">
       <div className="flex items-center justify-between">
         <div>
           <div className="text-sm font-semibold g-t1">⚙️ Parameter Kalkulator Harga</div>
@@ -79,7 +79,7 @@ export function KalkulatorSettingsCard() {
         <button
           onClick={handleSave}
           disabled={updateMut.isPending}
-          className="h-8 px-4 rounded-[8px] text-xs font-semibold text-white"
+          className="h-8 px-4 rounded-[5px] text-xs font-semibold text-white"
           style={{ background: saved ? "rgba(52,211,153,0.3)" : "linear-gradient(135deg, #5055e8, #7c84f8)" }}
         >
           {updateMut.isPending ? "Menyimpan..." : saved ? "✓ Tersimpan" : "Simpan"}
@@ -102,7 +102,7 @@ export function KalkulatorSettingsCard() {
                   step="0.1"
                   value={values[f.key] ?? ""}
                   onChange={e => setValues(v => ({ ...v, [f.key]: e.target.value }))}
-                  className="glass-input flex-1 h-9 rounded-[8px] px-3 text-sm"
+                  className="glass-input flex-1 h-9 rounded-[5px] px-3 text-sm"
                 />
                 <span className="text-xs flex-shrink-0 g-t4">{f.suffix}</span>
               </div>
@@ -127,7 +127,7 @@ export function KalkulatorSettingsCard() {
                 type="number" min="0" step="100"
                 value={values[`kalk.packing.${s}`] ?? ""}
                 onChange={e => setValues(v => ({ ...v, [`kalk.packing.${s}`]: e.target.value }))}
-                className="glass-input w-full h-9 rounded-[8px] px-3 text-sm"
+                className="glass-input w-full h-9 rounded-[5px] px-3 text-sm"
               />
             </div>
           ))}
@@ -218,7 +218,7 @@ export function KalkulatorSettingsCard() {
         {/* Table */}
         <div className="space-y-1">
           {(filamentHargaList ?? []).map((f: FilamentHargaData) => (
-            <div key={f.id} className="flex items-center gap-2 px-2 py-1.5 rounded-[6px]"
+            <div key={f.id} className="flex items-center gap-2 px-2 py-1.5 rounded-[5px]"
                  style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)" }}>
               <span className="text-xs g-t2 flex-1">{f.brand} · {f.material}</span>
               <span className="text-xs font-mono g-t1">Rp {f.hargaPerGram}/g</span>

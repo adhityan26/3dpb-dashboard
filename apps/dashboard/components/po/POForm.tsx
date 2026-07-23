@@ -168,7 +168,7 @@ export function POForm({ ocrDraft, onClose, onSaved }: Props) {
   return (
     <div className="space-y-5">
       <div className="flex items-center gap-3">
-        <button onClick={onClose} className="g-btn-ghost h-8 px-3 rounded-[8px] text-xs font-medium">
+        <button onClick={onClose} className="g-btn-ghost h-8 px-3 rounded-[5px] text-xs font-medium">
           ← Kembali
         </button>
         <div className="text-sm font-bold g-t1">
@@ -177,31 +177,31 @@ export function POForm({ ocrDraft, onClose, onSaved }: Props) {
       </div>
 
       {/* PO Header */}
-      <div className="g-card grid grid-cols-2 gap-4 p-4 rounded-[12px]">
+      <div className="g-card grid grid-cols-2 gap-4 p-4 rounded-[5px]">
         <div className="col-span-2 md:col-span-1">
           <div className={`${fl} g-accent`}>Vendor / Supplier *</div>
           <input type="text" value={vendorNama} onChange={e => setVendorNama(e.target.value)}
-            placeholder="Indo Cart, Tokopedia..." className="glass-input w-full h-10 rounded-[10px] px-3 text-sm" autoFocus />
+            placeholder="Indo Cart, Tokopedia..." className="glass-input w-full h-10 rounded-[5px] px-3 text-sm" autoFocus />
         </div>
         <div>
           <div className={`${fl} g-accent`}>Nomor Invoice</div>
           <input type="text" value={nomor} onChange={e => setNomor(e.target.value)}
-            placeholder="RGB.2603897" className="glass-input w-full h-10 rounded-[10px] px-3 text-sm" />
+            placeholder="RGB.2603897" className="glass-input w-full h-10 rounded-[5px] px-3 text-sm" />
         </div>
         <div>
           <div className={`${fl} g-accent`}>Tanggal</div>
           <input type="date" value={tanggal} onChange={e => setTanggal(e.target.value)}
-            className="glass-input w-full h-10 rounded-[10px] px-3 text-sm" />
+            className="glass-input w-full h-10 rounded-[5px] px-3 text-sm" />
         </div>
         <div>
           <div className={`${fl} g-accent`}>Ongkos Kirim (opsional)</div>
           <input type="number" min="0" value={ongkir} onChange={e => setOngkir(e.target.value)}
-            placeholder="0" className="glass-input w-full h-10 rounded-[10px] px-3 text-sm" />
+            placeholder="0" className="glass-input w-full h-10 rounded-[5px] px-3 text-sm" />
         </div>
         <div>
           <div className={`${fl} g-accent`}>Catatan (opsional)</div>
           <input type="text" value={catatan} onChange={e => setCatatan(e.target.value)}
-            placeholder="..." className="glass-input w-full h-9 rounded-[10px] px-3 text-sm" />
+            placeholder="..." className="glass-input w-full h-9 rounded-[5px] px-3 text-sm" />
         </div>
       </div>
 
@@ -220,21 +220,21 @@ export function POForm({ ocrDraft, onClose, onSaved }: Props) {
         </div>
 
         {items.map(item => (
-          <div key={item.key} className="rounded-[10px] p-3 space-y-2"
+          <div key={item.key} className="rounded-[5px] p-3 space-y-2"
                style={{ background: item.isFilament ? "rgba(99,102,241,0.05)" : "var(--g-card)", border: `1px solid ${item.isFilament ? "rgba(99,102,241,0.2)" : "var(--g-card-border)"}` }}>
             <div className="flex items-start gap-2">
               <div className="flex-1">
                 <input type="text" value={item.namaProduct}
                   onChange={e => updateItem(item.key, 'namaProduct', e.target.value)}
                   placeholder="Nama produk..."
-                  className="glass-input w-full h-8 rounded-[8px] px-3 text-xs" />
+                  className="glass-input w-full h-8 rounded-[5px] px-3 text-xs" />
               </div>
               <input type="text" value={item.kode ?? ""}
                 onChange={e => updateItem(item.key, 'kode', e.target.value || null)}
                 placeholder="Kode" style={{ width: 100 }}
-                className="glass-input h-8 rounded-[8px] px-2 text-xs" />
+                className="glass-input h-8 rounded-[5px] px-2 text-xs" />
               <button onClick={() => removeItem(item.key)}
-                className="h-8 w-7 rounded-[6px] flex items-center justify-center text-xs flex-shrink-0"
+                className="h-8 w-7 rounded-[5px] flex items-center justify-center text-xs flex-shrink-0"
                 style={{ background: "rgba(239,68,68,0.08)", color: "#f87171" }}>✕</button>
             </div>
 
@@ -243,25 +243,25 @@ export function POForm({ ocrDraft, onClose, onSaved }: Props) {
                 <div className="text-[9px] mb-0.5 g-t4">Qty</div>
                 <input type="number" min="0.1" step="0.1" value={item.qty}
                   onChange={e => updateItem(item.key, 'qty', parseFloat(e.target.value) || 0)}
-                  className="glass-input w-full h-8 rounded-[6px] px-2 text-xs" />
+                  className="glass-input w-full h-8 rounded-[5px] px-2 text-xs" />
               </div>
               <div>
                 <div className="text-[9px] mb-0.5 g-t4">Harga/unit</div>
                 <input type="number" min="0" value={item.harga}
                   onChange={e => updateItem(item.key, 'harga', parseFloat(e.target.value) || 0)}
-                  className="glass-input w-full h-8 rounded-[6px] px-2 text-xs" />
+                  className="glass-input w-full h-8 rounded-[5px] px-2 text-xs" />
               </div>
               <div>
                 <div className="text-[9px] mb-0.5 g-t4">Diskon%</div>
                 <input type="number" min="0" max="100" value={item.diskon}
                   onChange={e => updateItem(item.key, 'diskon', parseFloat(e.target.value) || 0)}
-                  className="glass-input w-full h-8 rounded-[6px] px-2 text-xs" />
+                  className="glass-input w-full h-8 rounded-[5px] px-2 text-xs" />
               </div>
               <div>
                 <div className="text-[9px] mb-0.5 g-t4">UOM</div>
                 <input type="text" value={item.uom}
                   onChange={e => updateItem(item.key, 'uom', e.target.value)}
-                  className="glass-input w-full h-8 rounded-[6px] px-2 text-xs" />
+                  className="glass-input w-full h-8 rounded-[5px] px-2 text-xs" />
               </div>
               <div>
                 <div className="text-[9px] mb-0.5 g-t4">Total</div>
@@ -285,13 +285,13 @@ export function POForm({ ocrDraft, onClose, onSaved }: Props) {
                 <>
                   <input type="text" value={item.brand ?? ""} placeholder="Brand"
                     onChange={e => updateItem(item.key, 'brand', e.target.value || null)}
-                    style={{ width: 80 }} className="glass-input h-7 rounded-[6px] px-2 text-[10px]" />
+                    style={{ width: 80 }} className="glass-input h-7 rounded-[5px] px-2 text-[10px]" />
                   <input type="text" value={item.material ?? ""} placeholder="Material"
                     onChange={e => updateItem(item.key, 'material', e.target.value || null)}
-                    style={{ width: 70 }} className="glass-input h-7 rounded-[6px] px-2 text-[10px]" />
+                    style={{ width: 70 }} className="glass-input h-7 rounded-[5px] px-2 text-[10px]" />
                   <input type="text" value={item.colorName ?? ""} placeholder="Warna"
                     onChange={e => updateItem(item.key, 'colorName', e.target.value || null)}
-                    style={{ width: 80 }} className="glass-input h-7 rounded-[6px] px-2 text-[10px]" />
+                    style={{ width: 80 }} className="glass-input h-7 rounded-[5px] px-2 text-[10px]" />
                   <span className="text-[9px]" style={{ color: "rgba(52,211,153,0.6)" }}>
                     → {Math.floor(item.qty)} roll baru
                   </span>
@@ -304,7 +304,7 @@ export function POForm({ ocrDraft, onClose, onSaved }: Props) {
 
       {/* Total */}
       {items.length > 0 && (
-        <div className="flex justify-between items-center px-4 py-3 rounded-[10px]"
+        <div className="flex justify-between items-center px-4 py-3 rounded-[5px]"
              style={{ background: "rgba(99,102,241,0.08)", border: "1px solid rgba(99,102,241,0.15)" }}>
           <span className="text-xs font-semibold" style={{ color: "rgba(165,180,252,0.7)" }}>GRAND TOTAL</span>
           <span className="text-base font-bold" style={{ color: "#a5b4fc" }}>{fmt(grandTotal)}</span>
@@ -312,18 +312,18 @@ export function POForm({ ocrDraft, onClose, onSaved }: Props) {
       )}
 
       {error && (
-        <div className="text-xs px-3 py-2 rounded-[8px]"
+        <div className="text-xs px-3 py-2 rounded-[5px]"
              style={{ background: "rgba(239,68,68,0.1)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}>
           ⚠️ {error}
         </div>
       )}
 
       <div className="flex gap-2">
-        <button onClick={onClose} className="g-btn-ghost flex-1 h-10 rounded-[10px] text-sm font-medium">
+        <button onClick={onClose} className="g-btn-ghost flex-1 h-10 rounded-[5px] text-sm font-medium">
           Batal
         </button>
         <button onClick={handleSave} disabled={createMut.isPending}
-                className="flex-1 h-10 rounded-[10px] text-sm font-semibold text-white"
+                className="flex-1 h-10 rounded-[5px] text-sm font-semibold text-white"
                 style={{ background: createMut.isPending ? "rgba(99,102,241,0.3)" : "linear-gradient(135deg, #5055e8, #7c84f8)" }}>
           {createMut.isPending ? "Menyimpan..." : "Simpan PO"}
         </button>

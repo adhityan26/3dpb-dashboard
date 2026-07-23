@@ -116,7 +116,7 @@ export function TabNav({ role, badges = {}, userName = "" }: TabNavProps) {
 
       {/* Floating Island — centered, no blob — scale + brightness active indicator */}
       <div className="flex-1 flex justify-center">
-        <div className="relative rounded-[48px] flex" style={{ ...islandStyle, padding: "8px 10px" }}>
+        <div className="relative rounded-[5px] flex" style={{ ...islandStyle, padding: "8px 10px" }}>
           {visibleTabs.map((tab) => {
             const isActive = pathname.startsWith(tab.href)
             const badgeCount = badges[tab.href.slice(1)]
@@ -129,7 +129,7 @@ export function TabNav({ role, badges = {}, userName = "" }: TabNavProps) {
               <NavEl
                 key={tab.href}
                 {...(navProps as any)}
-                className="relative flex flex-col items-center gap-[3px] px-[8px] py-[7px] rounded-[40px]"
+                className="relative flex flex-col items-center gap-[3px] px-[8px] py-[7px] rounded-[5px]"
                 style={{
                   width: 72,
                   color: isActive ? activeTabColor : inactiveTabColor,

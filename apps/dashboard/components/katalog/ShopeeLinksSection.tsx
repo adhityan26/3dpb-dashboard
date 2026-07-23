@@ -94,7 +94,7 @@ export function ShopeeLinksSection({ produk }: Props) {
           const hasVariantKalk = link.kalkulasiId != null
 
           return (
-            <div key={link.id} className="rounded-[8px] overflow-hidden"
+            <div key={link.id} className="rounded-[5px] overflow-hidden"
                  style={{ background: "var(--g-card)", border: `1px solid ${hasVariantKalk ? "rgba(99,102,241,0.3)" : "var(--g-card-border)"}` }}>
               <div className="flex items-center gap-2 px-3 py-2">
                 <div className="flex-1 min-w-0">
@@ -153,14 +153,14 @@ export function ShopeeLinksSection({ produk }: Props) {
                   <input
                     type="text" value={kalkSearch} onChange={e => setKalkSearch(e.target.value)}
                     placeholder="Cari kalkulasi..."
-                    className="glass-input w-full h-7 rounded-[6px] px-2 text-[10px]"
+                    className="glass-input w-full h-7 rounded-[5px] px-2 text-[10px]"
                     autoFocus
                   />
                   {hasVariantKalk && (
                     <button
                       onClick={() => handleSetKalkulasi(link.id, null)}
                       disabled={setVariantKalk.isPending}
-                      className="w-full h-7 rounded-[6px] text-[10px] transition-all"
+                      className="w-full h-7 rounded-[5px] text-[10px] transition-all"
                       style={{ background: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.15)" }}
                     >
                       Lepas kalkulasi variant → pakai HPP produk
@@ -171,7 +171,7 @@ export function ShopeeLinksSection({ produk }: Props) {
                       <div
                         key={k.id}
                         onClick={() => handleSetKalkulasi(link.id, k.id)}
-                        className="flex items-center gap-2 px-2 py-1.5 rounded-[6px] cursor-pointer transition-all"
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-[5px] cursor-pointer transition-all"
                         style={{ background: link.kalkulasiId === k.id ? "rgba(99,102,241,0.15)" : "var(--g-card)", border: `1px solid ${link.kalkulasiId === k.id ? "rgba(99,102,241,0.35)" : "var(--g-card-border)"}` }}
                       >
                         <div className="flex-1 min-w-0">
@@ -210,11 +210,11 @@ export function ShopeeLinksSection({ produk }: Props) {
       </button>
 
       {showSearch && (
-        <div className="rounded-[10px] p-3 space-y-2"
+        <div className="rounded-[5px] p-3 space-y-2"
              style={{ background: "rgba(0,0,0,0.2)", border: "1px solid var(--g-inner-border)" }}>
           <input type="text" placeholder="Cari produk Shopee..." value={search}
             onChange={e => setSearch(e.target.value)}
-            className="glass-input w-full h-8 rounded-[8px] px-3 text-[11px]" autoFocus />
+            className="glass-input w-full h-8 rounded-[5px] px-3 text-[11px]" autoFocus />
           <div className="space-y-1">
             {searchResults.map(p => {
               const linked = linkedIds.has(p.productId)
@@ -222,7 +222,7 @@ export function ShopeeLinksSection({ produk }: Props) {
               return (
                 <div key={p.productId}>
                   <div
-                    className="flex items-center gap-2 px-2.5 py-2 rounded-[8px] transition-all"
+                    className="flex items-center gap-2 px-2.5 py-2 rounded-[5px] transition-all"
                     style={{
                       background: linked ? "rgba(99,102,241,0.1)" : isPending ? "rgba(99,102,241,0.08)" : "var(--g-card)",
                       border: `1px solid ${linked || isPending ? "rgba(99,102,241,0.25)" : "var(--g-card-border)"}`,
@@ -254,7 +254,7 @@ export function ShopeeLinksSection({ produk }: Props) {
 
                   {/* Variant picker */}
                   {isPending && (
-                    <div className="ml-2 mt-1 mb-1 rounded-[8px] overflow-hidden"
+                    <div className="ml-2 mt-1 mb-1 rounded-[5px] overflow-hidden"
                          style={{ border: "1px solid rgba(99,102,241,0.2)", background: "rgba(0,0,0,0.15)" }}>
                       {variantsLoading && (
                         <div className="text-[10px] g-t5 px-3 py-2">Memuat variant...</div>
@@ -300,7 +300,7 @@ export function ShopeeLinksSection({ produk }: Props) {
       {/* Success banner */}
       {successResult && (
         <div
-          className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-[8px] mt-2"
+          className="flex items-center justify-between gap-3 px-3 py-2.5 rounded-[5px] mt-2"
           style={{ background: "rgba(34,197,94,0.08)", border: "1px solid rgba(34,197,94,0.2)" }}
         >
           <div>
@@ -315,7 +315,7 @@ export function ShopeeLinksSection({ produk }: Props) {
             href={successResult.editUrl}
             target="_blank"
             rel="noopener noreferrer"
-            className="flex-shrink-0 text-[10px] font-semibold px-2.5 py-1.5 rounded-[6px] transition-opacity hover:opacity-80"
+            className="flex-shrink-0 text-[10px] font-semibold px-2.5 py-1.5 rounded-[5px] transition-opacity hover:opacity-80"
             style={{ background: "rgba(99,102,241,0.2)", color: "#a5b4fc", whiteSpace: "nowrap" }}
           >
             Edit di Shopee →
@@ -326,7 +326,7 @@ export function ShopeeLinksSection({ produk }: Props) {
       {/* Create new button */}
       <button
         onClick={() => { setSuccessResult(null); setWizardOpen(true) }}
-        className="w-full mt-2 py-2 rounded-[8px] text-[11px] font-medium transition-all hover:opacity-80 flex items-center justify-center gap-1.5"
+        className="w-full mt-2 py-2 rounded-[5px] text-[11px] font-medium transition-all hover:opacity-80 flex items-center justify-center gap-1.5"
         style={{
           background: "rgba(99,102,241,0.06)",
           border: "1px dashed rgba(99,102,241,0.3)",

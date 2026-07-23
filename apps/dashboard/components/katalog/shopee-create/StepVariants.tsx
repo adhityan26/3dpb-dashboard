@@ -78,7 +78,7 @@ export function StepVariants({ state, update }: Props) {
           {state.tierVariationOptions.map((opt, i) => (
             <span
               key={i}
-              className="flex items-center gap-1.5 px-2.5 py-1 rounded-[6px] text-[11px]"
+              className="flex items-center gap-1.5 px-2.5 py-1 rounded-[5px] text-[11px]"
               style={{ background: "rgba(99,102,241,0.15)", border: "1px solid rgba(99,102,241,0.25)", color: "#a5b4fc" }}
             >
               {opt}
@@ -103,7 +103,7 @@ export function StepVariants({ state, update }: Props) {
           />
           <button
             onClick={addOption}
-            className="px-3 py-2 rounded-[8px] flex items-center gap-1 text-[12px] transition-opacity hover:opacity-70"
+            className="px-3 py-2 rounded-[5px] flex items-center gap-1 text-[12px] transition-opacity hover:opacity-70"
             style={{ background: "rgba(99,102,241,0.2)", color: "#a5b4fc", border: "1px solid rgba(99,102,241,0.25)" }}
             aria-label="Tambah opsi"
           >
@@ -119,7 +119,7 @@ export function StepVariants({ state, update }: Props) {
             Harga & Stok per Opsi
           </label>
           <div
-            className="rounded-[10px] overflow-hidden"
+            className="rounded-[5px] overflow-hidden"
             style={{ border: "1px solid rgba(255,255,255,0.08)" }}
           >
             <div
