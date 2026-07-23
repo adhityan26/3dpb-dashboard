@@ -59,7 +59,10 @@ export function PlateInput({
       .filter((x) => x.brand === f.brand && x.material === f.material && x.warnaHex)
       .map((x) => ({ id: x.id, colorName: x.warna, colorHex: x.warnaHex! }));
 
-  const MaterialRows = ({ pi }: { pi: number }) => {
+  // Fungsi render (bukan komponen ber-JSX-tag): dipanggil `materialRows(i)` supaya
+  // elemennya di-reconcile inline di parent. Kalau dijadikan <MaterialRows/>, identitas
+  // komponen dibuat ulang tiap render → subtree remount tiap ketik → input kehilangan fokus.
+  const materialRows = (pi: number) => {
     const p = plates[pi];
     if (p.materials.length === 1) {
       return (
@@ -177,7 +180,7 @@ export function PlateInput({
               </div>
             </div>
             {!p0.nama && p0.materials.length === 1 && <div className="text-[10px] g-t5">Tipe · berat (g) · durasi (jam)</div>}
-            <MaterialRows pi={0} />
+            {materialRows(0)}
           </div>
         </>
       ) : (
@@ -219,7 +222,7 @@ export function PlateInput({
                 <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] g-t4 pointer-events-none">jam</span>
               </div>
               <div className="order-7 basis-full">
-                <MaterialRows pi={i} />
+                {materialRows(i)}
               </div>
             </div>
           ))}

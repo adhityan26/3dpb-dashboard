@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { useState } from "react";
 import { PlateInput, newPlateRow, type PlateRow } from "./PlateInput";
 
 const mat = (over = {}) => ({ id: "m1", tipe: "FDM" as const, gramasi: "50", ...over });
@@ -137,5 +138,22 @@ describe("1b-6a multi-material di plate", () => {
     const selects = screen.getAllByRole("combobox").filter((el) => (el as HTMLSelectElement).name === "filament" || el.getAttribute("aria-label") === "Pilih filament");
     await user.selectOptions(selects[0], "fil-a");
     expect(onP.mock.calls[0][0][0].materials[0]).toMatchObject({ filamentId: "fil-a", tipe: "FDM" });
+  });
+
+  it("ketik berat multi-digit di baris material tetap fokus (baris tak remount tiap ketik)", async () => {
+    const user = userEvent.setup();
+    function Harness() {
+      const [plates, setPlates] = useState<PlateRow[]>([
+        row({ materials: [mat({ gramasi: "" }), mat({ id: "m2", gramasi: "" })] }),
+      ]);
+      return <PlateInput locked={false} plates={plates} batch="1" filaments={fil} onPlatesChange={setPlates} onBatchChange={() => {}} />;
+    }
+    render(<Harness />);
+    const target = screen.getAllByPlaceholderText("berat")[0] as HTMLInputElement;
+    target.focus();
+    await user.type(target, "123");
+    // Kalau baris material remount tiap ketik, node lama lepas fokus & value cuma "1".
+    expect(target.value).toBe("123");
+    expect(document.activeElement).toBe(target);
   });
 });
