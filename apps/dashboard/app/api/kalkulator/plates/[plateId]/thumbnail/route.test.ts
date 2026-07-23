@@ -81,4 +81,14 @@ describe('GET /api/kalkulator/plates/[plateId]/thumbnail', () => {
     const res = await GET({} as NextRequest, ctx('p1'))
     expect(res.status).toBe(404)
   })
+
+  it('404 kalau presigned URL sukses tapi upstream fetch gagal (object udah kehapus di MinIO)', async () => {
+    vi.mocked(prisma.kalkulasiPlate.findUnique).mockResolvedValue({ id: 'p1', thumbnailKey: 'kalkulator-thumbnails/p1.png' } as any)
+    vi.mocked(getPresignedUrl).mockResolvedValue('https://minio.internal/signed-url')
+    const fetchSpy = vi.spyOn(global, 'fetch').mockResolvedValue({ ok: false, status: 404 } as Response)
+    const res = await GET({} as NextRequest, ctx('p1'))
+    expect(res.status).toBe(404)
+    expect(fetchSpy).toHaveBeenCalledWith('https://minio.internal/signed-url')
+    fetchSpy.mockRestore()
+  })
 })
