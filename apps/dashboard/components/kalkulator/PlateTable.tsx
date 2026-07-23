@@ -388,14 +388,8 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
                     <FilamentPicker
                       filaments={filamentCatalog}
                       selectedId={plate.filamentHargaId}
-                      onSelect={f => {
-                        updatePlate(plate.key, "filamentHargaId", f.id)
-                        updatePlate(plate.key, "hargaPerGram", f.hargaPerGram)
-                      }}
-                      onClear={() => {
-                        updatePlate(plate.key, "filamentHargaId", undefined)
-                        updatePlate(plate.key, "hargaPerGram", undefined)
-                      }}
+                      onSelect={f => updatePlateFields(plate.key, { filamentHargaId: f.id, hargaPerGram: f.hargaPerGram })}
+                      onClear={() => updatePlateFields(plate.key, { filamentHargaId: undefined, hargaPerGram: undefined })}
                     />
                     <MaterialProfilePicker
                       profiles={materialProfiles ?? []}
