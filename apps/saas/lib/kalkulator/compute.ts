@@ -10,12 +10,21 @@ import { ceil500 } from "./format";
 
 export { defaultSettings };
 
+export interface CalcMaterial {
+  filamentId?: string;
+  tipe: "FDM" | "SLA";
+  gramasi: number;
+}
+
 export interface CalcPlate {
   id: string;
   nama?: string;
-  tipe: "FDM" | "SLA";
-  gramasi: number;
   durasiJam: number;
+  // legacy single-material (1b-3) — tetap didukung
+  tipe?: "FDM" | "SLA";
+  gramasi?: number;
+  // multi-material (1b-6a) — kalau ada & non-kosong, dipakai
+  materials?: CalcMaterial[];
 }
 
 export interface CalcInput {
@@ -33,25 +42,31 @@ export interface CalcInput {
 }
 
 export function buildInputV2(c: CalcInput, ls: LocalSettings = DEFAULT_LOCAL_SETTINGS): KalkulasiInputV2 {
-  const toPlate = (tipe: "FDM" | "SLA", gramasi: number, durasiJam: number, nama?: string) => {
-    const m = ls.material[tipe];
+  const rateOf = (m: CalcMaterial) => {
+    const fil = m.filamentId ? ls.filaments.find((f) => f.id === m.filamentId) : undefined;
+    const base = ls.material[m.tipe];
     return {
-      ...(nama ? { namaPart: nama } : {}),
-      durasiJam,
-      mesinPerJam: ls.mesinPerJam,
-      mesinPerJamJual: ls.mesinPerJam,
-      materials: [{
-        gramasi,
-        hppPerGram: m.hppPerGram,
-        jualPerGram: m.jualPerGram,
-        failureRatePct: m.failureRatePct,
-      }],
+      gramasi: m.gramasi,
+      hppPerGram: fil?.hppPerGram ?? base.hppPerGram,
+      jualPerGram: fil?.jualPerGram ?? base.jualPerGram,
+      failureRatePct: fil?.failureRatePct ?? base.failureRatePct,
     };
   };
+  const materialsOf = (p: CalcPlate): CalcMaterial[] =>
+    p.materials && p.materials.length > 0
+      ? p.materials
+      : [{ tipe: p.tipe ?? "FDM", gramasi: p.gramasi ?? 0 }];
+  const toPlate = (p: CalcPlate) => ({
+    ...(p.nama ? { namaPart: p.nama } : {}),
+    durasiJam: p.durasiJam,
+    mesinPerJam: ls.mesinPerJam,
+    mesinPerJamJual: ls.mesinPerJam,
+    materials: materialsOf(p).map(rateOf),
+  });
   const plates =
     c.plates && c.plates.length > 0
-      ? c.plates.map((p) => toPlate(p.tipe, p.gramasi, p.durasiJam, p.nama))
-      : [toPlate(c.tipe ?? "FDM", c.gramasi ?? 0, c.durasiJam ?? 0)];
+      ? c.plates.map(toPlate)
+      : [toPlate({ id: "legacy", tipe: c.tipe ?? "FDM", gramasi: c.gramasi ?? 0, durasiJam: c.durasiJam ?? 0 })];
   const safeBatch =
     typeof c.batch === "number" && Number.isFinite(c.batch) && c.batch >= 1 ? c.batch : 1;
   return {
