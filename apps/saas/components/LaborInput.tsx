@@ -22,6 +22,10 @@ export function LaborInput({
   jobs?: LaborJob[];
   onAddJob?: (job: { nama: string; ratePerJam?: number; flat?: number }) => void;
 }) {
+  const listId = useId();
+  const [dialog, setDialog] = useState<{ i: number; nama: string } | null>(null);
+  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
+
   if (locked) {
     return (
       <div>
@@ -32,10 +36,6 @@ export function LaborInput({
   }
   const setRow = (i: number, patch: Partial<LaborRow>) =>
     onChange(labor.map((x, j) => (j === i ? { ...x, ...patch } : x)));
-
-  const listId = useId();
-  const [dialog, setDialog] = useState<{ i: number; nama: string } | null>(null);
-  const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const findJob = (nama: string) => jobs.find((j) => j.nama.trim().toLowerCase() === nama.trim().toLowerCase());
   const rowKosong = (r: LaborRow) => r.jam == null && r.ratePerJam == null && r.flat == null;
 
