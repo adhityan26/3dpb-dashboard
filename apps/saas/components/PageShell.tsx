@@ -36,7 +36,7 @@ export function PageShell({
   return (
     <>
       <AppHeader authenticated={authenticated} owner={owner} current={current} userLabel={userLabel} />
-      <main className="max-w-3xl mx-auto px-6 pt-6 pb-16 relative z-10 page-enter">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-16 relative z-10 page-enter">
         <div className={narrow ? "max-w-md mx-auto" : ""}>
           <div className="flex items-start justify-between gap-4 mb-5">
             <div className="min-w-0">

@@ -42,7 +42,7 @@ describe("PageShell", () => {
   it("narrow mempersempit pembungkus konten saja", () => {
     const { container } = render(<PageShell title="Pro" narrow><p>isi</p></PageShell>);
     expect(screen.getByText("isi").closest("div")?.className).toContain("max-w-md");
-    expect(mainOf(container).className).toContain("max-w-3xl");
+    expect(mainOf(container).className).toContain("max-w-6xl");
   });
 
   it("meneruskan owner ke nav (tab Admin)", () => {

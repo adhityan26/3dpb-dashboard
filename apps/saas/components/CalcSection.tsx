@@ -12,30 +12,30 @@ export function CalcSection({
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <GlassCard className="p-4 min-w-0">
+    <GlassCard className="p-5 min-w-0">
       <button type="button" onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-3 text-left"
         aria-expanded={open}>
-        <span className="shrink-0 w-7 h-7 rounded-full grid place-items-center text-[12px] font-semibold"
-          style={{ background: "color-mix(in srgb, var(--g-accent) 18%, transparent)", color: "var(--g-accent)" }}>
+        <span className="shrink-0 w-9 h-9 rounded-[11px] grid place-items-center text-[16px] font-semibold"
+          style={{ background: "color-mix(in srgb, var(--g-accent) 15%, transparent)", color: "var(--g-accent)" }}>
           {icon ?? n}
         </span>
         <span className="flex-1 min-w-0">
-          <span className="block text-sm font-semibold g-t1">{n}. {title}</span>
-          {subtitle && <span className="block text-[11px] g-t3">{subtitle}</span>}
+          <span className="block text-[13px] font-bold g-t1 tracking-wide uppercase">{n}. {title}</span>
+          {subtitle && <span className="block text-[11px] g-t3 mt-0.5">{subtitle}</span>}
         </span>
         {typeof subtotal === "number" && (
-          <span className="shrink-0 text-right">
-            <span className="block text-[10px] g-t4 uppercase tracking-wide">{subtotalLabel}</span>
-            <span className="block text-sm font-semibold g-t1" style={{ fontVariantNumeric: "tabular-nums" }}>{rupiah(subtotal)}</span>
+          <span className="shrink-0 text-right rounded-[10px] border px-3 py-1.5" style={{ borderColor: "var(--g-row-border)" }}>
+            <span className="block text-[9px] g-t4 uppercase tracking-wide">{subtotalLabel}</span>
+            <span className="block text-[15px] font-bold g-t1" style={{ fontVariantNumeric: "tabular-nums" }}>{rupiah(subtotal)}</span>
           </span>
         )}
-        <span className="shrink-0 g-t4 text-xs" aria-hidden>{open ? "▲" : "▼"}</span>
+        <span className="shrink-0 g-t4 text-[10px]" aria-hidden>{open ? "▲" : "▼"}</span>
       </button>
       {open ? (
         <div className="mt-4">{children}</div>
       ) : (
-        summary && <div className="mt-2 text-[12px] g-t3">✓ {summary}</div>
+        summary && <div className="mt-2 text-[12px] g-t3 pl-12">✓ {summary}</div>
       )}
     </GlassCard>
   );

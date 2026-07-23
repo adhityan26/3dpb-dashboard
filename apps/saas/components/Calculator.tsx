@@ -57,34 +57,50 @@ export function Calculator({ paidCore = false, userId = null }: { paidCore?: boo
   const hasil = Math.max(1, Number(batch) || 1);
 
   return (
-    <div className="grid lg:grid-cols-[1fr_minmax(320px,380px)] gap-5 items-start pb-24 lg:pb-0">
+    <div className="grid lg:grid-cols-[1fr_minmax(350px,410px)] gap-5 items-start pb-24 lg:pb-0">
       {/* Kolom kiri: form section */}
       <div className="flex flex-col gap-4 min-w-0">
-        <CalcSection n={1} title="Produksi (Cetak 3D)" subtitle="Biaya material dan waktu cetak"
+        <CalcSection n={1} title="Produksi (Cetak 3D)" subtitle="Biaya material dan waktu cetak" icon="🖨️"
           subtotalLabel="Subtotal per produk" subtotal={r?.produksi}>
           <PlateInput locked={!paidCore} plates={plates} batch={batch} onPlatesChange={setPlates} onBatchChange={setBatch} />
+          {paidCore && (
+            <div className="mt-3 rounded-[12px] p-3 flex gap-2 text-[11px] g-t3 leading-relaxed"
+              style={{ background: "color-mix(in srgb, var(--g-accent) 6%, transparent)" }}>
+              <span className="shrink-0">ℹ️</span>
+              <span>Angka di atas = jumlah produk yang dihasilkan dari 1 proses cetak. Biaya produksi dibagi angka ini.</span>
+            </div>
+          )}
           {view && (
-            <div className="mt-3 flex flex-wrap gap-x-8 gap-y-1 text-[12px]">
-              <span className="g-t4">Biaya per proses <span className="g-t1 font-medium">{rupiah(r!.produksi * hasil)}</span></span>
-              <span className="g-t4">Hasil per proses <span className="g-t1 font-medium">{hasil} pcs</span></span>
-              <span className="g-t4">Biaya per produk <span className="g-t1 font-medium">{rupiah(r!.produksi)}</span></span>
+            <div className="mt-3 grid grid-cols-3 rounded-[12px] border" style={{ borderColor: "var(--g-row-border)" }}>
+              <div className="p-3">
+                <div className="text-[10px] g-t4">Biaya per proses cetak</div>
+                <div className="text-[15px] font-bold g-t1" style={{ fontVariantNumeric: "tabular-nums" }}>{rupiah(r!.produksi * hasil)}</div>
+              </div>
+              <div className="p-3" style={{ borderLeft: "1px solid var(--g-row-border)" }}>
+                <div className="text-[10px] g-t4">Hasil per proses</div>
+                <div className="text-[15px] font-bold g-t1">{hasil} pcs</div>
+              </div>
+              <div className="p-3" style={{ borderLeft: "1px solid var(--g-row-border)" }}>
+                <div className="text-[10px] g-t4">Biaya per produk</div>
+                <div className="text-[15px] font-bold" style={{ color: "var(--g-accent)", fontVariantNumeric: "tabular-nums" }}>{rupiah(r!.produksi)}</div>
+              </div>
             </div>
           )}
         </CalcSection>
 
-        <CalcSection n={2} title="Komponen tambahan" subtitle="Komponen yang dipasang pada produk"
+        <CalcSection n={2} title="Komponen tambahan" subtitle="Komponen yang dipasang pada produk" icon="🧩"
           subtotal={paidCore ? (r?.komponen ?? 0) : undefined}
           summary={komponen.length ? `${komponen.length} item · ${rupiah(r?.komponen ?? 0)}` : "Belum ada"}>
           <KomponenInput locked={!paidCore} presets={settings.komponenPresets} komponen={komponen} onChange={setKomponen} />
         </CalcSection>
 
-        <CalcSection n={3} title="Finishing & tenaga kerja" subtitle="Perakitan, pengamplasan, pengecatan, dll."
+        <CalcSection n={3} title="Finishing & tenaga kerja" subtitle="Perakitan, pengamplasan, pengecatan, dll." icon="🛠️"
           subtotal={paidCore ? (r?.labor ?? 0) : undefined}
           summary={labor.length ? `${labor.length} pekerjaan · ${rupiah(r?.labor ?? 0)}` : "Belum ada"}>
           <LaborInput locked={!paidCore} presets={settings.laborPresets} labor={labor} onChange={setLabor} />
         </CalcSection>
 
-        <CalcSection n={4} title="Packing" subtitle="Biaya kemasan & pelindung produk"
+        <CalcSection n={4} title="Packing" subtitle="Biaya kemasan & pelindung produk" icon="📦"
           subtotal={paidCore ? (r?.packing ?? 0) : undefined}
           summary={packing ? `${packing.nama} · ${rupiah(packing.harga)}` : "Tanpa packing"}>
           <PackingInput locked={!paidCore} presets={settings.packingPresets} packing={packing} onChange={setPacking} />
