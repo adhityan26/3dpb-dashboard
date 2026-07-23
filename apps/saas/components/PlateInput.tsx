@@ -4,16 +4,27 @@ import { GlassInput } from "@3pb/ui";
 import { InfoTip } from "./InfoTip";
 import { newId } from "@/lib/id";
 
+export interface PlateMaterial {
+  id: string;
+  filamentId?: string;
+  tipe: "FDM" | "SLA";
+  gramasi: string;
+  warnaHex?: string;
+}
+
 export interface PlateRow {
   id: string;
   nama: string;
-  tipe: "FDM" | "SLA";
-  gramasi: string;
   durasiJam: string;
+  materials: PlateMaterial[];
+}
+
+export function newPlateMaterial(): PlateMaterial {
+  return { id: newId(), tipe: "FDM", gramasi: "" };
 }
 
 export function newPlateRow(): PlateRow {
-  return { id: newId(), nama: "", tipe: "FDM", gramasi: "", durasiJam: "" };
+  return { id: newId(), nama: "", durasiJam: "", materials: [newPlateMaterial()] };
 }
 
 const tnum = { fontVariantNumeric: "tabular-nums" as const };
@@ -29,6 +40,8 @@ export function PlateInput({
 }) {
   const setRow = (i: number, patch: Partial<PlateRow>) =>
     onPlatesChange(plates.map((p, j) => (j === i ? { ...p, ...patch } : p)));
+  const setMat0 = (i: number, patch: Partial<PlateMaterial>) =>
+    onPlatesChange(plates.map((p, j) => (j === i ? { ...p, materials: p.materials.map((m, k) => (k === 0 ? { ...m, ...patch } : m)) } : p)));
 
   if (locked) {
     const p = plates[0];
@@ -37,8 +50,8 @@ export function PlateInput({
         <label className="text-[12px] g-t3 flex flex-col">
           <span className="flex items-center gap-1">Berat (gram)
             <InfoTip text="Berat total produk yang dicetak. Dikali harga material per gram untuk jadi Biaya modal." /></span>
-          <GlassInput type="number" inputMode="decimal" value={p.gramasi}
-            onChange={(e) => setRow(0, { gramasi: e.target.value })} className="w-full mt-1" />
+          <GlassInput type="number" inputMode="decimal" value={p.materials[0].gramasi}
+            onChange={(e) => setMat0(0, { gramasi: e.target.value })} className="w-full mt-1" />
         </label>
         <label className="text-[12px] g-t3 flex flex-col">
           <span className="flex items-center gap-1">Durasi print (jam)
@@ -49,7 +62,7 @@ export function PlateInput({
         <label className="text-[12px] g-t3 flex flex-col">
           <span className="flex items-center gap-1">Jenis filament
             <InfoTip text="Menentukan tarif material yang dipakai: FDM pakai harga filament, SLA pakai harga resin." /></span>
-          <select value={p.tipe} onChange={(e) => setRow(0, { tipe: e.target.value as "FDM" | "SLA" })}
+          <select value={p.materials[0].tipe} onChange={(e) => setMat0(0, { tipe: e.target.value as "FDM" | "SLA" })}
             className="glass-input rounded-[5px] px-3 h-10 text-sm w-full mt-1">
             <option value="FDM">FDM (PLA/PETG)</option>
             <option value="SLA">SLA (Resin)</option>
@@ -63,7 +76,7 @@ export function PlateInput({
     );
   }
 
-  const totalGram = plates.reduce((s, p) => s + (Number(p.gramasi) || 0), 0);
+  const totalGram = plates.reduce((s, p) => s + p.materials.reduce((a, m) => a + (Number(m.gramasi) || 0), 0), 0);
   const totalDurasi = plates.reduce((s, p) => s + (Number(p.durasiJam) || 0), 0);
   const batchN = Number(batch) || 1;
   const multi = plates.length > 1;
@@ -88,14 +101,14 @@ export function PlateInput({
                 onChange={(e) => setRow(0, { nama: e.target.value })} />
             )}
             <div className="flex items-center gap-2">
-              <select value={p0.tipe} onChange={(e) => setRow(0, { tipe: e.target.value as "FDM" | "SLA" })}
+              <select value={p0.materials[0].tipe} onChange={(e) => setMat0(0, { tipe: e.target.value as "FDM" | "SLA" })}
                 className="glass-input rounded-[5px] px-2 h-10 text-sm w-[4.75rem] shrink-0">
                 <option value="FDM">FDM</option>
                 <option value="SLA">SLA</option>
               </select>
               <div className="relative flex-1 min-w-0">
-                <GlassInput type="number" inputMode="decimal" placeholder="berat" value={p0.gramasi} className="w-full min-w-0 pr-8"
-                  onChange={(e) => setRow(0, { gramasi: e.target.value })} />
+                <GlassInput type="number" inputMode="decimal" placeholder="berat" value={p0.materials[0].gramasi} className="w-full min-w-0 pr-8"
+                  onChange={(e) => setMat0(0, { gramasi: e.target.value })} />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">g</span>
               </div>
               <div className="relative flex-1 min-w-0">
@@ -126,14 +139,14 @@ export function PlateInput({
                 onChange={(e) => setRow(i, { nama: e.target.value })} />
               <button type="button" aria-label="Hapus plate" className="order-3 sm:order-6 w-4 shrink-0 g-t4 text-base leading-none"
                 onClick={() => onPlatesChange(plates.filter((_, j) => j !== i))}>✕</button>
-              <select value={p.tipe} onChange={(e) => setRow(i, { tipe: e.target.value as "FDM" | "SLA" })}
+              <select value={p.materials[0].tipe} onChange={(e) => setMat0(i, { tipe: e.target.value as "FDM" | "SLA" })}
                 className="order-4 sm:order-3 glass-input rounded-[5px] px-1.5 h-10 text-[13px] w-16 shrink-0">
                 <option value="FDM">FDM</option>
                 <option value="SLA">SLA</option>
               </select>
               <div className="order-5 sm:order-4 relative w-[4.5rem] shrink-0">
-                <GlassInput type="number" inputMode="decimal" placeholder="berat" value={p.gramasi} className="w-full px-2 pr-5"
-                  onChange={(e) => setRow(i, { gramasi: e.target.value })} />
+                <GlassInput type="number" inputMode="decimal" placeholder="berat" value={p.materials[0].gramasi} className="w-full px-2 pr-5"
+                  onChange={(e) => setMat0(i, { gramasi: e.target.value })} />
                 <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] g-t4 pointer-events-none">g</span>
               </div>
               <div className="order-6 sm:order-5 relative w-[4.75rem] shrink-0">

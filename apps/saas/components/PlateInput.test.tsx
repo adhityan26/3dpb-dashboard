@@ -3,7 +3,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { PlateInput, newPlateRow, type PlateRow } from "./PlateInput";
 
-const row = (over: Partial<PlateRow> = {}): PlateRow => ({ id: "p1", nama: "", tipe: "FDM", gramasi: "50", durasiJam: "3", ...over });
+const mat = (over = {}) => ({ id: "m1", tipe: "FDM" as const, gramasi: "50", ...over });
+const row = (over: Partial<PlateRow> = {}): PlateRow => ({ id: "p1", nama: "", durasiJam: "3", materials: [mat()], ...over });
 const base = { plates: [row()], batch: "1", onPlatesChange: vi.fn(), onBatchChange: vi.fn() };
 
 describe("PlateInput", () => {
@@ -20,7 +21,7 @@ describe("PlateInput", () => {
     render(<PlateInput {...base} locked={true} onPlatesChange={onP} />);
     fireEvent.change(screen.getByDisplayValue("50"), { target: { value: "70" } });
     expect(onP).toHaveBeenCalled();
-    expect(onP.mock.calls[0][0][0]).toMatchObject({ gramasi: "70" });
+    expect(onP.mock.calls[0][0][0].materials[0]).toMatchObject({ gramasi: "70" });
   });
 
   it("unlocked → ＋ tambah plate menambah baris", () => {
@@ -43,7 +44,7 @@ describe("PlateInput", () => {
   });
 
   it("unlocked → baris TOTAL muncul saat >1 plate dengan jumlah benar", () => {
-    render(<PlateInput plates={[row({ gramasi: "50", durasiJam: "3" }), row({ id: "p2", gramasi: "30", durasiJam: "2" })]} batch="1" onPlatesChange={vi.fn()} onBatchChange={vi.fn()} locked={false} />);
+    render(<PlateInput plates={[row({ materials: [mat({ gramasi: "50" })], durasiJam: "3" }), row({ id: "p2", materials: [mat({ id: "m2", gramasi: "30" })], durasiJam: "2" })]} batch="1" onPlatesChange={vi.fn()} onBatchChange={vi.fn()} locked={false} />);
     expect(screen.getByText(/TOTAL/)).toBeTruthy();
     expect(screen.getByText(/80 g/)).toBeTruthy();
     expect(screen.getByText(/5 jam/)).toBeTruthy();
@@ -56,10 +57,12 @@ describe("PlateInput", () => {
     expect(onB).toHaveBeenCalledWith("4");
   });
 
-  it("newPlateRow menghasilkan row kosong ber-id", () => {
+  it("newPlateRow menghasilkan row 1 material kosong ber-id", () => {
     const r = newPlateRow();
-    expect(r).toMatchObject({ nama: "", tipe: "FDM", gramasi: "", durasiJam: "" });
+    expect(r).toMatchObject({ nama: "", durasiJam: "" });
     expect(r.id).toBeTruthy();
+    expect(r.materials).toHaveLength(1);
+    expect(r.materials[0]).toMatchObject({ tipe: "FDM", gramasi: "" });
   });
 });
 
@@ -86,7 +89,7 @@ describe("PlateInput tanpa crypto.randomUUID (http:// + IP)", () => {
 });
 
 describe("PlateInput redesign", () => {
-  const row = (over: Partial<PlateRow> = {}): PlateRow => ({ id: "p1", nama: "", tipe: "FDM", gramasi: "50", durasiJam: "3", ...over });
+  const row = (over: Partial<PlateRow> = {}): PlateRow => ({ id: "p1", nama: "", durasiJam: "3", materials: [mat()], ...over });
   const base = { plates: [row()], batch: "1", onPlatesChange: () => {}, onBatchChange: () => {} };
   it("unlocked → label kolom permanen tampil", () => {
     render(<PlateInput {...base} locked={false} />);

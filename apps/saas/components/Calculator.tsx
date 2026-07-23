@@ -16,7 +16,7 @@ import { ResultPanel } from "./ResultPanel";
 import { MobileSummaryBar } from "./MobileSummaryBar";
 import type { KomponenRow, LaborRow } from "@/lib/kalkulator/compose";
 
-const INITIAL_PLATES: PlateRow[] = [{ id: "plate-1", nama: "", tipe: "FDM", gramasi: "50", durasiJam: "3" }];
+const INITIAL_PLATES: PlateRow[] = [{ id: "plate-1", nama: "", durasiJam: "3", materials: [{ id: "m1", tipe: "FDM", gramasi: "50" }] }];
 
 export function Calculator({ paidCore = false, userId = null }: { paidCore?: boolean; userId?: string | null }) {
   const [plates, setPlates] = useState<PlateRow[]>(INITIAL_PLATES);
@@ -37,10 +37,12 @@ export function Calculator({ paidCore = false, userId = null }: { paidCore?: boo
   useEffect(() => { setShowRincian(getRincianPref()); }, []);
 
   const toCalcPlate = (p: PlateRow): CalcPlate => ({
-    id: p.id, nama: p.nama || undefined, tipe: p.tipe,
-    gramasi: Number(p.gramasi), durasiJam: Number(p.durasiJam),
+    id: p.id, nama: p.nama || undefined, durasiJam: Number(p.durasiJam),
+    materials: p.materials.map((m) => ({ filamentId: m.filamentId, tipe: m.tipe, gramasi: Number(m.gramasi) })),
   });
-  const valid = plates.length > 0 && plates.every((p) => Number(p.gramasi) > 0 && Number(p.durasiJam) > 0);
+  const valid = plates.length > 0 && plates.every(
+    (p) => Number(p.durasiJam) > 0 && p.materials.length > 0 && p.materials.every((m) => Number(m.gramasi) > 0),
+  );
   const addon = paidCore ? { komponen, labor, packing } : {};
   const view = valid
     ? fullView({ plates: plates.map(toCalcPlate), batch: paidCore ? Number(batch) : 1, ...addon }, settings)
