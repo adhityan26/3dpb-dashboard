@@ -33,13 +33,30 @@ function formatDurasiDisplay(jam: number): string {
   return m === 0 ? `${h}j` : `${h}j ${m}m`
 }
 
-function MaterialProfilePicker({ profiles, tipe, selectedId, onSelect }: {
+/** Cocokin nama profile ("PLA", "PETG", ...) ke material filament ("PLA+", "PLA Basic", ...)
+ *  pakai substring dua arah, biar "PLA" match "PLA Basic" dan sebaliknya. */
+function materialProfileMatchesFilament(profileNama: string, filamentMaterial: string): boolean {
+  const p = profileNama.trim().toLowerCase()
+  const f = filamentMaterial.trim().toLowerCase()
+  if (!p || !f) return true
+  return f.includes(p) || p.includes(f)
+}
+
+function MaterialProfilePicker({ profiles, tipe, selectedId, onSelect, filamentMaterial }: {
   profiles: MaterialProfileData[]
   tipe: "FDM" | "SLA"
   selectedId?: string
   onSelect: (id: string | undefined) => void
+  /** Material filament yang lagi dipilih (mis. "PLA+") — kalau diisi, list di-filter biar
+   *  profile material lain (ABS, TPU, dst) ga muncul. Fallback ke list penuh kalau nggak
+   *  ada yang cocok, biar picker ga hilang total pas user belum bikin profile buat material itu. */
+  filamentMaterial?: string
 }) {
-  const list = profiles.filter(m => m.tipe === tipe)
+  const byTipe = profiles.filter(m => m.tipe === tipe)
+  const matched = filamentMaterial
+    ? byTipe.filter(m => materialProfileMatchesFilament(m.nama, filamentMaterial))
+    : byTipe
+  const list = matched.length > 0 ? matched : byTipe
   if (list.length === 0) return null
   return (
     <select
@@ -396,6 +413,7 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
                       tipe={plate.tipe === "SLA" ? "SLA" : "FDM"}
                       selectedId={plate.materialProfileId}
                       onSelect={id => updatePlateFields(plate.key, { materialProfileId: id })}
+                      filamentMaterial={filamentCatalog.find(f => f.id === plate.filamentHargaId)?.material}
                     />
                   </div>
                 </div>
@@ -432,6 +450,7 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
                         tipe={plate.tipe === "SLA" ? "SLA" : "FDM"}
                         selectedId={mat.materialProfileId}
                         onSelect={id => updateMaterial(plate.key, mIdx, "materialProfileId", id)}
+                        filamentMaterial={mat.material || undefined}
                       />
                     </div>
                     <div className="relative">
