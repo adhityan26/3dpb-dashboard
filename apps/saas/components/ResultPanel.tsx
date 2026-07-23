@@ -27,16 +27,16 @@ export function ResultPanel({
       {/* ── Rekomendasi ── */}
       <GlassCard className="p-5 min-w-0 flex flex-col gap-4">
         <div className="flex items-center gap-2">
-          <span className="w-7 h-7 rounded-[9px] grid place-items-center text-[13px] shrink-0"
+          <span className="w-7 h-7 rounded-[5px] grid place-items-center text-[13px] shrink-0"
             style={{ background: "color-mix(in srgb, var(--g-accent) 16%, transparent)" }}>🎯</span>
           <span className="text-[13px] font-semibold g-t1 tracking-wide">REKOMENDASI HARGA JUAL</span>
         </div>
 
         {/* Channel */}
-        <div className="flex gap-1 p-1 rounded-[12px]" style={{ background: "color-mix(in srgb, var(--g-t5) 8%, transparent)" }}>
+        <div className="flex gap-1 p-1 rounded-[5px]" style={{ background: "color-mix(in srgb, var(--g-t5) 8%, transparent)" }}>
           {CHANNELS.map((c) => (
             <button key={c.id} type="button" onClick={() => onChannel(c.id)}
-              className="flex-1 h-9 rounded-[9px] text-[12px] font-medium transition-colors"
+              className="flex-1 h-9 rounded-[5px] text-[12px] font-medium transition-colors"
               style={channel === c.id ? { background: "var(--g-accent)", color: "#fff" } : { color: "var(--g-t3)" }}>{c.label}</button>
           ))}
         </div>
@@ -53,7 +53,7 @@ export function ResultPanel({
               const on = t === tier;
               return (
                 <button key={t} type="button" onClick={() => onTier(t)} aria-pressed={on}
-                  className="relative rounded-[12px] border p-3 pb-4 text-center min-w-0 transition-colors"
+                  className="relative rounded-[5px] border p-3 pb-4 text-center min-w-0 transition-colors"
                   style={{ borderColor: on ? "var(--g-accent)" : "var(--g-row-border)", background: on ? "color-mix(in srgb, var(--g-accent) 10%, transparent)" : "transparent" }}>
                   <div className="text-[11px] g-t3">{MARGIN_TIER_LABEL[t]}</div>
                   <div className="text-[15px] font-bold g-t1 mt-0.5" style={{ fontVariantNumeric: "tabular-nums" }}>{rupiah(c.harga)}</div>
@@ -71,7 +71,7 @@ export function ResultPanel({
         </div>
 
         {/* Hero */}
-        <div className="rounded-[16px] border p-4 text-center mt-1"
+        <div className="rounded-[8px] border p-4 text-center mt-1"
           style={{ borderColor: "color-mix(in srgb, var(--g-accent) 30%, transparent)", background: "color-mix(in srgb, var(--g-accent) 8%, transparent)" }}>
           <div className="text-[10px] g-t4 uppercase tracking-wider">{MARGIN_TIER_LABEL[tier]} · {chanLabel}</div>
           <div className="text-[34px] font-bold leading-none mt-1.5" style={{ color: "var(--g-accent)", fontVariantNumeric: "tabular-nums" }}>{rupiah(cell.harga)}</div>
@@ -87,7 +87,7 @@ export function ResultPanel({
           </div>
         </div>
 
-        <div className="rounded-[12px] p-3 flex gap-2 text-[11px] g-t3 leading-relaxed"
+        <div className="rounded-[5px] p-3 flex gap-2 text-[11px] g-t3 leading-relaxed"
           style={{ background: "color-mix(in srgb, var(--g-accent) 7%, transparent)" }}>
           <span className="shrink-0">💡</span>
           <span>Harga ini sudah memperhitungkan biaya modal dan margin yang wajar untuk channel {chanLabel}.</span>
@@ -98,10 +98,10 @@ export function ResultPanel({
         )}
 
         <div className="flex gap-2">
-          <button type="button" onClick={onCopy} className="flex-1 h-10 rounded-[10px] text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
+          <button type="button" onClick={onCopy} className="flex-1 h-10 rounded-[5px] text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: "var(--g-accent)" }}>Salin harga jual</button>
-          <button type="button" onClick={onReset} className="g-btn-ghost h-10 px-4 rounded-[10px] text-[13px]">Reset</button>
-          <button type="button" disabled className="g-btn-ghost h-10 px-3 rounded-[10px] text-[13px] opacity-40 cursor-not-allowed flex items-center gap-1" title="Segera hadir">
+          <button type="button" onClick={onReset} className="g-btn-ghost h-10 px-4 rounded-[5px] text-[13px]">Reset</button>
+          <button type="button" disabled className="g-btn-ghost h-10 px-3 rounded-[5px] text-[13px] opacity-40 cursor-not-allowed flex items-center gap-1" title="Segera hadir">
             Simpan <span className="text-[8px] uppercase tracking-wide px-1 py-0.5 rounded" style={{ background: "color-mix(in srgb, var(--g-t5) 15%, transparent)" }}>segera</span>
           </button>
         </div>
@@ -150,7 +150,7 @@ export function ResultPanel({
             </div>
           )}
 
-          <div className="mt-3 rounded-[12px] p-3" style={{ background: "color-mix(in srgb, var(--g-warning) 8%, transparent)" }}>
+          <div className="mt-3 rounded-[5px] p-3" style={{ background: "color-mix(in srgb, var(--g-warning) 8%, transparent)" }}>
             <div className="text-[11px] g-t3 mb-1.5">Belum termasuk biaya berikut (jika ada):</div>
             <ul className="text-[11px] g-t4 space-y-0.5 list-disc pl-4">
               <li>Biaya admin marketplace</li>

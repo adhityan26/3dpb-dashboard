@@ -64,14 +64,14 @@ export function Calculator({ paidCore = false, userId = null }: { paidCore?: boo
           subtotalLabel="Subtotal per produk" subtotal={r?.produksi}>
           <PlateInput locked={!paidCore} plates={plates} batch={batch} onPlatesChange={setPlates} onBatchChange={setBatch} />
           {paidCore && (
-            <div className="mt-3 rounded-[12px] p-3 flex gap-2 text-[11px] g-t3 leading-relaxed"
+            <div className="mt-3 rounded-[5px] p-3 flex gap-2 text-[11px] g-t3 leading-relaxed"
               style={{ background: "color-mix(in srgb, var(--g-accent) 6%, transparent)" }}>
               <span className="shrink-0">ℹ️</span>
               <span>Angka di atas = jumlah produk yang dihasilkan dari 1 proses cetak. Biaya produksi dibagi angka ini.</span>
             </div>
           )}
           {view && (
-            <div className="mt-3 grid grid-cols-3 rounded-[12px] border" style={{ borderColor: "var(--g-row-border)" }}>
+            <div className="mt-3 grid grid-cols-3 rounded-[5px] border" style={{ borderColor: "var(--g-row-border)" }}>
               <div className="p-3">
                 <div className="text-[10px] g-t4">Biaya per proses cetak</div>
                 <div className="text-[15px] font-bold g-t1" style={{ fontVariantNumeric: "tabular-nums" }}>{rupiah(r!.produksi * hasil)}</div>

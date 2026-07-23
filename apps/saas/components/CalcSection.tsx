@@ -16,7 +16,7 @@ export function CalcSection({
       <button type="button" onClick={() => setOpen((o) => !o)}
         className="w-full flex items-center gap-3 text-left"
         aria-expanded={open}>
-        <span className="shrink-0 w-9 h-9 rounded-[11px] grid place-items-center text-[16px] font-semibold"
+        <span className="shrink-0 w-9 h-9 rounded-[5px] grid place-items-center text-[16px] font-semibold"
           style={{ background: "color-mix(in srgb, var(--g-accent) 15%, transparent)", color: "var(--g-accent)" }}>
           {icon ?? n}
         </span>
@@ -25,7 +25,7 @@ export function CalcSection({
           {subtitle && <span className="block text-[11px] g-t3 mt-0.5">{subtitle}</span>}
         </span>
         {typeof subtotal === "number" && (
-          <span className="shrink-0 text-right rounded-[10px] border px-3 py-1.5" style={{ borderColor: "var(--g-row-border)" }}>
+          <span className="shrink-0 text-right rounded-[5px] border px-3 py-1.5" style={{ borderColor: "var(--g-row-border)" }}>
             <span className="block text-[9px] g-t4 uppercase tracking-wide">{subtotalLabel}</span>
             <span className="block text-[15px] font-bold g-t1" style={{ fontVariantNumeric: "tabular-nums" }}>{rupiah(subtotal)}</span>
           </span>

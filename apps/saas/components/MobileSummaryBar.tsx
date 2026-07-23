@@ -13,7 +13,7 @@ export function MobileSummaryBar({ modal, harga, onOpen }: { modal: number; harg
         <div className="text-[10px] g-t4">Harga jual</div>
         <div className="text-[15px] font-bold" style={{ color: "var(--g-accent)", fontVariantNumeric: "tabular-nums" }}>{rupiah(harga)}</div>
       </div>
-      <button type="button" onClick={onOpen} className="shrink-0 h-11 px-4 rounded-[10px] text-[13px] font-medium" style={{ background: "var(--g-accent)", color: "#fff" }}>Lihat rincian</button>
+      <button type="button" onClick={onOpen} className="shrink-0 h-11 px-4 rounded-[5px] text-[13px] font-medium" style={{ background: "var(--g-accent)", color: "#fff" }}>Lihat rincian</button>
     </div>
   );
 }
