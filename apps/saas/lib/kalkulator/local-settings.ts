@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto";
 import type { SettingsV2 } from "@3pb/kalkulator-core";
 import { isValidHexColor } from "@3pb/ui";
 import { defaultSettings, DEFAULT_MATERIAL, DEFAULT_MESIN_PER_JAM } from "./default-settings";
@@ -107,7 +106,7 @@ export function toSettingsV2(ls: LocalSettings): SettingsV2 {
 }
 
 export function newFilamentEntry(): FilamentEntry {
-  return { id: randomUUID(), brand: "", material: "", tipe: "FDM", warna: "", hppPerGram: 0, jualPerGram: 0 };
+  return { id: "", brand: "", material: "", tipe: "FDM", warna: "", hppPerGram: 0, jualPerGram: 0 };
 }
 
 export function validateLocalSettings(ls: LocalSettings): string[] {

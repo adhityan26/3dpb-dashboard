@@ -93,11 +93,9 @@ describe("1b-6a filament catalog", () => {
     expect(validateLocalSettings(DEFAULT_LOCAL_SETTINGS)).toEqual([]);
   });
 
-  it("newFilamentEntry: baris kosong ber-id, tipe FDM default", () => {
+  it("newFilamentEntry: baris kosong murni (id \"\" diisi caller via newId), tipe FDM default", () => {
     const f = newFilamentEntry();
-    expect(f).toMatchObject({ brand: "", material: "", warna: "", tipe: "FDM" });
-    expect(typeof f.id).toBe("string");
-    expect(f.id.length).toBeGreaterThan(0);
+    expect(f).toMatchObject({ id: "", brand: "", material: "", warna: "", tipe: "FDM", hppPerGram: 0, jualPerGram: 0 });
   });
 
   it("menolak filament harga modal / jual ≤ 0", () => {
