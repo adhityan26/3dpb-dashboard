@@ -5,6 +5,7 @@ export interface KomponenPreset { id: string; nama: string; harga: number }
 export type PackingPreset = KomponenPreset;
 export interface LaborItemInput { nama: string; jam?: number; ratePerJam?: number; flat?: number }
 export interface LaborPreset { id: string; nama: string; items: LaborItemInput[] }
+export interface LaborJob { id: string; nama: string; ratePerJam?: number; flat?: number }
 
 export interface LocalSettings {
   material: {
@@ -20,6 +21,7 @@ export interface LocalSettings {
   komponenPresets: KomponenPreset[];
   packingPresets: PackingPreset[];
   laborPresets: LaborPreset[];
+  laborJobs: LaborJob[];
 }
 
 export const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
@@ -63,6 +65,11 @@ export const DEFAULT_LOCAL_SETTINGS: LocalSettings = {
       { nama: "Sanding", jam: 4, ratePerJam: 35000 },
       { nama: "Painting", jam: 3.5, ratePerJam: 75000 },
     ] },
+  ],
+  laborJobs: [
+    { id: "job-assembly", nama: "Assembly", ratePerJam: 35000 },
+    { id: "job-sanding", nama: "Sanding", ratePerJam: 35000 },
+    { id: "job-painting", nama: "Painting", ratePerJam: 75000 },
   ],
 };
 
@@ -115,6 +122,11 @@ export function validateLocalSettings(ls: LocalSettings): string[] {
       const biaya = (it.jam ?? 0) * (it.ratePerJam ?? 0) + (it.flat ?? 0);
       if (!(biaya > 0)) errs.push(`Labor "${p.nama}" item "${it.nama || j + 1}" biaya harus > 0`);
     });
+  });
+  ls.laborJobs.forEach((j, i) => {
+    if (!j.nama.trim()) errs.push(`Pekerjaan #${i + 1} nama kosong`);
+    if (j.ratePerJam != null && j.ratePerJam < 0) errs.push(`Pekerjaan "${j.nama || i + 1}" tarif negatif`);
+    if (j.flat != null && j.flat < 0) errs.push(`Pekerjaan "${j.nama || i + 1}" tarif negatif`);
   });
   return errs;
 }
