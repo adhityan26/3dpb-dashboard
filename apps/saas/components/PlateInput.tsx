@@ -49,7 +49,15 @@ export function PlateInput({
   const addMat = (pi: number) =>
     onPlatesChange(plates.map((p, j) => (j === pi ? { ...p, materials: [...p.materials, newPlateMaterial()] } : p)));
   const delMat = (pi: number, mi: number) =>
-    onPlatesChange(plates.map((p, j) => (j === pi ? { ...p, materials: p.materials.filter((_, k) => k !== mi) } : p)));
+    onPlatesChange(plates.map((p, j) => {
+      if (j !== pi) return p;
+      const rest = p.materials.filter((_, k) => k !== mi);
+      // Kembali ke single-material: mode single cuma punya kontrol tipe (bukan katalog),
+      // jadi bersihkan filamentId/warnaHex supaya harga ikut tipe yang tampil (bukan
+      // filament katalog tersembunyi yang tak bisa lagi diubah user).
+      const materials = rest.length === 1 ? [{ ...rest[0], filamentId: undefined, warnaHex: undefined }] : rest;
+      return { ...p, materials };
+    }));
   const pickFilament = (pi: number, mi: number, filamentId: string) => {
     const f = filaments.find((x) => x.id === filamentId);
     setMat(pi, mi, f ? { filamentId: f.id, tipe: f.tipe, warnaHex: f.warnaHex } : { filamentId: undefined });

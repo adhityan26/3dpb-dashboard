@@ -130,6 +130,22 @@ describe("1b-6a multi-material di plate", () => {
     expect(onP.mock.calls[0][0][0].materials).toHaveLength(1);
   });
 
+  it("collapse ke single membersihkan filamentId/warnaHex survivor (harga ikut tipe, bukan katalog tersembunyi)", async () => {
+    const user = userEvent.setup();
+    const onP = vi.fn();
+    const multi = row({ materials: [
+      mat({ filamentId: "fil-a", warnaHex: "#f5f5f5" }),
+      mat({ id: "m2", gramasi: "20" }),
+    ] });
+    render(<PlateInput locked={false} plates={[multi]} batch="1" filaments={fil} onPlatesChange={onP} onBatchChange={vi.fn()} />);
+    // hapus material ke-2 → tersisa 1 → survivor harus bersih dari filamentId
+    await user.click(screen.getAllByRole("button", { name: /hapus material/i })[1]);
+    const survivor = onP.mock.calls[0][0][0].materials[0];
+    expect(survivor.filamentId).toBeUndefined();
+    expect(survivor.warnaHex).toBeUndefined();
+    expect(survivor.tipe).toBe("FDM"); // tipe survivor dipertahankan
+  });
+
   it("pilih filament dari katalog mengisi filamentId + tipe", async () => {
     const user = userEvent.setup();
     const onP = vi.fn();
