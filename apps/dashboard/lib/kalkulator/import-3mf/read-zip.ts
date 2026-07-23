@@ -29,3 +29,25 @@ export async function readGcode3mfEntries(buf: ArrayBuffer): Promise<Raw3mfEntri
 
   return entries as unknown as Raw3mfEntries
 }
+
+/** Ekstrak thumbnail preview per plate (Metadata/plate_N.png, 1-based) dari ZIP .3mf
+ *  hasil slice. Return array sepanjang plateCount — null di index yang gambarnya tidak
+ *  ada (mis. file belum di-slice, atau ZIP corrupt). File .gcode yang besar tetap tidak
+ *  disentuh (path berbeda, tidak pernah di-baca fungsi ini). */
+export async function readPlateThumbnails(buf: ArrayBuffer, plateCount: number): Promise<(Blob | null)[]> {
+  if (plateCount <= 0) return []
+
+  let zip: JSZip
+  try {
+    zip = await JSZip.loadAsync(buf)
+  } catch {
+    return Array(plateCount).fill(null)
+  }
+
+  const result: (Blob | null)[] = []
+  for (let i = 1; i <= plateCount; i++) {
+    const file = zip.file(`Metadata/plate_${i}.png`)
+    result.push(file ? await file.async("blob") : null)
+  }
+  return result
+}

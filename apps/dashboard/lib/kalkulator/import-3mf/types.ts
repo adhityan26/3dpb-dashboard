@@ -45,4 +45,7 @@ export interface Kalkulasi3mfDraft {
   plates: PlateInputApp[]
   isSliced: boolean
   warnings: string[]
+  /** Thumbnail preview per plate (index-aligned dengan `plates`), null kalau plate itu
+   *  tidak punya Metadata/plate_N.png di ZIP-nya. */
+  thumbnails: (Blob | null)[]
 }

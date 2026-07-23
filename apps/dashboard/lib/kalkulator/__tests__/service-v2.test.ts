@@ -3,27 +3,29 @@ import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
 vi.mock('@/lib/db', () => ({
   prisma: {
     kalkulasiHarga: { create: vi.fn(), update: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), count: vi.fn(), delete: vi.fn() },
-    kalkulasiPlate: { deleteMany: vi.fn() },
+    kalkulasiPlate: { deleteMany: vi.fn(), findMany: vi.fn() },
     komponenKustom: { deleteMany: vi.fn() },
     kalkulasiLabor: { deleteMany: vi.fn() },
     $transaction: vi.fn(async (ops: unknown[]) => Promise.all(ops as Promise<unknown>[])),
   },
 }))
+vi.mock('@/lib/lg-storage', () => ({ deleteFromMinio: vi.fn() }))
 vi.mock('@/lib/kalkulator/rates', () => ({ loadRates: vi.fn() }))
 vi.mock('@/lib/kalkulator/settings-v2', () => ({ loadSettingsV2: vi.fn() }))
 vi.mock('@/lib/kalkulator/profiles-service', () => ({ listPrinterProfiles: vi.fn(), listMaterialProfiles: vi.fn() }))
 
 import { prisma } from '@/lib/db'
+import { deleteFromMinio } from '@/lib/lg-storage'
 import { loadRates } from '@/lib/kalkulator/rates'
 import { loadSettingsV2 } from '@/lib/kalkulator/settings-v2'
 import { listPrinterProfiles, listMaterialProfiles } from '@/lib/kalkulator/profiles-service'
 import type { PrinterProfileData } from '@/lib/kalkulator/profiles-service'
-import { createKalkulasi, duplicateKalkulasi, listKalkulasi, getKalkulasi, parsePagination } from '../service'
+import { createKalkulasi, updateKalkulasi, duplicateKalkulasi, listKalkulasi, getKalkulasi, deleteKalkulasi, parsePagination } from '../service'
 import type { KalkulatorRates, SettingsV2 } from '@3pb/kalkulator-core'
 
 type MockedPrisma = {
   kalkulasiHarga: { create: Mock; update: Mock; findUnique: Mock; findMany: Mock; count: Mock; delete: Mock }
-  kalkulasiPlate: { deleteMany: Mock }
+  kalkulasiPlate: { deleteMany: Mock; findMany: Mock }
   komponenKustom: { deleteMany: Mock }
   kalkulasiLabor: { deleteMany: Mock }
   $transaction: Mock
@@ -52,6 +54,7 @@ beforeEach(() => {
     { id: 'p1', nama: 'P1P', mesinPerJam: 3000, isDefault: true, isPricingReference: false, watt: null, tarifPerKwh: null, hargaPrinter: null, umurPakaiJam: null, maintenancePerJam: null },
   ] satisfies PrinterProfileData[])
   vi.mocked(listMaterialProfiles).mockResolvedValue([])
+  vi.mocked(deleteFromMinio).mockResolvedValue(undefined)
   db.kalkulasiHarga.create.mockImplementation(async (args: { data: Record<string, unknown> }) => ({
     ...args.data, id: 'k1', createdAt: new Date(), updatedAt: new Date(),
     plates: [], komponenKustom: [], labor: [], produkLinks: [],
@@ -216,5 +219,61 @@ describe('toKalkulasiData: hargaChannelJson korup', () => {
     db.kalkulasiHarga.findUnique.mockResolvedValue({ ...rawBase, hargaChannelJson: '{}' })
     const data = await getKalkulasi('k1')
     expect(data?.hargaChannel).toBeUndefined()
+  })
+})
+
+describe('updateKalkulasi', () => {
+  it('thumbnailKey plate lama ke-preserve ke plate baru (posisi/urutan sama) setelah edit-resave', async () => {
+    db.kalkulasiPlate.findMany.mockResolvedValue([
+      { thumbnailKey: 'kalkulator-thumbnails/old-p1.png' },
+      { thumbnailKey: null },
+    ])
+    db.kalkulasiHarga.update.mockImplementation(async (args: { data: Record<string, unknown> }) => ({
+      ...args.data, id: 'k1', createdAt: new Date(), updatedAt: new Date(),
+      plates: [], komponenKustom: [], labor: [], produkLinks: [],
+    }))
+    await updateKalkulasi('k1', {
+      nama: 'Edited', batch: 1, marginTier: 'A',
+      plates: [
+        { tipe: 'FDM', gramasi: 10, durasiJam: 1 },
+        { tipe: 'FDM', gramasi: 5, durasiJam: 0.5 },
+      ],
+      komponen: [], labor: [],
+    })
+    const data = db.kalkulasiHarga.update.mock.calls[0][0].data
+    expect(data.plates.create[0]).toMatchObject({ thumbnailKey: 'kalkulator-thumbnails/old-p1.png' })
+    expect(data.plates.create[1]).toMatchObject({ thumbnailKey: null })
+    expect(db.kalkulasiPlate.findMany).toHaveBeenCalledWith({ where: { kalkulasiId: 'k1' }, orderBy: { urutan: 'asc' }, select: { thumbnailKey: true } })
+  })
+})
+
+describe('deleteKalkulasi', () => {
+  it('hapus best-effort thumbnail MinIO tiap plate yang punya thumbnailKey, sebelum hapus row DB', async () => {
+    db.kalkulasiPlate.findMany.mockResolvedValue([
+      { thumbnailKey: 'kalkulator-thumbnails/p1.png' },
+      { thumbnailKey: null },
+      { thumbnailKey: 'kalkulator-thumbnails/p3.png' },
+    ])
+    db.kalkulasiHarga.delete.mockResolvedValue({})
+    await deleteKalkulasi('k1')
+    expect(db.kalkulasiPlate.findMany).toHaveBeenCalledWith({ where: { kalkulasiId: 'k1' }, select: { thumbnailKey: true } })
+    expect(db.kalkulasiHarga.delete).toHaveBeenCalledWith({ where: { id: 'k1' } })
+    expect(vi.mocked(deleteFromMinio)).toHaveBeenCalledTimes(2)
+    expect(vi.mocked(deleteFromMinio)).toHaveBeenCalledWith('kalkulator-thumbnails/p1.png')
+    expect(vi.mocked(deleteFromMinio)).toHaveBeenCalledWith('kalkulator-thumbnails/p3.png')
+  })
+
+  it('deleteFromMinio gagal → tetap tidak throw (best-effort)', async () => {
+    db.kalkulasiPlate.findMany.mockResolvedValue([{ thumbnailKey: 'kalkulator-thumbnails/p1.png' }])
+    db.kalkulasiHarga.delete.mockResolvedValue({})
+    vi.mocked(deleteFromMinio).mockRejectedValue(new Error('network error'))
+    await expect(deleteKalkulasi('k1')).resolves.toBeUndefined()
+  })
+
+  it('tidak ada plate yang punya thumbnailKey → deleteFromMinio tidak dipanggil sama sekali', async () => {
+    db.kalkulasiPlate.findMany.mockResolvedValue([{ thumbnailKey: null }])
+    db.kalkulasiHarga.delete.mockResolvedValue({})
+    await deleteKalkulasi('k1')
+    expect(vi.mocked(deleteFromMinio)).not.toHaveBeenCalled()
   })
 })

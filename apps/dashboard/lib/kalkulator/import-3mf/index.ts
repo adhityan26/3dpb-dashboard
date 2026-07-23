@@ -1,7 +1,7 @@
 import type { FilamentHargaData } from "@/lib/kalkulator/types"
 import type { PrinterProfileData } from "@/lib/kalkulator/profiles-service"
 import type { Kalkulasi3mfDraft } from "./types"
-import { readGcode3mfEntries } from "./read-zip"
+import { readGcode3mfEntries, readPlateThumbnails } from "./read-zip"
 import { parseSliceInfo } from "./parse-slice-info"
 import { parseModelSettingsPlates } from "./parse-model-settings"
 import { parseProjectSettingsFilamentSlots } from "./parse-project-settings"
@@ -25,7 +25,7 @@ export async function import3mfFile(file: File, deps: Import3mfDeps): Promise<Ka
   const modelPlates = entries.modelSettingsXml ? parseModelSettingsPlates(entries.modelSettingsXml) : []
   const filamentSlots = entries.projectSettingsJson ? parseProjectSettingsFilamentSlots(entries.projectSettingsJson) : []
 
-  return buildKalkulasi3mfDraft({
+  const draft = buildKalkulasi3mfDraft({
     fileName: file.name,
     slicePlates,
     modelPlates,
@@ -33,4 +33,7 @@ export async function import3mfFile(file: File, deps: Import3mfDeps): Promise<Ka
     filamentCatalog: deps.filamentCatalog,
     printerProfiles: deps.printerProfiles,
   })
+
+  const thumbnails = await readPlateThumbnails(buf, draft.plates.length)
+  return { ...draft, thumbnails }
 }

@@ -32,12 +32,25 @@ describe("import3mfFile", () => {
       "Metadata/model_settings.config": MODEL_SETTINGS_XML,
       "Metadata/project_settings.config": PROJECT_SETTINGS_JSON,
       "Metadata/slice_info.config": SLICE_INFO_XML,
+      "Metadata/plate_1.png": "fake-png-bytes",
     })
     const draft = await import3mfFile(file, { filamentCatalog: [], printerProfiles: [] })
     expect(draft.nama).toBe("My Print")
     expect(draft.isSliced).toBe(true)
     expect(draft.plates).toHaveLength(1)
     expect(draft.plates[0].gramasi).toBe(10)
+    expect(draft.thumbnails).toHaveLength(1)
+    expect(draft.thumbnails[0]).toBeInstanceOf(Blob)
+  })
+
+  it("plate tanpa Metadata/plate_N.png → thumbnails berisi null di index itu", async () => {
+    const file = await makeFile("No Thumbnail.gcode.3mf", {
+      "Metadata/model_settings.config": MODEL_SETTINGS_XML,
+      "Metadata/project_settings.config": PROJECT_SETTINGS_JSON,
+      "Metadata/slice_info.config": SLICE_INFO_XML,
+    })
+    const draft = await import3mfFile(file, { filamentCatalog: [], printerProfiles: [] })
+    expect(draft.thumbnails).toEqual([null])
   })
 
   it("throws a user-facing error for a non-3MF ZIP", async () => {
