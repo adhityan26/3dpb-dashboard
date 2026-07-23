@@ -20,7 +20,7 @@ export function PackingInput({
   }
   const Card = ({ active, label, right, onClick }: { active: boolean; label: string; right?: string; onClick: () => void }) => (
     <button type="button" role="radio" aria-checked={active} aria-label={label} onClick={onClick}
-      className="flex items-center gap-2.5 rounded-[12px] border p-3 text-left min-w-0"
+      className="flex items-center gap-2.5 rounded-[5px] border p-3 text-left min-w-0"
       style={{ borderColor: active ? "var(--g-accent)" : "var(--g-row-border)", background: active ? "color-mix(in srgb, var(--g-accent) 12%, transparent)" : "transparent" }}>
       <span className="shrink-0 w-4 h-4 rounded-full border grid place-items-center"
         style={{ borderColor: active ? "var(--g-accent)" : "var(--g-row-border)" }}>

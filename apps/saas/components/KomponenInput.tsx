@@ -40,7 +40,7 @@ export function KomponenInput({
             const on = idxOfPreset(p) >= 0;
             return (
               <button key={p.id} type="button" onClick={() => toggle(p)}
-                className="g-btn-ghost rounded-[10px] px-3 h-9 text-[12px] flex items-center gap-1.5"
+                className="g-btn-ghost rounded-[5px] px-3 h-9 text-[12px] flex items-center gap-1.5"
                 style={on ? { outline: "2px solid var(--g-accent)", color: "var(--g-accent)" } : undefined}>
                 {on && <span aria-hidden>✓</span>}{p.nama} · {rupiah(p.harga)}
               </button>
@@ -54,7 +54,7 @@ export function KomponenInput({
       {komponen.length > 0 && (
         <div className="flex flex-col gap-2">
           {komponen.map((r, i) => (
-            <div key={r.id} className="flex items-center gap-2 rounded-[12px] border border-[color:var(--g-row-border)] p-2.5">
+            <div key={r.id} className="flex items-center gap-2 rounded-[5px] border border-[color:var(--g-row-border)] p-2.5">
               <GlassInput value={r.nama} placeholder="Nama komponen" className="flex-1 min-w-0"
                 onChange={(e) => setRow(i, { nama: e.target.value })} />
               <div className="relative w-24 shrink-0">
@@ -63,10 +63,10 @@ export function KomponenInput({
                   onChange={(e) => setRow(i, { harga: Number(e.target.value) })} />
               </div>
               <div className="flex items-center gap-1 shrink-0">
-                <button type="button" aria-label="Kurangi qty" className="g-btn-ghost rounded-[8px] w-8 h-9 text-sm"
+                <button type="button" aria-label="Kurangi qty" className="g-btn-ghost rounded-[5px] w-8 h-9 text-sm"
                   onClick={() => setRow(i, { qty: Math.max(1, r.qty - 1) })}>−</button>
                 <span className="w-6 text-center text-sm g-t1" style={{ fontVariantNumeric: "tabular-nums" }}>{r.qty}</span>
-                <button type="button" aria-label="Tambah qty" className="g-btn-ghost rounded-[8px] w-8 h-9 text-sm"
+                <button type="button" aria-label="Tambah qty" className="g-btn-ghost rounded-[5px] w-8 h-9 text-sm"
                   onClick={() => setRow(i, { qty: r.qty + 1 })}>+</button>
               </div>
               <span className="w-20 text-right text-[12px] g-t2 shrink-0" style={{ fontVariantNumeric: "tabular-nums" }}>{rupiah((r.harga > 0 ? r.harga : 0) * Math.max(1, r.qty))}</span>

@@ -39,7 +39,7 @@ export function LaborInput({
           {presets.map((p) => (
             <button key={p.id} type="button"
               onClick={() => onChange([...labor, ...p.items.map((it) => ({ id: newId(), nama: it.nama, jam: it.jam, ratePerJam: it.ratePerJam, flat: it.flat }))])}
-              className="g-btn-ghost rounded-[10px] px-3 h-9 text-[12px]">＋ {p.nama}</button>
+              className="g-btn-ghost rounded-[5px] px-3 h-9 text-[12px]">＋ {p.nama}</button>
           ))}
         </div>
         <button type="button" onClick={() => onChange([...labor, { id: newId(), nama: "", jam: undefined, ratePerJam: undefined }])}
@@ -51,7 +51,7 @@ export function LaborInput({
           {labor.map((r, i) => {
             const m = metodeOf(r);
             return (
-              <div key={r.id} className="flex flex-col gap-2 rounded-[12px] border border-[color:var(--g-row-border)] p-2.5">
+              <div key={r.id} className="flex flex-col gap-2 rounded-[5px] border border-[color:var(--g-row-border)] p-2.5">
                 <div className="flex items-center gap-2">
                   <GlassInput value={r.nama} placeholder="Nama pekerjaan" className="flex-1 min-w-0"
                     onChange={(e) => setRow(i, { nama: e.target.value })} />
@@ -62,7 +62,7 @@ export function LaborInput({
                 <div className="flex gap-1">
                   {(["waktu", "flat"] as const).map((opt) => (
                     <button key={opt} type="button" onClick={() => setMetode(i, opt)}
-                      className="g-btn-ghost rounded-[8px] px-2.5 h-8 text-[11px]"
+                      className="g-btn-ghost rounded-[5px] px-2.5 h-8 text-[11px]"
                       style={m === opt ? { outline: "2px solid var(--g-accent)", color: "var(--g-accent)" } : undefined}>
                       {opt === "waktu" ? "Berdasarkan waktu" : "Biaya flat"}
                     </button>

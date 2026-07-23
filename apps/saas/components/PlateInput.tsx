@@ -48,7 +48,7 @@ export function PlateInput({
           <span className="flex items-center gap-1">Jenis filament
             <InfoTip text="Menentukan tarif material yang dipakai: FDM pakai harga filament, SLA pakai harga resin." /></span>
           <select value={p.tipe} onChange={(e) => setRow(0, { tipe: e.target.value as "FDM" | "SLA" })}
-            className="glass-input rounded-[10px] px-3 h-10 text-sm w-full mt-1">
+            className="glass-input rounded-[5px] px-3 h-10 text-sm w-full mt-1">
             <option value="FDM">FDM (PLA/PETG)</option>
             <option value="SLA">SLA (Resin)</option>
           </select>
@@ -78,7 +78,7 @@ export function PlateInput({
       </div>
 
       {plates.map((p, i) => (
-        <div key={p.id} className="flex flex-col gap-1.5 rounded-[12px] border border-[color:var(--g-row-border)] p-2.5">
+        <div key={p.id} className="flex flex-col gap-1.5 rounded-[5px] border border-[color:var(--g-row-border)] p-2.5">
           {(multi || p.nama) && (
             <div className="flex items-center gap-2">
               <GlassInput value={p.nama} placeholder="Nama part (opsional)" className="flex-1 min-w-0"
@@ -91,7 +91,7 @@ export function PlateInput({
           )}
           <div className="flex items-center gap-2">
             <select value={p.tipe} onChange={(e) => setRow(i, { tipe: e.target.value as "FDM" | "SLA" })}
-              className="glass-input rounded-[10px] px-2 h-10 text-sm w-[4.75rem] shrink-0">
+              className="glass-input rounded-[5px] px-2 h-10 text-sm w-[4.75rem] shrink-0">
               <option value="FDM">FDM</option>
               <option value="SLA">SLA</option>
             </select>
