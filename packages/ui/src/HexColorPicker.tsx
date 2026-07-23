@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { HexColorSwatch, isValidHexColor } from './HexColorSwatch'
+import { isValidHexColor } from './HexColorSwatch'
 
 export interface HexColorPickerOption {
   id: string
