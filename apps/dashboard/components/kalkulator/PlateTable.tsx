@@ -412,19 +412,19 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
             {isMultiMode && (
               <div className="space-y-2">
                 {/* Header row */}
-                <div className="grid text-[9px] font-semibold uppercase tracking-wider px-1 g-accent"
-                     style={{ gridTemplateColumns: "220px 80px 52px 52px 24px", gap: "4px" }}>
+                <div className="grid text-[9px] font-semibold uppercase tracking-wider g-accent"
+                     style={{ gridTemplateColumns: "minmax(0,1fr) 100px 64px 44px 24px", gap: "6px" }}>
                   <span>Filament</span>
                   <span>Color</span>
                   <span>Gram</span>
-                  <span>Support</span>
+                  <span className="text-center">Sup</span>
                   <span />
                 </div>
 
                 {(plate.materials ?? []).map((mat, mIdx) => (
                   <div key={mIdx}
-                       className="grid items-center"
-                       style={{ gridTemplateColumns: "180px 1fr 72px 52px 24px", gap: "4px" }}>
+                       className="grid items-start"
+                       style={{ gridTemplateColumns: "minmax(0,1fr) 100px 64px 44px 24px", gap: "6px" }}>
                     {/* Filament picker for multi-material row */}
                     <div className="flex flex-col gap-1">
                       <FilamentPicker
@@ -441,14 +441,14 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
                       />
                     </div>
                     <div className="relative">
-                      <HexColorSwatch color={mat.color} className="absolute left-1.5 top-1/2 -translate-y-1/2" />
+                      <HexColorSwatch color={mat.color} className="absolute left-2 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
                         placeholder="Warna"
                         value={mat.color}
                         onChange={e => updateMaterial(plate.key, mIdx, "color", e.target.value)}
-                        className="glass-input h-8 rounded-[6px] px-2 text-xs w-full"
-                        style={isValidHexColor(mat.color) ? { paddingLeft: "22px" } : undefined}
+                        className="glass-input h-8 rounded-[6px] pr-1.5 text-[11px] w-full font-mono tracking-tight"
+                        style={{ paddingLeft: isValidHexColor(mat.color) ? "24px" : "8px" }}
                       />
                     </div>
                     <div className="relative">
