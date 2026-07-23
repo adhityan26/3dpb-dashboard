@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { catalogMatchesFilament, findCatalogColorsForFilament, sortCatalogColors } from '../color-catalog'
+import { catalogMatchesFilament, findCatalogColorsForFilament, findCatalogColorName, sortCatalogColors } from '../color-catalog'
 import type { FilamentCatalogEntry } from '@/lib/filamen/types'
 
 describe('catalogMatchesFilament', () => {
@@ -48,6 +48,45 @@ describe('findCatalogColorsForFilament', () => {
 
   it('ga ada yang match → array kosong', () => {
     expect(findCatalogColorsForFilament(catalog, 'Sunlu', 'TPU')).toEqual([])
+  })
+})
+
+describe('findCatalogColorName', () => {
+  const catalog = {
+    'eSUN': {
+      'PLA+': [entry({ id: 'a', brand: 'eSUN', material: 'PLA+', colorName: 'Merah PLA+', colorHex: '#FF0000' })],
+      'PLA': [entry({ id: 'b', brand: 'eSUN', material: 'PLA', colorName: 'Merah PLA', colorHex: '#FF0000' })],
+      'PLA HS': [entry({ id: 'c', brand: 'eSUN', material: 'PLA HS', colorName: 'Merah PLA HS', colorHex: '#FF0000' })],
+    },
+  }
+
+  it('hex sama tapi material beda (PLA vs PLA+ vs PLA HS) → cuma nama yang material-nya EXACT match yang dipakai', () => {
+    expect(findCatalogColorName(catalog, 'eSUN', 'PLA+', '#FF0000')).toBe('Merah PLA+')
+    expect(findCatalogColorName(catalog, 'eSUN', 'PLA HS', '#FF0000')).toBe('Merah PLA HS')
+    expect(findCatalogColorName(catalog, 'eSUN', 'PLA', '#FF0000')).toBe('Merah PLA')
+  })
+
+  it('match EXACT, bukan fuzzy — "PLA" tidak boleh nyangkut ke "PLA HS" walau substring cocok', () => {
+    // Kalau ini pakai fuzzy substring match (kayak findCatalogColorsForFilament), query
+    // material="PLA HS" bisa salah ke-match entry material="PLA" (karena "PLA HS".includes("PLA")).
+    expect(findCatalogColorName(catalog, 'eSUN', 'PLA HS', '#FF0000')).not.toBe('Merah PLA')
+    expect(findCatalogColorName(catalog, 'eSUN', 'PLA', '#FF0000')).not.toBe('Merah PLA HS')
+  })
+
+  it('case-insensitive tapi tetap exact match (bukan substring)', () => {
+    expect(findCatalogColorName(catalog, 'esun', 'pla+', '#ff0000')).toBe('Merah PLA+')
+  })
+
+  it('hex ga ada yang exact match → null (walau warna terdekat ada)', () => {
+    expect(findCatalogColorName(catalog, 'eSUN', 'PLA+', '#FF0001')).toBeNull()
+  })
+
+  it('hex kosong → null', () => {
+    expect(findCatalogColorName(catalog, 'eSUN', 'PLA+', '')).toBeNull()
+  })
+
+  it('brand/material ga match sama sekali → null', () => {
+    expect(findCatalogColorName(catalog, 'Sunlu', 'ABS', '#FF0000')).toBeNull()
   })
 })
 

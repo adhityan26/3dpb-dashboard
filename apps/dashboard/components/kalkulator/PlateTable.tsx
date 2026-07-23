@@ -6,7 +6,7 @@ import type { MaterialProfileData } from "@/lib/kalkulator/profiles-service"
 import { useFilamentHarga, usePrinterProfiles, useMaterialProfiles } from "@/lib/hooks/use-kalkulator"
 import { useCatalog } from "@/lib/hooks/use-filamen"
 import { HexColorSwatch, HexColorPicker, isValidHexColor, type HexColorPickerOption } from "@3pb/ui"
-import { findCatalogColorsForFilament, sortCatalogColors } from "@/lib/kalkulator/color-catalog"
+import { findCatalogColorsForFilament, findCatalogColorName, sortCatalogColors } from "@/lib/kalkulator/color-catalog"
 
 interface PlateRow extends PlateInputApp {
   key: string
@@ -179,6 +179,12 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
     const catalog = catalogData?.catalog ?? {}
     const matched = findCatalogColorsForFilament(catalog, brand, material)
     return sortCatalogColors(matched, referenceColor).map(e => ({ id: e.id, colorName: e.colorName, colorHex: e.colorHex }))
+  }
+
+  /** Nama warna katalog buat ditampilin — cuma muncul kalau brand+material EXACT match
+   *  (bukan fuzzy, beda dari colorOptionsFor) dan hex-nya persis sama. */
+  function colorNameFor(brand: string, material: string, colorHex: string): string | null {
+    return findCatalogColorName(catalogData?.catalog ?? {}, brand, material, colorHex)
   }
 
   function addPlate() {
@@ -428,6 +434,18 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
                         style={{ paddingLeft: isValidHexColor(plate.color ?? "") ? "26px" : "12px", paddingRight: "6px" }}
                       />
                     </div>
+                    {(() => {
+                      const name = colorNameFor(
+                        filamentCatalog.find(f => f.id === plate.filamentHargaId)?.brand ?? "",
+                        filamentCatalog.find(f => f.id === plate.filamentHargaId)?.material ?? "",
+                        plate.color ?? "",
+                      )
+                      return name && (
+                        <div className="mt-1 text-[10px] truncate" style={{ color: "rgba(165,180,252,0.8)" }} title={name}>
+                          🧵 {name}
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
 
@@ -503,6 +521,14 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
                         className="glass-input h-8 rounded-[6px] pr-1.5 text-[11px] w-full font-mono tracking-tight"
                         style={{ paddingLeft: isValidHexColor(mat.color) ? "24px" : "8px" }}
                       />
+                      {(() => {
+                        const name = colorNameFor(mat.brand, mat.material, mat.color)
+                        return name && (
+                          <div className="mt-0.5 text-[9px] truncate" style={{ color: "rgba(165,180,252,0.8)" }} title={name}>
+                            {name}
+                          </div>
+                        )
+                      })()}
                     </div>
                     <div className="relative">
                       <input

@@ -29,6 +29,35 @@ export function findCatalogColorsForFilament(
   return result
 }
 
+/** Cari nama warna dari katalog yang brand+material-nya PERSIS sama (bukan fuzzy — beda
+ *  dari findCatalogColorsForFilament) DAN hex-nya persis sama (case-insensitive). Match
+ *  ketat sengaja dipakai di sini: fuzzy substring bisa keliru nyamain "PLA" ke "PLA HS"
+ *  atau "PLA+" (beda material sungguhan, cuma kebetulan substring). Dipakai buat auto-
+ *  tampilin nama warna begitu ada entry katalog yang cocok persis dengan filament yang
+ *  lagi dipilih — baik dari hasil pilih di HexColorPicker maupun hex yang sudah keisi
+ *  duluan (mis. dari import 3MF). */
+export function findCatalogColorName(
+  catalog: Record<string, Record<string, FilamentCatalogEntry[]>>,
+  brand: string,
+  material: string,
+  colorHex: string,
+): string | null {
+  const hex = colorHex.trim().toLowerCase()
+  const b = brand.trim().toLowerCase()
+  const m = material.trim().toLowerCase()
+  if (!hex || !b || !m) return null
+
+  for (const catalogBrand of Object.keys(catalog)) {
+    if (catalogBrand.trim().toLowerCase() !== b) continue
+    for (const catalogMaterial of Object.keys(catalog[catalogBrand])) {
+      if (catalogMaterial.trim().toLowerCase() !== m) continue
+      const found = catalog[catalogBrand][catalogMaterial].find(e => e.colorHex.trim().toLowerCase() === hex)
+      if (found) return found.colorName
+    }
+  }
+  return null
+}
+
 function hexToRgb(hex: string): [number, number, number] | null {
   const stripped = hex.trim().replace(/^#/, '')
   if (stripped.length !== 3 && stripped.length !== 6) return null
