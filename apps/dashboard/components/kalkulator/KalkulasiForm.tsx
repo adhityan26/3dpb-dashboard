@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useRef } from "react"
+import { useState, useMemo, useRef, useEffect } from "react"
 import { PlateTable } from "./PlateTable"
 import { KomponenSection } from "./KomponenSection"
 import { LaborSection } from "./LaborSection"
@@ -8,6 +8,7 @@ import { HasilPanel } from "./HasilPanel"
 import {
   useCreateKalkulasi, useUpdateKalkulasi, useKalkulatorRates,
   useSettingsV2, usePrinterProfiles, useMaterialProfiles, useFilamentHarga,
+  useUploadPlateThumbnail,
 } from "@/lib/hooks/use-kalkulator"
 import { useKatalogList } from "@/lib/hooks/use-katalog"
 import { useProducts } from "@/lib/hooks/use-products"
@@ -19,7 +20,7 @@ import { PrintableQuote } from "./PrintableQuote"
 import { RincianPanel } from "./RincianPanel"
 import { import3mfFile } from "@/lib/kalkulator/import-3mf"
 
-type PlateRow = PlateInputApp & { key: string }
+type PlateRow = PlateInputApp & { key: string; id?: string; thumbnailKey?: string | null }
 
 const DEFAULT_PLATE: PlateRow = { key: "plate-init-1", tipe: "FDM", gramasi: 0, durasiJam: 0 }
 
@@ -73,7 +74,11 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
       })
       setNama(draft.nama)
       setBatch(draft.batch)
-      setPlates(draft.plates.map((p, i) => ({ ...p, key: `p-3mf-${i}` })))
+      const newPlates = draft.plates.map((p, i) => ({ ...p, key: `p-3mf-${i}` }))
+      setPlates(newPlates)
+      const thumbs: Record<string, Blob> = {}
+      draft.thumbnails.forEach((blob, i) => { if (blob) thumbs[newPlates[i].key] = blob })
+      setPendingThumbnails(thumbs)
       setImport3mfWarnings(draft.warnings)
     } catch (e) {
       setImport3mfError(e instanceof Error ? e.message : "Gagal membaca file 3MF")
@@ -113,6 +118,8 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   const [plates, setPlates] = useState<PlateRow[]>(
     initial?.plates.map(p => ({
       key: `p-${p.id}`,
+      id: p.id,
+      thumbnailKey: p.thumbnailKey ?? undefined,
       namaPart: p.namaPart ?? undefined,
       tipe: p.tipe as "FDM" | "SLA",
       printer: p.printer ?? undefined,
@@ -125,6 +132,30 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
       materialProfileId: p.materialProfileId ?? undefined,
     })) ?? [DEFAULT_PLATE]
   )
+
+  const [pendingThumbnails, setPendingThumbnails] = useState<Record<string, Blob>>({})
+  const [pendingThumbnailUrls, setPendingThumbnailUrls] = useState<Record<string, string>>({})
+  const uploadThumbnailMut = useUploadPlateThumbnail()
+
+  // Bikin/revoke object URL tiap pendingThumbnails berubah (cuma habis import, atau setelah
+  // save sukses mengosongkannya) — sengaja TIDAK depend ke `plates` biar ga bikin-ulang URL
+  // tiap keystroke di form lain.
+  useEffect(() => {
+    const urls: Record<string, string> = {}
+    for (const [key, blob] of Object.entries(pendingThumbnails)) urls[key] = URL.createObjectURL(blob)
+    setPendingThumbnailUrls(urls)
+    return () => { Object.values(urls).forEach(u => URL.revokeObjectURL(u)) }
+  }, [pendingThumbnails])
+
+  // Gabungan: thumbnail pending (blob URL) + thumbnail yang sudah tersimpan (proxy endpoint).
+  // Murni string map, aman di-recompute tiap render — tidak ada object URL yang dibuat di sini.
+  const thumbnailUrls: Record<string, string> = useMemo(() => {
+    const map: Record<string, string> = { ...pendingThumbnailUrls }
+    for (const p of plates) {
+      if (!map[p.key] && p.thumbnailKey && p.id) map[p.key] = `/api/kalkulator/plates/${p.id}/thumbnail`
+    }
+    return map
+  }, [pendingThumbnailUrls, plates])
   const [customRiskEnabled, setCustomRiskEnabled] = useState(false)
   const [customRiskPct, setCustomRiskPct] = useState<number>(12)
 
@@ -142,7 +173,8 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
 
   // Dua varian plates: platesForSave (hanya filter ada isi — perilaku lama, durasi 0 boleh
   // masuk save) dan platesForCalc (tambahan filter durasi>0, dipakai preview/RincianPanel).
-  const platesForSave = useMemo(() => plates.filter(hasPlateContent).map(toPlateInputApp), [plates])
+  const platesForSaveRows = useMemo(() => plates.filter(hasPlateContent), [plates])
+  const platesForSave = useMemo(() => platesForSaveRows.map(toPlateInputApp), [platesForSaveRows])
   const platesForCalc = useMemo(() => platesForSave.filter(p => p.durasiJam > 0), [platesForSave])
 
   // Builder input v2 tunggal — dipakai preview (buildHasilV2), RincianPanel, dan save.
@@ -209,6 +241,21 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
     } else {
       saved = await createMut.mutateAsync(input)
     }
+
+    // Upload thumbnail pending — best-effort, tidak boleh menggagalkan save yang sudah sukses.
+    await Promise.all(
+      saved.plates.map(async (savedPlate, i) => {
+        const key = platesForSaveRows[i]?.key
+        const blob = key ? pendingThumbnails[key] : undefined
+        if (!blob) return
+        try {
+          await uploadThumbnailMut.mutateAsync({ plateId: savedPlate.id, file: blob })
+        } catch {
+          // best-effort — thumbnail gagal ke-upload, kalkulasi tetap tersimpan normal
+        }
+      }),
+    )
+
     onSaved?.(saved)
   }
 
@@ -325,7 +372,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           <div className="text-xs font-semibold uppercase tracking-wider mb-2 g-accent">
             Part / Plate
           </div>
-          <PlateTable plates={plates} onChange={setPlates} batch={Math.max(1, batch)} />
+          <PlateTable plates={plates} onChange={setPlates} batch={Math.max(1, batch)} thumbnailUrls={thumbnailUrls} />
         </div>
 
         {/* Komponen (packing + preset/custom) & Labor */}

@@ -17,6 +17,10 @@ interface PlateTableProps {
   onChange: (plates: PlateRow[]) => void
   /** Batch unit — kalau > 1, baris TOTAL menampilkan juga gram & durasi per pcs */
   batch?: number
+  /** URL thumbnail per plate.key — blob URL (pending, belum ke-save) atau endpoint proxy
+   *  (/api/kalkulator/plates/{id}/thumbnail, sudah ke-save). Key yang ga ada di map = ga
+   *  ada thumbnail, elemen img tidak dirender. */
+  thumbnailUrls?: Record<string, string>
 }
 
 function parseDurasi(raw: string): number {
@@ -163,7 +167,7 @@ function FilamentPicker({ filaments, selectedId, onSelect, onClear }: {
   )
 }
 
-export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
+export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTableProps) {
   const [durasiRaw, setDurasiRaw] = useState<Record<string, string>>({})
   const keyCounterRef = useRef(0)
   function nextKey() { return `plate-${++keyCounterRef.current}` }
@@ -301,6 +305,14 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
             {/* Row label for multi-plate */}
             {multiPlate && (
               <div className="flex items-center gap-2 mb-2">
+                {thumbnailUrls?.[plate.key] && (
+                  <img
+                    src={thumbnailUrls[plate.key]}
+                    alt=""
+                    className="w-10 h-10 rounded-[6px] object-cover flex-shrink-0"
+                    style={{ border: "1px solid var(--g-inner-border)" }}
+                  />
+                )}
                 <span className="text-[10px] font-semibold g-accent">
                   Part {idx + 1}
                 </span>

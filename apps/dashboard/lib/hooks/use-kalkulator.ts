@@ -74,6 +74,16 @@ export function useDeleteKalkulasi() {
   })
 }
 
+export function useUploadPlateThumbnail() {
+  return useMutation({
+    mutationFn: ({ plateId, file }: { plateId: string; file: Blob }) => {
+      const form = new FormData()
+      form.append('file', file, 'plate.png')
+      return apiFetch<{ thumbnailKey: string }>(`/api/kalkulator/plates/${plateId}/thumbnail`, { method: 'PUT', body: form })
+    },
+  })
+}
+
 export function useDuplicateKalkulasi() {
   const qc = useQueryClient()
   return useMutation({
