@@ -13,6 +13,8 @@ vi.mock("@/lib/store/local-settings", async () => {
   };
 });
 import { SettingsPanel } from "@/components/SettingsPanel";
+import { loadSettings } from "@/lib/store/local-settings";
+import { DEFAULT_LOCAL_SETTINGS } from "@/lib/kalkulator/local-settings";
 
 beforeEach(() => { saveMock.mockReset(); resetMock.mockReset(); saveMock.mockResolvedValue(undefined); window.localStorage.clear(); });
 
@@ -125,5 +127,22 @@ describe("SettingsPanel struktur & tooltip", () => {
     render(<SettingsPanel editable={false} userId={null} />);
     expect(screen.getAllByText(/Edit di Pro/i).length).toBeGreaterThanOrEqual(3);
     expect((screen.getByLabelText(/rincian perhitungan/i) as HTMLInputElement).disabled).toBe(false);
+  });
+});
+
+describe("SettingsPanel daftar pekerjaan", () => {
+  it("render job dari katalog + bisa tambah (Pro)", async () => {
+    (loadSettings as any).mockResolvedValue(DEFAULT_LOCAL_SETTINGS);
+    render(<SettingsPanel editable={true} userId="u1" />);
+    // nama "Painting" juga muncul di item preset labor (bundle), jadi cari spesifik
+    // baris di section "Daftar pekerjaan" (placeholder "Nama pekerjaan").
+    await waitFor(() => {
+      const jobRows = screen.getAllByPlaceholderText("Nama pekerjaan") as HTMLInputElement[];
+      expect(jobRows.some((el) => el.value === "Painting")).toBe(true);
+    });
+    expect(screen.getByText(/Daftar pekerjaan/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /Tambah pekerjaan/ }));
+    // baris kosong baru muncul (input nama tambahan)
+    expect(screen.getAllByPlaceholderText("Nama pekerjaan").length).toBeGreaterThanOrEqual(1);
   });
 });
