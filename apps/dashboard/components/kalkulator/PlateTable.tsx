@@ -439,13 +439,22 @@ export function PlateTable({ plates, onChange, batch }: PlateTableProps) {
                         onSelect={id => updateMaterial(plate.key, mIdx, "materialProfileId", id)}
                       />
                     </div>
-                    <input
-                      type="text"
-                      placeholder="Warna"
-                      value={mat.color}
-                      onChange={e => updateMaterial(plate.key, mIdx, "color", e.target.value)}
-                      className="glass-input h-8 rounded-[6px] px-2 text-xs w-full"
-                    />
+                    <div className="relative">
+                      {/^#[0-9a-fA-F]{3,8}$/.test(mat.color.trim()) && (
+                        <span
+                          className="absolute left-1.5 top-1/2 -translate-y-1/2 w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ background: mat.color, border: "1px solid rgba(255,255,255,0.25)" }}
+                        />
+                      )}
+                      <input
+                        type="text"
+                        placeholder="Warna"
+                        value={mat.color}
+                        onChange={e => updateMaterial(plate.key, mIdx, "color", e.target.value)}
+                        className="glass-input h-8 rounded-[6px] px-2 text-xs w-full"
+                        style={/^#[0-9a-fA-F]{3,8}$/.test(mat.color.trim()) ? { paddingLeft: "22px" } : undefined}
+                      />
+                    </div>
                     <div className="relative">
                       <input
                         type="number"
