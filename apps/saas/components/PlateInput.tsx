@@ -1,8 +1,10 @@
 "use client";
 import Link from "next/link";
+import { useRef, useState } from "react";
 import { GlassInput, HexColorPicker, type HexColorPickerOption } from "@3pb/ui";
 import { InfoTip } from "./InfoTip";
 import { newId } from "@/lib/id";
+import { importSlicerFile } from "@/lib/kalkulator/import-3mf";
 import type { FilamentEntry } from "@/lib/kalkulator/local-settings";
 
 export interface PlateMaterial {
@@ -66,6 +68,34 @@ export function PlateInput({
     !f ? [] : filaments
       .filter((x) => x.brand === f.brand && x.material === f.material && x.warnaHex)
       .map((x) => ({ id: x.id, colorName: x.warna, colorHex: x.warnaHex! }));
+
+  const [importError, setImportError] = useState<string | null>(null);
+  const [importWarnings, setImportWarnings] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportFile = async (file: File) => {
+    setImportError(null);
+    setImportWarnings([]);
+    const draft = await importSlicerFile(file, filaments);
+    if (!draft) {
+      setImportError("File tidak dikenali — pastikan file .3mf/.gcode.3mf dari Bambu Studio/OrcaSlicer.");
+      return;
+    }
+    onPlatesChange(draft.plates.map((p) => ({
+      id: newId(),
+      nama: p.nama,
+      durasiJam: String(p.durasiJam),
+      materials: p.materials.map((m) => ({
+        id: newId(),
+        filamentId: m.filamentId,
+        tipe: m.tipe,
+        gramasi: String(m.gramasi),
+        warnaHex: m.warnaHex,
+      })),
+    })));
+    onBatchChange(String(draft.batch));
+    setImportWarnings(draft.warnings);
+  };
 
   // Fungsi render (bukan komponen ber-JSX-tag): dipanggil `materialRows(i)` supaya
   // elemennya di-reconcile inline di parent. Kalau dijadikan <MaterialRows/>, identitas
@@ -152,6 +182,30 @@ export function PlateInput({
     <div className="flex flex-col gap-3">
       <div className="text-[11px] g-t3 flex items-center gap-1">Bagian cetak (plate)
         <InfoTip text="Satu produk bisa terdiri dari beberapa bagian cetak. Tiap plate punya berat & durasi sendiri; totalnya dijumlahkan jadi biaya produksi." /></div>
+
+      <div className="flex items-center gap-2">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".3mf,.gcode.3mf"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            e.target.value = "";
+            if (file) void handleImportFile(file);
+          }}
+        />
+        <button type="button" onClick={() => fileInputRef.current?.click()}
+          className="text-[11px] underline self-start" style={{ color: "var(--g-accent)" }}>⬆ Import file slicer</button>
+      </div>
+      {importError && <div className="text-[11px]" style={{ color: "#ef4444" }}>{importError}</div>}
+      {importWarnings.length > 0 && (
+        <div className="flex flex-col gap-0.5">
+          {importWarnings.map((w, i) => (
+            <div key={i} className="text-[11px] g-t4">⚠ {w}</div>
+          ))}
+        </div>
+      )}
 
       {!multi ? (
         /* ── Single plate (tak diubah) ── */
