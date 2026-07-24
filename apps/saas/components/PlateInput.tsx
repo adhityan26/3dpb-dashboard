@@ -215,11 +215,13 @@ export function PlateInput({
       {!multi ? (
         /* ── Single plate (tak diubah) ── */
         <>
-          <div className="flex items-center gap-2 text-[10px] g-t4 uppercase tracking-wide">
-            <span className="w-[4.75rem] shrink-0">Metode cetak</span>
-            <span className="flex-1 min-w-0">Berat filament</span>
-            <span className="flex-1 min-w-0">Durasi cetak</span>
-          </div>
+          {p0.materials.length === 1 && (
+            <div className="flex items-center gap-2 text-[10px] g-t4 uppercase tracking-wide">
+              <span className="w-[4.75rem] shrink-0">Metode cetak</span>
+              <span className="flex-1 min-w-0">Berat filament</span>
+              <span className="flex-1 min-w-0">Durasi cetak</span>
+            </div>
+          )}
           <div className="flex flex-col gap-1.5 rounded-[5px] border border-[color:var(--g-row-border)] p-2.5">
             {p0.nama && (
               <GlassInput value={p0.nama} placeholder="Nama part (opsional)" className="flex-1 min-w-0"
