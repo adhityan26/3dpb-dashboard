@@ -94,7 +94,9 @@ export function PlateInput({
       })),
     })));
     onBatchChange(String(draft.batch));
-    setImportWarnings(draft.warnings);
+    // Dedupe: 1 warning per material tak-match, jadi file dgn banyak plate ber-filament
+    // sama yg tak terkatalog bakal ulang persis — tampilkan sekali saja per pesan unik.
+    setImportWarnings([...new Set(draft.warnings)]);
   };
 
   // Fungsi render (bukan komponen ber-JSX-tag): dipanggil `materialRows(i)` supaya
@@ -172,8 +174,11 @@ export function PlateInput({
     );
   }
 
-  const totalGram = plates.reduce((s, p) => s + p.materials.reduce((a, m) => a + (Number(m.gramasi) || 0), 0), 0);
-  const totalDurasi = plates.reduce((s, p) => s + (Number(p.durasiJam) || 0), 0);
+  // Dibulatkan 2 desimal saat tampil — angka slicer asli (mis. 0.1+0.2) bisa menumpuk
+  // sisa floating-point (contoh nyata: total durasi tampil "27.119999999999997 jam").
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const totalGram = round2(plates.reduce((s, p) => s + p.materials.reduce((a, m) => a + (Number(m.gramasi) || 0), 0), 0));
+  const totalDurasi = round2(plates.reduce((s, p) => s + (Number(p.durasiJam) || 0), 0));
   const batchN = Number(batch) || 1;
   const multi = plates.length > 1;
   const p0 = plates[0];
@@ -257,33 +262,35 @@ export function PlateInput({
             <span className="w-4 shrink-0" />
           </div>
           {plates.map((p, i) => (
-            <div key={p.id} className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 px-2.5 py-2 border-t border-[color:var(--g-row-border)]">
-              <span className="order-1 w-4 shrink-0 text-center text-[11px] g-t4" style={tnum}>{i + 1}</span>
-              <GlassInput value={p.nama} placeholder="beri nama part (utk slicer)"
-                className="order-2 min-w-0 basis-[calc(100%-3.25rem)] sm:basis-auto sm:flex-1"
-                onChange={(e) => setRow(i, { nama: e.target.value })} />
-              <button type="button" aria-label="Hapus plate" className="order-3 sm:order-6 w-4 shrink-0 g-t4 text-base leading-none"
-                onClick={() => onPlatesChange(plates.filter((_, j) => j !== i))}>✕</button>
-              {p.materials.length === 1 && (
-                <>
-                  <select value={p.materials[0].tipe} onChange={(e) => setMat0(i, { tipe: e.target.value as "FDM" | "SLA" })}
-                    className="order-4 sm:order-3 glass-input rounded-[5px] px-1.5 h-10 text-[13px] w-16 shrink-0">
-                    <option value="FDM">FDM</option>
-                    <option value="SLA">SLA</option>
-                  </select>
-                  <div className="order-5 sm:order-4 relative w-[4.5rem] shrink-0">
-                    <GlassInput type="number" inputMode="decimal" placeholder="berat" value={p.materials[0].gramasi} className="w-full px-2 pr-5"
-                      onChange={(e) => setMat0(i, { gramasi: e.target.value })} />
-                    <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] g-t4 pointer-events-none">g</span>
-                  </div>
-                </>
-              )}
-              <div className="order-6 sm:order-5 relative w-[4.75rem] shrink-0">
-                <GlassInput type="number" inputMode="decimal" placeholder="durasi" value={p.durasiJam} className="w-full px-2 pr-7"
-                  onChange={(e) => setRow(i, { durasiJam: e.target.value })} />
-                <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] g-t4 pointer-events-none">jam</span>
+            <div key={p.id} className="border-t border-[color:var(--g-row-border)]">
+              <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 px-2.5 py-2">
+                <span className="order-1 w-4 shrink-0 text-center text-[11px] g-t4" style={tnum}>{i + 1}</span>
+                <GlassInput value={p.nama} placeholder="beri nama part (utk slicer)"
+                  className="order-2 min-w-0 basis-[calc(100%-3.25rem)] sm:basis-auto sm:flex-1"
+                  onChange={(e) => setRow(i, { nama: e.target.value })} />
+                <button type="button" aria-label="Hapus plate" className="order-3 sm:order-6 w-4 shrink-0 g-t4 text-base leading-none"
+                  onClick={() => onPlatesChange(plates.filter((_, j) => j !== i))}>✕</button>
+                {p.materials.length === 1 && (
+                  <>
+                    <select value={p.materials[0].tipe} onChange={(e) => setMat0(i, { tipe: e.target.value as "FDM" | "SLA" })}
+                      className="order-4 sm:order-3 glass-input rounded-[5px] px-1.5 h-10 text-[13px] w-16 shrink-0">
+                      <option value="FDM">FDM</option>
+                      <option value="SLA">SLA</option>
+                    </select>
+                    <div className="order-5 sm:order-4 relative w-[4.5rem] shrink-0">
+                      <GlassInput type="number" inputMode="decimal" placeholder="berat" value={p.materials[0].gramasi} className="w-full px-2 pr-5"
+                        onChange={(e) => setMat0(i, { gramasi: e.target.value })} />
+                      <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] g-t4 pointer-events-none">g</span>
+                    </div>
+                  </>
+                )}
+                <div className="order-6 sm:order-5 relative w-[4.75rem] shrink-0">
+                  <GlassInput type="number" inputMode="decimal" placeholder="durasi" value={p.durasiJam} className="w-full px-2 pr-7"
+                    onChange={(e) => setRow(i, { durasiJam: e.target.value })} />
+                  <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] g-t4 pointer-events-none">jam</span>
+                </div>
               </div>
-              <div className="order-7 basis-full">
+              <div className="px-2.5 pb-2">
                 {materialRows(i)}
               </div>
             </div>
