@@ -488,25 +488,17 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
               </>
             )}
 
-            {/* MULTI-MATERIAL MODE */}
+            {/* MULTI-MATERIAL MODE — 1 card per material (bukan tabel grid), biar tidak
+                bertumpuk di viewport sempit: baris 1 = identitas filament (paling panjang,
+                dapet lebar penuh), baris 2 = angka & aksi (semua tinggi seragam h-8). */}
             {isMultiMode && (
-              <div className="space-y-2">
-                {/* Header row */}
-                <div className="grid text-[9px] font-semibold uppercase tracking-wider g-accent"
-                     style={{ gridTemplateColumns: "minmax(0,1fr) 100px 64px 44px 24px", gap: "6px" }}>
-                  <span>Filament</span>
-                  <span>Color</span>
-                  <span>Gram</span>
-                  <span className="text-center">Sup</span>
-                  <span />
-                </div>
-
+              <div className="space-y-1.5">
                 {(plate.materials ?? []).map((mat, mIdx) => (
                   <div key={mIdx}
-                       className="grid items-start"
-                       style={{ gridTemplateColumns: "minmax(0,1fr) 100px 64px 44px 24px", gap: "6px" }}>
-                    {/* Filament picker for multi-material row */}
-                    <div className="flex flex-col gap-1">
+                       className="rounded-[5px] p-2 space-y-1.5"
+                       style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)" }}>
+                    {/* Baris 1: filament + profil material */}
+                    <div className="flex items-center gap-1.5 flex-wrap">
                       <FilamentPicker
                         filaments={filamentCatalog}
                         selectedId={mat.filamentId}
@@ -521,46 +513,41 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
                         filamentMaterial={mat.material || undefined}
                       />
                     </div>
-                    <div className="relative">
-                      <HexColorPicker
-                        color={mat.color}
-                        options={colorOptionsFor(mat.brand, mat.material, mat.color)}
-                        onSelect={hex => updateMaterial(plate.key, mIdx, "color", hex)}
-                        className="absolute left-2 top-1/2 -translate-y-1/2 z-10"
-                      />
-                      <input
-                        type="text"
-                        placeholder="Warna"
-                        value={mat.color}
-                        onChange={e => updateMaterial(plate.key, mIdx, "color", e.target.value)}
-                        className="glass-input h-8 rounded-[5px] pr-1.5 text-[11px] w-full font-mono tracking-tight"
-                        style={{ paddingLeft: isValidHexColor(mat.color) ? "24px" : "8px" }}
-                      />
-                      {(() => {
-                        const name = colorNameFor(mat.brand, mat.material, mat.color)
-                        return name && (
-                          <div className="mt-0.5 text-[9px] truncate" style={{ color: "rgba(165,180,252,0.8)" }} title={name}>
-                            {name}
-                          </div>
-                        )
-                      })()}
-                    </div>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        placeholder="0"
-                        value={mat.gramasi || ""}
-                        onChange={e => updateMaterial(plate.key, mIdx, "gramasi", parseFloat(e.target.value) || 0)}
-                        className="glass-input h-8 rounded-[5px] px-2 text-xs w-full"
-                        style={{ paddingRight: "14px" }}
-                      />
-                      <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] g-accent"
-                            style={{ pointerEvents: "none" }}>g</span>
-                    </div>
-                    <div className="flex items-center justify-center h-8">
-                      <label className="flex items-center gap-1 cursor-pointer">
+
+                    {/* Baris 2: warna, gram, support, hapus */}
+                    <div className="flex items-center gap-1.5">
+                      <div className="relative flex-1 min-w-0">
+                        <HexColorPicker
+                          color={mat.color}
+                          options={colorOptionsFor(mat.brand, mat.material, mat.color)}
+                          onSelect={hex => updateMaterial(plate.key, mIdx, "color", hex)}
+                          className="absolute left-2 top-1/2 -translate-y-1/2 z-10"
+                        />
+                        <input
+                          type="text"
+                          placeholder="Warna"
+                          value={mat.color}
+                          onChange={e => updateMaterial(plate.key, mIdx, "color", e.target.value)}
+                          title={colorNameFor(mat.brand, mat.material, mat.color) || undefined}
+                          className="glass-input h-8 rounded-[5px] pr-1.5 text-[11px] w-full font-mono tracking-tight"
+                          style={{ paddingLeft: isValidHexColor(mat.color) ? "24px" : "8px" }}
+                        />
+                      </div>
+                      <div className="relative w-16 shrink-0">
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.1"
+                          placeholder="0"
+                          value={mat.gramasi || ""}
+                          onChange={e => updateMaterial(plate.key, mIdx, "gramasi", parseFloat(e.target.value) || 0)}
+                          className="glass-input h-8 rounded-[5px] px-2 text-xs w-full"
+                          style={{ paddingRight: "14px" }}
+                        />
+                        <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] g-accent"
+                              style={{ pointerEvents: "none" }}>g</span>
+                      </div>
+                      <label className="flex items-center gap-1 h-8 px-1 cursor-pointer shrink-0">
                         <input
                           type="checkbox"
                           checked={mat.isSupport ?? false}
@@ -569,16 +556,16 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
                         />
                         <span className="text-[9px] g-t3">Sup</span>
                       </label>
+                      <button
+                        onClick={() => removeMaterial(plate.key, mIdx)}
+                        className="h-8 w-6 flex items-center justify-center rounded-[5px] text-xs transition-all shrink-0"
+                        style={{ color: "var(--g-t5)" }}
+                        onMouseEnter={e => (e.currentTarget.style.color = "rgba(239,68,68,0.7)")}
+                        onMouseLeave={e => (e.currentTarget.style.color = "var(--g-t5)")}
+                      >
+                        ✕
+                      </button>
                     </div>
-                    <button
-                      onClick={() => removeMaterial(plate.key, mIdx)}
-                      className="h-8 w-6 flex items-center justify-center rounded-[5px] text-xs transition-all flex-shrink-0"
-                      style={{ color: "var(--g-t5)", background: "var(--g-inner)" }}
-                      onMouseEnter={e => (e.currentTarget.style.color = "rgba(239,68,68,0.7)")}
-                      onMouseLeave={e => (e.currentTarget.style.color = "var(--g-t5)")}
-                    >
-                      ✕
-                    </button>
                   </div>
                 ))}
 
