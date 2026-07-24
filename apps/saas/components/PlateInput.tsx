@@ -198,7 +198,7 @@ export function PlateInput({
         <button type="button" onClick={() => fileInputRef.current?.click()}
           className="text-[11px] underline self-start" style={{ color: "var(--g-accent)" }}>⬆ Import file slicer</button>
       </div>
-      {importError && <div className="text-[11px]" style={{ color: "#ef4444" }}>{importError}</div>}
+      {importError && <div className="text-[11px] g-error">{importError}</div>}
       {importWarnings.length > 0 && (
         <div className="flex flex-col gap-0.5">
           {importWarnings.map((w, i) => (
