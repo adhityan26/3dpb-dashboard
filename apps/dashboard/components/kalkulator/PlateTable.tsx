@@ -7,6 +7,7 @@ import { useFilamentHarga, usePrinterProfiles, useMaterialProfiles } from "@/lib
 import { useCatalog } from "@/lib/hooks/use-filamen"
 import { HexColorSwatch, HexColorPicker, isValidHexColor, type HexColorPickerOption } from "@3pb/ui"
 import { findCatalogColorsForFilament, findCatalogColorName, sortCatalogColors } from "@/lib/kalkulator/color-catalog"
+import { ImageZoomModal } from "@/components/ui/ImageZoomModal"
 
 interface PlateRow extends PlateInputApp {
   key: string
@@ -169,6 +170,7 @@ function FilamentPicker({ filaments, selectedId, onSelect, onClear }: {
 
 export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTableProps) {
   const [durasiRaw, setDurasiRaw] = useState<Record<string, string>>({})
+  const [zoomedThumbnail, setZoomedThumbnail] = useState<{ src: string; alt: string } | null>(null)
   const keyCounterRef = useRef(0)
   function nextKey() { return `plate-${++keyCounterRef.current}` }
 
@@ -309,7 +311,8 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
                   <img
                     src={thumbnailUrls[plate.key]}
                     alt=""
-                    className="w-10 h-10 rounded-[5px] object-cover flex-shrink-0"
+                    onClick={() => setZoomedThumbnail({ src: thumbnailUrls[plate.key], alt: plate.namaPart ?? `Part ${idx + 1}` })}
+                    className="w-10 h-10 rounded-[5px] object-cover flex-shrink-0 cursor-zoom-in hover:ring-2 hover:ring-[color:var(--g-accent)]"
                     style={{ border: "1px solid var(--g-inner-border)" }}
                   />
                 )}
@@ -696,6 +699,14 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
       >
         + Tambah Part
       </button>
+
+      {zoomedThumbnail && (
+        <ImageZoomModal
+          src={zoomedThumbnail.src}
+          alt={zoomedThumbnail.alt}
+          onClose={() => setZoomedThumbnail(null)}
+        />
+      )}
     </div>
   )
 }
