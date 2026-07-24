@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { buildKalkulasi3mfDraft } from "../build-draft"
-import type { SliceInfoPlate, ModelSettingsPlate, ProjectFilamentSlot } from "../types"
+import type { SliceInfoPlate, ModelSettingsPlate, ProjectFilamentSlot } from "@3pb/kalkulator-core/import-3mf"
 import type { FilamentHargaData } from "@/lib/kalkulator/types"
 import type { PrinterProfileData } from "@/lib/kalkulator/profiles-service"
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 import JSZip from "jszip"
-import { readGcode3mfEntries, readPlateThumbnails } from "../read-zip"
+import { readGcode3mfEntries, readPlateThumbnails } from "./read-zip"
 
 async function makeZip(files: Record<string, string>): Promise<ArrayBuffer> {
   const zip = new JSZip()

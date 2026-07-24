@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { parseModelSettingsPlates } from "../parse-model-settings"
+import { parseModelSettingsPlates } from "./parse-model-settings"
 
 const XML = `<?xml version="1.0" encoding="UTF-8"?>
 <config>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { parseProjectSettingsFilamentSlots } from "../parse-project-settings"
+import { parseProjectSettingsFilamentSlots } from "./parse-project-settings"
 
 const JSON_TEXT = JSON.stringify({
   filament_vendor: ["Bambu Lab", "Bambu Lab", "eSUN"],

@@ -1,10 +1,13 @@
 import type { FilamentHargaData } from "@/lib/kalkulator/types"
 import type { PrinterProfileData } from "@/lib/kalkulator/profiles-service"
 import type { Kalkulasi3mfDraft } from "./types"
-import { readGcode3mfEntries, readPlateThumbnails } from "./read-zip"
-import { parseSliceInfo } from "./parse-slice-info"
-import { parseModelSettingsPlates } from "./parse-model-settings"
-import { parseProjectSettingsFilamentSlots } from "./parse-project-settings"
+import {
+  readGcode3mfEntries,
+  readPlateThumbnails,
+  parseSliceInfo,
+  parseModelSettingsPlates,
+  parseProjectSettingsFilamentSlots,
+} from "@3pb/kalkulator-core/import-3mf"
 import { buildKalkulasi3mfDraft } from "./build-draft"
 
 export interface Import3mfDeps {

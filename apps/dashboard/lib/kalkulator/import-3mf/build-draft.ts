@@ -1,6 +1,7 @@
 import type { PlateInputApp, FilamentEntry, FilamentHargaData } from "@/lib/kalkulator/types"
 import type { PrinterProfileData } from "@/lib/kalkulator/profiles-service"
-import type { SliceInfoPlate, ModelSettingsPlate, ProjectFilamentSlot, Kalkulasi3mfDraft } from "./types"
+import type { SliceInfoPlate, ModelSettingsPlate, ProjectFilamentSlot } from "@3pb/kalkulator-core/import-3mf"
+import type { Kalkulasi3mfDraft } from "./types"
 import { matchPrinterProfile } from "./printer-mapping"
 
 export interface BuildDraftInput {

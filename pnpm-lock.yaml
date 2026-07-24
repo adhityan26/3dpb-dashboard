@@ -350,6 +350,10 @@ importers:
         version: 1.6.1(@types/node@20.19.43)(jsdom@25.0.1)(lightningcss@1.32.0)
 
   packages/kalkulator-core:
+    dependencies:
+      jszip:
+        specifier: ^3.10.1
+        version: 3.10.1
     devDependencies:
       typescript:
         specifier: ^5
