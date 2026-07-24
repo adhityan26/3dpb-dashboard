@@ -25,7 +25,7 @@ Isinya (verified, master saat ini):
 
 Dashboard sudah dimigrasi konsumsi lokasi baru ini (`build-draft.ts`, `index.ts` dashboard import dari `@3pb/kalkulator-core/import-3mf`), 296 test dashboard + 54 test core hijau, nol regresi.
 
-**Konsekuensi buat spec ini:** Stage 1b-6b-1 (di bawah) sudah **selesai, tidak perlu dikerjakan lagi**. Semua referensi `@3pb/import-3mf` di Stage 2 berikutnya berarti `@3pb/kalkulator-core/import-3mf`. `jszip` sudah jadi dependency `@3pb/kalkulator-core` — saas dapat gratis lewat dependency yang sudah ada, tidak perlu tambah `@3pb/import-3mf` ke `package.json`.
+**Konsekuensi buat spec ini:** Stage 1b-6b-1 (di bawah) sudah **selesai, tidak perlu dikerjakan lagi**. Semua referensi `@3pb/import-3mf` di Stage 2 berikutnya berarti `@3pb/kalkulator-core/import-3mf`. Runtime (`readGcode3mfEntries` dkk dipanggil dari `index.ts` saas) resolve `jszip` transitif lewat `@3pb/kalkulator-core` — tidak perlu perubahan apa pun untuk itu. **Tapi** test saas (`index.test.ts`) butuh bikin fixture ZIP sendiri dengan `import JSZip from "jszip"` langsung (pola sama seperti test dashboard) — pnpm strict tak resolve dependency yang tak dideklarasikan eksplisit (lihat CLAUDE.md), jadi `jszip` tetap perlu ditambah sebagai **devDependency** langsung di `apps/saas/package.json` (dashboard punya baris yang sama untuk alasan yang sama).
 
 Matching filament di build-draft = **brand+material exact, case-insensitive** (warna tidak dipakai untuk match; warna cuma display). Cocok dengan katalog saas 1b-6a (`FilamentEntry {brand, material, tipe, warna, warnaHex}`).
 
@@ -37,37 +37,50 @@ Matching filament di build-draft = **brand+material exact, case-insensitive** (w
 
 `apps/saas/lib/kalkulator/import-3mf/` (baru):
 - `build-draft.ts` — versi saas. Input: `SliceInfoPlate[]`, `ModelSettingsPlate[]`, `ProjectFilamentSlot[]`, `filamentCatalog: FilamentEntry[]` (dari `LocalSettings.filaments`). Output: draft saas.
-- `index.ts` — orkestrator: `importSlicerFile(file: File, filaments: FilamentEntry[]): Promise<ImportDraft | null>` → `readGcode3mfEntries` (dari `@3pb/kalkulator-core/import-3mf`) → parse → `buildSaasDraft`.
-- Tidak ada dependency baru — `@3pb/kalkulator-core` sudah ada di `apps/saas/package.json`, `jszip` ikut transitif.
+- `index.ts` — orkestrator: `importSlicerFile(file: File, filaments: FilamentEntry[]): Promise<ImportDraft | null>` → `readGcode3mfEntries` (dari `@3pb/kalkulator-core/import-3mf`) → parse → `buildImportDraft`.
+
+**Deviasi kecil dari draf awal:** tipe draft TIDAK memakai `PlateRow` langsung (itu tipe komponen di `components/PlateInput.tsx`). Konsisten dengan pola yang sudah ada (`lib/kalkulator/compute.ts` punya `CalcPlate` sendiri, tidak import dari `components/`), `lib/` tetap independen dari `components/`. Draft pakai tipe murni sendiri; konversi ke `PlateRow` (assign `id` via `newId()`) terjadi di pemanggil (`PlateInput.tsx`), sama seperti `Calculator.tsx` mengonversi `PlateRow`→`CalcPlate` lewat `toCalcPlate`.
 
 Tipe draft saas:
 ```ts
+export interface ImportedMaterial {
+  filamentId?: string;
+  tipe: "FDM" | "SLA";
+  gramasi: number;
+  warnaHex?: string;
+}
+export interface ImportedPlate {
+  nama: string;
+  durasiJam: number;
+  materials: ImportedMaterial[];
+}
 export interface ImportDraft {
   nama: string;
-  plates: PlateRow[];          // dari components/PlateInput (materials[])
+  plates: ImportedPlate[];
   batch: number;
   isSliced: boolean;
   warnings: string[];
 }
 ```
 
-Mapping draft → `PlateRow`/`PlateMaterial`:
-- Tiap `SliceInfoPlate` → `PlateRow { id: newId(), nama: platerName (dari model-settings) || "Plate N", durasiJam: String(predictionSec/3600 dibulatkan), materials: [...] }`.
-- Tiap `SliceInfoFilament` dalam plate → `PlateMaterial`:
+Mapping draft:
+- Tiap `SliceInfoPlate` → `ImportedPlate { nama: platerName (dari model-settings, plate index sejajar) || "Plate N", durasiJam: Math.round(predictionSec/3600 * 100)/100, materials: [...] }`.
+- Tiap `SliceInfoFilament` dalam plate → `ImportedMaterial`:
   - brand = `ProjectFilamentSlot[id-1].vendor`; material = slot `.type` (fallback filament `.type`).
-  - Cocokkan `filaments.find(f => f.brand.toLowerCase()===brand && f.material.toLowerCase()===material)`.
-  - Match → `{ id: newId(), filamentId: match.id, tipe: match.tipe, gramasi: String(usedG), warnaHex: color }`.
-  - Tak match → `{ id: newId(), filamentId: undefined, tipe: tipeFromMaterial(material), gramasi: String(usedG), warnaHex: color }` + push warning `` `Filament "${brand} ${material}" belum ada di katalog — pakai tarif default` ``.
+  - Cocokkan `filamentCatalog.find(f => f.brand.toLowerCase()===brand.toLowerCase() && f.material.toLowerCase()===material.toLowerCase())`.
+  - Match → `{ filamentId: match.id, tipe: match.tipe, gramasi: usedG, warnaHex: color }`.
+  - Tak match → `{ filamentId: undefined, tipe: tipeFromMaterial(material), gramasi: usedG, warnaHex: color }` + push warning `` `Filament "${brand} ${material}" belum ada di katalog — pakai tarif default` ``.
   - `tipeFromMaterial(m)` = `/resin|uv/i.test(m) ? "SLA" : "FDM"` (Bambu/Orca = FDM).
-- `batch` = objectCount plate pertama (atau 1), seperti dashboard.
-- Belum di-slice (`slice_info` absen) → `isSliced: false`, plates dari model-settings dengan gram/durasi 0 + warning `"File belum di-slice — isi berat & durasi manual"`.
-- File bukan zip/3MF valid (`readGcode3mfEntries` → null) → kembalikan `null` (UI tampilkan error "File tidak dikenali").
+  - Plate tanpa filament sama sekali (edge case) → fallback 1 material `{ tipe: "FDM", gramasi: 0 }` (plate selalu punya ≥1 material, invarian yang sama dipakai `PlateInput`/`Calculator` sekarang).
+- `batch` = `objectCount` plate **pertama** (atau 1 kalau kosong/0), seperti dashboard.
+- Belum di-slice (tak ada `SliceInfoPlate` sama sekali) → `isSliced: false`, plates dari `modelPlates` (atau 1 plate default kalau `modelPlates` juga kosong) dengan `durasiJam: 0` + material fallback `{tipe:"FDM", gramasi:0}` + warning `"File belum di-slice — isi berat & durasi manual."`.
+- File bukan zip/3MF valid (`readGcode3mfEntries` → null) → `importSlicerFile` kembalikan `null` (UI tampilkan error).
 
-UI (Pro, di `components/PlateInput.tsx` atau `Calculator.tsx`):
-- Tombol "⬆ Import file slicer" di section Produksi (hanya non-locked/Pro). `<input type="file" accept=".3mf,.gcode.3mf">` tersembunyi.
-- On file → `importSlicerFile(file, settings.filaments)`:
-  - `null` → toast/inline error.
-  - draft → `onPlatesChange(draft.plates)` + `onBatchChange(String(draft.batch))`, tampilkan `draft.warnings` (inline list, bisa di-dismiss).
+UI (di `components/PlateInput.tsx`, unlocked branch — komponen ini sudah menerima `filaments`, `onPlatesChange`, `onBatchChange` sebagai prop, jadi logic import bisa self-contained di sini tanpa ubah `Calculator.tsx`):
+- Tombol "⬆ Import file slicer" + `<input type="file" accept=".3mf,.gcode.3mf" className="hidden">` tersembunyi (trigger via ref), muncul di bagian atas section plate — hanya render saat `!locked` (Pro).
+- On file dipilih → `importSlicerFile(file, filaments)`:
+  - `null` → set state error lokal, tampil inline (warna error `#ef4444` sesuai skill glass-ui-theme), tidak mengubah `plates`/`batch`.
+  - draft → map `ImportedPlate[]` → `PlateRow[]` (assign `id: newId()` per plate & material) → `onPlatesChange(...)` + `onBatchChange(String(draft.batch))`; tampilkan `draft.warnings` inline (list kecil, non-blocking, tetap tampil sampai import berikutnya atau plate diedit manual — tak perlu tombol dismiss terpisah, YAGNI).
 - Gate: locked/Free tak lihat tombol (konsisten multi-plate/multi-material Pro).
 
 ## Backward-compat & paritas
@@ -78,9 +91,9 @@ UI (Pro, di `components/PlateInput.tsx` atau `Calculator.tsx`):
 
 ## Testing
 
-- **saas build-draft.test:** (a) plate 2 filament, satu match katalog (set filamentId+tipe+warna) satu tak match (fallback + warning); (b) multi-plate → banyak PlateRow dengan nama dari model-settings; (c) belum di-slice → isSliced false + gram/durasi 0 + warning; (d) `tipeFromMaterial` resin→SLA, PLA→FDM. Fixtur = string XML/JSON in-memory (pola test dashboard).
-- **saas index.test:** file zip in-memory (helper `makeZip` seperti dashboard) → `importSlicerFile` → draft plates terisi; file invalid → null.
-- **UI test:** tombol import muncul untuk Pro, tidak untuk Free; simulasi draft → `onPlatesChange`/`onBatchChange` terpanggil + warning tampil.
+- **saas build-draft.test:** (a) plate 2 filament, satu match katalog (set filamentId+tipe+warna) satu tak match (fallback + warning); (b) multi-plate → banyak `ImportedPlate` dengan nama dari model-settings; (c) belum di-slice → isSliced false + gram/durasi 0 + warning; (d) `tipeFromMaterial` resin→SLA, PLA→FDM; (e) batch dari objectCount plate pertama, fallback 1. Fixtur = objek `SliceInfoPlate[]`/`ModelSettingsPlate[]`/`ProjectFilamentSlot[]` langsung (build-draft murni, tak perlu re-test parsing XML — itu tanggung jawab test package).
+- **saas index.test:** file zip in-memory (helper `makeZip`, `import JSZip from "jszip"`, pola sama test dashboard) → `importSlicerFile` → draft plates terisi; file invalid/corrupt → null.
+- **UI test (`PlateInput.test.tsx`):** tombol import muncul untuk Pro (`locked=false`), tidak untuk Free (`locked=true`); pilih file valid → `onPlatesChange`/`onBatchChange` terpanggil + warning tampil; file invalid → error inline tampil, `onPlatesChange` tidak terpanggil.
 - Seluruh suite saas + core hijau; build lolos.
 
 ## Di luar scope
@@ -92,4 +105,4 @@ UI (Pro, di `components/PlateInput.tsx` atau `Calculator.tsx`):
 
 ## File tersentuh (perkiraan)
 
-**saas:** `apps/saas/lib/kalkulator/import-3mf/{build-draft.ts,index.ts,*.test.ts}`, `apps/saas/components/PlateInput.tsx` (+ `Calculator.tsx`).
+**saas:** `apps/saas/lib/kalkulator/import-3mf/{build-draft.ts,index.ts,*.test.ts}`, `apps/saas/components/PlateInput.tsx`, `apps/saas/components/PlateInput.test.tsx`, `apps/saas/package.json` (tambah `jszip` devDependency).
