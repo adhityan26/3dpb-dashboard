@@ -15,7 +15,7 @@ function printerProfile(id: string, nama: string): PrinterProfileData {
 const SLICE_PLATES: SliceInfoPlate[] = [
   {
     index: 1, weightG: 114.44, predictionSec: 19939, printerModelId: "C12",
-    objectCount: 28,
+    objectCount: 28, partCount: 28, partCountConsistent: true,
     filaments: [
       { id: 1, type: "PLA", color: "#000000", usedG: 96.26 },
       { id: 2, type: "PLA", color: "#FE7E62", usedG: 1.28 },
@@ -23,7 +23,7 @@ const SLICE_PLATES: SliceInfoPlate[] = [
   },
   {
     index: 2, weightG: 245.82, predictionSec: 30867, printerModelId: "C12",
-    objectCount: 5, // sengaja lebih kecil dari plate 1 → batch harus ambil ini
+    objectCount: 5, partCount: 5, partCountConsistent: true, // sengaja lebih kecil dari plate 1 → batch harus ambil ini
     filaments: [
       { id: 1, type: "PLA", color: "#000000", usedG: 242.90 },
     ],
@@ -60,7 +60,7 @@ describe("buildKalkulasi3mfDraft — sliced file", () => {
     expect(draft.nama).toBe("Asset 4-sushitei")
   })
 
-  it("takes the SMALLEST non-skipped object count across plates as batch", () => {
+  it("takes the SMALLEST partCount (per-name-grouped object count) across plates as batch", () => {
     expect(draft.batch).toBe(5)
   })
 
@@ -123,6 +123,48 @@ describe("buildKalkulasi3mfDraft — unsliced file (no slicePlates)", () => {
     expect(draft.batch).toBe(5) // masih bisa dari modelPlates.objectCount
     expect(draft.warnings).toContain(
       "File ini belum di-slice — gramasi & durasi tidak tersedia. Isi manual, atau export ulang project setelah 'Slice all' di Bambu Studio/OrcaSlicer."
+    )
+  })
+})
+
+describe("buildKalkulasi3mfDraft — batch dari partCount (1 plate, >1 jenis part)", () => {
+  it("uses partCount (bukan objectCount mentah) as batch when a plate has multiple part names printed in pairs", () => {
+    const draft = buildKalkulasi3mfDraft({
+      fileName: "gantungan-sepasang.gcode.3mf",
+      slicePlates: [
+        {
+          index: 1, weightG: 50, predictionSec: 3600, printerModelId: "C12",
+          objectCount: 20, partCount: 10, partCountConsistent: true, // 2 part name × 10 pasang
+          filaments: [{ id: 1, type: "PLA", color: "#000000", usedG: 50 }],
+        },
+      ],
+      modelPlates: [{ platerId: 1, platerName: "plate-1", objectCount: 20 }],
+      filamentSlots: [{ vendor: "Bambu Lab", type: "PLA" }],
+      filamentCatalog: FILAMENT_CATALOG,
+      printerProfiles: [],
+    })
+    expect(draft.batch).toBe(10)
+    expect(draft.warnings).toEqual([])
+  })
+
+  it("adds a warning when per-name groups in a plate are uneven, still using the smallest as batch", () => {
+    const draft = buildKalkulasi3mfDraft({
+      fileName: "ganjil.gcode.3mf",
+      slicePlates: [
+        {
+          index: 1, weightG: 50, predictionSec: 3600, printerModelId: "C12",
+          objectCount: 18, partCount: 8, partCountConsistent: false, // 10 vs 8 — ganjil
+          filaments: [{ id: 1, type: "PLA", color: "#000000", usedG: 50 }],
+        },
+      ],
+      modelPlates: [{ platerId: 1, platerName: "plate-1", objectCount: 18 }],
+      filamentSlots: [{ vendor: "Bambu Lab", type: "PLA" }],
+      filamentCatalog: FILAMENT_CATALOG,
+      printerProfiles: [],
+    })
+    expect(draft.batch).toBe(8)
+    expect(draft.warnings).toContain(
+      "Jumlah part per nama tidak konsisten di salah satu plate — batch diambil dari jumlah terkecil, cek ulang manual.",
     )
   })
 })

@@ -91,12 +91,21 @@ export function buildKalkulasi3mfDraft(input: BuildDraftInput): Kalkulasi3mfDraf
     buildPlate(slicePlates[i], modelPlates[i], i, filamentSlots, filamentCatalog, printerProfiles, unmatchedFilamentCounter),
   )
 
-  const objectCounts = (isSliced ? slicePlates.map(p => p.objectCount) : modelPlates.map(p => p.objectCount))
+  // isSliced: pakai partCount (di-group per nama object — 1 plate bisa berisi >1 jenis
+  // part yang dicetak sepasang/lebih, mis. 2 part × 10 pasang = 20 object tapi qty = 10).
+  // Belum sliced: model_settings.config tidak punya nama per object per plate (cuma jumlah
+  // instance mentah), jadi tetap pakai objectCount seperti sebelumnya.
+  const objectCounts = (isSliced ? slicePlates.map(p => p.partCount) : modelPlates.map(p => p.objectCount))
     .filter(c => c > 0)
   const batch = objectCounts.length > 0 ? Math.min(...objectCounts) : 1
 
   const warnings: string[] = []
   if (!isSliced) warnings.push(UNSLICED_WARNING)
+  if (isSliced && slicePlates.some(p => p.objectCount > 0 && !p.partCountConsistent)) {
+    warnings.push(
+      "Jumlah part per nama tidak konsisten di salah satu plate — batch diambil dari jumlah terkecil, cek ulang manual.",
+    )
+  }
   if (unmatchedFilamentCounter.unmatched > 0) {
     warnings.push(
       `${unmatchedFilamentCounter.unmatched} dari ${unmatchedFilamentCounter.total} filament belum ke-match katalog, isi manual di part-nya.`,

@@ -45,6 +45,8 @@ describe("parseSliceInfo", () => {
       predictionSec: 19939,
       printerModelId: "C12",
       objectCount: 2, // 3 objects total, 1 skipped="true" excluded
+      partCount: 2, // both non-skipped objects share the name "Assembly" → 1 group of 2
+      partCountConsistent: true,
       filaments: [
         { id: 1, type: "PLA", color: "#000000", usedG: 96.26 },
         { id: 2, type: "PLA", color: "#FE7E62", usedG: 1.28 },
@@ -52,7 +54,37 @@ describe("parseSliceInfo", () => {
     })
     expect(plates[1].index).toBe(2)
     expect(plates[1].objectCount).toBe(1)
+    expect(plates[1].partCount).toBe(1)
+    expect(plates[1].partCountConsistent).toBe(true)
     expect(plates[1].filaments).toHaveLength(1)
+  })
+
+  it("derives partCount from the SMALLEST per-name group when a plate has multiple distinct part names (e.g. 2 parts × 10 pairs = 20 objects, partCount = 10)", () => {
+    const xml = `<config><plate>
+      <metadata key="index" value="1"/>
+      <metadata key="prediction" value="100"/>
+      <metadata key="weight" value="5"/>
+      ${Array.from({ length: 10 }, (_, i) => `<object identify_id="${i}" name="Kiri" skipped="false" />`).join("")}
+      ${Array.from({ length: 10 }, (_, i) => `<object identify_id="${i + 10}" name="Kanan" skipped="false" />`).join("")}
+    </plate></config>`
+    const plates = parseSliceInfo(xml)
+    expect(plates[0].objectCount).toBe(20)
+    expect(plates[0].partCount).toBe(10)
+    expect(plates[0].partCountConsistent).toBe(true)
+  })
+
+  it("marks partCountConsistent=false when per-name groups have uneven counts, still returning the smallest as partCount", () => {
+    const xml = `<config><plate>
+      <metadata key="index" value="1"/>
+      <metadata key="prediction" value="100"/>
+      <metadata key="weight" value="5"/>
+      ${Array.from({ length: 10 }, (_, i) => `<object identify_id="${i}" name="Kiri" skipped="false" />`).join("")}
+      ${Array.from({ length: 8 }, (_, i) => `<object identify_id="${i + 10}" name="Kanan" skipped="false" />`).join("")}
+    </plate></config>`
+    const plates = parseSliceInfo(xml)
+    expect(plates[0].objectCount).toBe(18)
+    expect(plates[0].partCount).toBe(8)
+    expect(plates[0].partCountConsistent).toBe(false)
   })
 
   it("returns empty array for a file with no <plate> blocks (unsliced)", () => {
