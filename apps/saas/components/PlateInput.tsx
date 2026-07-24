@@ -102,15 +102,18 @@ export function PlateInput({
   // Fungsi render (bukan komponen ber-JSX-tag): dipanggil `materialRows(i)` supaya
   // elemennya di-reconcile inline di parent. Kalau dijadikan <MaterialRows/>, identitas
   // komponen dibuat ulang tiap render → subtree remount tiap ketik → input kehilangan fokus.
+  const pillBtn = "text-[11px] font-medium rounded-full border px-3 py-1 self-start w-fit";
+  const pillStyle = { color: "var(--g-accent)", borderColor: "var(--g-accent)", background: "color-mix(in srgb, var(--g-accent) 12%, transparent)" };
+
   const materialRows = (pi: number) => {
     const p = plates[pi];
     if (p.materials.length === 1) {
       return (
-        <button type="button" onClick={() => addMat(pi)} className="text-[11px] underline self-start" style={{ color: "var(--g-accent)" }}>🎨 Multi-material</button>
+        <button type="button" onClick={() => addMat(pi)} className={pillBtn} style={pillStyle}>🎨 Multi-material</button>
       );
     }
     return (
-      <div className="flex flex-col gap-1.5 pl-4 border-l-2 border-[color:var(--g-row-border)]">
+      <div className="flex flex-col gap-1.5">
         {p.materials.map((m, mi) => {
           const f = filaments.find((x) => x.id === m.filamentId);
           return (
@@ -132,11 +135,14 @@ export function PlateInput({
                 <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] g-t4 pointer-events-none">g</span>
               </div>
               <HexColorPicker color={m.warnaHex ?? ""} options={swatchOptions(f)} onSelect={(hex) => setMat(pi, mi, { warnaHex: hex })} />
+              <GlassInput value={m.warnaHex ?? ""} placeholder="#RRGGBB" aria-label="Kode warna hex"
+                className="w-[5.5rem] shrink-0 px-2 text-[11px] font-mono"
+                onChange={(e) => setMat(pi, mi, { warnaHex: e.target.value })} />
               <button type="button" aria-label="Hapus material" className="g-t4 text-sm px-1 shrink-0" onClick={() => delMat(pi, mi)}>✕</button>
             </div>
           );
         })}
-        <button type="button" onClick={() => addMat(pi)} className="text-[11px] underline self-start" style={{ color: "var(--g-accent)" }}>＋ material</button>
+        <button type="button" onClick={() => addMat(pi)} className={pillBtn} style={pillStyle}>＋ material</button>
       </div>
     );
   };
@@ -188,21 +194,20 @@ export function PlateInput({
       <div className="text-[11px] g-t3 flex items-center gap-1">Bagian cetak (plate)
         <InfoTip text="Satu produk bisa terdiri dari beberapa bagian cetak. Tiap plate punya berat & durasi sendiri; totalnya dijumlahkan jadi biaya produksi." /></div>
 
-      <div className="flex items-center gap-2">
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".3mf,.gcode.3mf"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            e.target.value = "";
-            if (file) void handleImportFile(file);
-          }}
-        />
-        <button type="button" onClick={() => fileInputRef.current?.click()}
-          className="text-[11px] underline self-start" style={{ color: "var(--g-accent)" }}>⬆ Import file slicer</button>
-      </div>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".3mf,.gcode.3mf"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          e.target.value = "";
+          if (file) void handleImportFile(file);
+        }}
+      />
+      <button type="button" onClick={() => fileInputRef.current?.click()}
+        className="w-full rounded-[5px] border border-[color:var(--g-row-border)] py-2.5 text-[13px] font-medium text-center"
+        style={{ color: "var(--g-accent)" }}>⬆ Import file slicer</button>
       {importError && <div className="text-[11px] g-error">{importError}</div>}
       {importWarnings.length > 0 && (
         <div className="flex flex-col gap-0.5">
@@ -213,13 +218,18 @@ export function PlateInput({
       )}
 
       {!multi ? (
-        /* ── Single plate (tak diubah) ── */
+        /* ── Single plate ── */
         <>
-          {p0.materials.length === 1 && (
+          {p0.materials.length === 1 ? (
             <div className="flex items-center gap-2 text-[10px] g-t4 uppercase tracking-wide">
               <span className="w-[4.75rem] shrink-0">Metode cetak</span>
               <span className="flex-1 min-w-0">Berat filament</span>
-              <span className="flex-1 min-w-0">Durasi cetak</span>
+              <span className="w-32 shrink-0">Durasi cetak</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-[10px] g-t4 uppercase tracking-wide">
+              <span className="w-32 shrink-0">Durasi cetak</span>
+              <span className="flex-1 min-w-0">Material &amp; warna</span>
             </div>
           )}
           <div className="flex flex-col gap-1.5 rounded-[5px] border border-[color:var(--g-row-border)] p-2.5">
@@ -227,7 +237,7 @@ export function PlateInput({
               <GlassInput value={p0.nama} placeholder="Nama part (opsional)" className="flex-1 min-w-0"
                 onChange={(e) => setRow(0, { nama: e.target.value })} />
             )}
-            <div className="flex items-center gap-2">
+            <div className="flex items-start gap-2">
               {p0.materials.length === 1 && (
                 <>
                   <select value={p0.materials[0].tipe} onChange={(e) => setMat0(0, { tipe: e.target.value as "FDM" | "SLA" })}
@@ -242,14 +252,29 @@ export function PlateInput({
                   </div>
                 </>
               )}
-              <div className="relative flex-1 min-w-0">
+              <div className={`relative shrink-0 ${p0.materials.length === 1 ? "flex-1 min-w-0" : "w-32"}`}>
                 <GlassInput type="number" inputMode="decimal" placeholder="durasi" value={p0.durasiJam} className="w-full min-w-0 pr-9"
                   onChange={(e) => setRow(0, { durasiJam: e.target.value })} />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">jam</span>
               </div>
+              {p0.materials.length > 1 && (
+                <div className="flex-1 min-w-0">
+                  {materialRows(0)}
+                </div>
+              )}
             </div>
-            {!p0.nama && p0.materials.length === 1 && <div className="text-[10px] g-t5">Tipe · berat (g) · durasi (jam)</div>}
-            {materialRows(0)}
+            {p0.materials.length === 1 && (
+              <>
+                {!p0.nama && (
+                  <div className="flex items-center gap-2 text-[10px] g-t5">
+                    <span className="w-[4.75rem] shrink-0" />
+                    <span className="flex-1 min-w-0">Tipe · berat (g)</span>
+                    <span className="w-32 shrink-0">Durasi (jam)</span>
+                  </div>
+                )}
+                {materialRows(0)}
+              </>
+            )}
           </div>
         </>
       ) : (
