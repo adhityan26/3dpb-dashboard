@@ -25,7 +25,7 @@ describe('getPrintersWithLiveStatus', () => {
     const result = await getPrintersWithLiveStatus()
 
     expect(result).toEqual([
-      { id: 'c1', slug: 'jupiter', name: 'Jupiter', model: 'X1C', notes: '', live: { state: 'running', progress: 42, remainingMin: 30 } },
+      { id: 'c1', slug: 'jupiter', name: 'Jupiter', model: 'X1C', notes: '', live: { state: 'running', progress: 42, remainingMin: 30, filename: 'x.gcode' } },
     ])
   })
 

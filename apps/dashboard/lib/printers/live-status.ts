@@ -5,6 +5,7 @@ export interface LivePrinterStatus {
   state: string
   progress: number
   remainingMin: number
+  filename: string
 }
 
 export interface PrinterWithLiveStatus {
@@ -21,6 +22,7 @@ interface MqttPrinterEntry {
   state: string
   progress: number
   remaining_min: number
+  filename: string
 }
 
 export async function getPrintersWithLiveStatus(): Promise<PrinterWithLiveStatus[]> {
@@ -32,7 +34,7 @@ export async function getPrintersWithLiveStatus(): Promise<PrinterWithLiveStatus
     try {
       const parsed = JSON.parse(raw) as { payload: MqttPrinterEntry[] }
       for (const entry of parsed.payload) {
-        liveById.set(entry.id, { state: entry.state, progress: entry.progress, remainingMin: entry.remaining_min })
+        liveById.set(entry.id, { state: entry.state, progress: entry.progress, remainingMin: entry.remaining_min, filename: entry.filename ?? '' })
       }
     } catch {
       // MQTT payload korup/tak terduga -> treat sebagai tak ada data live, jangan crash

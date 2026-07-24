@@ -100,7 +100,7 @@ export function PrinterTab() {
       ) : (
         <div className="space-y-2">
           {printers.map((p: PrinterData) => {
-            const live = p.slug ? liveBySlug.get(p.slug) as { state: string; progress: number } | null | undefined : null
+            const live = p.slug ? liveBySlug.get(p.slug) as { state: string; progress: number; filename: string } | null | undefined : null
             return (
             <div key={p.id} className={`border rounded-lg p-4 bg-white dark:bg-slate-800 ${p.isActive ? "border-gray-200 dark:border-slate-700" : "border-gray-100 dark:border-slate-700 opacity-60"}`}>
               {editingId === p.id ? (
@@ -132,8 +132,16 @@ export function PrinterTab() {
                     {p.slug && <p className="text-[10px] font-mono text-gray-400 dark:text-slate-500 mt-0.5">{p.slug}</p>}
                     {p.notes && <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5">{p.notes}</p>}
                     {live && (
-                      <div className="mt-1.5 max-w-[160px]">
-                        <PrinterProgressBar progress={live.progress} state={live.state} />
+                      <div className="mt-1.5 max-w-[220px]">
+                        <div className="flex items-center gap-2">
+                          <div className="flex-1"><PrinterProgressBar progress={live.progress} state={live.state} /></div>
+                          <span className="text-[10px] tabular-nums text-gray-400 dark:text-slate-500">{live.progress}%</span>
+                        </div>
+                        {live.filename && (
+                          <p className="mt-0.5 truncate text-[10px] text-gray-400 dark:text-slate-500" title={live.filename}>
+                            {live.filename}
+                          </p>
+                        )}
                       </div>
                     )}
                   </div>
