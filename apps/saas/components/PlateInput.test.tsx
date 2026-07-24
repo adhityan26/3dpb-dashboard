@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { PlateInput, newPlateRow, type PlateRow } from "./PlateInput";
+import { importSlicerFile } from "@/lib/kalkulator/import-3mf";
+
+vi.mock("@/lib/kalkulator/import-3mf", () => ({ importSlicerFile: vi.fn() }));
 
 const mat = (over = {}) => ({ id: "m1", tipe: "FDM" as const, gramasi: "50", ...over });
 const row = (over: Partial<PlateRow> = {}): PlateRow => ({ id: "p1", nama: "", durasiJam: "3", materials: [mat()], ...over });
@@ -171,5 +174,47 @@ describe("1b-6a multi-material di plate", () => {
     // Kalau baris material remount tiap ketik, node lama lepas fokus & value cuma "1".
     expect(target.value).toBe("123");
     expect(document.activeElement).toBe(target);
+  });
+});
+
+describe("1b-6b import file slicer", () => {
+  const mockImport = importSlicerFile as unknown as ReturnType<typeof vi.fn>;
+  beforeEach(() => { mockImport.mockReset(); });
+
+  it("tombol import muncul untuk Pro, tidak untuk Free", () => {
+    const { rerender } = render(<PlateInput {...base} locked={false} />);
+    expect(screen.getByText(/Import file slicer/)).toBeTruthy();
+    rerender(<PlateInput {...base} locked={true} />);
+    expect(screen.queryByText(/Import file slicer/)).toBeNull();
+  });
+
+  it("pilih file valid → onPlatesChange/onBatchChange terpanggil + warning tampil", async () => {
+    mockImport.mockResolvedValue({
+      nama: "Print", batch: 2, isSliced: true, warnings: ["Filament X belum ada di katalog — pakai tarif default"],
+      plates: [{ nama: "Plate 1", durasiJam: 1, materials: [{ tipe: "FDM", gramasi: 10 }] }],
+    });
+    const onP = vi.fn();
+    const onB = vi.fn();
+    render(<PlateInput {...base} locked={false} onPlatesChange={onP} onBatchChange={onB} />);
+    const file = new File(["dummy"], "print.3mf");
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => expect(onP).toHaveBeenCalled());
+    expect(onP.mock.calls[0][0]).toHaveLength(1);
+    expect(onP.mock.calls[0][0][0]).toMatchObject({ nama: "Plate 1", durasiJam: "1" });
+    expect(onP.mock.calls[0][0][0].materials[0]).toMatchObject({ tipe: "FDM", gramasi: "10" });
+    expect(onB).toHaveBeenCalledWith("2");
+    expect(await screen.findByText(/Filament X belum ada di katalog/)).toBeTruthy();
+  });
+
+  it("file tidak dikenali → error inline tampil, plates tak berubah", async () => {
+    mockImport.mockResolvedValue(null);
+    const onP = vi.fn();
+    render(<PlateInput {...base} locked={false} onPlatesChange={onP} />);
+    const file = new File(["dummy"], "bad.zip");
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+    expect(await screen.findByText(/tidak dikenali/)).toBeTruthy();
+    expect(onP).not.toHaveBeenCalled();
   });
 });

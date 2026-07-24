@@ -45,6 +45,7 @@
     "eslint-config-next": "16.2.3",
     "fake-indexeddb": "^6.0.0",
     "jsdom": "^25.0.1",
+    "jszip": "^3.10.1",
     "prisma": "^7.7.0",
     "tailwindcss": "^4",
     "tsx": "^4.21.0",
