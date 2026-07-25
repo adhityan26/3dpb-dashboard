@@ -25,22 +25,39 @@ function parseDurasi(raw: string): string {
   return String(Math.round((jam + menit / 60) * 100) / 100);
 }
 
+/** Hint "3j" / "8j 34m" ditampilkan di kanan input durasi — murni display,
+ *  tak pernah ditulis balik ke state (durasiJam tetap desimal jam apa adanya). */
+function formatDurasiDisplay(jam: number): string {
+  if (!jam) return "";
+  const h = Math.floor(jam);
+  const m = Math.round((jam - h) * 60);
+  return m === 0 ? `${h}j` : `${h}j ${m}m`;
+}
+
 function DurasiInput({ value, onCommit, className }: { value: string; onCommit: (v: string) => void; className?: string }) {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value]);
+  const hint = formatDurasiDisplay(Number(value) || 0);
   return (
-    <GlassInput
-      type="text"
-      placeholder="jam atau H:MM"
-      value={draft}
-      className={className}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => {
-        const parsed = parseDurasi(draft);
-        setDraft(parsed);
-        if (parsed !== value) onCommit(parsed);
-      }}
-    />
+    <div className="relative">
+      <GlassInput
+        type="text"
+        placeholder="jam atau H:MM"
+        value={draft}
+        className={`${className ?? ""} pr-14`.trim()}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          const parsed = parseDurasi(draft);
+          setDraft(parsed);
+          if (parsed !== value) onCommit(parsed);
+        }}
+      />
+      {hint && (
+        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] pointer-events-none" style={{ color: "var(--g-accent)" }}>
+          {hint}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -97,6 +114,15 @@ export function PlateInput({
       const materials = rest.length === 1 ? [{ ...rest[0], filamentId: undefined, warnaHex: undefined }] : rest;
       return { ...p, materials };
     }));
+  // Toggle 1-klik: dari 1 material → tambah 1 (mulai multi); dari >1 material →
+  // ciutkan balik ke 1 (buang sisanya, bersihkan filamentId/warnaHex spt delMat).
+  const toggleMulti = (pi: number) =>
+    onPlatesChange(plates.map((p, j) => {
+      if (j !== pi) return p;
+      if (p.materials.length === 1) return { ...p, materials: [...p.materials, newPlateMaterial()] };
+      const first = p.materials[0];
+      return { ...p, materials: [{ ...first, filamentId: undefined, warnaHex: undefined }] };
+    }));
   const pickFilament = (pi: number, mi: number, filamentId: string) => {
     const f = filaments.find((x) => x.id === filamentId);
     setMat(pi, mi, f ? { filamentId: f.id, tipe: f.tipe, warnaHex: f.warnaHex } : { filamentId: undefined });
@@ -132,52 +158,77 @@ export function PlateInput({
     setImportWarnings([...new Set(draft.warnings)]);
   };
 
+  const multiToggleBtn = (pi: number, isMulti: boolean) => (
+    <button
+      type="button"
+      onClick={() => toggleMulti(pi)}
+      className="h-9 px-2.5 rounded-[5px] text-[11px] font-semibold shrink-0 border"
+      style={isMulti
+        ? { background: "color-mix(in srgb, var(--g-accent) 22%, transparent)", borderColor: "color-mix(in srgb, var(--g-accent) 50%, transparent)", color: "var(--g-accent)" }
+        : { background: "var(--g-row-hover, transparent)", borderColor: "var(--g-row-border)", color: "var(--g-t3)" }}
+      title={isMulti ? "Kembali ke 1 material" : "Tambah material lain (multi-material)"}
+    >
+      {isMulti ? "✕ Multi" : "🎨 Multi"}
+    </button>
+  );
+
   // Fungsi render (bukan komponen ber-JSX-tag): dipanggil `materialRows(i)` supaya
   // elemennya di-reconcile inline di parent. Kalau dijadikan <MaterialRows/>, identitas
   // komponen dibuat ulang tiap render → subtree remount tiap ketik → input kehilangan fokus.
-  const pillBtn = "text-[11px] font-medium rounded-full border px-3 py-1 self-start w-fit";
-  const pillStyle = { color: "var(--g-accent)", borderColor: "var(--g-accent)", background: "color-mix(in srgb, var(--g-accent) 12%, transparent)" };
-
+  // Selalu render 1+ kartu material (bukan cuma pas multi) — tombol toggle Multi di atas
+  // (lihat multiToggleBtn) yang mengatur jumlah materialnya, bukan fungsi ini.
   const materialRows = (pi: number) => {
     const p = plates[pi];
-    if (p.materials.length === 1) {
-      return (
-        <button type="button" onClick={() => addMat(pi)} className={pillBtn} style={pillStyle}>🎨 Multi-material</button>
-      );
-    }
+    const isMulti = p.materials.length > 1;
+    const totalGram = p.materials.reduce((s, m) => s + (Number(m.gramasi) || 0), 0);
     return (
       <div className="flex flex-col gap-1.5">
         {p.materials.map((m, mi) => {
+          const f = filaments.find((x) => x.id === m.filamentId);
           return (
-            <div key={m.id} className="flex items-center gap-1.5">
-              <select aria-label="Pilih filament" value={m.filamentId ?? ""} onChange={(e) => pickFilament(pi, mi, e.target.value)}
-                className="glass-input rounded-[5px] px-2 h-9 text-[13px] flex-1 min-w-0">
-                <option value="">— tarif default —</option>
-                {filaments.map((x) => <option key={x.id} value={x.id}>{`${x.brand} ${x.material} ${x.warna}`}</option>)}
-              </select>
-              {!m.filamentId && (
-                <select aria-label="Tipe material" value={m.tipe} onChange={(e) => setMat(pi, mi, { tipe: e.target.value as "FDM" | "SLA" })}
-                  className="glass-input rounded-[5px] px-1.5 h-9 text-[13px] w-16 shrink-0">
-                  <option value="FDM">FDM</option><option value="SLA">SLA</option>
+            <div key={m.id} className="rounded-[5px] border border-[color:var(--g-row-border)] p-2 flex flex-col gap-1.5">
+              <div className="flex items-center gap-1.5">
+                <select aria-label="Pilih filament" value={m.filamentId ?? ""} onChange={(e) => pickFilament(pi, mi, e.target.value)}
+                  className="rounded-[5px] px-2 h-9 text-[12px] font-semibold flex-1 min-w-0 border"
+                  style={m.filamentId
+                    ? { background: "color-mix(in srgb, var(--g-accent) 14%, transparent)", borderColor: "color-mix(in srgb, var(--g-accent) 32%, transparent)", color: "var(--g-accent)" }
+                    : { background: "transparent", borderColor: "var(--g-row-border)", color: "var(--g-t3)" }}>
+                  <option value="">— tarif default —</option>
+                  {filaments.map((x) => <option key={x.id} value={x.id}>{`🧵 ${x.brand} · ${x.material} · ${x.warna} · Rp${x.hppPerGram}/g`}</option>)}
                 </select>
-              )}
-              <div className="relative w-[4.5rem] shrink-0">
-                <GlassInput type="number" inputMode="decimal" placeholder="berat" value={m.gramasi} className="w-full px-2 pr-5"
-                  onChange={(e) => setMat(pi, mi, { gramasi: e.target.value })} />
-                <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] g-t4 pointer-events-none">g</span>
+                {isMulti && (
+                  <button type="button" aria-label="Hapus material" className="g-t4 text-sm px-1 shrink-0" onClick={() => delMat(pi, mi)}>✕</button>
+                )}
               </div>
-              <input type="color" aria-label="Pilih warna" title="Pilih warna"
-                value={isStrictHex6(m.warnaHex) ? m.warnaHex : "#888888"}
-                onChange={(e) => setMat(pi, mi, { warnaHex: e.target.value })}
-                className="w-9 h-9 shrink-0 rounded-[5px] border border-[color:var(--g-row-border)] cursor-pointer bg-transparent p-0.5" />
-              <GlassInput value={m.warnaHex ?? ""} placeholder="#RRGGBB" aria-label="Kode warna hex"
-                className="w-[5.5rem] shrink-0 px-2 text-[11px] font-mono"
-                onChange={(e) => setMat(pi, mi, { warnaHex: e.target.value })} />
-              <button type="button" aria-label="Hapus material" className="g-t4 text-sm px-1 shrink-0" onClick={() => delMat(pi, mi)}>✕</button>
+              <div className="flex items-center gap-1.5">
+                <select aria-label="Tipe material" value={m.tipe} disabled={!!m.filamentId}
+                  onChange={(e) => setMat(pi, mi, { tipe: e.target.value as "FDM" | "SLA" })}
+                  className="glass-input rounded-[5px] px-2 h-9 text-[12px] flex-1 min-w-0 disabled:opacity-60">
+                  <option value="FDM">FDM</option>
+                  <option value="SLA">SLA</option>
+                </select>
+                <input type="color" aria-label="Pilih warna" title="Pilih warna"
+                  value={isStrictHex6(m.warnaHex) ? m.warnaHex : "#888888"}
+                  onChange={(e) => setMat(pi, mi, { warnaHex: e.target.value })}
+                  className="w-9 h-9 shrink-0 rounded-[5px] border border-[color:var(--g-row-border)] cursor-pointer bg-transparent p-0.5" />
+                <GlassInput value={m.warnaHex ?? ""} placeholder="#RRGGBB" aria-label="Kode warna hex"
+                  className="w-[5.5rem] shrink-0 px-2 text-[11px] font-mono"
+                  onChange={(e) => setMat(pi, mi, { warnaHex: e.target.value })} />
+                <div className="relative w-[4.5rem] shrink-0">
+                  <GlassInput type="number" inputMode="decimal" placeholder="berat" value={m.gramasi} className="w-full px-2 pr-5"
+                    onChange={(e) => setMat(pi, mi, { gramasi: e.target.value })} />
+                  <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] g-t4 pointer-events-none">g</span>
+                </div>
+              </div>
             </div>
           );
         })}
-        <button type="button" onClick={() => addMat(pi)} className={pillBtn} style={pillStyle}>＋ material</button>
+        {isMulti && (
+          <div className="flex items-center justify-between">
+            <button type="button" onClick={() => addMat(pi)} className="text-[12px] font-medium" style={{ color: "var(--g-accent)" }}>＋ Tambah material</button>
+            <span className="text-[11px] font-semibold" style={{ color: "var(--g-accent)" }}>Total: {totalGram}g</span>
+          </div>
+        )}
       </div>
     );
   };
@@ -255,94 +306,40 @@ export function PlateInput({
       {!multi ? (
         /* ── Single plate ── */
         <div className="flex flex-col gap-1.5 rounded-[5px] border border-[color:var(--g-row-border)] p-2.5">
-          {p0.materials.length === 1 ? (
-            <div className="flex items-center gap-2 text-[10px] g-t4 uppercase tracking-wide">
-              <span className="w-[4.75rem] shrink-0">Metode cetak</span>
-              <span className="flex-1 min-w-0">Berat filament</span>
-              <span className="flex-1 min-w-0">Durasi cetak</span>
-            </div>
-          ) : (
-            <div className="text-[10px] g-t4 uppercase tracking-wide">Durasi cetak</div>
-          )}
-          <GlassInput value={p0.nama} placeholder="Nama part (opsional)" className="w-full min-w-0"
-            onChange={(e) => setRow(0, { nama: e.target.value })} />
-          <div className="flex items-start gap-2">
-            {p0.materials.length === 1 && (
-              <>
-                <select value={p0.materials[0].tipe} onChange={(e) => setMat0(0, { tipe: e.target.value as "FDM" | "SLA" })}
-                  className="glass-input rounded-[5px] px-2 h-10 text-sm w-[4.75rem] shrink-0">
-                  <option value="FDM">FDM</option>
-                  <option value="SLA">SLA</option>
-                </select>
-                <div className="relative flex-1 min-w-0">
-                  <GlassInput type="number" inputMode="decimal" placeholder="berat" value={p0.materials[0].gramasi} className="w-full min-w-0 pr-8"
-                    onChange={(e) => setMat0(0, { gramasi: e.target.value })} />
-                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">g</span>
-                </div>
-              </>
-            )}
-            <div className="relative flex-1 min-w-0">
-              <DurasiInput value={p0.durasiJam} onCommit={(v) => setRow(0, { durasiJam: v })} className="w-full min-w-0 pr-9" />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">jam</span>
-            </div>
+          <div className="flex items-center gap-2">
+            <GlassInput value={p0.nama} placeholder="Nama part (opsional)" className="flex-1 min-w-0"
+              onChange={(e) => setRow(0, { nama: e.target.value })} />
+            {multiToggleBtn(0, p0.materials.length > 1)}
           </div>
-          {p0.materials.length > 1 && (
-            <div className="text-[10px] g-t4 uppercase tracking-wide pt-1">Material &amp; warna</div>
-          )}
+
+          <div className="text-[10px] g-t4 uppercase tracking-wide font-semibold pt-1">Durasi</div>
+          <DurasiInput value={p0.durasiJam} onCommit={(v) => setRow(0, { durasiJam: v })} className="w-full" />
+
+          <div className="text-[10px] g-t4 uppercase tracking-wide font-semibold pt-1">Material &amp; warna</div>
           {materialRows(0)}
         </div>
       ) : (
-        /* ── Multi-plate: tabel bernomor (desktop 1 baris; mobile nama di atas, spek di bawah) ── */
-        <div className="rounded-[5px] border border-[color:var(--g-row-border)]">
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 pt-2.5 pb-1 text-[9px] g-t4 uppercase tracking-wide">
-            <span className="w-4 shrink-0 text-center">#</span>
-            <span className="flex-1 min-w-0">Nama part (utk slicer)</span>
-            <span className="w-16 shrink-0">Metode</span>
-            <span className="w-[4.5rem] shrink-0 text-right">Berat</span>
-            <span className="w-[4.75rem] shrink-0 text-right">Durasi</span>
-            <span className="w-4 shrink-0" />
-          </div>
+        /* ── Multi-plate: satu kartu per plate (nomor + nama + toggle multi + durasi + material) ── */
+        <div className="flex flex-col gap-2">
           {plates.map((p, i) => (
-            <div key={p.id} className="border-t border-[color:var(--g-row-border)]">
-              <div className="flex flex-wrap sm:flex-nowrap items-center gap-1.5 px-2.5 py-2">
-                <span className="order-1 w-4 shrink-0 text-center text-[11px] g-t4" style={tnum}>{i + 1}</span>
-                <GlassInput value={p.nama} placeholder="beri nama part (utk slicer)"
-                  className="order-2 min-w-0 basis-[calc(100%-3.25rem)] sm:basis-auto sm:flex-1"
+            <div key={p.id} className="rounded-[5px] border border-[color:var(--g-row-border)] p-2.5 flex flex-col gap-1.5">
+              <div className="flex items-center gap-1.5">
+                <span className="w-4 shrink-0 text-center text-[11px] g-t4" style={tnum}>{i + 1}</span>
+                <GlassInput value={p.nama} placeholder="beri nama part (utk slicer)" className="flex-1 min-w-0"
                   onChange={(e) => setRow(i, { nama: e.target.value })} />
-                <button type="button" aria-label="Hapus plate" className="order-3 sm:order-6 w-4 shrink-0 g-t4 text-base leading-none"
+                {multiToggleBtn(i, p.materials.length > 1)}
+                <button type="button" aria-label="Hapus plate" className="w-8 h-9 shrink-0 g-t4 text-base leading-none rounded-[5px] border border-[color:var(--g-row-border)]"
                   onClick={() => onPlatesChange(plates.filter((_, j) => j !== i))}>✕</button>
-                {p.materials.length === 1 && (
-                  <>
-                    <select value={p.materials[0].tipe} onChange={(e) => setMat0(i, { tipe: e.target.value as "FDM" | "SLA" })}
-                      className="order-4 sm:order-3 glass-input rounded-[5px] px-1.5 h-10 text-[13px] w-16 shrink-0">
-                      <option value="FDM">FDM</option>
-                      <option value="SLA">SLA</option>
-                    </select>
-                    <div className="order-5 sm:order-4 relative w-[4.5rem] shrink-0">
-                      <GlassInput type="number" inputMode="decimal" placeholder="berat" value={p.materials[0].gramasi} className="w-full px-2 pr-5"
-                        onChange={(e) => setMat0(i, { gramasi: e.target.value })} />
-                      <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] g-t4 pointer-events-none">g</span>
-                    </div>
-                  </>
-                )}
-                <div className="order-6 sm:order-5 relative w-[4.75rem] shrink-0">
-                  <DurasiInput value={p.durasiJam} onCommit={(v) => setRow(i, { durasiJam: v })} className="w-full px-2 pr-7" />
-                  <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] g-t4 pointer-events-none">jam</span>
-                </div>
               </div>
-              <div className="px-2.5 pb-2">
-                {materialRows(i)}
-              </div>
+              <DurasiInput value={p.durasiJam} onCommit={(v) => setRow(i, { durasiJam: v })} className="w-full" />
+              {materialRows(i)}
             </div>
           ))}
-          <div className="flex items-center gap-1.5 px-2.5 py-2 border-t border-[color:var(--g-row-border)]">
-            <span className="hidden sm:block w-4 shrink-0" />
+          <div className="flex items-center gap-1.5 px-1">
             <span className="flex-1 min-w-0 text-[11px] g-t3 font-medium flex items-center gap-1">TOTAL 1× cetak
               <InfoTip text="Jumlah berat & durasi seluruh plate untuk sekali proses cetak. Biaya produksi dihitung dari total ini, lalu dibagi Hasil sekali cetak." /></span>
-            <span className="hidden sm:block w-16 shrink-0" />
-            <span className="w-[4.5rem] shrink-0 text-right text-[12px] g-t1 font-semibold" style={tnum}>{totalGram} g</span>
-            <span className="w-[4.75rem] shrink-0 text-right text-[12px] g-t1 font-semibold" style={tnum}>{totalDurasi} jam</span>
-            <span className="w-4 shrink-0" />
+            <span className="text-[12px] g-t1 font-semibold" style={tnum}>{totalGram} g</span>
+            <span className="text-[12px] g-t1 font-semibold" style={tnum}>{totalDurasi} jam</span>
           </div>
         </div>
       )}

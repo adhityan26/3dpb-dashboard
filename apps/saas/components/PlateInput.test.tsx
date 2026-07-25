@@ -96,11 +96,10 @@ describe("PlateInput tanpa crypto.randomUUID (http:// + IP)", () => {
 describe("PlateInput redesign", () => {
   const row = (over: Partial<PlateRow> = {}): PlateRow => ({ id: "p1", nama: "", durasiJam: "3", materials: [mat()], ...over });
   const base = { plates: [row()], batch: "1", onPlatesChange: () => {}, onBatchChange: () => {} };
-  it("unlocked → label kolom permanen tampil", () => {
+  it("unlocked → label eyebrow Durasi & Material tampil", () => {
     render(<PlateInput {...base} locked={false} />);
-    expect(screen.getByText("Metode cetak")).toBeTruthy();
-    expect(screen.getByText("Berat filament")).toBeTruthy();
-    expect(screen.getByText("Durasi cetak")).toBeTruthy();
+    expect(screen.getByText("Durasi")).toBeTruthy();
+    expect(screen.getByText("Material & warna")).toBeTruthy();
   });
   it("unlocked → 'Hasil sekali cetak' menggantikan 'Batch'", () => {
     render(<PlateInput {...base} locked={false} />);
@@ -116,12 +115,27 @@ describe("1b-6a multi-material di plate", () => {
     { id: "fil-a", brand: "eSUN", material: "PLA+", tipe: "FDM" as const, warna: "Putih", warnaHex: "#f5f5f5", hppPerGram: 300, jualPerGram: 900 },
   ];
 
-  it("tombol Multi-material menambah material ke-2", async () => {
+  it("toggle Multi menambah material ke-2", async () => {
     const user = userEvent.setup();
     const onP = vi.fn();
     render(<PlateInput locked={false} plates={[row()]} batch="1" filaments={fil} onPlatesChange={onP} onBatchChange={vi.fn()} />);
-    await user.click(screen.getByRole("button", { name: /multi-material/i }));
+    await user.click(screen.getByTitle(/tambah material lain/i));
     expect(onP.mock.calls[0][0][0].materials).toHaveLength(2);
+  });
+
+  it("toggle Multi (✕ Multi) pas >1 material langsung ciutkan ke 1, bersihkan filamentId/warnaHex", async () => {
+    const user = userEvent.setup();
+    const onP = vi.fn();
+    const multi = row({ materials: [
+      mat({ filamentId: "fil-a", warnaHex: "#f5f5f5" }),
+      mat({ id: "m2", gramasi: "20" }),
+      mat({ id: "m3", gramasi: "5" }),
+    ] });
+    render(<PlateInput locked={false} plates={[multi]} batch="1" filaments={fil} onPlatesChange={onP} onBatchChange={vi.fn()} />);
+    await user.click(screen.getByTitle(/kembali ke 1 material/i));
+    expect(onP.mock.calls[0][0][0].materials).toHaveLength(1);
+    expect(onP.mock.calls[0][0][0].materials[0].filamentId).toBeUndefined();
+    expect(onP.mock.calls[0][0][0].materials[0].warnaHex).toBeUndefined();
   });
 
   it("hapus material ke-2 kembali single", async () => {
@@ -255,5 +269,30 @@ describe("durasi format H:MM & native color input (polish pasca-1b-6b)", () => {
     expect(colorInput.type).toBe("color");
     fireEvent.change(colorInput, { target: { value: "#ff00ff" } });
     expect(onP.mock.calls[0][0][0].materials[0]).toMatchObject({ warnaHex: "#ff00ff" });
+  });
+
+  it("hint format jam-menit tampil di kanan input durasi", () => {
+    render(<PlateInput {...base} locked={false} plates={[row({ durasiJam: "8.57" })]} />);
+    expect(screen.getByText("8j 34m")).toBeTruthy();
+  });
+
+  it("durasi 0/kosong tak menampilkan hint", () => {
+    render(<PlateInput {...base} locked={false} plates={[row({ durasiJam: "" })]} />);
+    expect(screen.queryByText(/^\d+j/)).toBeNull();
+  });
+});
+
+describe("material selalu tampil sebagai kartu + toggle Multi per plate (polish dashboard-style)", () => {
+  it("single-material tetap render kartu filament (bukan cuma tipe+berat flat)", () => {
+    render(<PlateInput {...base} locked={false} />);
+    expect(screen.getByLabelText("Pilih filament")).toBeTruthy();
+    expect(screen.getByLabelText("Pilih warna")).toBeTruthy();
+    // 1 material → tak ada tombol hapus per-baris (toggle Multi yang urus jumlahnya)
+    expect(screen.queryByLabelText(/Hapus material/)).toBeNull();
+  });
+
+  it("multi-plate → tiap plate/card dapat toggle Multi sendiri-sendiri", () => {
+    render(<PlateInput {...base} locked={false} plates={[row(), row({ id: "p2" })]} />);
+    expect(screen.getAllByTitle(/tambah material lain|kembali ke 1 material/i)).toHaveLength(2);
   });
 });
