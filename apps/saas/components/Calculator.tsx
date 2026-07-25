@@ -40,6 +40,7 @@ export function Calculator({ paidCore = false, userId = null, kalkulasiId }: { p
   const [loadingRecord, setLoadingRecord] = useState(!!kalkulasiId);
   const [notFound, setNotFound] = useState(false);
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (paidCore && userId) loadSettings(userId).then(setSettings);
@@ -98,6 +99,7 @@ export function Calculator({ paidCore = false, userId = null, kalkulasiId }: { p
     if (paidCore && userId) saveSettings(userId, next).catch(() => {});
   };
   const handleSave = () => {
+    if (saving) return;
     if (!userId || !view) { if (!view) setSaveMsg("Isi berat & durasi dulu"); return; }
     const id = savedId ?? newId();
     const finalNama = nama.trim() || "Kalkulasi " + new Date().toLocaleDateString("id-ID");
@@ -118,11 +120,13 @@ export function Calculator({ paidCore = false, userId = null, kalkulasiId }: { p
       },
     };
     const isFirstSave = savedId === undefined;
+    setSaving(true);
     putKalkulasi(record).then(() => {
       setSavedId(id);
       setCreatedAt(finalCreatedAt);
       setNama(finalNama);
       setSaveMsg(null);
+      setSaving(false);
       if (isFirstSave) router.push(`/kalkulator/${id}`);
     });
   };

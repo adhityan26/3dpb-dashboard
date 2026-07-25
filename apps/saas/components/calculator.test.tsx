@@ -165,6 +165,23 @@ describe("Calculator: simpan & riwayat (1b-4)", () => {
     expect(mockPush).toHaveBeenCalledWith(expect.stringMatching(/^\/kalkulator\//));
   });
 
+  it("klik ganda cepat pada Simpan → putKalkulasi cuma terpanggil sekali (no double-submit)", async () => {
+    mockPush.mockClear();
+    let resolvePut: () => void;
+    (putKalkulasi as any).mockClear().mockImplementation(
+      () => new Promise<void>((resolve) => { resolvePut = resolve; })
+    );
+    render(<Calculator paidCore userId="u1" />);
+    const btn = screen.getByRole("button", { name: /^Simpan/ });
+    fireEvent.click(btn);
+    fireEvent.click(btn);
+    expect(putKalkulasi).toHaveBeenCalledTimes(1);
+    resolvePut!();
+    await waitFor(() => expect(mockPush).toHaveBeenCalledTimes(1));
+    // restore default resolved-promise mock (no global mock reset between tests in this file)
+    (putKalkulasi as any).mockImplementation(async () => {});
+  });
+
   it("simpan kedua (sudah ada kalkulasiId) → putKalkulasi id sama, tanpa push lagi", async () => {
     (getKalkulasi as any).mockResolvedValueOnce({
       id: "k1", userId: "u1", nama: "X",
