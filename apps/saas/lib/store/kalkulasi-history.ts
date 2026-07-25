@@ -16,6 +16,11 @@ export interface KalkulasiInput {
   tier: MarginTier;
 }
 
+/** Harga dibekukan saat simpan — dipakai apa adanya di RiwayatList (list tak pernah
+ *  dihitung ulang). Cuma `rekomendasi` yang tampil hari ini; sisanya disimpan untuk
+ *  detail view di masa depan. Membuka record di /kalkulator/[id] untuk EDIT sengaja
+ *  menghitung ulang dari settings terkini (bukan dari snapshot ini) — sama seperti
+ *  KalkulasiForm di dashboard. */
 export interface KalkulasiSnapshot {
   biayaModal: number;
   hargaJualMinimum: number;
