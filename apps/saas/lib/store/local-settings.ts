@@ -1,20 +1,13 @@
-import { openDB, type IDBPDatabase } from "idb";
+import { openLocalDb } from "./db";
 import {
   DEFAULT_LOCAL_SETTINGS,
   type LocalSettings,
 } from "@/lib/kalkulator/local-settings";
 
-const DB_NAME = "slizebiz-local";
 const STORE = "settings";
 
-async function db(): Promise<IDBPDatabase> {
-  return openDB(DB_NAME, 1, {
-    upgrade(d) {
-      if (!d.objectStoreNames.contains(STORE)) {
-        d.createObjectStore(STORE, { keyPath: "userId" });
-      }
-    },
-  });
+async function db() {
+  return openLocalDb();
 }
 
 /** Muat setting user; default bila tak ada / IndexedDB gagal. */

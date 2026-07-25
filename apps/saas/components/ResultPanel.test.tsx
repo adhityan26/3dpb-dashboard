@@ -25,14 +25,14 @@ describe("ResultPanel", () => {
     fireEvent.click(screen.getByRole("button", { name: /Shopee/ }));
     expect(onChannel).toHaveBeenCalledWith("shopee");
   });
-  it("Salin & Reset memanggil handler; Simpan disabled", () => {
+  it("Salin & Reset memanggil handler; Simpan tak dirender tanpa onSave", () => {
     const onCopy = vi.fn(), onReset = vi.fn();
     render(<ResultPanel {...base} onCopy={onCopy} onReset={onReset} />);
     fireEvent.click(screen.getByRole("button", { name: /Salin harga jual/ }));
     fireEvent.click(screen.getByRole("button", { name: /Reset/ }));
     expect(onCopy).toHaveBeenCalled();
     expect(onReset).toHaveBeenCalled();
-    expect((screen.getByRole("button", { name: /Simpan/ }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByRole("button", { name: /Simpan|Update/ })).toBeNull();
   });
   it("caveat marketplace muncul saat channel shopee", () => {
     render(<ResultPanel {...base} channel="shopee" />);
@@ -41,5 +41,19 @@ describe("ResultPanel", () => {
   it("tidak menampilkan rumus modal/(1−margin)", () => {
     const { container } = render(<ResultPanel {...base} />);
     expect(container.textContent).not.toMatch(/1\s*[−-]\s*margin/i);
+  });
+});
+
+describe("ResultPanel: Simpan/Update (1b-4)", () => {
+  const base = { view, channel: "offline", tier: "B" as const, onChannel: vi.fn(), onTier: vi.fn(), onCopy: vi.fn(), onReset: vi.fn() };
+  it("onSave diberikan → tombol 'Simpan' muncul dan memanggilnya saat diklik", () => {
+    const onSave = vi.fn();
+    render(<ResultPanel {...base} onSave={onSave} />);
+    fireEvent.click(screen.getByRole("button", { name: /^Simpan/ }));
+    expect(onSave).toHaveBeenCalled();
+  });
+  it("isEditing=true → label tombol 'Update'", () => {
+    render(<ResultPanel {...base} onSave={vi.fn()} isEditing />);
+    expect(screen.getByRole("button", { name: /^Update/ })).toBeTruthy();
   });
 });

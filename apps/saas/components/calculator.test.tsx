@@ -7,6 +7,15 @@ import { DEFAULT_LOCAL_SETTINGS } from "@/lib/kalkulator/local-settings";
 vi.mock("@/lib/store/local-settings", () => ({ loadSettings: vi.fn(async () => ({})), saveSettings: vi.fn(async () => {}) }));
 import { loadSettings, saveSettings } from "@/lib/store/local-settings";
 
+const { mockPush } = vi.hoisted(() => ({ mockPush: vi.fn() }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: mockPush }) }));
+
+vi.mock("@/lib/store/kalkulasi-history", () => ({
+  getKalkulasi: vi.fn(async () => null),
+  putKalkulasi: vi.fn(async () => {}),
+}));
+import { getKalkulasi, putKalkulasi } from "@/lib/store/kalkulasi-history";
+
 describe("Calculator", () => {
   // Redesign: ResultPanel tak lagi memakai LockedBlock/.locked-blur — channel & strategi
   // harga kini langsung tampil untuk user login (maksud test lama dipertahankan: konten hasil
@@ -108,5 +117,96 @@ describe("Calculator katalog pekerjaan", () => {
       const opts = Array.from(container.querySelectorAll("datalist option")).map((o) => (o as HTMLOptionElement).value);
       expect(opts).toEqual(expect.arrayContaining(["Painting"]));
     });
+  });
+});
+
+describe("Calculator: simpan & riwayat (1b-4)", () => {
+  it("tanpa kalkulasiId → tak menampilkan 'Memuat kalkulasi'", () => {
+    render(<Calculator paidCore userId="u1" />);
+    expect(screen.queryByText(/Memuat kalkulasi/)).toBeNull();
+  });
+
+  it("Free (paidCore=false) → field Nama tak muncul", () => {
+    render(<Calculator paidCore={false} userId={null} />);
+    expect(screen.queryByPlaceholderText(/Nama kalkulasi/)).toBeNull();
+  });
+
+  it("Pro → field Nama muncul", () => {
+    render(<Calculator paidCore userId="u1" />);
+    expect(screen.getByPlaceholderText(/Nama kalkulasi/)).toBeTruthy();
+  });
+
+  it("dengan kalkulasiId → getKalkulasi mengisi form dari record", async () => {
+    (getKalkulasi as any).mockResolvedValueOnce({
+      id: "k1", userId: "u1", nama: "Vas bunga",
+      createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+      input: {
+        plates: [{ id: "p1", nama: "", durasiJam: "5", materials: [{ id: "m1", tipe: "FDM", gramasi: "80" }] }],
+        batch: "2", komponen: [], labor: [], packing: undefined, channel: "offline", tier: "B",
+      },
+      snapshot: { biayaModal: 0, hargaJualMinimum: 0, rekomendasi: 0, status: "AMAN", strategi: {} },
+    });
+    render(<Calculator paidCore userId="u1" kalkulasiId="k1" />);
+    await waitFor(() => expect(screen.getByDisplayValue("Vas bunga")).toBeTruthy());
+  });
+
+  it("kalkulasiId tak ditemukan → pesan 'tidak ditemukan'", async () => {
+    (getKalkulasi as any).mockResolvedValueOnce(null);
+    render(<Calculator paidCore userId="u1" kalkulasiId="k-hilang" />);
+    await waitFor(() => expect(screen.getByText(/tidak ditemukan/)).toBeTruthy());
+  });
+
+  it("simpan pertama kali → putKalkulasi dipanggil + router.push ke /kalkulator/[id]", async () => {
+    mockPush.mockClear();
+    (putKalkulasi as any).mockClear();
+    render(<Calculator paidCore userId="u1" />);
+    fireEvent.click(screen.getByRole("button", { name: /^Simpan/ }));
+    await waitFor(() => expect(putKalkulasi).toHaveBeenCalledTimes(1));
+    expect(mockPush).toHaveBeenCalledWith(expect.stringMatching(/^\/kalkulator\//));
+  });
+
+  it("klik ganda cepat pada Simpan → putKalkulasi cuma terpanggil sekali (no double-submit)", async () => {
+    mockPush.mockClear();
+    let resolvePut: () => void;
+    (putKalkulasi as any).mockClear().mockImplementation(
+      () => new Promise<void>((resolve) => { resolvePut = resolve; })
+    );
+    render(<Calculator paidCore userId="u1" />);
+    const btn = screen.getByRole("button", { name: /^Simpan/ });
+    fireEvent.click(btn);
+    fireEvent.click(btn);
+    expect(putKalkulasi).toHaveBeenCalledTimes(1);
+    resolvePut!();
+    await waitFor(() => expect(mockPush).toHaveBeenCalledTimes(1));
+    // restore default resolved-promise mock (no global mock reset between tests in this file)
+    (putKalkulasi as any).mockImplementation(async () => {});
+  });
+
+  it("simpan kedua (sudah ada kalkulasiId) → putKalkulasi id sama, tanpa push lagi", async () => {
+    (getKalkulasi as any).mockResolvedValueOnce({
+      id: "k1", userId: "u1", nama: "X",
+      createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+      input: {
+        plates: [{ id: "p1", nama: "", durasiJam: "5", materials: [{ id: "m1", tipe: "FDM", gramasi: "80" }] }],
+        batch: "1", komponen: [], labor: [], packing: undefined, channel: "offline", tier: "B",
+      },
+      snapshot: { biayaModal: 0, hargaJualMinimum: 0, rekomendasi: 0, status: "AMAN", strategi: {} },
+    });
+    mockPush.mockClear();
+    (putKalkulasi as any).mockClear();
+    render(<Calculator paidCore userId="u1" kalkulasiId="k1" />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /^Update/ })).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /^Update/ }));
+    await waitFor(() => expect(putKalkulasi).toHaveBeenCalledTimes(1));
+    expect((putKalkulasi as any).mock.calls[0][0].id).toBe("k1");
+    expect(mockPush).not.toHaveBeenCalled();
+  });
+
+  it("klik '🔄 Refresh tarif' → loadSettings terpanggil lagi", async () => {
+    (loadSettings as any).mockClear();
+    render(<Calculator paidCore userId="u1" />);
+    await waitFor(() => expect(loadSettings).toHaveBeenCalledTimes(1));
+    fireEvent.click(screen.getByText(/Refresh tarif/));
+    await waitFor(() => expect(loadSettings).toHaveBeenCalledTimes(2));
   });
 });
