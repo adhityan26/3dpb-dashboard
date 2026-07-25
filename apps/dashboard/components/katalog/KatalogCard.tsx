@@ -4,6 +4,7 @@ import { useState, useMemo, useRef } from "react"
 import { useDeleteKatalog, useUploadKatalogImage, useDeleteKatalogImage } from "@/lib/hooks/use-katalog"
 import { useProducts } from "@/lib/hooks/use-products"
 import type { ProdukInternalData } from "@/lib/katalog/types"
+import { resolveActualShopeePrice } from "@/lib/katalog/resolve-shopee-price"
 import { ShopeeLinksSection } from "./ShopeeLinksSection"
 import { KalkulasiLinkSection } from "./KalkulasiLinkSection"
 import { HistorySection } from "./HistorySection"
@@ -55,12 +56,8 @@ export function KatalogCard({ produk, onEdit }: Props) {
   const hasHpp = produk.hppTotal != null && produk.hppTotal > 0
 
   const actualShopeePrice = useMemo(() => {
-    if (!produk.shopeeLinks.length || !productsData?.products) return null
-    const linkedIds = new Set(produk.shopeeLinks.map(l => l.shopeeItemId))
-    const prices = productsData.products
-      .filter(p => linkedIds.has(p.productId) && p.priceMin > 0)
-      .map(p => p.priceMin)
-    return prices.length > 0 ? Math.min(...prices) : null
+    if (!productsData?.products) return null
+    return resolveActualShopeePrice(produk.shopeeLinks, productsData.products)
   }, [produk.shopeeLinks, productsData])
 
   const shopeeDisplayPrice = actualShopeePrice ?? (produk.hargaShopeeAktual && produk.hargaShopeeAktual > 0 ? produk.hargaShopeeAktual : null)

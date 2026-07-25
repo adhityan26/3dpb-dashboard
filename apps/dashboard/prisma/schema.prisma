@@ -481,6 +481,7 @@ model ShopeeProductIndex {
   priceMax     Float    @default(0)
   stockTotal   Int      @default(0)
   hasVariants  Boolean  @default(false)
+  variantPricesJson String? // JSON {modelId,price}[] — harga per varian, dipakai resolve harga link Shopee spesifik
   lastSyncedAt DateTime @default(now()) @updatedAt
 }
 
