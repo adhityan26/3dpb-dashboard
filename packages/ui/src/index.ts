@@ -1,4 +1,5 @@
 export { GlassCard } from './GlassCard'
+export { CalcSection, type CalcSectionProps } from './CalcSection'
 export { GlassInput } from './GlassInput'
 export { GlassButton } from './GlassButton'
 export { HexColorSwatch, isValidHexColor } from './HexColorSwatch'

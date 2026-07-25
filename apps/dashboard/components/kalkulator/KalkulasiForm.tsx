@@ -19,6 +19,7 @@ import { composeKomponen, splitPackingRow, hitungPerbandinganPrinter, type Kompo
 import { PrintableQuote } from "./PrintableQuote"
 import { RincianPanel } from "./RincianPanel"
 import { import3mfFile } from "@/lib/kalkulator/import-3mf"
+import { CalcSection } from "@3pb/ui"
 
 type PlateRow = PlateInputApp & { key: string; id?: string; thumbnailKey?: string | null }
 
@@ -277,10 +278,16 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
       {/* LEFT: Input */}
       <div className="space-y-5">
 
-        {/* Nama + Batch + Margin */}
-        <div className="space-y-3">
-          {!isEditing && (
-            <div className="flex items-center justify-end">
+        {/* Produksi (Cetak 3D): Nama Kalkulasi, Batch, Margin, Part/Plate — dibungkus CalcSection
+            (shared @3pb/ui, dipakai jg di saas) supaya konsisten bahasa visual lintas app. */}
+        <CalcSection
+          icon="🖨️"
+          title="Produksi (Cetak 3D)"
+          subtitle="Biaya material dan waktu cetak"
+          subtotalLabel="Subtotal per produk"
+          subtotal={hasil ? `Rp ${Math.round(hasil.hppProduksi).toLocaleString("id-ID")}` : undefined}
+          headerExtra={!isEditing ? (
+            <>
               <input
                 ref={fileRef}
                 type="file"
@@ -295,13 +302,15 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
               <button
                 onClick={() => fileRef.current?.click()}
                 disabled={import3mfPending}
-                className="h-8 px-3 rounded-[5px] text-xs font-semibold transition-all g-btn-ghost"
+                className="h-8 px-3 rounded-[5px] text-xs font-semibold transition-all g-btn-ghost shrink-0"
                 title="Auto-fill dari file .gcode.3mf hasil slice Bambu Studio/OrcaSlicer"
               >
                 {import3mfPending ? "⏳ Membaca..." : "📥 Import dari 3MF"}
               </button>
-            </div>
-          )}
+            </>
+          ) : undefined}
+        >
+        <div className="space-y-3">
           {import3mfError && (
             <div className="text-xs px-3 py-2 rounded-[5px]" style={{ background: "rgba(239,68,68,0.08)", color: "#f87171", border: "1px solid rgba(239,68,68,0.2)" }}>
               ⚠️ {import3mfError}
@@ -377,6 +386,28 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           </div>
           <PlateTable plates={plates} onChange={setPlates} batch={Math.max(1, batch)} thumbnailUrls={thumbnailUrls} />
         </div>
+
+        {hasil && (
+          <div className="grid grid-cols-3 rounded-[5px] border" style={{ borderColor: "var(--g-row-border)" }}>
+            <div className="p-3">
+              <div className="text-[10px] g-t4">Biaya per proses cetak</div>
+              <div className="text-[15px] font-bold g-t1" style={{ fontVariantNumeric: "tabular-nums" }}>
+                Rp {Math.round(hasil.hppProduksi * Math.max(1, batch)).toLocaleString("id-ID")}
+              </div>
+            </div>
+            <div className="p-3" style={{ borderLeft: "1px solid var(--g-row-border)" }}>
+              <div className="text-[10px] g-t4">Hasil per proses</div>
+              <div className="text-[15px] font-bold g-t1">{Math.max(1, batch)} pcs</div>
+            </div>
+            <div className="p-3" style={{ borderLeft: "1px solid var(--g-row-border)" }}>
+              <div className="text-[10px] g-t4">Biaya per produk</div>
+              <div className="text-[15px] font-bold" style={{ color: "var(--g-accent)", fontVariantNumeric: "tabular-nums" }}>
+                Rp {Math.round(hasil.hppProduksi).toLocaleString("id-ID")}
+              </div>
+            </div>
+          </div>
+        )}
+        </CalcSection>
 
         {/* Komponen (packing + preset/custom) & Labor */}
         <KomponenSection

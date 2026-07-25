@@ -290,6 +290,138 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
   const totalDurasi = plates.reduce((s, p) => s + (p.durasiJam || 0), 0)
   const multiPlate = plates.length > 1
 
+  /** Kartu material — struktur SERAGAM buat mode single & multi (baris 1 = Filament
+   *  full-width [+ Tipe fallback kalau belum ada filament], baris 2 = Profil · Warna ·
+   *  Gramasi · [Sup + Hapus khusus multi] sejajar satu baris). */
+  function renderMaterialCard(params: {
+    key: string
+    filamentSelectedId?: string
+    onFilamentSelect: (f: FilamentHargaData) => void
+    onFilamentClear: () => void
+    tipe: PrintTipe
+    onTipeChange?: (t: PrintTipe) => void
+    brand: string
+    material: string
+    materialProfileId?: string
+    onMaterialProfileSelect: (id: string | undefined) => void
+    color: string
+    onColorChange: (hex: string) => void
+    gramasi: number
+    onGramasiChange: (g: number) => void
+    isSupport?: boolean
+    onSupportChange?: (v: boolean) => void
+    onRemove?: () => void
+  }) {
+    const hasFilament = !!params.filamentSelectedId
+    const colorName = colorNameFor(params.brand, params.material, params.color)
+    return (
+      <div key={params.key}
+           className="rounded-[5px] p-2 space-y-1.5"
+           style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)" }}>
+        {/* Baris 1: Filament full-width + Tipe fallback (cuma kalau belum pilih filament) */}
+        <div className="flex items-center gap-1.5">
+          <div className="flex-1 min-w-0">
+            <FilamentPicker
+              filaments={filamentCatalog}
+              selectedId={params.filamentSelectedId}
+              onSelect={params.onFilamentSelect}
+              onClear={params.onFilamentClear}
+            />
+          </div>
+          {!hasFilament && params.onTipeChange && (
+            <div className="flex gap-1 shrink-0">
+              {(["FDM", "SLA"] as PrintTipe[]).map(t => (
+                <button
+                  key={t}
+                  onClick={() => params.onTipeChange!(t)}
+                  className="h-8 px-2.5 rounded-[5px] text-[10px] font-bold transition-all"
+                  style={params.tipe === t
+                    ? { background: "rgba(99,102,241,0.3)", border: "1px solid rgba(99,102,241,0.5)", color: "#a5b4fc" }
+                    : { background: "var(--g-card)", border: "1px solid var(--g-inner-border)", color: "var(--g-t3)" }
+                  }
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Baris 2: Profil, Warna, Gramasi, [Sup + Hapus] — semua sejajar */}
+        <div className="flex items-end gap-1.5 flex-wrap">
+          <div className="flex-1 min-w-[120px]">
+            <div className="text-[9px] font-semibold uppercase tracking-wider mb-1 g-accent">Profil</div>
+            <MaterialProfilePicker
+              profiles={materialProfiles ?? []}
+              tipe={params.tipe === "SLA" ? "SLA" : "FDM"}
+              selectedId={params.materialProfileId}
+              onSelect={params.onMaterialProfileSelect}
+              filamentMaterial={params.material || undefined}
+            />
+          </div>
+          <div className="shrink-0" style={{ width: 112 }}>
+            <div className="text-[9px] font-semibold uppercase tracking-wider mb-1 g-accent">Warna</div>
+            <div className="relative">
+              <HexColorPicker
+                color={params.color}
+                options={colorOptionsFor(params.brand, params.material, params.color)}
+                onSelect={params.onColorChange}
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-10"
+              />
+              <input
+                type="text"
+                placeholder="Warna"
+                value={params.color}
+                onChange={e => params.onColorChange(e.target.value)}
+                title={colorName || undefined}
+                className="glass-input h-8 rounded-[5px] pr-1.5 text-[11px] w-full font-mono tracking-tight"
+                style={{ paddingLeft: isValidHexColor(params.color) ? "24px" : "8px" }}
+              />
+            </div>
+          </div>
+          <div className="shrink-0" style={{ width: 200 }}>
+            <div className="text-[9px] font-semibold uppercase tracking-wider mb-1 g-accent">Gramasi</div>
+            <div className="relative">
+              <input
+                type="number"
+                min="0"
+                step="0.1"
+                placeholder="0"
+                value={params.gramasi || ""}
+                onChange={e => params.onGramasiChange(parseFloat(e.target.value) || 0)}
+                className="glass-input h-8 rounded-[5px] pl-2 pr-6 text-xs w-full"
+              />
+              <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] g-accent"
+                    style={{ pointerEvents: "none" }}>g</span>
+            </div>
+          </div>
+          {params.onRemove && (
+            <div className="flex items-center gap-1.5 h-8 shrink-0">
+              <label className="flex items-center gap-1 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={params.isSupport ?? false}
+                  onChange={e => params.onSupportChange?.(e.target.checked)}
+                  className="w-3 h-3 accent-indigo-400"
+                />
+                <span className="text-[9px] g-t3">Sup</span>
+              </label>
+              <button
+                onClick={params.onRemove}
+                className="h-8 w-6 flex items-center justify-center rounded-[5px] text-xs transition-all shrink-0"
+                style={{ color: "var(--g-t5)" }}
+                onMouseEnter={e => (e.currentTarget.style.color = "rgba(239,68,68,0.7)")}
+                onMouseLeave={e => (e.currentTarget.style.color = "var(--g-t5)")}
+              >
+                ✕
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-3">
 
@@ -304,40 +436,42 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
             className="rounded-[5px] p-3"
             style={{ background: "var(--g-card)", border: "1px solid var(--g-card-border)" }}>
 
-            {/* Row label for multi-plate */}
-            {multiPlate && (
-              <div className="flex items-center gap-2 mb-2">
-                {thumbnailUrls?.[plate.key] && (
-                  <img
-                    src={thumbnailUrls[plate.key]}
-                    alt=""
-                    onClick={() => setZoomedThumbnail({ src: thumbnailUrls[plate.key], alt: plate.namaPart ?? `Part ${idx + 1}` })}
-                    className="w-10 h-10 rounded-[5px] object-cover flex-shrink-0 cursor-zoom-in hover:ring-2 hover:ring-[color:var(--g-accent)]"
-                    style={{ border: "1px solid var(--g-inner-border)" }}
-                  />
-                )}
-                <span className="text-[10px] font-semibold g-accent">
+            {/* Topbar: thumbnail (multi-plate) + Nama Part (SELALU tampil, single/multi-plate) +
+                toggle Multi-material + hapus plate (multi-plate saja) */}
+            <div className="flex items-center gap-2 mb-2">
+              {multiPlate && thumbnailUrls?.[plate.key] && (
+                <img
+                  src={thumbnailUrls[plate.key]}
+                  alt=""
+                  onClick={() => setZoomedThumbnail({ src: thumbnailUrls[plate.key], alt: plate.namaPart ?? `Part ${idx + 1}` })}
+                  className="w-10 h-10 rounded-[5px] object-cover flex-shrink-0 cursor-zoom-in hover:ring-2 hover:ring-[color:var(--g-accent)]"
+                  style={{ border: "1px solid var(--g-inner-border)" }}
+                />
+              )}
+              {multiPlate && (
+                <span className="text-[10px] font-semibold g-accent shrink-0">
                   Part {idx + 1}
                 </span>
-                <input
-                  type="text"
-                  placeholder="Nama part (opsional)"
-                  value={plate.namaPart ?? ""}
-                  onChange={e => updatePlate(plate.key, "namaPart", e.target.value || undefined)}
-                  className="glass-input flex-1 h-8 rounded-[5px] px-3 text-xs"
-                />
-                {/* Multi-material toggle */}
-                <button
-                  onClick={() => toggleMultiMaterial(plate.key)}
-                  className="h-8 px-2.5 rounded-[5px] text-[10px] font-semibold transition-all flex-shrink-0"
-                  style={isMultiMode
-                    ? { background: "rgba(99,102,241,0.25)", border: "1px solid rgba(99,102,241,0.5)", color: "#a5b4fc" }
-                    : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t3)" }
-                  }
-                  title={isMultiMode ? "Kembali ke single material" : "Aktifkan multi-material (AMS)"}
-                >
-                  {isMultiMode ? "✕ Multi" : "🎨 Multi"}
-                </button>
+              )}
+              <input
+                type="text"
+                placeholder="Nama part (opsional)"
+                value={plate.namaPart ?? ""}
+                onChange={e => updatePlate(plate.key, "namaPart", e.target.value || undefined)}
+                className="glass-input flex-1 h-8 rounded-[5px] px-3 text-xs"
+              />
+              <button
+                onClick={() => toggleMultiMaterial(plate.key)}
+                className="h-8 px-2.5 rounded-[5px] text-[10px] font-semibold transition-all flex-shrink-0"
+                style={isMultiMode
+                  ? { background: "rgba(99,102,241,0.25)", border: "1px solid rgba(99,102,241,0.5)", color: "#a5b4fc" }
+                  : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t3)" }
+                }
+                title={isMultiMode ? "Kembali ke single material" : "Aktifkan multi-material (AMS)"}
+              >
+                {isMultiMode ? "✕ Multi" : "🎨 Multi"}
+              </button>
+              {multiPlate && (
                 <button
                   onClick={() => removePlate(plate.key)}
                   className="h-8 w-8 rounded-[5px] flex items-center justify-center text-sm transition-all flex-shrink-0"
@@ -347,227 +481,70 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
                 >
                   ✕
                 </button>
-              </div>
-            )}
+              )}
+            </div>
 
-            {/* Single-plate: show toggle button in its own row */}
-            {!multiPlate && (
-              <div className="flex justify-end mb-2">
-                <button
-                  onClick={() => toggleMultiMaterial(plate.key)}
-                  className="h-7 px-2.5 rounded-[5px] text-[10px] font-semibold transition-all"
-                  style={isMultiMode
-                    ? { background: "rgba(99,102,241,0.25)", border: "1px solid rgba(99,102,241,0.5)", color: "#a5b4fc" }
-                    : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t3)" }
-                  }
-                  title={isMultiMode ? "Kembali ke single material" : "Aktifkan multi-material (AMS)"}
-                >
-                  {isMultiMode ? "✕ Multi" : "🎨 Multi"}
-                </button>
+            {/* Durasi — satu field, posisi sama di kedua mode */}
+            <div className="mb-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 g-accent">Durasi</div>
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="1:30 atau 1.5"
+                  value={durasiRaw[plate.key] ?? (plate.durasiJam ? String(parseFloat(plate.durasiJam.toFixed(2))) : "")}
+                  onChange={e => handleDurasiChange(plate.key, e.target.value)}
+                  className="glass-input w-full h-10 rounded-[5px] px-3 text-sm"
+                />
+                {plate.durasiJam > 0 && (
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px]"
+                        style={{ color: "rgba(99,102,241,0.7)" }}>
+                    {formatDurasiDisplay(plate.durasiJam)}
+                  </span>
+                )}
               </div>
-            )}
+            </div>
 
             {/* SINGLE MATERIAL MODE */}
             {!isMultiMode && (
-              <>
-                <div className="grid gap-2" style={{ gridTemplateColumns: "80px 1fr 1fr 90px" }}>
-
-                  {/* Tipe: FDM / SLA */}
-                  <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 g-accent">Tipe</div>
-                    <div className="flex gap-1 h-10">
-                      {(["FDM", "SLA"] as PrintTipe[]).map(t => (
-                        <button
-                          key={t}
-                          onClick={() => updatePlate(plate.key, "tipe", t)}
-                          className="flex-1 rounded-[5px] text-xs font-bold transition-all"
-                          style={plate.tipe === t
-                            ? { background: "rgba(99,102,241,0.3)", border: "1px solid rgba(99,102,241,0.5)", color: "#a5b4fc" }
-                            : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t3)" }
-                          }
-                        >
-                          {t}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Gramasi */}
-                  <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 g-accent">Gramasi (g)</div>
-                    <input
-                      type="number"
-                      min="0"
-                      step="0.1"
-                      placeholder="21"
-                      value={plate.gramasi || ""}
-                      onChange={e => updatePlate(plate.key, "gramasi", parseFloat(e.target.value) || 0)}
-                      className="glass-input w-full h-10 rounded-[5px] px-3 text-sm"
-                    />
-                  </div>
-
-                  {/* Durasi */}
-                  <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 g-accent">Durasi</div>
-                    <div className="relative">
-                      <input
-                        type="text"
-                        placeholder="1:30 atau 1.5"
-                        value={durasiRaw[plate.key] ?? (plate.durasiJam ? String(parseFloat(plate.durasiJam.toFixed(2))) : "")}
-                        onChange={e => handleDurasiChange(plate.key, e.target.value)}
-                        className="glass-input w-full h-10 rounded-[5px] px-3 text-sm"
-                      />
-                      {plate.durasiJam > 0 && (
-                        <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px]"
-                              style={{ color: "rgba(99,102,241,0.7)" }}>
-                          {formatDurasiDisplay(plate.durasiJam)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Warna */}
-                  <div>
-                    <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5 g-accent">Warna</div>
-                    <div className="relative flex items-center h-10">
-                      <HexColorPicker
-                        color={plate.color ?? ""}
-                        options={colorOptionsFor(
-                          filamentCatalog.find(f => f.id === plate.filamentHargaId)?.brand ?? "",
-                          filamentCatalog.find(f => f.id === plate.filamentHargaId)?.material ?? "",
-                          plate.color,
-                        )}
-                        onSelect={hex => updatePlate(plate.key, "color", hex)}
-                        className="absolute left-2 z-10"
-                      />
-                      <input
-                        type="text"
-                        placeholder="#RRGGBB"
-                        value={plate.color ?? ""}
-                        onChange={e => updatePlate(plate.key, "color", e.target.value)}
-                        className="glass-input w-full h-10 rounded-[5px] text-xs font-mono tracking-tight"
-                        style={{ paddingLeft: isValidHexColor(plate.color ?? "") ? "26px" : "12px", paddingRight: "6px" }}
-                      />
-                    </div>
-                    {(() => {
-                      const name = colorNameFor(
-                        filamentCatalog.find(f => f.id === plate.filamentHargaId)?.brand ?? "",
-                        filamentCatalog.find(f => f.id === plate.filamentHargaId)?.material ?? "",
-                        plate.color ?? "",
-                      )
-                      return name && (
-                        <div className="mt-1 text-[10px] truncate" style={{ color: "rgba(165,180,252,0.8)" }} title={name}>
-                          🧵 {name}
-                        </div>
-                      )
-                    })()}
-                  </div>
-                </div>
-
-                {/* Filament picker (single-material override) */}
-                <div className="mt-2">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider mb-1 g-accent">
-                    Filament (opsional — override rate default)
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <FilamentPicker
-                      filaments={filamentCatalog}
-                      selectedId={plate.filamentHargaId}
-                      onSelect={f => updatePlateFields(plate.key, { filamentHargaId: f.id, hargaPerGram: f.hargaPerGram })}
-                      onClear={() => updatePlateFields(plate.key, { filamentHargaId: undefined, hargaPerGram: undefined })}
-                    />
-                    <MaterialProfilePicker
-                      profiles={materialProfiles ?? []}
-                      tipe={plate.tipe === "SLA" ? "SLA" : "FDM"}
-                      selectedId={plate.materialProfileId}
-                      onSelect={id => updatePlateFields(plate.key, { materialProfileId: id })}
-                      filamentMaterial={filamentCatalog.find(f => f.id === plate.filamentHargaId)?.material}
-                    />
-                  </div>
-                </div>
-              </>
+              renderMaterialCard({
+                key: "single",
+                filamentSelectedId: plate.filamentHargaId,
+                onFilamentSelect: f => updatePlateFields(plate.key, { filamentHargaId: f.id, hargaPerGram: f.hargaPerGram }),
+                onFilamentClear: () => updatePlateFields(plate.key, { filamentHargaId: undefined, hargaPerGram: undefined }),
+                tipe: plate.tipe === "SLA" ? "SLA" : "FDM",
+                onTipeChange: t => updatePlate(plate.key, "tipe", t),
+                brand: filamentCatalog.find(f => f.id === plate.filamentHargaId)?.brand ?? "",
+                material: filamentCatalog.find(f => f.id === plate.filamentHargaId)?.material ?? "",
+                materialProfileId: plate.materialProfileId,
+                onMaterialProfileSelect: id => updatePlateFields(plate.key, { materialProfileId: id }),
+                color: plate.color ?? "",
+                onColorChange: hex => updatePlate(plate.key, "color", hex),
+                gramasi: plate.gramasi ?? 0,
+                onGramasiChange: g => updatePlate(plate.key, "gramasi", g),
+              })
             )}
 
-            {/* MULTI-MATERIAL MODE — 1 card per material (bukan tabel grid), biar tidak
-                bertumpuk di viewport sempit: baris 1 = identitas filament (paling panjang,
-                dapet lebar penuh), baris 2 = angka & aksi (semua tinggi seragam h-8). */}
+            {/* MULTI-MATERIAL MODE — 1 kartu per material, struktur sama seperti mode single. */}
             {isMultiMode && (
               <div className="space-y-1.5">
-                {(plate.materials ?? []).map((mat, mIdx) => (
-                  <div key={mIdx}
-                       className="rounded-[5px] p-2 space-y-1.5"
-                       style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)" }}>
-                    {/* Baris 1: filament + profil material */}
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <FilamentPicker
-                        filaments={filamentCatalog}
-                        selectedId={mat.filamentId}
-                        onSelect={f => setMaterialFromCatalog(plate.key, mIdx, f)}
-                        onClear={() => setMaterialFromCatalog(plate.key, mIdx, null)}
-                      />
-                      <MaterialProfilePicker
-                        profiles={materialProfiles ?? []}
-                        tipe={plate.tipe === "SLA" ? "SLA" : "FDM"}
-                        selectedId={mat.materialProfileId}
-                        onSelect={id => updateMaterial(plate.key, mIdx, "materialProfileId", id)}
-                        filamentMaterial={mat.material || undefined}
-                      />
-                    </div>
-
-                    {/* Baris 2: warna, gram, support, hapus */}
-                    <div className="flex items-center gap-1.5">
-                      <div className="relative flex-1 min-w-0">
-                        <HexColorPicker
-                          color={mat.color}
-                          options={colorOptionsFor(mat.brand, mat.material, mat.color)}
-                          onSelect={hex => updateMaterial(plate.key, mIdx, "color", hex)}
-                          className="absolute left-2 top-1/2 -translate-y-1/2 z-10"
-                        />
-                        <input
-                          type="text"
-                          placeholder="Warna"
-                          value={mat.color}
-                          onChange={e => updateMaterial(plate.key, mIdx, "color", e.target.value)}
-                          title={colorNameFor(mat.brand, mat.material, mat.color) || undefined}
-                          className="glass-input h-8 rounded-[5px] pr-1.5 text-[11px] w-full font-mono tracking-tight"
-                          style={{ paddingLeft: isValidHexColor(mat.color) ? "24px" : "8px" }}
-                        />
-                      </div>
-                      <div className="relative w-16 shrink-0">
-                        <input
-                          type="number"
-                          min="0"
-                          step="0.1"
-                          placeholder="0"
-                          value={mat.gramasi || ""}
-                          onChange={e => updateMaterial(plate.key, mIdx, "gramasi", parseFloat(e.target.value) || 0)}
-                          className="glass-input h-8 rounded-[5px] px-2 text-xs w-full"
-                          style={{ paddingRight: "14px" }}
-                        />
-                        <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[9px] g-accent"
-                              style={{ pointerEvents: "none" }}>g</span>
-                      </div>
-                      <label className="flex items-center gap-1 h-8 px-1 cursor-pointer shrink-0">
-                        <input
-                          type="checkbox"
-                          checked={mat.isSupport ?? false}
-                          onChange={e => updateMaterial(plate.key, mIdx, "isSupport", e.target.checked)}
-                          className="w-3 h-3 accent-indigo-400"
-                        />
-                        <span className="text-[9px] g-t3">Sup</span>
-                      </label>
-                      <button
-                        onClick={() => removeMaterial(plate.key, mIdx)}
-                        className="h-8 w-6 flex items-center justify-center rounded-[5px] text-xs transition-all shrink-0"
-                        style={{ color: "var(--g-t5)" }}
-                        onMouseEnter={e => (e.currentTarget.style.color = "rgba(239,68,68,0.7)")}
-                        onMouseLeave={e => (e.currentTarget.style.color = "var(--g-t5)")}
-                      >
-                        ✕
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                {(plate.materials ?? []).map((mat, mIdx) => renderMaterialCard({
+                  key: String(mIdx),
+                  filamentSelectedId: mat.filamentId,
+                  onFilamentSelect: f => setMaterialFromCatalog(plate.key, mIdx, f),
+                  onFilamentClear: () => setMaterialFromCatalog(plate.key, mIdx, null),
+                  tipe: plate.tipe === "SLA" ? "SLA" : "FDM",
+                  brand: mat.brand,
+                  material: mat.material,
+                  materialProfileId: mat.materialProfileId,
+                  onMaterialProfileSelect: id => updateMaterial(plate.key, mIdx, "materialProfileId", id),
+                  color: mat.color,
+                  onColorChange: hex => updateMaterial(plate.key, mIdx, "color", hex),
+                  gramasi: mat.gramasi,
+                  onGramasiChange: g => updateMaterial(plate.key, mIdx, "gramasi", g),
+                  isSupport: mat.isSupport,
+                  onSupportChange: v => updateMaterial(plate.key, mIdx, "isSupport", v),
+                  onRemove: () => removeMaterial(plate.key, mIdx),
+                }))}
 
                 {/* Total gramasi + add button */}
                 <div className="flex items-center justify-between pt-1">
@@ -583,26 +560,6 @@ export function PlateTable({ plates, onChange, batch, thumbnailUrls }: PlateTabl
                   <span className="text-[10px] font-semibold g-accent">
                     Total: {multiGramasi.toFixed(1)}g
                   </span>
-                </div>
-
-                {/* Durasi row (still needed in multi mode) */}
-                <div className="mt-1">
-                  <div className="text-[10px] font-semibold uppercase tracking-wider mb-1 g-accent">Durasi</div>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      placeholder="1:30 atau 1.5"
-                      value={durasiRaw[plate.key] ?? (plate.durasiJam ? String(parseFloat(plate.durasiJam.toFixed(2))) : "")}
-                      onChange={e => handleDurasiChange(plate.key, e.target.value)}
-                      className="glass-input w-full h-9 rounded-[5px] px-3 text-sm"
-                    />
-                    {plate.durasiJam > 0 && (
-                      <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px]"
-                            style={{ color: "rgba(99,102,241,0.7)" }}>
-                        {formatDurasiDisplay(plate.durasiJam)}
-                      </span>
-                    )}
-                  </div>
                 </div>
               </div>
             )}
