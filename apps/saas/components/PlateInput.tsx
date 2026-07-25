@@ -254,7 +254,7 @@ export function PlateInput({
 
       {!multi ? (
         /* ── Single plate ── */
-        <>
+        <div className="flex flex-col gap-1.5 rounded-[5px] border border-[color:var(--g-row-border)] p-2.5">
           {p0.materials.length === 1 ? (
             <div className="flex items-center gap-2 text-[10px] g-t4 uppercase tracking-wide">
               <span className="w-[4.75rem] shrink-0">Metode cetak</span>
@@ -264,44 +264,42 @@ export function PlateInput({
           ) : (
             <div className="text-[10px] g-t4 uppercase tracking-wide">Durasi cetak</div>
           )}
-          <div className="flex flex-col gap-1.5 rounded-[5px] border border-[color:var(--g-row-border)] p-2.5">
-            {p0.nama && (
-              <GlassInput value={p0.nama} placeholder="Nama part (opsional)" className="flex-1 min-w-0"
-                onChange={(e) => setRow(0, { nama: e.target.value })} />
+          {p0.nama && (
+            <GlassInput value={p0.nama} placeholder="Nama part (opsional)" className="flex-1 min-w-0"
+              onChange={(e) => setRow(0, { nama: e.target.value })} />
+          )}
+          <div className="flex items-start gap-2">
+            {p0.materials.length === 1 && (
+              <>
+                <select value={p0.materials[0].tipe} onChange={(e) => setMat0(0, { tipe: e.target.value as "FDM" | "SLA" })}
+                  className="glass-input rounded-[5px] px-2 h-10 text-sm w-[4.75rem] shrink-0">
+                  <option value="FDM">FDM</option>
+                  <option value="SLA">SLA</option>
+                </select>
+                <div className="relative flex-1 min-w-0">
+                  <GlassInput type="number" inputMode="decimal" placeholder="berat" value={p0.materials[0].gramasi} className="w-full min-w-0 pr-8"
+                    onChange={(e) => setMat0(0, { gramasi: e.target.value })} />
+                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">g</span>
+                </div>
+              </>
             )}
-            <div className="flex items-start gap-2">
-              {p0.materials.length === 1 && (
-                <>
-                  <select value={p0.materials[0].tipe} onChange={(e) => setMat0(0, { tipe: e.target.value as "FDM" | "SLA" })}
-                    className="glass-input rounded-[5px] px-2 h-10 text-sm w-[4.75rem] shrink-0">
-                    <option value="FDM">FDM</option>
-                    <option value="SLA">SLA</option>
-                  </select>
-                  <div className="relative flex-1 min-w-0">
-                    <GlassInput type="number" inputMode="decimal" placeholder="berat" value={p0.materials[0].gramasi} className="w-full min-w-0 pr-8"
-                      onChange={(e) => setMat0(0, { gramasi: e.target.value })} />
-                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">g</span>
-                  </div>
-                </>
-              )}
-              <div className="relative flex-1 min-w-0">
-                <DurasiInput value={p0.durasiJam} onCommit={(v) => setRow(0, { durasiJam: v })} className="w-full min-w-0 pr-9" />
-                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">jam</span>
-              </div>
+            <div className="relative flex-1 min-w-0">
+              <DurasiInput value={p0.durasiJam} onCommit={(v) => setRow(0, { durasiJam: v })} className="w-full min-w-0 pr-9" />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">jam</span>
             </div>
-            {p0.materials.length === 1 && !p0.nama && (
-              <div className="flex items-center gap-2 text-[10px] g-t5">
-                <span className="w-[4.75rem] shrink-0" />
-                <span className="flex-1 min-w-0">Tipe · berat (g)</span>
-                <span className="flex-1 min-w-0">Durasi (jam)</span>
-              </div>
-            )}
-            {p0.materials.length > 1 && (
-              <div className="text-[10px] g-t4 uppercase tracking-wide pt-1">Material &amp; warna</div>
-            )}
-            {materialRows(0)}
           </div>
-        </>
+          {p0.materials.length === 1 && !p0.nama && (
+            <div className="flex items-center gap-2 text-[10px] g-t5">
+              <span className="w-[4.75rem] shrink-0" />
+              <span className="flex-1 min-w-0">Tipe · berat (g)</span>
+              <span className="flex-1 min-w-0">Durasi (jam)</span>
+            </div>
+          )}
+          {p0.materials.length > 1 && (
+            <div className="text-[10px] g-t4 uppercase tracking-wide pt-1">Material &amp; warna</div>
+          )}
+          {materialRows(0)}
+        </div>
       ) : (
         /* ── Multi-plate: tabel bernomor (desktop 1 baris; mobile nama di atas, spek di bawah) ── */
         <div className="rounded-[5px] border border-[color:var(--g-row-border)]">
