@@ -1,9 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
 import type { MarginTier } from "@3pb/kalkulator-core";
+import { GlassInput } from "@3pb/ui";
 import { fullView, type CalcPlate } from "@/lib/kalkulator/compute";
 import { DEFAULT_LOCAL_SETTINGS, type LocalSettings } from "@/lib/kalkulator/local-settings";
 import { loadSettings, saveSettings } from "@/lib/store/local-settings";
+import { getKalkulasi, putKalkulasi, type KalkulasiRecord } from "@/lib/store/kalkulasi-history";
 import { getRincianPref } from "@/lib/store/display-prefs";
 import { rupiah } from "@/lib/kalkulator/format";
 import { newId } from "@/lib/id";
@@ -18,7 +22,8 @@ import type { KomponenRow, LaborRow } from "@/lib/kalkulator/compose";
 
 const INITIAL_PLATES: PlateRow[] = [{ id: "plate-1", nama: "", durasiJam: "3", materials: [{ id: "m1", tipe: "FDM", gramasi: "50" }] }];
 
-export function Calculator({ paidCore = false, userId = null }: { paidCore?: boolean; userId?: string | null }) {
+export function Calculator({ paidCore = false, userId = null, kalkulasiId }: { paidCore?: boolean; userId?: string | null; kalkulasiId?: string }) {
+  const router = useRouter();
   const [plates, setPlates] = useState<PlateRow[]>(INITIAL_PLATES);
   const [batch, setBatch] = useState("1");
   const [settings, setSettings] = useState<LocalSettings>(DEFAULT_LOCAL_SETTINGS);
@@ -29,12 +34,43 @@ export function Calculator({ paidCore = false, userId = null }: { paidCore?: boo
   const [tier, setTier] = useState<MarginTier>("B");
   const [sheetOpen, setSheetOpen] = useState(false);
   const [showRincian, setShowRincian] = useState(true);
+  const [nama, setNama] = useState("");
+  const [savedId, setSavedId] = useState<string | undefined>(undefined);
+  const [createdAt, setCreatedAt] = useState<string | undefined>(undefined);
+  const [loadingRecord, setLoadingRecord] = useState(!!kalkulasiId);
+  const [notFound, setNotFound] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<string | null>(null);
 
   useEffect(() => {
     if (paidCore && userId) loadSettings(userId).then(setSettings);
   }, [paidCore, userId]);
 
   useEffect(() => { setShowRincian(getRincianPref()); }, []);
+
+  useEffect(() => {
+    if (!kalkulasiId || !userId) return;
+    let cancelled = false;
+    getKalkulasi(userId, kalkulasiId).then((record) => {
+      if (cancelled) return;
+      if (!record) { setNotFound(true); setLoadingRecord(false); return; }
+      setPlates(record.input.plates);
+      setBatch(record.input.batch);
+      setKomponen(record.input.komponen);
+      setLabor(record.input.labor);
+      setPacking(record.input.packing);
+      setChannel(record.input.channel);
+      setTier(record.input.tier);
+      setNama(record.nama);
+      setSavedId(record.id);
+      setCreatedAt(record.createdAt);
+      setLoadingRecord(false);
+    });
+    return () => { cancelled = true; };
+  }, [kalkulasiId, userId]);
+
+  const refreshTarif = () => {
+    if (paidCore && userId) loadSettings(userId).then(setSettings);
+  };
 
   const toCalcPlate = (p: PlateRow): CalcPlate => ({
     id: p.id, nama: p.nama || undefined, durasiJam: Number(p.durasiJam),
@@ -61,14 +97,70 @@ export function Calculator({ paidCore = false, userId = null }: { paidCore?: boo
     setSettings(next);
     if (paidCore && userId) saveSettings(userId, next).catch(() => {});
   };
+  const handleSave = () => {
+    if (!userId || !view) { if (!view) setSaveMsg("Isi berat & durasi dulu"); return; }
+    const id = savedId ?? newId();
+    const finalNama = nama.trim() || "Kalkulasi " + new Date().toLocaleDateString("id-ID");
+    const finalCreatedAt = createdAt ?? new Date().toISOString();
+    const record: KalkulasiRecord = {
+      id,
+      userId,
+      nama: finalNama,
+      createdAt: finalCreatedAt,
+      updatedAt: new Date().toISOString(),
+      input: { plates, batch, komponen, labor, packing, channel, tier },
+      snapshot: {
+        biayaModal: view.biayaModal,
+        hargaJualMinimum: view.hargaJualMinimum,
+        rekomendasi: view.rekomendasi,
+        status: view.status,
+        strategi: view.strategi,
+      },
+    };
+    const isFirstSave = savedId === undefined;
+    putKalkulasi(record).then(() => {
+      setSavedId(id);
+      setCreatedAt(finalCreatedAt);
+      setNama(finalNama);
+      setSaveMsg(null);
+      if (isFirstSave) router.push(`/kalkulator/${id}`);
+    });
+  };
 
   const r = view?.rincian;
   const hasil = Math.max(1, Number(batch) || 1);
+
+  if (loadingRecord) {
+    return <div className="text-[12px] g-t4 p-4">Memuat kalkulasi…</div>;
+  }
+  if (notFound) {
+    return (
+      <div className="text-[12px] g-t4 p-4">
+        Kalkulasi tidak ditemukan. <Link href="/" className="underline">Kembali ke Riwayat</Link>
+      </div>
+    );
+  }
 
   return (
     <div className="grid lg:grid-cols-[1fr_minmax(350px,410px)] gap-5 items-start pb-24 lg:pb-0">
       {/* Kolom kiri: form section */}
       <div className="flex flex-col gap-4 min-w-0">
+        {paidCore && (
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link href="/" className="text-[12px] g-t3 underline shrink-0">← Riwayat</Link>
+            <GlassInput
+              value={nama}
+              onChange={(e) => setNama(e.target.value)}
+              placeholder="Nama kalkulasi (opsional)"
+              className="flex-1 min-w-[160px]"
+            />
+            <button type="button" onClick={refreshTarif} className="g-btn-ghost h-10 px-3 rounded-[5px] text-[12px] shrink-0">
+              🔄 Refresh tarif
+            </button>
+          </div>
+        )}
+        {saveMsg && <div className="text-[12px] g-t4">{saveMsg}</div>}
+
         <CalcSection n={1} title="Produksi (Cetak 3D)" subtitle="Biaya material dan waktu cetak" icon="🖨️"
           subtotalLabel="Subtotal per produk" subtotal={r?.produksi}>
           <PlateInput locked={!paidCore} plates={plates} batch={batch} filaments={settings.filaments} onPlatesChange={setPlates} onBatchChange={setBatch} />
@@ -120,7 +212,8 @@ export function Calculator({ paidCore = false, userId = null }: { paidCore?: boo
       {/* Kolom kanan: hasil (sticky desktop) */}
       <div className="hidden lg:block lg:sticky lg:top-6 min-w-0">
         {view ? (
-          <ResultPanel view={view} channel={channel} tier={tier} onChannel={setChannel} onTier={setTier} onCopy={onCopy} onReset={onReset} showRincian={showRincian} />
+          <ResultPanel view={view} channel={channel} tier={tier} onChannel={setChannel} onTier={setTier} onCopy={onCopy} onReset={onReset} showRincian={showRincian}
+            onSave={paidCore ? handleSave : undefined} isEditing={savedId !== undefined} />
         ) : (
           <div className="text-[12px] g-t4 p-4">Isi berat &amp; durasi (angka &gt; 0) untuk melihat hasil.</div>
         )}
@@ -137,7 +230,8 @@ export function Calculator({ paidCore = false, userId = null }: { paidCore?: boo
                   <span className="text-sm font-semibold g-t1">Hasil perhitungan</span>
                   <button type="button" aria-label="Tutup rincian" className="g-t3 text-lg leading-none" onClick={() => setSheetOpen(false)}>✕</button>
                 </div>
-                <ResultPanel view={view} channel={channel} tier={tier} onChannel={setChannel} onTier={setTier} onCopy={onCopy} onReset={onReset} showRincian={showRincian} />
+                <ResultPanel view={view} channel={channel} tier={tier} onChannel={setChannel} onTier={setTier} onCopy={onCopy} onReset={onReset} showRincian={showRincian}
+                  onSave={paidCore ? handleSave : undefined} isEditing={savedId !== undefined} />
               </div>
             </div>
           )}
