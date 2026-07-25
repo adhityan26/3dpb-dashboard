@@ -448,7 +448,6 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           <div className="flex items-center justify-between">
             <div>
               <span className="text-xs font-medium g-t2">🧪 Test Layer</span>
-              <span className="text-[10px] g-t5 ml-2">(cuma buat produk custom)</span>
             </div>
             <button
               onClick={() => setTestLayerEnabled(v => !v)}
