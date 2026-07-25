@@ -41,6 +41,9 @@ export interface ProductSummary {
   /** Full katalog record if this Shopee item has a ProdukInternal link. */
   katalog: KatalogInfo | null
   variants: VariantSummary[]
+  /** Harga per varian (dari sync index) — dipakai resolve harga link Shopee ke model_id
+   *  spesifik (bukan cuma priceMin produk). Kosong kalau produk tidak punya varian. */
+  variantPrices: { modelId: string; price: number }[]
   qtySold30d: number
   omzet30d: number
   buyerPaid30d: number    // real buyer_payment distributed

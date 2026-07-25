@@ -69,6 +69,16 @@ export async function invalidateProductsCache() {
   await Promise.all([rDel(REDIS_KEY_PRODUCTS_FULL), rDel(REDIS_KEY_SOLD_STATS)])
 }
 
+function parseVariantPrices(json: string | null): { modelId: string; price: number }[] {
+  if (!json) return []
+  try {
+    const parsed = JSON.parse(json)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
+
 /**
  * Syncs the ShopeeProductIndex table with current items from Shopee API.
  * Upserts all active items, deletes stale rows.
@@ -85,7 +95,7 @@ export async function syncProductIndex(): Promise<{ synced: number; deleted: num
 
   // Fetch variant lists for items that have them (to get per-variant stock/price)
   const BATCH = 10
-  const variantsByItem = new Map<number, { priceMin: number; priceMax: number; stockTotal: number }>()
+  const variantsByItem = new Map<number, { priceMin: number; priceMax: number; stockTotal: number; variantPrices: { modelId: string; price: number }[] }>()
   const itemsWithVariants = baseInfos.filter((b) => b.has_model)
 
   for (let i = 0; i < itemsWithVariants.length; i += BATCH) {
@@ -95,13 +105,18 @@ export async function syncProductIndex(): Promise<{ synced: number; deleted: num
         const res = await getModelList(item.item_id)
         const prices = res.model.map((m) => m.price_info?.[0]?.current_price ?? 0).filter((p) => p > 0)
         const stocks = res.model.map((m) => m.stock_info_v2?.summary_info?.total_available_stock ?? 0)
+        const variantPrices = res.model.map((m) => ({
+          modelId: String(m.model_id),
+          price: m.price_info?.[0]?.current_price ?? 0,
+        }))
         variantsByItem.set(item.item_id, {
           priceMin: prices.length > 0 ? Math.min(...prices) : 0,
           priceMax: prices.length > 0 ? Math.max(...prices) : 0,
           stockTotal: stocks.reduce((s, v) => s + v, 0),
+          variantPrices,
         })
       } catch {
-        variantsByItem.set(item.item_id, { priceMin: 0, priceMax: 0, stockTotal: 0 })
+        variantsByItem.set(item.item_id, { priceMin: 0, priceMax: 0, stockTotal: 0, variantPrices: [] })
       }
     }))
   }
@@ -126,6 +141,7 @@ export async function syncProductIndex(): Promise<{ synced: number; deleted: num
         priceMax,
         stockTotal,
         hasVariants,
+        variantPricesJson: hasVariants && vData?.variantPrices?.length ? JSON.stringify(vData.variantPrices) : null,
       }
       return prisma.shopeeProductIndex.upsert({
         where: { itemId: String(b.item_id) },
@@ -248,6 +264,7 @@ export async function getProductsPage(
       hpp: productHpp,
       katalog,
       variants: [],            // not stored in index; shown after full fetch
+      variantPrices: parseVariantPrices(row.variantPricesJson),
       qtySold30d: stats.qty,
       omzet30d: stats.omzet,
       buyerPaid30d: stats.buyerPaid,
@@ -531,6 +548,7 @@ async function fetchProductsFresh(): Promise<ProductsListResult> {
       hpp: productHpp,
       katalog,
       variants,
+      variantPrices: variants.map((v) => ({ modelId: v.variantId, price: v.price })),
       qtySold30d: stats.qty,
       omzet30d: stats.omzet,
       buyerPaid30d: stats.buyerPaid,
