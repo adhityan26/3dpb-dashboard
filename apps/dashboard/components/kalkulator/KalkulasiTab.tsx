@@ -61,14 +61,16 @@ export function KalkulasiTab() {
       )}
 
       {/* Calculator Form */}
-      <KalkulasiForm
-        key={editingKalk?.id ?? "new"}
-        initial={editingKalk ?? undefined}
-        onSaved={handleSaved}
-      />
+      <div className="rounded-[5px] p-4 md:p-5 g-card">
+        <KalkulasiForm
+          key={editingKalk?.id ?? "new"}
+          initial={editingKalk ?? undefined}
+          onSaved={handleSaved}
+        />
+      </div>
 
       {/* History */}
-      <div className="pt-4" style={{ borderTop: "1px solid rgba(99,102,241,0.1)" }}>
+      <div className="rounded-[5px] p-4 md:p-5 g-card">
         <KalkulasiHistory
           onEdit={handleEdit}
           onLinkProduk={k => setLinkingKalk(k)}
