@@ -5,6 +5,8 @@ import { PlateTable } from "./PlateTable"
 import { KomponenSection } from "./KomponenSection"
 import { LaborSection } from "./LaborSection"
 import { HasilPanel } from "./HasilPanel"
+import { RekomendasiHargaCard } from "./RekomendasiHargaCard"
+import { MobileSummaryBar } from "./MobileSummaryBar"
 import {
   useCreateKalkulasi, useUpdateKalkulasi, useKalkulatorRates,
   useSettingsV2, usePrinterProfiles, useMaterialProfiles, useFilamentHarga,
@@ -160,6 +162,8 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   const [customRiskEnabled, setCustomRiskEnabled] = useState(false)
   const [customRiskPct, setCustomRiskPct] = useState<number>(12)
   const [testLayerEnabled, setTestLayerEnabled] = useState<boolean>(initial?.testLayerEnabled ?? true)
+  const [rekomendasiChannel, setRekomendasiChannel] = useState<string>("offline")
+  const [mobileSheetOpen, setMobileSheetOpen] = useState(false)
 
   // Komponen (packing chip + baris preset/custom) & labor (baris generik) — bentuk v2.
   // Edit-reload: record lama menyimpan packing di kolom `packingType`; record yang
@@ -209,16 +213,6 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   }, [deps, calcInput])
   const hasil: HasilKalkulasi | null = computed
 
-  // Harga per channel — parse dari computed.hargaChannelJson (v2, snapshot channel aktif).
-  const hargaChannel = useMemo(() => {
-    if (!computed) return undefined
-    try {
-      const parsed = JSON.parse(computed.hargaChannelJson)
-      return Array.isArray(parsed) ? parsed : undefined
-    } catch {
-      return undefined
-    }
-  }, [computed])
 
   // Perbandingan margin per printer — harga jual tetap dari mesin acuan, HPP per profil.
   const printerComparison = useMemo(() => {
@@ -270,6 +264,44 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   const hasValidInput = !!ratesData && nama.trim().length > 0 &&
     (platesForSave.length > 0 || !!inputV2.komponen?.some(k => k.harga > 0))
   const [showPrint, setShowPrint] = useState(false)
+
+  const rekomendasiHarga = hasil
+    ? (rekomendasiChannel === "shopee"
+        ? (marginTier === "B" ? hasil.shopeeB : marginTier === "C" ? hasil.shopeeC : hasil.shopeeA)
+        : (marginTier === "B" ? hasil.offlineB : marginTier === "C" ? hasil.offlineC : hasil.offlineA))
+    : 0
+
+  // Dirender 2x (kolom kanan sticky desktop + sheet mobile) — sama isi persis.
+  const resultsContent = (
+    <>
+      {hasil && (
+        <RekomendasiHargaCard
+          hasil={hasil}
+          channels={settingsV2?.channels}
+          tier={marginTier}
+          onTierChange={setMarginTier}
+          channel={rekomendasiChannel}
+          onChannelChange={setRekomendasiChannel}
+        />
+      )}
+      <HasilPanel
+        hasil={hasil}
+        hargaShopeeAktual={shopeeIsLocked ? linkedShopeePrice ?? undefined : hargaShopee}
+        hargaOfflineAktual={hargaOffline && hargaOffline > 0 ? hargaOffline : undefined}
+        isLoading={!ratesData}
+        marginTier={marginTier}
+        printerComparison={printerComparison}
+      />
+      {hasil && deps && (
+        <RincianPanel
+          input={calcInput}
+          deps={deps}
+          hasil={hasil}
+          hargaShopeeAktual={(shopeeIsLocked ? linkedShopeePrice : hargaShopee) ?? undefined}
+        />
+      )}
+    </>
+  )
 
   return (
     <>
@@ -568,35 +600,37 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
         </div>
       </div>
 
-      {/* RIGHT: Results */}
-      <div
-        className="g-card rounded-[5px] p-4"
-        style={{ border: "1px solid rgba(99,102,241,0.1)" }}
-      >
-        <div className="text-xs font-bold uppercase tracking-wider mb-4 g-accent">
-          Hasil Kalkulasi
-        </div>
-        <HasilPanel
-          hasil={hasil}
-          hargaShopeeAktual={shopeeIsLocked ? linkedShopeePrice ?? undefined : hargaShopee}
-          hargaOfflineAktual={hargaOffline && hargaOffline > 0 ? hargaOffline : undefined}
-          isLoading={!ratesData}
-          marginTier={marginTier}
-          hargaChannel={hargaChannel}
-          channels={settingsV2?.channels}
-          printerComparison={printerComparison}
-        />
-        {hasil && deps && (
-          <RincianPanel
-            input={calcInput}
-            deps={deps}
-            hasil={hasil}
-            hargaShopeeAktual={(shopeeIsLocked ? linkedShopeePrice : hargaShopee) ?? undefined}
-          />
-        )}
+      {/* RIGHT: Results — desktop only (sticky + scroll internal); mobile pakai
+          MobileSummaryBar + sheet di bawah (isi persis sama, resultsContent). */}
+      <div className="hidden lg:flex lg:flex-col lg:gap-3.5 lg:sticky lg:top-4"
+           style={{ maxHeight: "calc(100vh - 32px)", overflowY: "auto" }}>
+        {resultsContent}
       </div>
 
     </div>
+
+    {/* Mobile: bar ringkasan sticky + sheet berisi resultsContent yang sama */}
+    {hasil && (
+      <MobileSummaryBar
+        hppTotal={hasil.hppTotal}
+        harga={rekomendasiHarga}
+        onOpen={() => setMobileSheetOpen(true)}
+      />
+    )}
+    {mobileSheetOpen && (
+      <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end" role="dialog" aria-modal="true">
+        <button type="button" aria-label="Tutup" className="absolute inset-0 bg-black/50" onClick={() => setMobileSheetOpen(false)} />
+        <div className="relative max-h-[85vh] overflow-y-auto rounded-t-2xl p-4 g-card" style={{ borderBottom: "none" }}>
+          <div className="flex justify-between items-center mb-3">
+            <span className="text-sm font-semibold g-t1">Hasil kalkulasi</span>
+            <button type="button" aria-label="Tutup rincian" className="g-t3 text-lg leading-none" onClick={() => setMobileSheetOpen(false)}>✕</button>
+          </div>
+          <div className="flex flex-col gap-3.5">
+            {resultsContent}
+          </div>
+        </div>
+      </div>
+    )}
 
     {/* Printable quote modal */}
     {showPrint && hasil && (
