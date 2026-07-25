@@ -134,7 +134,7 @@ export function PlateInput({
                   onChange={(e) => setMat(pi, mi, { gramasi: e.target.value })} />
                 <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] g-t4 pointer-events-none">g</span>
               </div>
-              <HexColorPicker color={m.warnaHex ?? ""} options={swatchOptions(f)} onSelect={(hex) => setMat(pi, mi, { warnaHex: hex })} />
+              <HexColorPicker color={m.warnaHex ?? ""} options={swatchOptions(f)} onSelect={(hex) => setMat(pi, mi, { warnaHex: hex })} size="md" />
               <GlassInput value={m.warnaHex ?? ""} placeholder="#RRGGBB" aria-label="Kode warna hex"
                 className="w-[5.5rem] shrink-0 px-2 text-[11px] font-mono"
                 onChange={(e) => setMat(pi, mi, { warnaHex: e.target.value })} />
