@@ -14,6 +14,12 @@ import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
  *
  * Halaman ber-tab (finance, produk, landing) mengisi `title` sesuai tab/section
  * yang aktif, supaya judulnya selalu menggambarkan yang sedang dilihat.
+ *
+ * Judul render DI LUAR card (biar konsisten sama halaman yang punya sidebar sendiri,
+ * mis. Order/Produk — sidebar-nya sudah berupa glass-card mengambang via
+ * `SectionSidebar`, jadi area konten butuh treatment serupa biar kebaca sebagai
+ * section terpisah, bukan flat). `children` dibungkus card glass tipis (lebih halus
+ * dari SectionSidebar biar sidebar tetap jadi fokus visual utama).
  */
 export function PageShell({
   title,
@@ -34,7 +40,18 @@ export function PageShell({
       <GlassPageHeader title={title} subtitle={description}>
         {actions}
       </GlassPageHeader>
-      {children}
+      <div
+        className="
+          rounded-2xl p-4 md:p-5
+          bg-white/[0.22] dark:bg-white/[0.035]
+          backdrop-blur-[14px] dark:backdrop-blur-[10px] saturate-[150%]
+          border border-[rgba(200,190,255,0.2)] dark:border-indigo-500/[0.08]
+          shadow-[0_4px_16px_rgba(99,102,241,0.04),inset_0_1px_0_rgba(255,255,255,0.6)]
+          dark:shadow-[0_4px_16px_rgba(0,0,0,0.2),inset_0_1px_0_rgba(255,255,255,0.04)]
+        "
+      >
+        {children}
+      </div>
     </>
   )
 }
