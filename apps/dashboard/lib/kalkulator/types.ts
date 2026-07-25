@@ -38,6 +38,9 @@ export interface KalkulasiInput {
   komponen: KomponenItem[]
   labor: LaborItem[]
   customRiskPct?: number  // override failure rate per job (high-risk jobs)
+  /** false = biaya test layer tidak dihitung — cuma dipakai produk custom yang butuh test print.
+   *  Default true di form (paritas lama). */
+  testLayerEnabled?: boolean
 }
 
 export interface KalkulasiData extends HasilKalkulasi {
@@ -49,6 +52,7 @@ export interface KalkulasiData extends HasilKalkulasi {
   marginTier: MarginTier
   hargaShopeeAktual?: number
   hargaOfflineAktual?: number
+  testLayerEnabled: boolean
   packingType?: PackingType | null
   plates: PlateData[]
   komponenKustom: KomponenKustomData[]

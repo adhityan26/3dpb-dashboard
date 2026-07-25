@@ -210,6 +210,7 @@ model KalkulasiHarga {
   status            String   @default("TIDAK_DISET")
   hppFinishing      Float   @default(0)           // computed: labor + consumables
   hargaChannelJson  String?                        // JSON HargaChannelV2[] snapshot saat save (v2)
+  testLayerEnabled  Boolean @default(true)         // false = biaya test layer di-skip, khusus produk repeat/reguler
   plates               KalkulasiPlate[]
   komponenKustom       KomponenKustom[]
   labor                KalkulasiLabor[]

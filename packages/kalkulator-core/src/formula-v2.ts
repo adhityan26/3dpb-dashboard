@@ -11,7 +11,7 @@ import type {
 export function hitungKalkulasiV2(input: KalkulasiInputV2, settings: SettingsV2): HasilKalkulasiV2 {
   const safeBatch = Math.max(1, input.batch)
   const spread = settings.failureSpreadPct / 100
-  const testPct = settings.testLayerPct / 100
+  const testPct = (input.testLayerEnabled ?? true) ? settings.testLayerPct / 100 : 0
 
   function plateCost(p: PlateInputV2): { hpp: number; jual: number } {
     const mesin = p.durasiJam * p.mesinPerJam

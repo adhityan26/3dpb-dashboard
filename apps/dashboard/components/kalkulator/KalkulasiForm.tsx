@@ -158,6 +158,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   }, [pendingThumbnailUrls, plates])
   const [customRiskEnabled, setCustomRiskEnabled] = useState(false)
   const [customRiskPct, setCustomRiskPct] = useState<number>(12)
+  const [testLayerEnabled, setTestLayerEnabled] = useState<boolean>(initial?.testLayerEnabled ?? true)
 
   // Komponen (packing chip + baris preset/custom) & labor (baris generik) — bentuk v2.
   // Edit-reload: record lama menyimpan packing di kolom `packingType`; record yang
@@ -189,8 +190,10 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
     labor: laborRows.filter(l => l.nama.trim() && ((l.jam ?? 0) * (l.ratePerJam ?? 0) > 0 || (l.flat ?? 0) > 0))
                     .map(l => ({ nama: l.nama.trim(), jam: l.jam, ratePerJam: l.ratePerJam, flat: l.flat })),
     customRiskPct: customRiskEnabled ? customRiskPct : undefined,
+    testLayerEnabled,
   }), [nama, batch, marginTier, hargaShopee, shopeeIsLocked, linkedShopeePrice, hargaOffline,
-       platesForCalc, packingType, komponenRows, laborRows, ratesData, customRiskEnabled, customRiskPct])
+       platesForCalc, packingType, komponenRows, laborRows, ratesData, customRiskEnabled, customRiskPct,
+       testLayerEnabled])
 
   // Input jalur v2 dipakai preview & RincianPanel — plates dibatasi ke yang punya durasi
   // (platesForCalc); inputV2.plates sudah sama, tapi disatukan lewat memo agar buildHasilV2
@@ -438,6 +441,28 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
             }}
             className="glass-input w-full h-10 rounded-[5px] px-3 text-sm"
           />
+        </div>
+
+        {/* Test Layer */}
+        <div className="rounded-[5px] px-3 py-2.5 space-y-1" style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)" }}>
+          <div className="flex items-center justify-between">
+            <div>
+              <span className="text-xs font-medium g-t2">🧪 Test Layer</span>
+              <span className="text-[10px] g-t5 ml-2">(cuma buat produk custom)</span>
+            </div>
+            <button
+              onClick={() => setTestLayerEnabled(v => !v)}
+              className="text-[10px] px-2.5 py-1 rounded-md transition-colors font-medium"
+              style={testLayerEnabled
+                ? { background: "rgba(99,102,241,0.2)", border: "1px solid rgba(99,102,241,0.4)", color: "#a5b4fc" }
+                : { background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t4)" }}
+            >
+              {testLayerEnabled ? "✓ Aktif" : "Nonaktif"}
+            </button>
+          </div>
+          {!testLayerEnabled && (
+            <p className="text-[10px] g-t5">Biaya test layer di-skip — cocok untuk produk repeat/reguler yang gak butuh test print ulang.</p>
+          )}
         </div>
 
         {/* Custom Risk % */}

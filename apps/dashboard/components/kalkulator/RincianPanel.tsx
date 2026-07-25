@@ -43,7 +43,8 @@ export function RincianPanel({ input, deps, hasil, hargaShopeeAktual }: Props) {
       const v2input = resolveInputV2(input, deps)
       const v2 = hitungKalkulasiV2(v2input, deps.settings)
       const spread = deps.settings.failureSpreadPct / 100
-      const testPct = deps.settings.testLayerPct / 100
+      const testEnabled = input.testLayerEnabled ?? true
+      const testPct = testEnabled ? deps.settings.testLayerPct / 100 : 0
       const acuanGlobal = deps.printerProfiles.find(pp => pp.isPricingReference)
 
       const plateLines = v2input.plates.map((p, i) => {

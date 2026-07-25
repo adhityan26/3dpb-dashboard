@@ -170,6 +170,9 @@ export interface KalkulasiInputV2 {
   komponen: KomponenItem[]
   labor: LaborItem[]
   customRiskPct?: number   // override failure rate SEMUA material
+  /** false = biaya test layer (testLayerPct) tidak dihitung — dipakai untuk produk repeat/reguler
+   *  yang tidak butuh test print. Default true (paritas perilaku lama, semua kalkulasi kena). */
+  testLayerEnabled?: boolean
   hargaAktual?: { channelId: string; harga: number }
 }
 

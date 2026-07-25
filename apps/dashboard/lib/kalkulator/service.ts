@@ -126,6 +126,7 @@ export async function createKalkulasi(input: KalkulasiInput): Promise<KalkulasiD
       marginTier: input.marginTier,
       hargaShopeeAktual: input.hargaShopeeAktual,
       hargaOfflineAktual: input.hargaOfflineAktual,
+      testLayerEnabled: input.testLayerEnabled ?? true,
       packingType: null,
       ...hasil,
       plates: { create: platesCreate(input, deps) },
@@ -158,6 +159,7 @@ export async function updateKalkulasi(id: string, input: KalkulasiInput): Promis
       marginTier: input.marginTier,
       hargaShopeeAktual: input.hargaShopeeAktual,
       hargaOfflineAktual: input.hargaOfflineAktual,
+      testLayerEnabled: input.testLayerEnabled ?? true,
       packingType: null,
       ...hasil,
       plates: {
@@ -193,6 +195,7 @@ export async function duplicateKalkulasi(id: string, newNama: string, newBatch?:
     nama: newNama, batch: newBatch ?? source.batch, marginTier: source.marginTier as MarginTier,
     hargaShopeeAktual: source.hargaShopeeAktual ?? undefined,
     hargaOfflineAktual: source.hargaOfflineAktual ?? undefined,
+    testLayerEnabled: source.testLayerEnabled,
     plates: source.plates.map(p => ({ namaPart: p.namaPart ?? undefined, tipe: p.tipe as 'FDM' | 'SLA',
       printer: p.printer ?? undefined, gramasi: p.gramasi, materials: p.materials, durasiJam: p.durasiJam,
       filamentHargaId: p.filamentHargaId, hargaPerGram: p.hargaPerGram,

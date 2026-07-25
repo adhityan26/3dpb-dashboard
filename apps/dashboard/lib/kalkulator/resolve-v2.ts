@@ -70,6 +70,7 @@ export function resolveInputV2(input: KalkulasiInput, deps: ResolveDeps): Kalkul
     batch: input.batch,
     komponen: input.komponen,
     labor: input.labor,
+    testLayerEnabled: input.testLayerEnabled ?? true,
     // Paritas wrapper: rate konstan selalu diteruskan supaya plate 0-gram tetap kena buffer.
     // HANYA saat semua material tanpa profil — profil membawa failure rate per jenis.
     customRiskPct: input.customRiskPct ?? (

@@ -61,6 +61,19 @@ describe('hitungKalkulasiV2', () => {
     expect(r.hppProduksi).toBeCloseTo(4400)
   })
 
+  it('testLayerEnabled=true (default) menghitung testCost dari testLayerPct', () => {
+    const settingsWithTest: SettingsV2 = { ...SETTINGS, testLayerPct: 5 }
+    const r = hitungKalkulasiV2(baseInput(), settingsWithTest)
+    // matHpp = 3000, testCost = 3000 × 5% = 150 → hppProduksi = 3000 + 1000 + 150
+    expect(r.hppProduksi).toBeCloseTo(4150)
+  })
+
+  it('testLayerEnabled=false skip testCost sepenuhnya walau testLayerPct global > 0', () => {
+    const settingsWithTest: SettingsV2 = { ...SETTINGS, testLayerPct: 5 }
+    const r = hitungKalkulasiV2(baseInput({ testLayerEnabled: false }), settingsWithTest)
+    expect(r.hppProduksi).toBeCloseTo(4000) // sama seperti tanpa test layer sama sekali
+  })
+
   it('komponen & labor dijumlahkan ke hpp dan floor', () => {
     const r = hitungKalkulasiV2(baseInput({
       komponen: [{ nama: 'Packing', harga: 1500, qty: 1 }, { nama: 'Magnet', harga: 500, qty: 4 }],
