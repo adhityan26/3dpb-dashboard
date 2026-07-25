@@ -1,11 +1,48 @@
 "use client";
 import Link from "next/link";
-import { useRef, useState } from "react";
-import { GlassInput, HexColorPicker, type HexColorPickerOption } from "@3pb/ui";
+import { useEffect, useRef, useState } from "react";
+import { GlassInput } from "@3pb/ui";
 import { InfoTip } from "./InfoTip";
 import { newId } from "@/lib/id";
 import { importSlicerFile } from "@/lib/kalkulator/import-3mf";
 import type { FilamentEntry } from "@/lib/kalkulator/local-settings";
+
+// input type="color" HTML cuma nerima format #rrggbb persis 6 digit — beda dgn
+// validasi longgar di @3pb/ui isValidHexColor (3-8 digit), jadi cek sendiri di sini.
+function isStrictHex6(s: string | undefined): s is string {
+  return !!s && /^#[0-9a-fA-F]{6}$/.test(s.trim());
+}
+
+// Terima input "H:MM" (mis. "1:45") ATAU angka jam desimal biasa (mis. "1.75") —
+// dikonversi ke desimal cuma saat blur (bukan tiap keystroke) supaya user bisa
+// ngetik ":" tanpa field-nya berubah sendiri di tengah ketikan.
+function parseDurasi(raw: string): string {
+  const trimmed = raw.trim();
+  const hhmm = trimmed.match(/^(\d+):([0-5]?\d)$/);
+  if (!hhmm) return trimmed;
+  const jam = Number(hhmm[1]);
+  const menit = Number(hhmm[2]);
+  return String(Math.round((jam + menit / 60) * 100) / 100);
+}
+
+function DurasiInput({ value, onCommit, className }: { value: string; onCommit: (v: string) => void; className?: string }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value]);
+  return (
+    <GlassInput
+      type="text"
+      placeholder="jam atau H:MM"
+      value={draft}
+      className={className}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={() => {
+        const parsed = parseDurasi(draft);
+        setDraft(parsed);
+        if (parsed !== value) onCommit(parsed);
+      }}
+    />
+  );
+}
 
 export interface PlateMaterial {
   id: string;
@@ -64,10 +101,6 @@ export function PlateInput({
     const f = filaments.find((x) => x.id === filamentId);
     setMat(pi, mi, f ? { filamentId: f.id, tipe: f.tipe, warnaHex: f.warnaHex } : { filamentId: undefined });
   };
-  const swatchOptions = (f: FilamentEntry | undefined): HexColorPickerOption[] =>
-    !f ? [] : filaments
-      .filter((x) => x.brand === f.brand && x.material === f.material && x.warnaHex)
-      .map((x) => ({ id: x.id, colorName: x.warna, colorHex: x.warnaHex! }));
 
   const [importError, setImportError] = useState<string | null>(null);
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
@@ -115,7 +148,6 @@ export function PlateInput({
     return (
       <div className="flex flex-col gap-1.5">
         {p.materials.map((m, mi) => {
-          const f = filaments.find((x) => x.id === m.filamentId);
           return (
             <div key={m.id} className="flex items-center gap-1.5">
               <select aria-label="Pilih filament" value={m.filamentId ?? ""} onChange={(e) => pickFilament(pi, mi, e.target.value)}
@@ -134,7 +166,10 @@ export function PlateInput({
                   onChange={(e) => setMat(pi, mi, { gramasi: e.target.value })} />
                 <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] g-t4 pointer-events-none">g</span>
               </div>
-              <HexColorPicker color={m.warnaHex ?? ""} options={swatchOptions(f)} onSelect={(hex) => setMat(pi, mi, { warnaHex: hex })} size="md" />
+              <input type="color" aria-label="Pilih warna" title="Pilih warna"
+                value={isStrictHex6(m.warnaHex) ? m.warnaHex : "#888888"}
+                onChange={(e) => setMat(pi, mi, { warnaHex: e.target.value })}
+                className="w-9 h-9 shrink-0 rounded-[5px] border border-[color:var(--g-row-border)] cursor-pointer bg-transparent p-0.5" />
               <GlassInput value={m.warnaHex ?? ""} placeholder="#RRGGBB" aria-label="Kode warna hex"
                 className="w-[5.5rem] shrink-0 px-2 text-[11px] font-mono"
                 onChange={(e) => setMat(pi, mi, { warnaHex: e.target.value })} />
@@ -253,8 +288,7 @@ export function PlateInput({
                 </>
               )}
               <div className={`relative shrink-0 ${p0.materials.length === 1 ? "flex-1 min-w-0" : "w-32"}`}>
-                <GlassInput type="number" inputMode="decimal" placeholder="durasi" value={p0.durasiJam} className="w-full min-w-0 pr-9"
-                  onChange={(e) => setRow(0, { durasiJam: e.target.value })} />
+                <DurasiInput value={p0.durasiJam} onCommit={(v) => setRow(0, { durasiJam: v })} className="w-full min-w-0 pr-9" />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">jam</span>
               </div>
               {p0.materials.length > 1 && (
@@ -312,8 +346,7 @@ export function PlateInput({
                   </>
                 )}
                 <div className="order-6 sm:order-5 relative w-[4.75rem] shrink-0">
-                  <GlassInput type="number" inputMode="decimal" placeholder="durasi" value={p.durasiJam} className="w-full px-2 pr-7"
-                    onChange={(e) => setRow(i, { durasiJam: e.target.value })} />
+                  <DurasiInput value={p.durasiJam} onCommit={(v) => setRow(i, { durasiJam: v })} className="w-full px-2 pr-7" />
                   <span className="absolute right-1.5 top-1/2 -translate-y-1/2 text-[10px] g-t4 pointer-events-none">jam</span>
                 </div>
               </div>

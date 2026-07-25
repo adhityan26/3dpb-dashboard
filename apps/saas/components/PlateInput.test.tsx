@@ -218,3 +218,42 @@ describe("1b-6b import file slicer", () => {
     expect(onP).not.toHaveBeenCalled();
   });
 });
+
+describe("durasi format H:MM & native color input (polish pasca-1b-6b)", () => {
+  it("ketik format H:MM lalu blur → dikonversi ke desimal jam", () => {
+    const onP = vi.fn();
+    render(<PlateInput {...base} locked={false} onPlatesChange={onP} />);
+    const input = screen.getByPlaceholderText("jam atau H:MM") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "1:45" } });
+    fireEvent.blur(input);
+    expect(onP.mock.calls[0][0][0]).toMatchObject({ durasiJam: "1.75" });
+  });
+
+  it("angka desimal biasa tetap jalan seperti sebelumnya", () => {
+    const onP = vi.fn();
+    render(<PlateInput {...base} locked={false} onPlatesChange={onP} />);
+    const input = screen.getByPlaceholderText("jam atau H:MM") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "2.5" } });
+    fireEvent.blur(input);
+    expect(onP.mock.calls[0][0][0]).toMatchObject({ durasiJam: "2.5" });
+  });
+
+  it("ketik tanpa blur belum commit ke onPlatesChange (baru commit saat blur)", () => {
+    const onP = vi.fn();
+    render(<PlateInput {...base} locked={false} onPlatesChange={onP} />);
+    const input = screen.getByPlaceholderText("jam atau H:MM") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "1:4" } });
+    expect(onP).not.toHaveBeenCalled();
+  });
+
+  it("input warna native ada & ganti warna update warnaHex material", () => {
+    const fil = [{ id: "fil-a", brand: "eSUN", material: "PLA+", tipe: "FDM" as const, warna: "Putih", warnaHex: "#f5f5f5", hppPerGram: 300, jualPerGram: 900 }];
+    const onP = vi.fn();
+    const multi = row({ materials: [mat(), mat({ id: "m2", gramasi: "20" })] });
+    render(<PlateInput locked={false} plates={[multi]} batch="1" filaments={fil} onPlatesChange={onP} onBatchChange={vi.fn()} />);
+    const colorInput = screen.getAllByLabelText("Pilih warna")[0] as HTMLInputElement;
+    expect(colorInput.type).toBe("color");
+    fireEvent.change(colorInput, { target: { value: "#ff00ff" } });
+    expect(onP.mock.calls[0][0][0].materials[0]).toMatchObject({ warnaHex: "#ff00ff" });
+  });
+});

@@ -16,14 +16,11 @@ interface HexColorPickerProps {
   options: HexColorPickerOption[]
   onSelect: (hex: string) => void
   className?: string
-  /** Ukuran swatch trigger. 'sm' (default, 12px) = perilaku lama, tak berubah buat consumer existing.
-   *  'md' (24px) buat konteks yang butuh swatch lebih kelihatan/gampang di-tap. */
-  size?: 'sm' | 'md'
 }
 
 /** Swatch warna yang jadi tombol trigger popover daftar warna katalog.
  *  Text input hex manual di sekitar komponen ini TIDAK digantikan — ini cuma shortcut opsional. */
-export function HexColorPicker({ color, options, onSelect, className = '', size = 'sm' }: HexColorPickerProps) {
+export function HexColorPicker({ color, options, onSelect, className = '' }: HexColorPickerProps) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -36,19 +33,16 @@ export function HexColorPicker({ color, options, onSelect, className = '', size 
     return () => document.removeEventListener('mousedown', handleClick)
   }, [open])
 
-  const dotSize = size === 'md' ? 'w-6 h-6' : 'w-3 h-3'
-  const borderWidth = size === 'md' ? '2px' : '1px'
-
   return (
     <div ref={ref} className={`relative inline-flex ${className}`}>
       <button
         type="button"
         onClick={() => setOpen(v => !v)}
-        className={`${dotSize} rounded-full flex-shrink-0 cursor-pointer`}
+        className="w-3 h-3 rounded-full flex-shrink-0 cursor-pointer"
         style={
           isValidHexColor(color)
-            ? { background: color, border: `${borderWidth} solid rgba(255,255,255,0.35)` }
-            : { border: `${borderWidth} dashed rgba(255,255,255,0.35)` }
+            ? { background: color, border: '1px solid rgba(255,255,255,0.25)' }
+            : { border: '1px dashed rgba(255,255,255,0.35)' }
         }
         aria-label="Pilih warna dari katalog"
         title="Pilih warna dari katalog"
