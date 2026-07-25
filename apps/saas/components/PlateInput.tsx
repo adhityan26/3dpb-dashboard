@@ -264,10 +264,8 @@ export function PlateInput({
           ) : (
             <div className="text-[10px] g-t4 uppercase tracking-wide">Durasi cetak</div>
           )}
-          {p0.nama && (
-            <GlassInput value={p0.nama} placeholder="Nama part (opsional)" className="flex-1 min-w-0"
-              onChange={(e) => setRow(0, { nama: e.target.value })} />
-          )}
+          <GlassInput value={p0.nama} placeholder="Nama part (opsional)" className="w-full min-w-0"
+            onChange={(e) => setRow(0, { nama: e.target.value })} />
           <div className="flex items-start gap-2">
             {p0.materials.length === 1 && (
               <>
@@ -288,13 +286,6 @@ export function PlateInput({
               <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] g-t4 pointer-events-none">jam</span>
             </div>
           </div>
-          {p0.materials.length === 1 && !p0.nama && (
-            <div className="flex items-center gap-2 text-[10px] g-t5">
-              <span className="w-[4.75rem] shrink-0" />
-              <span className="flex-1 min-w-0">Tipe · berat (g)</span>
-              <span className="flex-1 min-w-0">Durasi (jam)</span>
-            </div>
-          )}
           {p0.materials.length > 1 && (
             <div className="text-[10px] g-t4 uppercase tracking-wide pt-1">Material &amp; warna</div>
           )}
