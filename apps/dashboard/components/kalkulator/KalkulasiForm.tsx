@@ -65,6 +65,8 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   const [import3mfPending, setImport3mfPending] = useState(false)
   const [import3mfError, setImport3mfError] = useState<string | null>(null)
   const [import3mfWarnings, setImport3mfWarnings] = useState<string[]>([])
+  const [isDraggingFile, setIsDraggingFile] = useState(false)
+  const dragCounterRef = useRef(0) // dragenter/dragleave fire per-child element — counter biar overlay ga kedip
 
   async function handleImport3mf(file: File) {
     setImport3mfError(null)
@@ -89,6 +91,33 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
       setImport3mfPending(false)
     }
   }
+
+  function handleDragEnter(e: React.DragEvent) {
+    e.preventDefault()
+    if (isEditing) return
+    dragCounterRef.current += 1
+    setIsDraggingFile(true)
+  }
+  function handleDragOver(e: React.DragEvent) {
+    e.preventDefault() // wajib, tanpa ini browser nolak drop-nya
+  }
+  function handleDragLeave(e: React.DragEvent) {
+    e.preventDefault()
+    dragCounterRef.current -= 1
+    if (dragCounterRef.current <= 0) {
+      dragCounterRef.current = 0
+      setIsDraggingFile(false)
+    }
+  }
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    dragCounterRef.current = 0
+    setIsDraggingFile(false)
+    if (isEditing) return
+    const f = e.dataTransfer.files?.[0]
+    if (f) handleImport3mf(f)
+  }
+
   // Deps untuk jalur v2 — buildHasilV2/RincianPanel butuh keempatnya sudah ter-load.
   const deps: ResolveDeps | null = useMemo(() =>
     ratesData && settingsV2 && printerProfiles && materialProfiles
@@ -311,7 +340,14 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
       <div className="space-y-5">
 
         {/* Produksi (Cetak 3D): Nama Kalkulasi, Batch, Margin, Part/Plate — dibungkus CalcSection
-            (shared @3pb/ui, dipakai jg di saas) supaya konsisten bahasa visual lintas app. */}
+            (shared @3pb/ui, dipakai jg di saas) supaya konsisten bahasa visual lintas app.
+            Drag-and-drop file .3mf ke mana saja di card ini — sama efeknya dgn tombol Import. */}
+        <div className="relative"
+          onDragEnter={handleDragEnter}
+          onDragOver={handleDragOver}
+          onDragLeave={handleDragLeave}
+          onDrop={handleDrop}
+        >
         <CalcSection
           icon="🖨️"
           title="Produksi (Cetak 3D)"
@@ -440,6 +476,15 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
           </div>
         )}
         </CalcSection>
+        {isDraggingFile && (
+          <div className="absolute inset-0 z-10 rounded-2xl flex items-center justify-center pointer-events-none"
+               style={{ background: "rgba(99,102,241,0.15)", border: "2px dashed var(--g-accent)" }}>
+            <span className="text-sm font-semibold px-4 py-2 rounded-[5px]" style={{ color: "#fff", background: "linear-gradient(135deg, #5055e8, #818cf8)" }}>
+              📥 Lepas file .3mf di sini
+            </span>
+          </div>
+        )}
+        </div>
 
         {/* Komponen (packing + preset/custom) & Labor */}
         <KomponenSection
@@ -600,10 +645,11 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
         </div>
       </div>
 
-      {/* RIGHT: Results — desktop only (sticky + scroll internal); mobile pakai
-          MobileSummaryBar + sheet di bawah (isi persis sama, resultsContent). */}
-      <div className="hidden lg:flex lg:flex-col lg:gap-3.5 lg:sticky lg:top-4"
-           style={{ maxHeight: "calc(100vh - 32px)", overflowY: "auto" }}>
+      {/* RIGHT: Results — desktop only. Sticky relatif ke scroll container terdekat
+          (halaman produk sudah punya <div overflow-auto> sendiri via SidebarDrawerShell —
+          JANGAN tambah overflow-y:auto lagi di sini, dua scroll-container bersarang
+          bikin position:sticky gagal nempel). */}
+      <div className="hidden lg:flex lg:flex-col lg:gap-3.5 lg:sticky lg:top-4 lg:self-start">
         {resultsContent}
       </div>
 

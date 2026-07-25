@@ -49,7 +49,7 @@ export function RekomendasiHargaCard({ hasil, channels, tier, onTierChange, chan
         {CHANNELS.map(c => (
           <button key={c.id} type="button" onClick={() => onChannelChange(c.id)}
             className="flex-1 h-9 rounded-[5px] text-xs font-medium transition-colors"
-            style={channel === c.id ? { background: "var(--g-accent)", color: "#1a1a2e" } : { color: "var(--g-t3)" }}>
+            style={channel === c.id ? { background: "linear-gradient(135deg, #5055e8, #818cf8)", color: "#fff" } : { color: "var(--g-t3)" }}>
             {c.label}
           </button>
         ))}
@@ -76,7 +76,7 @@ export function RekomendasiHargaCard({ hasil, channels, tier, onTierChange, chan
                 <div className="text-[9px] g-t4">({pct(c.marginPct)})</div>
                 {on && (
                   <span className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap text-[9px] font-medium px-2 py-0.5 rounded-full"
-                        style={{ background: "var(--g-accent)", color: "#1a1a2e" }}>
+                        style={{ background: "linear-gradient(135deg, #5055e8, #818cf8)", color: "#fff" }}>
                     Direkomendasikan
                   </span>
                 )}
@@ -113,7 +113,7 @@ export function RekomendasiHargaCard({ hasil, channels, tier, onTierChange, chan
 
       <button type="button" onClick={handleCopy}
         className="h-10 rounded-[5px] text-[13px] font-semibold transition-opacity hover:opacity-90"
-        style={{ background: "var(--g-accent)", color: "#1a1a2e" }}>
+        style={{ background: "linear-gradient(135deg, #5055e8, #818cf8)", color: "#fff" }}>
         {copied ? "✓ Tersalin" : "Salin harga jual"}
       </button>
     </div>
