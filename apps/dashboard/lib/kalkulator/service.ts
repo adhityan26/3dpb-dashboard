@@ -6,7 +6,8 @@ import { listPrinterProfiles, listMaterialProfiles } from './profiles-service'
 import { buildHasilV2, resolveMesinAktual, type ResolveDeps } from './resolve-v2'
 import type {
   KalkulasiInput, KalkulasiData, KalkulasiProdukInput,
-  FilamentHargaData, ResinHargaData, MarginTier
+  FilamentHargaData, ResinHargaData, MarginTier,
+  RefreshTarifSnapshot, RefreshTarifPreview,
 } from './types'
 
 const INCLUDE_ALL = {
@@ -183,16 +184,17 @@ export async function deleteKalkulasi(id: string): Promise<void> {
   )
 }
 
-export async function duplicateKalkulasi(id: string, newNama: string, newBatch?: number): Promise<KalkulasiData> {
-  const source = await getKalkulasi(id)
-  if (!source) throw new Error('Kalkulasi not found')
+/** Rekonstruksi KalkulasiInput dari record tersimpan (KalkulasiData) — dipakai duplicateKalkulasi
+ *  DAN refresh-tarif (recompute pakai rate saat ini). Nama/batch tetap sama seperti source;
+ *  caller override kalau perlu (duplicateKalkulasi override nama/batch). */
+async function toKalkulasiInput(source: KalkulasiData): Promise<KalkulasiInput> {
   const { packing } = await loadRates()
   const komponen = source.komponenKustom.map(k => ({ nama: k.nama, harga: k.harga, qty: k.qty }))
   if (source.packingType && !komponen.some(k => k.nama === `Packing ${source.packingType}`)) {
     komponen.unshift({ nama: `Packing ${source.packingType}`, harga: packing[source.packingType] ?? 0, qty: 1 })
   }
-  return createKalkulasi({
-    nama: newNama, batch: newBatch ?? source.batch, marginTier: source.marginTier as MarginTier,
+  return {
+    nama: source.nama, batch: source.batch, marginTier: source.marginTier as MarginTier,
     hargaShopeeAktual: source.hargaShopeeAktual ?? undefined,
     hargaOfflineAktual: source.hargaOfflineAktual ?? undefined,
     testLayerEnabled: source.testLayerEnabled,
@@ -202,7 +204,48 @@ export async function duplicateKalkulasi(id: string, newNama: string, newBatch?:
       printerProfileId: p.printerProfileId ?? undefined, materialProfileId: p.materialProfileId ?? undefined })),
     komponen,
     labor: source.labor ?? [],
-  })
+  }
+}
+
+export async function duplicateKalkulasi(id: string, newNama: string, newBatch?: number): Promise<KalkulasiData> {
+  const source = await getKalkulasi(id)
+  if (!source) throw new Error('Kalkulasi not found')
+  const input = await toKalkulasiInput(source)
+  return createKalkulasi({ ...input, nama: newNama, batch: newBatch ?? source.batch })
+}
+
+function snapshotOf(h: RefreshTarifSnapshot): RefreshTarifSnapshot {
+  return {
+    hppTotal: h.hppTotal, floorPrice: h.floorPrice,
+    offlineA: h.offlineA, offlineB: h.offlineB, offlineC: h.offlineC,
+    shopeeA: h.shopeeA, shopeeB: h.shopeeB, shopeeC: h.shopeeC,
+  }
+}
+
+/** Recompute HPP/harga kalkulasi tersimpan pakai rate/settings SAAT INI (bukan rate saat
+ *  disimpan dulu) — TANPA persist. Dipakai kasih preview before/after ke user sebelum
+ *  memutuskan apply (lihat applyRefreshTarif). */
+export async function previewRefreshTarif(id: string): Promise<RefreshTarifPreview> {
+  const source = await getKalkulasi(id)
+  if (!source) throw new Error('Kalkulasi not found')
+  const input = await toKalkulasiInput(source)
+  const deps = await loadDeps()
+  const hasil = buildHasilV2(input, deps)
+  const before = snapshotOf(source)
+  const after = snapshotOf(hasil)
+  const hasChanges = (Object.keys(before) as (keyof RefreshTarifSnapshot)[]).some(k => before[k] !== after[k])
+  return { hasChanges, before, after }
+}
+
+/** Persist hasil recompute rate terbaru — dipanggil setelah user konfirmasi preview di atas.
+ *  Reuse updateKalkulasi (yang emang selalu recompute dari rate SAAT INI saat save), plates/
+ *  komponen/labor/nama/batch semuanya tetap sama persis seperti source — cuma HPP/harga-nya
+ *  yang berubah, sesuai tarif baru. */
+export async function applyRefreshTarif(id: string): Promise<KalkulasiData> {
+  const source = await getKalkulasi(id)
+  if (!source) throw new Error('Kalkulasi not found')
+  const input = await toKalkulasiInput(source)
+  return updateKalkulasi(id, input)
 }
 
 export async function addProdukLink(kalkulasiId: string, input: KalkulasiProdukInput): Promise<void> {

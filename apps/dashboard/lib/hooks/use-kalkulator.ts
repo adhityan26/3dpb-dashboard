@@ -3,7 +3,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
   KalkulasiData, KalkulasiInput, KalkulasiListResponse,
-  FilamentHargaData, ResinHargaData, KalkulatorRates, KalkulasiProdukInput
+  FilamentHargaData, ResinHargaData, KalkulatorRates, KalkulasiProdukInput,
+  RefreshTarifPreview,
 } from '@/lib/kalkulator/types'
 import type {
   PrinterProfileData, PrinterProfileInput, MaterialProfileData, MaterialProfileInput,
@@ -89,6 +90,24 @@ export function useDuplicateKalkulasi() {
   return useMutation({
     mutationFn: ({ id, nama, batch }: { id: string; nama: string; batch?: number }) =>
       apiFetch<KalkulasiData>(`/api/kalkulator/${id}/duplicate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ nama, batch }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: KALK_KEY }),
+  })
+}
+
+/** Recompute HPP/harga pakai rate saat ini, TANPA persist — dipakai preview before/after
+ *  sebelum user konfirmasi apply (useApplyRefreshTarif). */
+export function usePreviewRefreshTarif() {
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<RefreshTarifPreview>(`/api/kalkulator/${id}/refresh-tarif/preview`, { method: 'POST' }),
+  })
+}
+
+export function useApplyRefreshTarif() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (id: string) =>
+      apiFetch<KalkulasiData>(`/api/kalkulator/${id}/refresh-tarif`, { method: 'POST' }),
     onSuccess: () => qc.invalidateQueries({ queryKey: KALK_KEY }),
   })
 }

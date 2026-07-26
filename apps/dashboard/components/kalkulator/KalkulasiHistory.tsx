@@ -1,9 +1,13 @@
 "use client"
 
 import { useState } from "react"
-import { useKalkulasiList, useDeleteKalkulasi, useDuplicateKalkulasi } from "@/lib/hooks/use-kalkulator"
+import {
+  useKalkulasiList, useDeleteKalkulasi, useDuplicateKalkulasi,
+  usePreviewRefreshTarif, useApplyRefreshTarif,
+} from "@/lib/hooks/use-kalkulator"
 import { KatalogForm } from "@/components/katalog/KatalogForm"
-import type { KalkulasiData, KalkulasiStatus } from "@/lib/kalkulator/types"
+import { RefreshTarifModal } from "./RefreshTarifModal"
+import type { KalkulasiData, KalkulasiStatus, RefreshTarifPreview } from "@/lib/kalkulator/types"
 import { MARGIN_TIER_LABEL } from "@3pb/kalkulator-core"
 
 const STATUS_COLOR: Record<KalkulasiStatus, string> = {
@@ -28,6 +32,9 @@ const LIMIT = 10
 export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
   const deleteMut = useDeleteKalkulasi()
   const dupMut = useDuplicateKalkulasi()
+  const previewTarifMut = usePreviewRefreshTarif()
+  const applyTarifMut = useApplyRefreshTarif()
+  const [refreshTarifDialog, setRefreshTarifDialog] = useState<{ id: string; nama: string; preview: RefreshTarifPreview } | null>(null)
   const [search, setSearch] = useState("")
   const [filterStatus, setFilterStatus] = useState<KalkulasiStatus | "all">("all")
   const [expandedId, setExpandedId] = useState<string | null>(null)
@@ -56,6 +63,21 @@ export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
   async function handleDelete(id: string) {
     if (!confirm("Hapus kalkulasi ini?")) return
     await deleteMut.mutateAsync(id)
+  }
+
+  async function handleRefreshTarif(k: KalkulasiData) {
+    const preview = await previewTarifMut.mutateAsync(k.id)
+    if (!preview.hasChanges) {
+      alert("Tidak ada perubahan harga — tarif kalkulasi ini masih sama seperti terakhir disimpan.")
+      return
+    }
+    setRefreshTarifDialog({ id: k.id, nama: k.nama, preview })
+  }
+
+  async function handleApplyRefreshTarif() {
+    if (!refreshTarifDialog) return
+    await applyTarifMut.mutateAsync(refreshTarifDialog.id)
+    setRefreshTarifDialog(null)
   }
 
   async function handleDuplicate() {
@@ -217,6 +239,13 @@ export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
 
                   {/* Actions — wrap nicely */}
                   <div className="flex gap-1.5 flex-wrap">
+                    <button onClick={() => handleRefreshTarif(k)}
+                      disabled={previewTarifMut.isPending}
+                      className="h-8 px-3 rounded-[5px] text-[10px] font-medium"
+                      title="Hitung ulang HPP/harga pakai tarif saat ini — preview dulu sebelum diterapkan"
+                      style={{ background: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.5)" }}>
+                      {previewTarifMut.isPending && previewTarifMut.variables === k.id ? "⏳" : "🔄"} Tarif
+                    </button>
                     <button onClick={() => { onEdit(k); setExpandedId(null) }}
                       className="h-8 px-3 rounded-[5px] text-[10px] font-medium flex-1"
                       style={{ background: "rgba(99,102,241,0.15)", color: "#a5b4fc", minWidth: 60 }}>
@@ -305,6 +334,17 @@ export function KalkulasiHistory({ onEdit, onLinkProduk }: Props) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Refresh Tarif — preview before/after, konfirmasi apply */}
+      {refreshTarifDialog && (
+        <RefreshTarifModal
+          nama={refreshTarifDialog.nama}
+          preview={refreshTarifDialog.preview}
+          isApplying={applyTarifMut.isPending}
+          onApply={handleApplyRefreshTarif}
+          onClose={() => setRefreshTarifDialog(null)}
+        />
       )}
     </div>
   )

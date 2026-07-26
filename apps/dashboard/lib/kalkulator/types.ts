@@ -67,6 +67,19 @@ export interface KalkulasiProdukInput {
   isPrimary?: boolean
 }
 
+export interface RefreshTarifSnapshot {
+  hppTotal: number
+  floorPrice: number
+  offlineA: number; offlineB: number; offlineC: number
+  shopeeA: number; shopeeB: number; shopeeC: number
+}
+
+export interface RefreshTarifPreview {
+  hasChanges: boolean
+  before: RefreshTarifSnapshot
+  after: RefreshTarifSnapshot
+}
+
 export interface KalkulasiProdukData extends KalkulasiProdukInput {
   id: string
   kalkulasiId: string

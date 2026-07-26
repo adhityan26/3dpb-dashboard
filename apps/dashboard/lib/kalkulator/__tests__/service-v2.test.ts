@@ -20,7 +20,10 @@ import { loadRates } from '@/lib/kalkulator/rates'
 import { loadSettingsV2 } from '@/lib/kalkulator/settings-v2'
 import { listPrinterProfiles, listMaterialProfiles } from '@/lib/kalkulator/profiles-service'
 import type { PrinterProfileData } from '@/lib/kalkulator/profiles-service'
-import { createKalkulasi, updateKalkulasi, duplicateKalkulasi, listKalkulasi, getKalkulasi, deleteKalkulasi, parsePagination } from '../service'
+import {
+  createKalkulasi, updateKalkulasi, duplicateKalkulasi, listKalkulasi, getKalkulasi, deleteKalkulasi, parsePagination,
+  previewRefreshTarif, applyRefreshTarif,
+} from '../service'
 import type { KalkulatorRates, SettingsV2 } from '@3pb/kalkulator-core'
 
 type MockedPrisma = {
@@ -275,5 +278,76 @@ describe('deleteKalkulasi', () => {
     db.kalkulasiHarga.delete.mockResolvedValue({})
     await deleteKalkulasi('k1')
     expect(vi.mocked(deleteFromMinio)).not.toHaveBeenCalled()
+  })
+})
+
+describe('previewRefreshTarif / applyRefreshTarif', () => {
+  // Plate FDM 10g × 1jam, printer p1 (mesinPerJam 3000) → hppProduksi = 10×300 + 1×3000 = 6000
+  // (paritas dgn RATES/plate di describe createKalkulasi). floorPrice = 10×900 + 1×3000 = 12000.
+  // offlineA/B/C = floor×{1.1,1.5,2.0}; shopeeA/B/C = offline×1.2 (SETTINGS channels).
+  const plateRaw = {
+    id: 'pl1', kalkulasiId: 'k1', urutan: 1, namaPart: null, tipe: 'FDM', printer: null,
+    gramasi: 10, materialsJson: null, durasiJam: 1, filamentHargaId: null, filamentHargaPerGram: null,
+    printerProfileId: 'p1', materialProfileId: null, mesinPerJam: 3000,
+  }
+  const RECOMPUTED = {
+    hppTotal: 6000, floorPrice: 12000,
+    offlineA: 13200, offlineB: 18000, offlineC: 24000,
+    shopeeA: 15840, shopeeB: 21600, shopeeC: 28800,
+  }
+  function rawRecord(overrides: Partial<typeof RECOMPUTED> = {}) {
+    return {
+      id: 'k1', nama: 'Test', createdAt: new Date(), updatedAt: new Date(),
+      batch: 1, marginTier: 'A', hargaShopeeAktual: null, hargaOfflineAktual: null,
+      packingType: null, testLayerEnabled: true,
+      plates: [plateRaw], komponenKustom: [], labor: [], produkLinks: [], hargaChannelJson: null,
+      hppProduksi: 0, hppKomponen: 0, hppFinishing: 0, status: 'TIDAK_DISET',
+      resellerStd: 0, resellerBulk: 0, marginOfflineA: 0, marginShopeeA: 0,
+      ...RECOMPUTED, ...overrides,
+    }
+  }
+
+  describe('previewRefreshTarif', () => {
+    it('rate berubah (stored beda dari hasil recompute) → hasChanges true, before = stored, after = recompute', async () => {
+      db.kalkulasiHarga.findUnique.mockResolvedValue(rawRecord({ hppTotal: 5000, floorPrice: 10000 }))
+      const preview = await previewRefreshTarif('k1')
+      expect(preview.hasChanges).toBe(true)
+      expect(preview.before.hppTotal).toBe(5000)
+      expect(preview.before.floorPrice).toBe(10000)
+      expect(preview.after).toEqual(RECOMPUTED)
+    })
+
+    it('rate tidak berubah (stored = hasil recompute persis) → hasChanges false', async () => {
+      db.kalkulasiHarga.findUnique.mockResolvedValue(rawRecord())
+      const preview = await previewRefreshTarif('k1')
+      expect(preview.hasChanges).toBe(false)
+      expect(preview.before).toEqual(preview.after)
+    })
+
+    it('sumber tidak ditemukan → throw, tidak nyentuh buildHasilV2/rates', async () => {
+      db.kalkulasiHarga.findUnique.mockResolvedValue(null)
+      await expect(previewRefreshTarif('missing')).rejects.toThrow('Kalkulasi not found')
+    })
+  })
+
+  describe('applyRefreshTarif', () => {
+    it('reuse updateKalkulasi — plates/komponen/labor/nama/batch persis sama seperti source, cuma HPP/harga yg baru', async () => {
+      db.kalkulasiHarga.findUnique.mockResolvedValue(rawRecord({ hppTotal: 5000, floorPrice: 10000 }))
+      db.kalkulasiPlate.findMany.mockResolvedValue([{ thumbnailKey: null }])
+      db.kalkulasiHarga.update.mockImplementation(async (args: { data: Record<string, unknown> }) => ({
+        ...args.data, id: 'k1', createdAt: new Date(), updatedAt: new Date(),
+        plates: [], komponenKustom: [], labor: [], produkLinks: [],
+      }))
+
+      const result = await applyRefreshTarif('k1')
+
+      expect(db.kalkulasiHarga.update).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'k1' } }))
+      const data = db.kalkulasiHarga.update.mock.calls[0][0].data
+      expect(data.nama).toBe('Test')
+      expect(data.batch).toBe(1)
+      expect(data.hppTotal).toBe(6000)   // tarif baru, BUKAN 5000 yang lama
+      expect(data.floorPrice).toBe(12000)
+      expect(result.hppTotal).toBe(6000)
+    })
   })
 })
