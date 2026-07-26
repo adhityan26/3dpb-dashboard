@@ -49,6 +49,17 @@ export default function CydLayoutPage() {
       })
   }, [])
 
+  // defaultFields datang dari React Query async — halaman pertama bisa sudah ter-mount dengan
+  // fields: [] sebelum preset resolve. Begitu defaultFields terisi, backfill halaman yang masih
+  // dalam state awal (semua fields kosong) — jangan sentuh halaman yang sudah diedit user.
+  useEffect(() => {
+    if (defaultFields.length === 0) return
+    setConfig((cfg) => {
+      if (!cfg.pages.every((p) => p.fields.length === 0)) return cfg
+      return { ...cfg, pages: cfg.pages.map((p) => ({ ...p, fields: defaultFields })) }
+    })
+  }, [defaultFields])
+
   const activePage = config.pages[activePageIndex]
   const usedSlugsOnActivePage = activePage.cells.filter((c): c is Extract<LayoutCellOut, { printer: string }> => 'printer' in c).map((c) => c.printer)
 
