@@ -11,12 +11,12 @@ const CHANNELS = [{ id: "offline", label: "Offline / Langsung" }, { id: "shopee"
 const pct = (n: number) => n.toString().replace(".", ",") + "%";
 
 export function ResultPanel({
-  view, channel, tier, onChannel, onTier, onCopy, onReset, showRincian = true, onSave, isEditing = false,
+  view, channel, tier, onChannel, onTier, onCopy, onReset, showRincian = true, onSave, isEditing = false, onDuplicate,
 }: {
   view: FullView; channel: string; tier: MarginTier;
   onChannel: (c: string) => void; onTier: (t: MarginTier) => void;
   onCopy: () => void; onReset: () => void; showRincian?: boolean;
-  onSave?: () => void; isEditing?: boolean;
+  onSave?: () => void; isEditing?: boolean; onDuplicate?: () => void;
 }) {
   const [showFormula, setShowFormula] = useState(false);
   const cell = view.strategi[channel]?.[tier] ?? { harga: 0, laba: 0, marginPct: 0 };
@@ -102,6 +102,11 @@ export function ResultPanel({
           <button type="button" onClick={onCopy} className="flex-1 h-10 rounded-[5px] text-[13px] font-semibold text-white transition-opacity hover:opacity-90"
             style={{ background: "var(--g-accent)" }}>Salin harga jual</button>
           <button type="button" onClick={onReset} className="g-btn-ghost h-10 px-4 rounded-[5px] text-[13px]">Reset</button>
+          {onDuplicate && (
+            <button type="button" onClick={onDuplicate} className="g-btn-ghost h-10 px-3 rounded-[5px] text-[13px] font-medium">
+              📋 Duplikat
+            </button>
+          )}
           {onSave && (
             <button type="button" onClick={onSave} className="g-btn-ghost h-10 px-3 rounded-[5px] text-[13px] font-medium">
               {isEditing ? "Update" : "Simpan"}

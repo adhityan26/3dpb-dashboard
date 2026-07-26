@@ -57,3 +57,17 @@ describe("ResultPanel: Simpan/Update (1b-4)", () => {
     expect(screen.getByRole("button", { name: /^Update/ })).toBeTruthy();
   });
 });
+
+describe("ResultPanel: Duplikat", () => {
+  const base = { view, channel: "offline", tier: "B" as const, onChannel: vi.fn(), onTier: vi.fn(), onCopy: vi.fn(), onReset: vi.fn() };
+  it("tanpa onDuplicate → tombol Duplikat tak dirender", () => {
+    render(<ResultPanel {...base} />);
+    expect(screen.queryByRole("button", { name: /Duplikat/ })).toBeNull();
+  });
+  it("onDuplicate diberikan → tombol muncul dan memanggilnya saat diklik", () => {
+    const onDuplicate = vi.fn();
+    render(<ResultPanel {...base} onDuplicate={onDuplicate} />);
+    fireEvent.click(screen.getByRole("button", { name: /Duplikat/ }));
+    expect(onDuplicate).toHaveBeenCalled();
+  });
+});
