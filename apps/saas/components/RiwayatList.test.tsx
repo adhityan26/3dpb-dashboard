@@ -159,4 +159,27 @@ describe("RiwayatList: Duplikat & Hitung ulang", () => {
     expect(window.confirm).not.toHaveBeenCalled();
     expect(putKalkulasi).not.toHaveBeenCalled();
   });
+
+  it("Duplikat: putKalkulasi ditolak → pesan error, list tak di-refresh", async () => {
+    (listKalkulasi as any).mockResolvedValue([REC]);
+    render(<RiwayatList userId="u1" />);
+    await waitFor(() => expect(screen.getByText("Vas bunga")).toBeTruthy());
+    (putKalkulasi as any).mockClear().mockRejectedValueOnce(new Error("gagal"));
+    (listKalkulasi as any).mockClear();
+    fireEvent.click(screen.getByLabelText("Duplikat"));
+    await waitFor(() => expect(screen.getByText(/Gagal duplikat — coba lagi/)).toBeTruthy());
+    expect(listKalkulasi).not.toHaveBeenCalled();
+  });
+
+  it("Hitung ulang: putKalkulasi ditolak → pesan error, list tak di-refresh", async () => {
+    (listKalkulasi as any).mockResolvedValue([REC]);
+    window.confirm = vi.fn(() => true);
+    render(<RiwayatList userId="u1" />);
+    await waitFor(() => expect(screen.getByText("Vas bunga")).toBeTruthy());
+    (putKalkulasi as any).mockClear().mockRejectedValueOnce(new Error("gagal"));
+    (listKalkulasi as any).mockClear();
+    fireEvent.click(screen.getByLabelText("Hitung ulang"));
+    await waitFor(() => expect(screen.getByText(/Gagal hitung ulang — coba lagi/)).toBeTruthy());
+    expect(listKalkulasi).not.toHaveBeenCalled();
+  });
 });

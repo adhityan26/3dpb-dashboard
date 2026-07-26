@@ -34,7 +34,7 @@ export function RiwayatList({ userId }: { userId: string }) {
     if (!snapshot) { setActionMsg("Gagal duplikat — data plate tidak valid"); return; }
     const now = new Date().toISOString();
     const copy: KalkulasiRecord = { ...record, id: newId(), nama: record.nama + " (salinan)", createdAt: now, updatedAt: now, snapshot };
-    putKalkulasi(copy).then(() => { setActionMsg(null); load(); });
+    putKalkulasi(copy).then(() => { setActionMsg(null); load(); }).catch(() => setActionMsg("Gagal duplikat — coba lagi"));
   };
 
   const onRecalculate = (record: KalkulasiRecord) => {
@@ -48,7 +48,9 @@ export function RiwayatList({ userId }: { userId: string }) {
     const sign = delta >= 0 ? "+" : "-";
     const pesan = `Perbarui harga "${record.nama}"?\n${rupiah(record.snapshot.rekomendasi)} → ${rupiah(newSnapshot.rekomendasi)} (${sign}${rupiah(Math.abs(delta))})`;
     if (!window.confirm(pesan)) return;
-    putKalkulasi({ ...record, updatedAt: new Date().toISOString(), snapshot: newSnapshot }).then(() => { setActionMsg(null); load(); });
+    putKalkulasi({ ...record, updatedAt: new Date().toISOString(), snapshot: newSnapshot })
+      .then(() => { setActionMsg(null); load(); })
+      .catch(() => setActionMsg("Gagal hitung ulang — coba lagi"));
   };
 
   if (loading || !settingsReady) {
