@@ -131,6 +131,34 @@ export function Calculator({ paidCore = false, userId = null, kalkulasiId }: { p
     });
   };
 
+  const handleDuplicate = () => {
+    if (saving) return;
+    if (!userId || !view || savedId === undefined) return;
+    const id = newId();
+    const now = new Date().toISOString();
+    const finalNama = (nama.trim() || "Kalkulasi " + new Date().toLocaleDateString("id-ID")) + " (salinan)";
+    const record: KalkulasiRecord = {
+      id,
+      userId,
+      nama: finalNama,
+      createdAt: now,
+      updatedAt: now,
+      input: { plates, batch, komponen, labor, packing, channel, tier },
+      snapshot: {
+        biayaModal: view.biayaModal,
+        hargaJualMinimum: view.hargaJualMinimum,
+        rekomendasi: view.rekomendasi,
+        status: view.status,
+        strategi: view.strategi,
+      },
+    };
+    setSaving(true);
+    putKalkulasi(record).then(() => {
+      setSaving(false);
+      router.push(`/kalkulator/${id}`);
+    });
+  };
+
   const r = view?.rincian;
   const hasil = Math.max(1, Number(batch) || 1);
 
@@ -217,7 +245,8 @@ export function Calculator({ paidCore = false, userId = null, kalkulasiId }: { p
       <div className="hidden lg:block lg:sticky lg:top-6 min-w-0">
         {view ? (
           <ResultPanel view={view} channel={channel} tier={tier} onChannel={setChannel} onTier={setTier} onCopy={onCopy} onReset={onReset} showRincian={showRincian}
-            onSave={paidCore ? handleSave : undefined} isEditing={savedId !== undefined} />
+            onSave={paidCore ? handleSave : undefined} isEditing={savedId !== undefined}
+            onDuplicate={paidCore && savedId !== undefined ? handleDuplicate : undefined} />
         ) : (
           <div className="text-[12px] g-t4 p-4">Isi berat &amp; durasi (angka &gt; 0) untuk melihat hasil.</div>
         )}
@@ -235,7 +264,8 @@ export function Calculator({ paidCore = false, userId = null, kalkulasiId }: { p
                   <button type="button" aria-label="Tutup rincian" className="g-t3 text-lg leading-none" onClick={() => setSheetOpen(false)}>✕</button>
                 </div>
                 <ResultPanel view={view} channel={channel} tier={tier} onChannel={setChannel} onTier={setTier} onCopy={onCopy} onReset={onReset} showRincian={showRincian}
-                  onSave={paidCore ? handleSave : undefined} isEditing={savedId !== undefined} />
+                  onSave={paidCore ? handleSave : undefined} isEditing={savedId !== undefined}
+                  onDuplicate={paidCore && savedId !== undefined ? handleDuplicate : undefined} />
               </div>
             </div>
           )}
