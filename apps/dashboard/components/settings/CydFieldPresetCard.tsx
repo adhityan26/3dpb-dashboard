@@ -118,10 +118,13 @@ export function CydFieldPresetCard() {
               <span className="text-xs g-t2 flex-1 font-medium">{p.name}</span>
               <button onClick={() => loadPreset(p.id, p.name, p.fields)} className="text-[10px] g-t4 hover:text-indigo-300 transition-colors px-1">✎</button>
               <button
-                onClick={() => deleteMut.mutate(p.id, {
-                  onError: (e) => { setRowError(e instanceof Error ? e.message : 'Gagal'); qc.invalidateQueries({ queryKey: ['cyd-field-presets'] }) },
-                  onSuccess: () => { setRowError(null); if (editingId === p.id) resetForm() },
-                })}
+                onClick={() => {
+                  if (!confirm('Yakin hapus preset ini?')) return
+                  deleteMut.mutate(p.id, {
+                    onError: (e) => { setRowError(e instanceof Error ? e.message : 'Gagal'); qc.invalidateQueries({ queryKey: ['cyd-field-presets'] }) },
+                    onSuccess: () => { setRowError(null); if (editingId === p.id) resetForm() },
+                  })
+                }}
                 disabled={deleteMut.isPending}
                 className="text-[10px] g-t4 hover:text-red-400 transition-colors px-1 disabled:opacity-40"
               >✕</button>
