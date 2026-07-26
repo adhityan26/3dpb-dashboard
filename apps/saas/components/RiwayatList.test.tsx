@@ -80,6 +80,21 @@ describe("RiwayatList", () => {
     fireEvent.click(screen.getByText(/Refresh/));
     await waitFor(() => expect(listKalkulasi).toHaveBeenCalledTimes(2));
   });
+
+  it("tetap menampilkan 'Memuat riwayat' sampai settings selesai dimuat (bukan cuma records)", async () => {
+    (listKalkulasi as any).mockResolvedValue([REC]);
+    let resolveSettings: (s: any) => void;
+    (loadSettings as any).mockReset().mockImplementation(
+      () => new Promise((resolve) => { resolveSettings = resolve; })
+    );
+    render(<RiwayatList userId="u1" />);
+    await waitFor(() => expect(listKalkulasi).toHaveBeenCalled());
+    // records sudah selesai load, tapi settings belum — masih harus loading
+    expect(screen.getByText(/Memuat riwayat/)).toBeTruthy();
+    expect(screen.queryByText("Vas bunga")).toBeNull();
+    resolveSettings!(DEFAULT_LOCAL_SETTINGS);
+    await waitFor(() => expect(screen.getByText("Vas bunga")).toBeTruthy());
+  });
 });
 
 describe("RiwayatList: Duplikat & Hitung ulang", () => {

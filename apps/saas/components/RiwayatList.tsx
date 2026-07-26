@@ -13,6 +13,7 @@ export function RiwayatList({ userId }: { userId: string }) {
   const [records, setRecords] = useState<KalkulasiRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [settings, setSettings] = useState<LocalSettings>(DEFAULT_LOCAL_SETTINGS);
+  const [settingsReady, setSettingsReady] = useState(false);
   const [actionMsg, setActionMsg] = useState<string | null>(null);
 
   const load = () => {
@@ -21,7 +22,7 @@ export function RiwayatList({ userId }: { userId: string }) {
   };
 
   useEffect(() => { load(); }, [userId]);
-  useEffect(() => { loadSettings(userId).then(setSettings); }, [userId]);
+  useEffect(() => { loadSettings(userId).then((s) => { setSettings(s); setSettingsReady(true); }); }, [userId]);
 
   const onDelete = (id: string) => {
     if (!window.confirm("Hapus kalkulasi ini? Tindakan ini tak bisa dibatalkan.")) return;
@@ -50,7 +51,7 @@ export function RiwayatList({ userId }: { userId: string }) {
     putKalkulasi({ ...record, updatedAt: new Date().toISOString(), snapshot: newSnapshot }).then(() => { setActionMsg(null); load(); });
   };
 
-  if (loading) {
+  if (loading || !settingsReady) {
     return <div className="text-[12px] g-t4 p-4">Memuat riwayat…</div>;
   }
 
