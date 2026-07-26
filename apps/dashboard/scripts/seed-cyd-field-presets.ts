@@ -6,7 +6,15 @@
  * Jalankan: pnpm --filter shopee-dashboard db:seed-cyd-presets
  */
 import 'dotenv/config'
-import { prisma } from '@/lib/db'
+import { PrismaClient } from '@prisma/client'
+import { PrismaPg } from '@prisma/adapter-pg'
+
+// Import langsung dari @prisma/client (bukan '@/lib/db') supaya script ini tidak bergantung
+// pada tsconfig path alias — image produksi (Dockerfile runner stage) tidak meng-copy
+// apps/dashboard/lib/ maupun tsconfig.json, jadi '@/lib/db' gagal resolve saat dijalankan
+// via docker-entrypoint.sh (walau bekerja saat dev lokal, di mana keduanya ada).
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL ?? 'postgresql://localhost/build_placeholder' })
+const prisma = new PrismaClient({ adapter })
 
 const PRESETS = [
   { name: 'Ringkas', fields: [['name'], ['state', 'progress'], ['progressBar']] },
