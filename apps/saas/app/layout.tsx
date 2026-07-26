@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Providers } from "./providers";
 import { AmbientOrbs } from "@/components/AmbientOrbs";
+import { UpdateBanner } from "@/components/UpdateBanner";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="id" suppressHydrationWarning className={inter.variable}>
       <body className="bg-glass-page">
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <UpdateBanner />
           <AmbientOrbs />
           <Providers>{children}</Providers>
         </ThemeProvider>
