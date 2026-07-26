@@ -2,17 +2,9 @@
 'use client'
 
 import { motion } from 'framer-motion'
-import type { LayoutCellOut, FieldPresetKey } from '@/lib/cyd-layout/types'
-import { FIELD_PRESETS, LAYOUT_LIMITS } from '@/lib/cyd-layout/types'
-
-// Preset per-SEL (override) dibatasi buffer tetap firmware (MAX_CELL_FIELD_ROWS=3) — beda dari
-// batas default per-halaman (8). Preset yang row-nya lebih banyak dari itu ("Detail", 5 baris)
-// difilter di sini supaya tidak bisa dipilih untuk sel individual sama sekali — kalau tetap
-// dipaksa lewat, firmware nolak SELURUH config (bukan cuma sel ini) saat parse.
-const CELL_OVERRIDE_PRESETS = (Object.keys(FIELD_PRESETS) as FieldPresetKey[]).filter(
-  (key) => FIELD_PRESETS[key].length <= LAYOUT_LIMITS.maxRowsPerFieldsCellOverride
-)
-const PRESET_LABELS: Record<FieldPresetKey, string> = { ringkas: 'Ringkas', detail: 'Detail' }
+import type { LayoutCellOut } from '@/lib/cyd-layout/types'
+import { LAYOUT_LIMITS } from '@/lib/cyd-layout/types'
+import { useCydFieldPresets } from '@/lib/hooks/use-cyd-field-presets'
 
 // Batas kolom cuma sanity check editor (firmware bagi lebar layar / cols, tidak ada array
 // tetap yang bisa overflow). Batas baris WAJIB <=8 — firmware nolak config kalau rows >
@@ -31,9 +23,14 @@ export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurati
   gridRows: number
   onUpdateGrid: (updates: { cols?: number; rows?: number }) => void
 }) {
-  function handlePresetChange(preset: FieldPresetKey) {
+  const { data: allPresets } = useCydFieldPresets()
+  const cellOverridePresets = (allPresets ?? []).filter((p) => p.fields.length <= LAYOUT_LIMITS.maxRowsPerFieldsCellOverride)
+
+  function handlePresetChange(presetId: string) {
     if (!cell || ('type' in cell && cell.type === 'label')) return
-    onUpdateCell({ ...cell, fields: FIELD_PRESETS[preset] })
+    const preset = cellOverridePresets.find((p) => p.id === presetId)
+    if (!preset) return
+    onUpdateCell({ ...cell, fields: preset.fields })
   }
 
   // Identitas unik sel terpilih — dipakai sebagai React key agar input
@@ -101,13 +98,13 @@ export function CellSettingsPanel({ cell, onUpdateCell, onRemoveCell, pageDurati
                   Field preset
                   <select
                     className="glass-input mt-1 w-full rounded-[5px] px-2 py-1.5 text-xs"
-                    onChange={(e) => handlePresetChange(e.target.value as FieldPresetKey)}
+                    onChange={(e) => handlePresetChange(e.target.value)}
                   >
-                    {CELL_OVERRIDE_PRESETS.map((key) => (
-                      <option key={key} value={key}>{PRESET_LABELS[key]}</option>
+                    {cellOverridePresets.map((p) => (
+                      <option key={p.id} value={p.id}>{p.name}</option>
                     ))}
                   </select>
-                  {CELL_OVERRIDE_PRESETS.length < Object.keys(FIELD_PRESETS).length && (
+                  {(allPresets ?? []).length > cellOverridePresets.length && (
                     <span className="g-t4 mt-1 block text-[10px] leading-relaxed">
                       Preset dengan baris lebih banyak cuma bisa jadi default halaman, bukan per-sel (batas firmware).
                     </span>

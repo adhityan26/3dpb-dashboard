@@ -8,20 +8,24 @@ import { PrinterPalette, PrinterCardPreview, type PaletteItem } from '@/componen
 import { GridCanvas, CanvasCellPreview } from '@/components/cyd-layout/GridCanvas'
 import { PageTabs } from '@/components/cyd-layout/PageTabs'
 import { CellSettingsPanel } from '@/components/cyd-layout/CellSettingsPanel'
-import { FIELD_PRESETS } from '@/lib/cyd-layout/types'
+import { useCydFieldPresets } from '@/lib/hooks/use-cyd-field-presets'
 import type { LayoutConfigOut, LayoutPageOut, LayoutCellOut } from '@/lib/cyd-layout/types'
 
-const DEFAULT_CONFIG: LayoutConfigOut = {
-  schemaVersion: 1,
-  pages: [
-    { id: 'rack', grid: { cols: 10, rows: 8 }, fields: FIELD_PRESETS.ringkas, durationSec: 0, cells: [] },
-  ],
+function defaultConfig(defaultFields: LayoutPageOut['fields']): LayoutConfigOut {
+  return {
+    schemaVersion: 1,
+    pages: [
+      { id: 'rack', grid: { cols: 10, rows: 8 }, fields: defaultFields, durationSec: 0, cells: [] },
+    ],
+  }
 }
 
 interface LiveMap { [printerId: string]: { state: string; progress: number } }
 
 export default function CydLayoutPage() {
-  const [config, setConfig] = useState<LayoutConfigOut>(DEFAULT_CONFIG)
+  const { data: fieldPresets } = useCydFieldPresets()
+  const defaultFields = fieldPresets?.[0]?.fields ?? []
+  const [config, setConfig] = useState<LayoutConfigOut>(() => defaultConfig(defaultFields))
   const [activePageIndex, setActivePageIndex] = useState(0)
   const [selectedCellIndex, setSelectedCellIndex] = useState<number | null>(null)
   const [liveMap, setLiveMap] = useState<LiveMap>({})
@@ -33,7 +37,7 @@ export default function CydLayoutPage() {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }))
   // Monotonic counter for generating new page ids — never reused even after a page is removed,
   // so a later add can't collide with an id still (or previously) present in `config.pages`.
-  const nextPageNumberRef = useRef(DEFAULT_CONFIG.pages.length + 1)
+  const nextPageNumberRef = useRef(2)
 
   useEffect(() => {
     fetch('/api/cyd-layout/printers')
@@ -129,7 +133,7 @@ export default function CydLayoutPage() {
     const newId = `halaman-${nextPageNumberRef.current++}`
     setConfig((cfg) => ({
       ...cfg,
-      pages: [...cfg.pages, { id: newId, grid: { cols: 10, rows: 8 }, fields: FIELD_PRESETS.ringkas, durationSec: 8, cells: [] }],
+      pages: [...cfg.pages, { id: newId, grid: { cols: 10, rows: 8 }, fields: defaultFields, durationSec: 8, cells: [] }],
     }))
     setActivePageIndex(config.pages.length)
   }
