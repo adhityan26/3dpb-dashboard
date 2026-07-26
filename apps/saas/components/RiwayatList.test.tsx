@@ -2,23 +2,35 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { RiwayatList } from "./RiwayatList";
+import { DEFAULT_LOCAL_SETTINGS } from "@/lib/kalkulator/local-settings";
 
 vi.mock("@/lib/store/kalkulasi-history", () => ({
   listKalkulasi: vi.fn(async () => []),
   deleteKalkulasi: vi.fn(async () => {}),
+  putKalkulasi: vi.fn(async () => {}),
 }));
-import { listKalkulasi, deleteKalkulasi } from "@/lib/store/kalkulasi-history";
+import { listKalkulasi, deleteKalkulasi, putKalkulasi } from "@/lib/store/kalkulasi-history";
+
+vi.mock("@/lib/store/local-settings", () => ({
+  loadSettings: vi.fn(async () => ({})),
+}));
+import { loadSettings } from "@/lib/store/local-settings";
 
 const REC = {
   id: "k1", userId: "u1", nama: "Vas bunga",
   createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-02T00:00:00.000Z",
-  input: { plates: [], batch: "1", komponen: [], labor: [], packing: undefined, channel: "offline", tier: "B" },
+  input: {
+    plates: [{ id: "p1", nama: "", durasiJam: "3", materials: [{ id: "m1", tipe: "FDM", gramasi: "50" }] }],
+    batch: "1", komponen: [], labor: [], packing: undefined, channel: "offline", tier: "B",
+  },
   snapshot: { biayaModal: 0, hargaJualMinimum: 0, rekomendasi: 25000, status: "AMAN", strategi: {} },
 };
 
 beforeEach(() => {
   (listKalkulasi as any).mockReset().mockResolvedValue([]);
   (deleteKalkulasi as any).mockReset().mockResolvedValue(undefined);
+  (putKalkulasi as any).mockReset().mockResolvedValue(undefined);
+  (loadSettings as any).mockReset().mockResolvedValue(DEFAULT_LOCAL_SETTINGS);
 });
 
 describe("RiwayatList", () => {
@@ -67,5 +79,69 @@ describe("RiwayatList", () => {
     await waitFor(() => expect(listKalkulasi).toHaveBeenCalledTimes(1));
     fireEvent.click(screen.getByText(/Refresh/));
     await waitFor(() => expect(listKalkulasi).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("RiwayatList: Duplikat & Hitung ulang", () => {
+  it("klik Duplikat → putKalkulasi id baru + nama (salinan), list refresh, tak ada navigasi", async () => {
+    (listKalkulasi as any).mockResolvedValue([REC]);
+    render(<RiwayatList userId="u1" />);
+    await waitFor(() => expect(screen.getByText("Vas bunga")).toBeTruthy());
+    (putKalkulasi as any).mockClear();
+    (listKalkulasi as any).mockClear();
+    fireEvent.click(screen.getByLabelText("Duplikat"));
+    await waitFor(() => expect(putKalkulasi).toHaveBeenCalledTimes(1));
+    const saved = (putKalkulasi as any).mock.calls[0][0];
+    expect(saved.id).not.toBe("k1");
+    expect(saved.nama).toBe("Vas bunga (salinan)");
+    expect(saved.snapshot.rekomendasi).toBe(87930);
+    await waitFor(() => expect(listKalkulasi).toHaveBeenCalledTimes(1));
+  });
+
+  it("input plate tak valid → pesan error, putKalkulasi TIDAK dipanggil", async () => {
+    const rusak = { ...REC, input: { ...REC.input, plates: [] } };
+    (listKalkulasi as any).mockResolvedValue([rusak]);
+    render(<RiwayatList userId="u1" />);
+    await waitFor(() => expect(screen.getByText("Vas bunga")).toBeTruthy());
+    fireEvent.click(screen.getByLabelText("Duplikat"));
+    await waitFor(() => expect(screen.getByText(/Gagal duplikat/)).toBeTruthy());
+    expect(putKalkulasi).not.toHaveBeenCalled();
+  });
+
+  it("klik Hitung ulang, harga beda → confirm tampil dgn harga lama+baru+selisih, OK → putKalkulasi id sama", async () => {
+    (listKalkulasi as any).mockResolvedValue([REC]);
+    window.confirm = vi.fn(() => true);
+    render(<RiwayatList userId="u1" />);
+    await waitFor(() => expect(screen.getByText("Vas bunga")).toBeTruthy());
+    (putKalkulasi as any).mockClear();
+    fireEvent.click(screen.getByLabelText("Hitung ulang"));
+    await waitFor(() => expect(putKalkulasi).toHaveBeenCalledTimes(1));
+    expect((putKalkulasi as any).mock.calls[0][0].id).toBe("k1");
+    expect((putKalkulasi as any).mock.calls[0][0].snapshot.rekomendasi).toBe(87930);
+    expect(window.confirm).toHaveBeenCalledWith(
+      'Perbarui harga "Vas bunga"?\nRp25.000 → Rp87.930 (+Rp62.930)'
+    );
+  });
+
+  it("klik Hitung ulang, confirm Cancel → putKalkulasi TIDAK dipanggil, record tak berubah", async () => {
+    (listKalkulasi as any).mockResolvedValue([REC]);
+    window.confirm = vi.fn(() => false);
+    render(<RiwayatList userId="u1" />);
+    await waitFor(() => expect(screen.getByText("Vas bunga")).toBeTruthy());
+    (putKalkulasi as any).mockClear();
+    fireEvent.click(screen.getByLabelText("Hitung ulang"));
+    expect(putKalkulasi).not.toHaveBeenCalled();
+  });
+
+  it("klik Hitung ulang, harga SAMA → tak ada confirm, pesan 'Tidak ada perubahan', putKalkulasi TIDAK dipanggil", async () => {
+    const sama = { ...REC, snapshot: { ...REC.snapshot, rekomendasi: 87930 } };
+    (listKalkulasi as any).mockResolvedValue([sama]);
+    window.confirm = vi.fn(() => true);
+    render(<RiwayatList userId="u1" />);
+    await waitFor(() => expect(screen.getByText("Vas bunga")).toBeTruthy());
+    fireEvent.click(screen.getByLabelText("Hitung ulang"));
+    await waitFor(() => expect(screen.getByText(/Tidak ada perubahan/)).toBeTruthy());
+    expect(window.confirm).not.toHaveBeenCalled();
+    expect(putKalkulasi).not.toHaveBeenCalled();
   });
 });
