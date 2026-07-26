@@ -47,4 +47,24 @@ describe("UpdateBanner", () => {
     fireEvent.click(screen.getByRole("button", { name: /Refresh/ }));
     expect(messageSkipWaiting).toHaveBeenCalled();
   });
+
+  it("event 'controlling' dgn isUpdate=false (kunjungan pertama, clientsClaim) → TIDAK reload", async () => {
+    const reload = vi.fn();
+    Object.defineProperty(window, "location", { value: { ...window.location, reload }, writable: true });
+    render(<UpdateBanner />);
+    await waitFor(() => expect(addEventListener).toHaveBeenCalledWith("controlling", expect.any(Function)));
+    const controllingHandler = addEventListener.mock.calls.find(([event]) => event === "controlling")![1];
+    controllingHandler({ isUpdate: false });
+    expect(reload).not.toHaveBeenCalled();
+  });
+
+  it("event 'controlling' dgn isUpdate=true (update sungguhan sesudah messageSkipWaiting) → reload dipanggil", async () => {
+    const reload = vi.fn();
+    Object.defineProperty(window, "location", { value: { ...window.location, reload }, writable: true });
+    render(<UpdateBanner />);
+    await waitFor(() => expect(addEventListener).toHaveBeenCalledWith("controlling", expect.any(Function)));
+    const controllingHandler = addEventListener.mock.calls.find(([event]) => event === "controlling")![1];
+    controllingHandler({ isUpdate: true });
+    expect(reload).toHaveBeenCalled();
+  });
 });

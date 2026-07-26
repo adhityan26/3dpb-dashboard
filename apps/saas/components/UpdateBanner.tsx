@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 
 type SerwistLike = { messageSkipWaiting: () => void };
+type ControllingEvent = { isUpdate?: boolean };
 
 export function UpdateBanner() {
   const [waiting, setWaiting] = useState(false);
@@ -14,7 +15,15 @@ export function UpdateBanner() {
       if (cancelled) return;
       const sw = new Serwist("/sw.js");
       sw.addEventListener("waiting", () => setWaiting(true));
-      sw.addEventListener("controlling", () => window.location.reload());
+      // `isUpdate` is false on a brand-new registration (no prior controller) and
+      // true only when a service worker was already controlling the page when we
+      // registered — i.e. a genuine update just took over via messageSkipWaiting().
+      // Without this guard, clientsClaim:true fires "controlling" on EVERY first-ever
+      // visit too, silently reloading users who never asked for it (found in final
+      // whole-branch review).
+      sw.addEventListener("controlling", (event: ControllingEvent) => {
+        if (event.isUpdate) window.location.reload();
+      });
       sw.register();
       setSerwist(sw);
     });

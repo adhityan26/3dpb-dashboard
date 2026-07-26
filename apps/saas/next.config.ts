@@ -20,6 +20,12 @@ const withSerwist = withSerwistInit({
   swDest: "public/sw.js",
   register: false,
   disable: process.env.NODE_ENV === "development",
+  // /offline (app/sw.ts's fallbacks.entries target) must be explicitly precached —
+  // the modern Serwist class does NOT auto-precache fallback URLs, it only serves
+  // them from whatever's already in the precache. Without this, a cache-miss
+  // navigation while offline fails outright instead of showing the fallback page
+  // (found in final whole-branch review: /offline never actually rendered).
+  additionalPrecacheEntries: ["/offline"],
 });
 
 export default withSerwist(nextConfig);
