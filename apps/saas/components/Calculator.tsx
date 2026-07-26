@@ -128,6 +128,9 @@ export function Calculator({ paidCore = false, userId = null, kalkulasiId }: { p
       setSaveMsg(null);
       setSaving(false);
       if (isFirstSave) router.push(`/kalkulator/${id}`);
+    }).catch(() => {
+      setSaving(false);
+      setSaveMsg("Gagal menyimpan — coba lagi");
     });
   };
 
@@ -156,6 +159,9 @@ export function Calculator({ paidCore = false, userId = null, kalkulasiId }: { p
     putKalkulasi(record).then(() => {
       setSaving(false);
       router.push(`/kalkulator/${id}`);
+    }).catch(() => {
+      setSaving(false);
+      setSaveMsg("Gagal duplikat — coba lagi");
     });
   };
 

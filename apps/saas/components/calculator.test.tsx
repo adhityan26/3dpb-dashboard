@@ -252,4 +252,25 @@ describe("Calculator: Duplikat", () => {
     expect(saved.nama).toBe("Vas bunga (salinan)");
     expect(mockPush).toHaveBeenCalledWith(`/kalkulator/${saved.id}`);
   });
+
+  it("edit nama sebelum klik Duplikat → putKalkulasi memakai nama yang BARU diedit, bukan nama record asli", async () => {
+    (getKalkulasi as any).mockResolvedValueOnce({
+      id: "k1", userId: "u1", nama: "Vas bunga",
+      createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
+      input: {
+        plates: [{ id: "p1", nama: "", durasiJam: "5", materials: [{ id: "m1", tipe: "FDM", gramasi: "80" }] }],
+        batch: "1", komponen: [], labor: [], packing: undefined, channel: "offline", tier: "B",
+      },
+      snapshot: { biayaModal: 0, hargaJualMinimum: 0, rekomendasi: 0, status: "AMAN", strategi: {} },
+    });
+    mockPush.mockClear();
+    (putKalkulasi as any).mockClear();
+    render(<Calculator paidCore userId="u1" kalkulasiId="k1" />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /Duplikat/ })).toBeTruthy());
+    fireEvent.change(screen.getByPlaceholderText(/Nama kalkulasi/), { target: { value: "Vas bunga edisi baru" } });
+    fireEvent.click(screen.getByRole("button", { name: /Duplikat/ }));
+    await waitFor(() => expect(putKalkulasi).toHaveBeenCalledTimes(1));
+    const saved = (putKalkulasi as any).mock.calls[0][0];
+    expect(saved.nama).toBe("Vas bunga edisi baru (salinan)");
+  });
 });
