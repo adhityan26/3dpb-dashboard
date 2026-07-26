@@ -34,7 +34,13 @@ export function HexColorPicker({ color, options, onSelect, className = '' }: Hex
   }, [open])
 
   return (
-    <div ref={ref} className={`relative inline-flex ${className}`}>
+    // Sengaja TIDAK hardcode `relative` di sini — caller kontrol positioning sendiri lewat
+    // `className` (mis. "absolute ..." buat overlay di dalam input). Kalau caller taruh
+    // komponen ini inline biasa (tanpa className positioning), popover dropdown-nya tetap
+    // ke-anchor benar selama caller sendiri sudah `relative` (atau berikan `relative` lewat
+    // className) — Tailwind class merge: className caller SELALU harus menang di sini,
+    // hardcode `relative` di base bikin konflik kalau caller kirim `absolute`.
+    <div ref={ref} className={`inline-flex ${className}`}>
       <button
         type="button"
         onClick={() => setOpen(v => !v)}

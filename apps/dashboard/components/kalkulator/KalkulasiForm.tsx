@@ -402,7 +402,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <div className="text-xs font-semibold uppercase tracking-wider mb-1.5 g-accent">
                 Batch (unit)
@@ -415,16 +415,16 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
                 className="glass-input w-full h-10 rounded-[5px] px-3 text-sm"
               />
             </div>
-            <div>
+            <div className="min-w-0">
               <div className="text-xs font-semibold uppercase tracking-wider mb-1.5 g-accent">
                 Margin
               </div>
-              <div className="flex gap-2">
+              <div className="flex gap-1.5">
                 {(["A", "B", "C"] as MarginTier[]).map(tier => (
                   <button
                     key={tier}
                     onClick={() => setMarginTier(tier)}
-                    className="flex-1 h-10 rounded-[5px] text-[11px] font-bold transition-all px-1"
+                    className="flex-1 min-w-0 h-10 rounded-[5px] text-[10px] font-bold transition-all px-1 truncate"
                     style={
                       marginTier === tier
                         ? {
