@@ -37,20 +37,6 @@ export interface LayoutConfigOut {
   pages: LayoutPageOut[]
 }
 
-// Persis dari build-config.ts v1 — dipertahankan sebagai preset field per-sel/per-halaman.
-export const FIELD_PRESETS = {
-  ringkas: [['name'], ['state', 'progress'], ['progressBar']] as FieldRow[],
-  detail: [
-    ['name', 'type'],
-    ['state', 'progress'],
-    ['progressBar'],
-    [{ id: 'timeLeft', label: 'Sisa' }, { id: 'eta', label: 'ETA' }],
-    ['filename'],
-  ] as FieldRow[],
-} as const
-
-export type FieldPresetKey = keyof typeof FIELD_PRESETS
-
 // Batas validasi — cocok MAX_* di firmware layout_types.h
 // (~/Documents/Project/3pb-monitoring-display/apps/internal/src/layout/layout_types.h)
 export const LAYOUT_LIMITS = {

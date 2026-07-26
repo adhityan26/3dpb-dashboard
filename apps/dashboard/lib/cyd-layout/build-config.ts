@@ -13,7 +13,7 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 // Firmware nolak SELURUH config (bukan cuma potong diam-diam) kalau field-rows melebihi buffer
 // tetapnya (layout_parser.cpp parseFieldRows: "reject seluruh config, jangan diam-diam potong") —
 // makanya harus dicek di sini juga, bukan cuma andalkan validasi runtime device.
-function validateFieldRows(rows: unknown, maxRows: number, context: string): string | null {
+export function validateFieldRows(rows: unknown, maxRows: number, context: string): string | null {
   if (!Array.isArray(rows)) return `${context} wajib array`
   if (rows.length > maxRows) return `${context} melebihi batas ${maxRows} baris`
   for (let i = 0; i < rows.length; i++) {

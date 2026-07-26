@@ -18,6 +18,7 @@ import { InvoiceMethodsCard } from "@/components/settings/InvoiceMethodsCard"
 import { TokopediaSessionCard } from "@/components/settings/TokopediaSessionCard"
 import { FilamentAliasCard } from "@/components/settings/FilamentAliasCard"
 import { CydDeviceCard } from "@/components/settings/CydDeviceCard"
+import { CydFieldPresetCard } from "@/components/settings/CydFieldPresetCard"
 import { useSettings } from "@/lib/hooks/use-settings"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
@@ -146,6 +147,7 @@ function SettingsPageInner() {
         {activeTab === "monitoring" && (
           <div className="space-y-4">
             <CydDeviceCard />
+            <CydFieldPresetCard />
           </div>
         )}
 
