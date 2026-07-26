@@ -6,8 +6,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const session = await auth()
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
-  const body = await req.json()
   try {
+    const body = await req.json()
     return NextResponse.json(await updateFieldPreset(id, body))
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'error'
