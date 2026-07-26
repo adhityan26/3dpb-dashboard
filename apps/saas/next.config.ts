@@ -1,5 +1,6 @@
 import path from "path";
 import type { NextConfig } from "next";
+import withSerwistInit from "@serwist/next";
 
 const nextConfig: NextConfig = {
   output: "standalone",
@@ -8,4 +9,11 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@3pb/kalkulator-core", "@3pb/ui"],
 };
 
-export default nextConfig;
+const withSerwist = withSerwistInit({
+  swSrc: "app/sw.ts",
+  swDest: "public/sw.js",
+  register: false,
+  disable: process.env.NODE_ENV === "development",
+});
+
+export default withSerwist(nextConfig);
