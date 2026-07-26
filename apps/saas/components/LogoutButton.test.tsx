@@ -13,14 +13,18 @@ describe("LogoutButton", () => {
     (signOut as any).mockClear();
   });
 
-  it("klik → semua Cache Storage dihapus lalu signOut dipanggil", async () => {
+  it("klik → cache RUNTIME dihapus (bukan precache) lalu signOut dipanggil", async () => {
     const del = vi.fn().mockResolvedValue(true);
-    (globalThis as any).caches = { keys: vi.fn().mockResolvedValue(["a", "b"]), delete: del };
+    (globalThis as any).caches = {
+      keys: vi.fn().mockResolvedValue(["pages-navigate", "static-data-assets", "serwist-precache-v2-http://x/"]),
+      delete: del,
+    };
     render(<LogoutButton />);
     fireEvent.click(screen.getByRole("button", { name: /Keluar/ }));
     await waitFor(() => expect(signOut).toHaveBeenCalledWith({ callbackUrl: "/login" }));
-    expect(del).toHaveBeenCalledWith("a");
-    expect(del).toHaveBeenCalledWith("b");
+    expect(del).toHaveBeenCalledWith("pages-navigate");
+    expect(del).toHaveBeenCalledWith("static-data-assets");
+    expect(del).not.toHaveBeenCalledWith("serwist-precache-v2-http://x/");
   });
 
   it("Cache API tak tersedia → tetap signOut, tak crash", async () => {
