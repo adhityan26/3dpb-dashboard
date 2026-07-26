@@ -517,3 +517,13 @@ model StravaOrder {
   @@index([status])
   @@index([submittedAt])
 }
+
+// ── CYD Field Preset (layout editor /cyd-layout) ─────────────────────────────
+
+model CydFieldPreset {
+  id        String   @id @default(cuid())
+  name      String
+  fieldsJson String  // JSON FieldRow[] — lihat lib/cyd-layout/types.ts
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
