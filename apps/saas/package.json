@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3300",
-    "build": "next build --webpack",
+    "build": "next build --webpack && (test -f public/sw.js || (echo '❌ public/sw.js tidak dihasilkan — service worker Serwist gagal ke-bundle' && exit 1))",
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run --passWithNoTests",
