@@ -35,9 +35,19 @@ Ini value-prop yang jujur ke customer: **"pantau di layar CYD sendiri" (Pro) vs 
 
 ### Limit jumlah printer = COUNT query, bukan license
 
-Karena daftar printer (metadata) hidup di Postgres, limit-nya sesederhana: tolak `POST /api/devices` kalau `COUNT(Device WHERE userId=X) >= limit`. Tak perlu mekanisme license/token-baca-slot-count terpisah. Count+create dibungkus **`prisma.$transaction`** biar 2 request paralel dari user yang sama tak bisa sama-sama lolos di slot terakhir (race condition).
+Karena daftar printer (metadata) hidup di Postgres, limit-nya sesederhana: tolak `POST /api/devices` kalau `COUNT(Device WHERE userId=X) >= limit`. Tak perlu mekanisme license/token-baca-slot-count terpisah.
+
+**Race condition — DIKOREKSI setelah review Opus:** spec sebelumnya bilang "count+create dibungkus `prisma.$transaction`" buat cegah 2 request paralel sama-sama lolos di slot terakhir — TAPI ini klaim keamanan palsu. Transaksi interaktif Prisma pakai isolation level default Postgres (READ COMMITTED); 2 transaksi paralel sama-sama jalanin `COUNT` tanpa lihat `INSERT` transaksi lain yang belum commit, jadi DUA-DUANYA lolos cek `COUNT < limit` dan dua-duanya commit — race condition-nya TETAP ADA walau dibungkus `$transaction` biasa.
+
+**Fix (row lock, bukan isolation level tinggi):** di dalam transaksi interaktif, kunci row `Entitlement` user itu dulu sebelum COUNT: `await tx.$queryRaw\`SELECT 1 FROM "Entitlement" WHERE "userId" = ${userId} FOR UPDATE\``, baru `COUNT`, baru `create`. Transaksi kedua yang paralel akan nunggu di baris `FOR UPDATE` sampai transaksi pertama commit, baru lanjut COUNT (yang sekarang sudah include insert pertama). Ini lebih deterministik dibanding naikin isolation level ke Serializable + retry-on-conflict.
+
+**Test race condition WAJIB jalan ke Postgres asli** (pakai DB test/dev yang sudah ada), bukan `prisma` yang di-mock — kalau di-mock, assert-nya lolos vakum tanpa membuktikan apa-apa (mock tidak punya isolasi transaksi sungguhan).
 
 **Resolusi limit — DIKOREKSI setelah review Fable:** spec awal bilang "default diseed dari Config saat Entitlement dibuat", TAPI ada **4 titik kode berbeda** yang bikin row `Entitlement` (`lib/auth.ts`, `lib/wa/session.ts`, `lib/entitlement.ts`, `lib/payment/service.ts`) — seeding di 1 tempat gampang kelewat di 3 tempat lain, nilai Config jadi diam-diam diabaikan. Fix: `Entitlement.printerSlots` jadi **nullable** (`Int?`, TANPA default DB), dan limit di-resolve **saat cek**, bukan saat create: `const limit = entitlement.printerSlots ?? await getConfigInt('printer.defaultSlots', 1)`. Admin bisa override per-akun dengan set `Entitlement.printerSlots` eksplisit (lewat `/admin` tab User — nanti, MVP boleh manual lewat DB), atau ubah default global lewat `Config['printer.defaultSlots']` tanpa redeploy (self-serve "beli slot tambahan" = increment eksplisit terpisah nanti, YAGNI).
+
+**Prasyarat yang belum ada — ditemukan review Opus:** `apps/saas/lib/config.ts` HARI INI cuma expose `getConfig` (return `string`), `parsePrice`, `getAllConfig`, `setConfig` — **`getConfigInt` belum ada, harus dibikin** (parse + reject non-integer/`<1`, jangan return `NaN`). Lebih penting lagi: `app/api/admin/config/route.ts` nolak write buat key yang TAK ADA di `DEFAULT_CONFIG` (allowlist) — jadi kalau `"printer.defaultSlots"` tak didaftarkan ke `DEFAULT_CONFIG` di `lib/config.ts`, admin **tak akan bisa ubah nilainya sama sekali lewat `/admin`** (silently unwritable), padahal itu justru alasan utama milih pendekatan Config. **2 task eksplisit wajib ada di plan:** (a) tambah `"printer.defaultSlots": "1"` ke `DEFAULT_CONFIG`, (b) tambah fungsi `getConfigInt(key, fallback)`.
+
+**Catatan (bukan bug, sengaja):** baca Config terjadi DI LUAR transaksi row-lock di atas — worst case cuma 1 slot ekstra kepakai buat 1 user kalau admin pas ubah Config di detik yang sama. Ini trade-off yang diterima sadar, JANGAN "diperbaiki" nanti dengan masukin baca Config ke dalam lock (nambah kompleksitas buat kasus yang nyaris tak pernah kejadian).
 
 ### 1 layar CYD per akun (MVP)
 
@@ -51,7 +61,11 @@ Bukan multi-screen. `CydLayout` adalah relasi 1:1 ke `User` (`userId` sebagai pr
 
 **1 penyesuaian dari bentuk dashboard — DIKOREKSI setelah review Fable:** sel layout (`LayoutCellPrinterOut.printer`) di dashboard referensi printer pakai `slug`. Di SaaS, field yang sama **TIDAK BOLEH diisi `Device.id` mentah** — `cuid()` = 25 karakter, sementara firmware (`layout_types.h`) punya buffer tetap `char printerId[24]` (kapasitas 23 char sebelum null-terminator). `Device.id` overflow, dan karena cuid berbagi prefix timestamp antar-record, truncation bisa collision antar-device di firmware.
 
-**Fix:** tambah field `Device.shortCode` (string pendek, di-generate app-side saat create — mis. 10 karakter alfanumerik lowercase via `nanoid`, unik per user, bukan `@default(cuid())` Prisma), dan sel layout referensi `Device.shortCode`, BUKAN `Device.id`. `packages/cyd-layout-schema` juga harus menambah validasi **panjang maksimum string** ke `LAYOUT_LIMITS` (cocokkan ke buffer firmware: `printerId`≤23, `label`≤15, `labelText`≤31, page `id`≤15 — ini gap yang sudah ada hari ini juga di `apps/dashboard`, jadi perbaikan ini otomatis menguatkan validasi internal juga, bukan cuma buat SaaS).
+**Fix:** tambah field `Device.shortCode` (string pendek, di-generate app-side saat create, unik GLOBAL — bukan `@default(cuid())` Prisma), dan sel layout referensi `Device.shortCode`, BUKAN `Device.id`. `packages/cyd-layout-schema` juga harus menambah validasi **panjang maksimum string** ke `LAYOUT_LIMITS` (cocokkan ke buffer firmware: `printerId`≤23, `label`≤15, `labelText`≤31, page `id`≤15 — ini gap yang sudah ada hari ini juga di `apps/dashboard`, jadi perbaikan ini otomatis menguatkan validasi internal juga, bukan cuma buat SaaS).
+
+**`shortCode` — koreksi detail implementasi setelah review Opus:** JANGAN tambah dependency `nanoid` baru (bukan direct dependency di monorepo ini hari ini, cuma transitive via postcss; alfabet default-nya juga pakai uppercase+dash, kontradiksi sama "lowercase alnum"). Cukup bikin helper kecil ~6 baris pakai `crypto.randomInt`/`randomBytes` (pola sama seperti `lib/wa/otp.ts` yang sudah ada), alfabet `0123456789abcdefghijklmnopqrstuvwxyz`, panjang 10 (36^10 ≈ 3.7×10^15, aman dari collision buat skala ini). Karena `@unique`, collision saat create surface sebagai Prisma error `P2002` → **wajib retry maks 3x** dengan generate ulang, bukan langsung 500. `shortCode` **immutable** setelah dibuat (layout & Agent nanti keying ke nilai ini, jangan pernah di-regenerate pada device yang sama).
+
+**Migrasi/dampak ke `apps/dashboard` — temuan Opus, WAJIB task terpisah SEBELUM validasi panjang string di atas dipasang bersama:** batas panjang baru ini genuinely perlu (firmware `strlcpy` men-truncate diam-diam kalau kelewat), TAPI `Printer.slug` di dashboard hari ini **unbounded** (`slugify(nama)`, tanpa cap panjang) — printer dengan nama panjang (mis. "Bambu Lab X1 Carbon Rack 2" → slug 26 karakter) akan mulai gagal 400 pas simpan layout begitu validasi ini aktif, padahal sebelumnya jalan normal (regresi tersembunyi, test existing lolos cuma karena fixture-nya pendek semua: `mars`, `saturn`, dll). **Task pre-flight wajib:** audit `SELECT slug, length(slug) FROM "Printer" WHERE length(slug) > 23` di DB dashboard, pendekkan yang kepanjangan, DAN batasi panjang di titik generate slug (`scripts/backfill-printer-slug.ts` atau tempat slug di-set) biar tak kejadian lagi ke depan.
 
 **Field-preset (Ringkas/Detail) di-skip dulu buat MVP** — bukan bikin `CydFieldPreset` CRUD penuh kayak dashboard, cukup 2 preset di-hardcode client-side di editor SaaS. Kenyamanan authoring, bukan esensial versi pertama.
 
@@ -86,10 +100,10 @@ POC (lihat riwayat brainstorm) mengonfirmasi Bambu Lab broadcast SSDP non-standa
 ```prisma
 model Device {
   id          String   @id @default(cuid())
-  shortCode   String   @unique   // generate app-side (nanoid, 10 char lowercase alnum) — dipakai di sel layout, BUKAN id, biar muat buffer firmware char[24]
+  shortCode   String   @unique   // generate app-side, 10 char base36 lowercase, unik GLOBAL (bukan per-user) — dipakai di sel layout, BUKAN id, biar muat buffer firmware char[24]
   userId      String
   label       String
-  printerType String        // "bambu" | "moonraker"
+  printerType String        // ENUM di level aplikasi: "bambu" | "moonraker" — divalidasi di POST/PATCH, request dengan nilai lain ditolak 400
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -125,6 +139,16 @@ model Entitlement {
 }
 ```
 
+**Relasi balik di `User` — ditemukan Opus, WAJIB ada biar schema valid:** `model User` (existing) perlu ditambah 3 baris field relasi balik, kalau tidak Prisma nolak validasi schema:
+```prisma
+model User {
+  // ...field existing tak berubah...
+  devices      Device[]
+  cydLayout    CydLayout?
+  agentTokens  AgentToken[]
+}
+```
+
 **Format token** (`AgentToken`): `crypto.randomBytes(32)` → base64url, diberi prefix `slz_` biar gampang dikenali kalau bocor ke log (mis. `slz_xxxxxxxx...`). Disimpan cuma hash SHA-256-nya; token mentah tak pernah persist plaintext di server. Rate-limit endpoint `/api/agent/*` & throttle write `lastUsedAt` (mis. update paling sering 1x/menit per token, bukan tiap request) dicatat sebagai item pre-go-public, konsisten pola checklist rate-limit WA OTP yang sudah ada — TIDAK blocking buat MVP internal/pilot.
 
 ## Package Baru: `packages/cyd-layout-schema`
@@ -140,31 +164,36 @@ Ekstrak dari `apps/dashboard/lib/cyd-layout/types.ts`:
 
 **Session-auth (cookie, pola `auth()` existing):**
 - `GET /api/devices` — list device milik user.
-- `POST /api/devices` — create; cek `paidCore` (403 kalau Free) + `COUNT(Device) < Entitlement.printerSlots` (409 kalau penuh, pesan upsell).
-- `PATCH /api/devices/[id]` — update label/printerType.
-- `DELETE /api/devices/[id]` — hapus (juga bersihkan referensi ke device ini di `CydLayout.config` kalau ada — cell yang nunjuk device terhapus di-drop, bukan biarin dangling reference).
-- `GET /api/cyd-layout` — baca layout akun. `validateLayoutConfig` menolak `pages: []` (grid kosong bukan config valid), jadi kalau belum pernah disimpan, endpoint ini balikin **default config eksplisit** (1 page kosong tanpa cells, pola sama seperti `defaultConfig()` di editor dashboard) — bukan `null`/404 — biar editor selalu punya starting point yang valid.
+- `POST /api/devices` — create; cek `paidCore` (403 kalau Free) + `COUNT(Device) < limit` (409 kalau penuh, pesan upsell), lihat mekanisme row-lock di "Race condition" atas. `printerType` divalidasi terhadap allowlist `["bambu", "moonraker"]`, nilai lain ditolak 400.
+- `PATCH /api/devices/[id]` — update label/printerType (validasi allowlist sama seperti create).
+- `DELETE /api/devices/[id]` — hapus device + bersihkan referensi di `CydLayout.config` (cell yang nunjuk device terhapus di-drop) dalam **transaksi yang sama** (ditemukan Opus: read-modify-write ke JSON `CydLayout.config` bisa race kalau tak digabung transaksi dengan `PUT /api/cyd-layout` yang jalan bersamaan).
+- `GET /api/cyd-layout` — baca layout akun. `validateLayoutConfig` menolak `pages: []` (grid kosong bukan config valid), jadi kalau belum pernah disimpan, endpoint ini balikin **default config eksplisit** — TAPI bukan copy verbatim `defaultConfig()` dashboard (itu grid 10×8, didesain buat rak internal ~20 printer, ketuaan buat customer dengan 1-3 printer di layar 320×240). Default SaaS: grid kecil (mis. 2×2), 1 page, tanpa cells.
 - `PUT /api/cyd-layout` — simpan, validasi via `packages/cyd-layout-schema` sebelum persist (tolak 400 kalau melanggar `LAYOUT_LIMITS`, termasuk batas panjang string baru, atau referensi `Device.shortCode` yang tak ada/bukan milik user).
 - `POST /api/agent-tokens` — generate token baru, response BERISI token mentah (satu-satunya kesempatan lihat), simpan cuma hash-nya.
 - `GET /api/agent-tokens` — list token milik user (tanpa nilai mentah, cuma id+createdAt+lastUsedAt+revoked).
 - `DELETE /api/agent-tokens/[id]` — revoke (set `revokedAt`, bukan hard-delete, buat audit).
 
 **Token-auth (BARU, header `Authorization: Bearer <token>`, dipakai sub-proyek Agent #2):**
-- `GET /api/agent/devices` — resolve token→userId (cek `tokenHash` match + `revokedAt IS NULL`, update `lastUsedAt`), lalu return device list akun itu. 401 kalau token invalid/revoked.
-- `GET /api/agent/layout` — beda dari `/api/cyd-layout`: kalau belum ada `CydLayout` row buat akun itu, balikin **404** (bukan default config) — Agent tak perlu publish apa pun ke CYD kalau user belum sempat atur layout sama sekali, daripada publish 1-page-kosong yang tak berguna.
 
-Middleware token-auth ini KHUSUS route `/api/agent/*` — TIDAK menyentuh/mengubah mekanisme `auth()` session existing sama sekali.
+**Koreksi penting setelah review Opus — ini BUKAN Next.js middleware.** Spec sebelumnya nyebut "middleware token-auth", tapi itu gak feasible: `apps/saas` belum punya `middleware.ts` sama sekali, dan Next middleware jalan di Edge runtime — resolusi token→userId butuh baca Postgres lewat `@prisma/adapter-pg` (koneksi `pg` biasa), yang TIDAK bisa jalan di Edge. Next juga cuma boleh 1 file `middleware.ts` per app, yang berpotensi bentrok sama NextAuth nanti kalau app ini pasang middleware auth session juga.
+
+**Fix — helper per-route, bukan middleware:** `lib/agent-auth.ts` export `requireAgentToken(req): Promise<{ userId: string } | NextResponse>` — dipanggil manual di baris pertama tiap handler `/api/agent/*` (pola biasa function call, BUKAN Next middleware config).
+
+- `GET /api/agent/devices` — `requireAgentToken` (cek `tokenHash` match + `revokedAt IS NULL`, update `lastUsedAt`), **DITAMBAH cek `paidCore` ulang** (lihat di bawah), lalu return device list akun itu. 401 kalau token invalid/revoked.
+- `GET /api/agent/layout` — sama, `requireAgentToken` + cek `paidCore`. Beda dari `/api/cyd-layout`: kalau belum ada `CydLayout` row buat akun itu, balikin **404** (bukan default config) — Agent tak perlu publish apa pun ke CYD kalau user belum sempat atur layout sama sekali, daripada publish 1-page-kosong yang tak berguna.
+
+**Semantik downgrade — gap ditemukan Opus, sebelumnya tak dibahas sama sekali:** route session-auth ngecek `paidCore`, tapi spec awal cuma nyuruh route `/api/agent/*` ngecek validitas token, TANPA ngecek `paidCore` lagi. Akibatnya: kalau akun Subscribe berhenti bayar (sub berakhir, `paidCore` jadi false), UI web-nya langsung ke-lock, TAPI Agent yang jalan di komputer customer tetap bisa terus narik device+layout tanpa batas waktu, karena cuma modal token yang gak pernah dicabut. **Fix eksplisit:** `/api/agent/*` WAJIB cek `paidCore` juga (bukan cuma token valid), balas 403 dengan kode error yang bisa dibaca Agent (mis. `{"error": "entitlement_expired"}`) kalau `paidCore` false — Agent bisa tampilkan status itu di CYD. Kalau akun downgrade dan `COUNT(Device) > limit` baru (mis. slot dikurangi admin): **device yang sudah ada TETAP disimpan** (tidak dihapus otomatis), cuma `POST /api/devices` baru diblokir sampai count turun di bawah limit lagi.
 
 ## UI (`apps/saas`)
 
 - **Promote tab "🖨️ Printer" yang sudah ada** di `AppHeader.tsx` (saat ini `soon: true`) — hapus `soon`, tambah `href` ke halaman device list baru, gated `paidCore` (Free lihat locked+upsell, konsisten pola fitur Pro lain). BUKAN tab baru terpisah — pakai entry yang sudah ada di `TABS`.
 - **Halaman device list** — tambah/rename/hapus device, tampilkan `X/Y slot terpakai`, tombol tambah disabled+pesan upsell kalau penuh.
-- **Layout editor** — reuse pola komponen `apps/dashboard/app/(dashboard)/cyd-layout` (`@dnd-kit/core` drag-drop + `framer-motion`, canvas grid 320:240, panel pengaturan sel) tapi sumber datanya `Device` milik SaaS (bukan `Printer.slug` dashboard), preset field 2 opsi hardcode ("Ringkas"/"Detail").
+- **Layout editor — koreksi cakupan setelah review Opus.** Spec sebelumnya nulis "reuse pola komponen" seolah ini kerjaan kecil — padahal package baru (`packages/cyd-layout-schema`) cuma ekstrak TIPE+VALIDASI, bukan komponen editornya. `apps/saas` **belum punya 1 pun** dari 4 dependency yang dipakai editor dashboard: `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities`, `framer-motion` — ini WAJIB dideklarasikan eksplisit di `apps/saas/package.json` (aturan pnpm-strict monorepo). Komponen `PrinterPalette`, `GridCanvas`, `PageTabs`, `CellSettingsPanel` (dari `apps/dashboard/components/cyd-layout/`) juga **harus ditulis ulang** buat SaaS (sumber data `Device` SaaS, bukan `Printer.slug` dashboard) — ini **task terbesar di plan**, bukan satu baris. Preset field 2 opsi hardcode ("Ringkas"/"Detail"). Karena `apps/saas` adalah PWA yang juga dipakai di HP, editor drag-drop di canvas 320×240 perlu dipikirkan interaksi touch-nya (bukan cuma mouse) — dicatat sebagai requirement, detail interaksi diputuskan pas task ini digarap.
 - **Section baru di `/settings`** — generate/lihat/revoke Agent token, dengan peringatan jelas "token cuma tampil sekali, simpan baik-baik" saat generate.
 
 ## Testing
 
-TDD per konvensi proyek: unit test enforcement slot-count (`POST /api/devices` nolak saat penuh, TERMASUK test race condition — 2 create paralel di slot terakhir, cuma 1 yang boleh sukses lewat `$transaction`), resolusi limit (`printerSlots` null→fallback Config, non-null→override dipakai), validasi layout (`packages/cyd-layout-schema` — reuse test case existing dari dashboard buat mastiin extract tak mengubah perilaku, tambah test baru: batas panjang string, referensi `Device.shortCode` tak valid), token-auth middleware (valid/invalid/revoked — tanpa expiry by design, dicatat eksplisit bukan lupa), regresi penuh `apps/dashboard` pasca-extract (harus tetap 100% hijau, ini refactor bukan rewrite).
+TDD per konvensi proyek: unit test enforcement slot-count (`POST /api/devices` nolak saat penuh), **test race condition WAJIB ke Postgres asli** (bukan mock — 2 create paralel di slot terakhir via row-lock `FOR UPDATE`, cuma 1 yang boleh sukses), resolusi limit (`printerSlots` null→fallback `getConfigInt`, non-null→override dipakai), validasi layout (`packages/cyd-layout-schema` — reuse test case existing dari dashboard buat mastiin extract tak mengubah perilaku, tambah test baru: batas panjang string, referensi `Device.shortCode` tak valid, `shortCode` collision-retry), `requireAgentToken` helper (valid/invalid/revoked/paidCore-false→403 `entitlement_expired` — tanpa expiry token by design, dicatat eksplisit bukan lupa), `shortCode` generator (uniqueness, retry on `P2002`), audit-fix panjang `Printer.slug` existing di `apps/dashboard` (pre-flight sebelum validasi panjang string aktif), regresi penuh `apps/dashboard` pasca-extract (harus tetap 100% hijau, ini refactor bukan rewrite).
 
 ## Out of Scope (eksplisit, dicatat biar tak terlewat di plan)
 
