@@ -89,6 +89,44 @@ Detail satu kalkulasi tersimpan. 404 `{ "error": "not found" }` kalau id tidak a
 ### GET /api/bot/order/perlu-cetak
 → `{ "orders":[{"orderSn","status","buyer"}], "count" }` (orders not yet label-printed).
 
+### GET /api/bot/filamen/warna
+Lookup warna filament dari katalog SpoolmanDB (`FilamentCatalog`). Minimal salah satu dari `q`, `hex`, atau `brand` wajib ada — `material` sendirian tidak cukup.
+
+| Param | Arti |
+|---|---|
+| `q` | substring nama warna, case-insensitive |
+| `hex` | warna acuan; hasil diurutkan dari termirip. Terima 3/6/8 digit, dengan/tanpa `#` (alpha diabaikan) |
+| `brand` | substring merek ("bambu" cocok "Bambu Lab") |
+| `material` | substring material |
+| `limit` | default 5, clamp 1–20 |
+
+```bash
+# "eSUN red hex code-nya apa?"
+curl -H "Authorization: Bearer $BOT_API_TOKEN" ".../api/bot/filamen/warna?brand=eSUN&q=red"
+# "hex 000000 itu namanya apa?"
+curl -H "Authorization: Bearer $BOT_API_TOKEN" ".../api/bot/filamen/warna?hex=000000"
+# "yang mendekati aa67eb warna apa di Bambu Lab?"
+curl -H "Authorization: Bearer $BOT_API_TOKEN" ".../api/bot/filamen/warna?hex=aa67eb&brand=bambu"
+# "warna Bambu Lab apa saja?"
+curl -H "Authorization: Bearer $BOT_API_TOKEN" ".../api/bot/filamen/warna?brand=bambu&limit=20"
+```
+
+→
+```json
+{ "mode": "hex", "total": 412, "katalogTotal": 3505,
+  "items": [{ "brand": "Bambu Lab", "colorName": "Purple", "colorHex": "#A06EEA",
+              "materials": ["PLA Basic", "PETG HF"], "deltaE": 2.4, "exact": false }] }
+```
+
+**Yang wajib diketahui bot:**
+- **Baca `exact`, jangan menyimpulkan dari `deltaE` kecil.** `exact: true` = hex-nya identik ("itu **namanya** X"); `false` = sekadar termirip ("yang **mendekati** X"). `exact` bisa `true` untuk lebih dari satu hasil — merek berbeda boleh memakai hex yang sama.
+- `deltaE` dan `exact` **`null`** di `mode: "nama"` (tidak ada hex acuan).
+- **`katalogTotal: 0` = katalog belum pernah di-sync**, beda dari `total: 0` (tidak ada yang cocok). Endpoint ini tidak memicu sync sendiri; sync dijalankan dari dashboard.
+- `total` = jumlah hasil setelah digabung per warna, sebelum dipotong `limit`.
+- Satu warna yang ada di beberapa material digabung jadi satu hasil; lihat `materials[]`.
+- **Filament multi-warna (gradient/dual) tidak akan ketemu** — SpoolmanDB menyimpannya tanpa `color_hex` tunggal sehingga tidak ikut ter-sync.
+- 400 kalau `q`/`hex`/`brand` tidak ada satu pun, atau `hex` tidak bisa dibaca. Tidak ketemu tetap 200.
+
 ### GET /api/bot/stok/filament?brand={brand}
 → `{ "groups":[{"key","count"}] }` (non-empty spools grouped by "brand material"; brand filter optional).
 
