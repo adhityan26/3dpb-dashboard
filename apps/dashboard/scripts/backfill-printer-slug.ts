@@ -75,4 +75,6 @@ async function main() {
   console.log(`\n${printers.length} printer di-update.`)
 }
 
-main().finally(() => prisma.$disconnect())
+if (import.meta.url === `file://${process.argv[1]}`) {
+  main().finally(() => prisma.$disconnect())
+}
