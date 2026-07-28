@@ -31,19 +31,21 @@ Bukan `SpoolmanSpool`/`Spool` — itu inventaris fisik dan berat, tidak relevan 
 
 `GET /api/bot/filamen/warna` — dijaga `requireBotToken`. Token hilang/salah → `401 {"error":"Unauthorized"}`.
 
-| Param | Wajib | Arti |
-|---|---|---|
-| `q` | salah satu dari `q`/`hex` | Substring `colorName`, case-insensitive |
-| `hex` | salah satu dari `q`/`hex` | Warna acuan; hasil diurutkan dari termirip |
-| `brand` | tidak | Substring `brand`, case-insensitive |
-| `material` | tidak | Substring `material`, case-insensitive |
-| `limit` | tidak | Default 5, clamp 1–20 |
+| Param | Arti |
+|---|---|
+| `q` | Substring `colorName`, case-insensitive |
+| `hex` | Warna acuan; hasil diurutkan dari termirip |
+| `brand` | Substring `brand`, case-insensitive |
+| `material` | Substring `material`, case-insensitive |
+| `limit` | Default 5, clamp 1–20 |
 
-`q` dan `hex` boleh dipakai bersamaan (mis. "merah yang mendekati aa67eb").
+Semua opsional, tapi **minimal satu dari `q`, `hex`, atau `brand` harus ada.** Boleh digabung bebas: `q`+`hex` ("merah yang mendekati aa67eb"), `brand` saja ("warna Bambu Lab apa saja?"), `brand`+`hex` (pertanyaan ketiga di §1).
 
-**Tanpa `q` maupun `hex` → `400 {"error":"butuh minimal salah satu: q atau hex"}`.** Disengaja: tanpa keduanya tidak ada default yang masuk akal — mengembalikan seluruh katalog bukan jawaban, hanya dump.
+`brand` sendirian sengaja **dibolehkan**: "warna Bambu Lab apa saja?" adalah pertanyaan wajar, dan hasilnya toh dibatasi `limit` (maks 20) dengan `total` yang jujur memberi tahu ada berapa seluruhnya — jadi kekhawatiran "dump bukan jawaban" tidak berlaku begitu ada penyempit. `material` sendirian **tidak** cukup: "warna PLA apa saja" lintas semua merek bukan pertanyaan yang bisa dijawab bermakna dalam 20 baris.
 
-Endpoint ini punya **tepat dua** jalur 400: input kosong (di atas) dan `hex` tidak bisa di-parse (§7). Keduanya kesalahan pemanggilan yang bot bisa perbaiki sendiri. Selain itu tidak ada 400 — `limit` aneh di-clamp, hasil kosong tetap `200`.
+**Tanpa `q`, `hex`, maupun `brand` → `400 {"error":"butuh minimal salah satu: q, hex, atau brand"}`.**
+
+Endpoint ini punya **tepat dua** jalur 400: tanpa penyempit sama sekali (di atas) dan `hex` tidak bisa di-parse (§7). Keduanya kesalahan pemanggilan yang bot bisa perbaiki sendiri. Selain itu tidak ada 400 — `limit` aneh di-clamp, hasil kosong tetap `200`.
 
 ### Respons
 
@@ -108,7 +110,7 @@ Tanpa dedup, jawaban bot untuk "eSUN Red" jadi tiga baris identik.
 | Tidak ada yang cocok | `200`, `items: []`, `total: 0`, `katalogTotal > 0` — bukan 404 |
 | Katalog kosong (belum pernah sync) | `200`, `items: []`, `total: 0`, **`katalogTotal: 0`**. Hanya inilah yang membedakannya dari baris di atas |
 | `limit` aneh | Clamp, tidak 400 |
-| `q`/`brand`/`material` dikirim tapi kosong/spasi saja | Di-trim dulu; kosong setelah trim = **dianggap tidak dikirim**. Jadi `?q=` tanpa `hex` tetap kena 400, dan `brand=` kosong tidak memfilter apa pun. Konvensi yang sama dengan spec kalkulasi |
+| `q`/`brand`/`material` dikirim tapi kosong/spasi saja | Di-trim dulu; kosong setelah trim = **dianggap tidak dikirim**. Jadi `?q=` tanpa `hex`/`brand` tetap kena 400, dan `brand=` kosong tidak memfilter apa pun. Konvensi yang sama dengan spec kalkulasi |
 | Filament multi-warna (gradient/dual) | **Tidak akan pernah ketemu** — 101 entri SpoolmanDB memakai `color_hexes[]` dengan `color_hex` null, dan `syncCatalogFromSpoolmanDB` melewati baris tanpa `color_hex`, jadi mereka tidak pernah masuk katalog. Batasan data hulu, bukan bug endpoint ini. Memperluas sync = di luar lingkup |
 
 **Endpoint bot tidak melakukan auto-seed.** `/api/filamen/catalog` versi session memicu sync saat katalog kosong (`app/api/filamen/catalog/route.ts:11-18`); jalur bot sengaja **tidak** meniru itu — endpoint bot tidak pantas memicu fetch ke internet luar (`donkie.github.io`) yang lambat dan bisa gagal. Katalog kosong dijawab apa adanya lewat `katalogTotal: 0`, dan sync tetap dipicu dari dashboard.
@@ -191,10 +193,4 @@ Ini terjangkau karena katalognya kecil: **±3.505 baris** (6.957 entri SpoolmanD
 | `enrichColor` bot-view | **Tidak** ikut memakai `color-distance` — semantiknya kecocokan persis |
 | `sortCatalogColors` UI | Dibiarkan pakai jarak RGB; migrasi = follow-up opsional |
 | Stok/berat spool | Di luar lingkup, spec sendiri kalau dibutuhkan |
-| Browse per brand tanpa `q`/`hex` | **Belum diputuskan** — lihat §12 |
-
-## 12. Pertanyaan terbuka
-
-**Boleh tidak `?brand=bambu` saja, tanpa `q` maupun `hex`?** Sekarang kena 400. Rasional "dump bukan jawaban" (§4) melemah ketika `brand` diberikan: hasilnya toh terpotong `limit` maks 20, dan "warna Bambu Lab apa saja?" adalah pertanyaan yang wajar diajukan ke bot — pertanyaan keempat yang tidak ada di daftar awal.
-
-Ini keputusan produk, bukan teknis, dan menunggu jawaban user. Sampai dijawab, perilaku yang berlaku adalah **400** seperti tertulis di §4.
+| Browse per brand tanpa `q`/`hex` | **Diizinkan** — `brand` sendirian sah; `material` sendirian tidak |
