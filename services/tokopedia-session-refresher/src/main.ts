@@ -32,10 +32,14 @@ async function tick(cfg: ReturnType<typeof loadConfig>, state: TickState): Promi
       shouldNotify(state.lastNotifiedAtMs, now, cfg.notifyCooldownHours)
     ) {
       const message = err instanceof Error ? err.message : String(err)
-      await sendFailureNotification(
-        cfg,
-        `Tokopedia session refresher tidak bisa menghubungi dashboard setelah ${consecutiveDashboardFailures}x percobaan berturut-turut: ${message}. Cek koneksi/DASHBOARD_URL.`,
-      )
+      try {
+        await sendFailureNotification(
+          cfg,
+          `Tokopedia session refresher tidak bisa menghubungi dashboard setelah ${consecutiveDashboardFailures}x percobaan berturut-turut: ${message}. Cek koneksi/DASHBOARD_URL.`,
+        )
+      } catch (notifyErr) {
+        console.error('[tick] Gagal kirim notifikasi WA:', notifyErr)
+      }
       return { lastNotifiedAtMs: now, consecutiveDashboardFailures }
     }
     return { ...state, consecutiveDashboardFailures }
@@ -53,7 +57,11 @@ async function tick(cfg: ReturnType<typeof loadConfig>, state: TickState): Promi
   }
   console.error(`[tick] Refresh gagal: ${result.error}`)
   if (shouldNotify(state.lastNotifiedAtMs, now, cfg.notifyCooldownHours)) {
-    await sendFailureNotification(cfg, `Refresh sesi Tokopedia gagal: ${result.error}. Perlu login manual via VNC.`)
+    try {
+      await sendFailureNotification(cfg, `Refresh sesi Tokopedia gagal: ${result.error}. Perlu login manual via VNC.`)
+    } catch (notifyErr) {
+      console.error('[tick] Gagal kirim notifikasi WA:', notifyErr)
+    }
     return { lastNotifiedAtMs: now, consecutiveDashboardFailures: 0 }
   }
   return { lastNotifiedAtMs: state.lastNotifiedAtMs, consecutiveDashboardFailures: 0 }
