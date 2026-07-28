@@ -7,7 +7,7 @@ Sesi Tokopedia Seller Center (cookie `SELLER_TOKEN` dkk, disimpan di `lib/tokope
 ## Non-goals
 
 - Tidak menyimpan username/password Tokopedia — tidak dibutuhkan, login sepenuhnya via delegasi sesi TikTok.
-- Tidak mengubah `lib/tokopedia/session.ts`/`client.ts`/endpoint `/api/tokopedia/session` yang sudah ada — service baru ini adalah *consumer* dari endpoint tersebut (baca status via GET, tulis sesi baru via POST/PUT yang sudah ada), bukan pengganti.
+- Tidak mengubah `lib/tokopedia/session.ts`/`client.ts` — service baru ini adalah *consumer* dari endpoint `/api/tokopedia/session` (GET baca status, POST tulis sesi baru), bukan pengganti. **Perubahan minimal diperlukan** di route handler-nya saja, lihat §Autentikasi Service-to-Service.
 - Tidak menjamin 100% unattended selamanya — sesi TikTok di browser profile itu sendiri bisa suatu saat expired juga (kemungkinan jauh lebih jarang dari sesi Tokopedia). Saat itu terjadi, perlu login manual sekali via VNC — fitur ini menyediakan jalur itu, bukan menghilangkannya sepenuhnya.
 - Tidak membangun UI baru di dashboard untuk fitur ini — semua interaksi manusia (kalau dibutuhkan) lewat VNC langsung ke service, dan notifikasi lewat WhatsApp.
 
@@ -30,9 +30,16 @@ Service standalone baru `services/tokopedia-session-refresher/`, Docker containe
 - `src/notify.ts` — wrapper kirim WhatsApp via wa-omni (`POST` ke endpoint send — bentuk request PERLU diverifikasi saat implementasi, endpoint read yang sudah dikonfirmasi ada di `http://192.168.88.92:3020/api/conversations/${id}`, endpoint send belum dikonfirmasi). Tujuan: nomor WhatsApp pribadi Adhitya (disimpan sebagai env var, bukan hardcode).
 - Browser GUI + VNC: Xvfb + x11vnc + noVNC berjalan terus di container (bukan on-demand), expose satu port untuk akses manual — dipakai untuk setup awal (login TikTok pertama kali) dan untuk pemulihan manual kalau sesi TikTok di profile ikut expired.
 
+## Autentikasi Service-to-Service
+
+**Ditemukan saat perencanaan implementasi** (bukan bagian desain awal): `GET`/`POST /api/tokopedia/session` di `apps/dashboard/app/api/tokopedia/session/route.ts` mewajibkan `auth()` (session NextAuth user login) — 401 kalau tidak ada. Service refresher adalah proses headless tanpa session browser, jadi tidak bisa lewat jalur itu tanpa akomodasi.
+
+**Keputusan:** kedua handler (`GET`, `POST`) menerima **either** session user login (perilaku lama, dipakai UI Settings — tidak berubah) **or** header `X-Internal-Token` yang cocok dengan env var `INTERNAL_SERVICE_TOKEN` di dashboard (dipakai service refresher). Token disimpan sebagai secret server-to-server (env var container-to-container di homelab, tidak pernah terekspos ke browser/client-side). Ini perubahan minimal 1 baris kondisi di masing-masing handler, tidak mengubah shape request/response yang sudah ada.
+
 ## Konfigurasi (env)
 
 - `DASHBOARD_URL` — base URL dashboard untuk baca/tulis sesi Tokopedia.
+- `INTERNAL_SERVICE_TOKEN` — dikirim sebagai header `X-Internal-Token` di tiap request ke `/api/tokopedia/session`, harus cocok dengan env var bernama sama di dashboard (lihat §Autentikasi Service-to-Service).
 - `WA_OMNI_ENDPOINT`, `WA_OMNI_TOKEN`, `WA_OMNI_TARGET_NUMBER` — untuk notifikasi kegagalan.
 - `CHECK_INTERVAL_HOURS` (default: 4) — cukup sering untuk menangkap window `REFRESH_THRESHOLD_HOURS` (24 jam) tanpa membebani; boleh disesuaikan kalau setelah implementasi ternyata `tokenExpiry` Tokopedia berubah lebih cepat/lambat dari perkiraan ini.
 - `REFRESH_THRESHOLD_HOURS` (default: 24) — mulai coba refresh kalau sisa waktu token di bawah ini.
