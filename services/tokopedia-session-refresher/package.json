@@ -9,7 +9,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "playwright": "1.48.0",
+    "camoufox-js": "0.11.5",
+    "playwright-core": "1.48.0",
     "tsx": "^4.19.2"
   },
   "devDependencies": { "typescript": "^5", "vitest": "^1.6.1", "@types/node": "^22" }

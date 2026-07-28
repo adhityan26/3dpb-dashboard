@@ -1,14 +1,24 @@
-import { chromium } from 'playwright'
+import { firefox } from 'playwright-core'
+import { launchOptions } from 'camoufox-js'
 import { rm } from 'fs/promises'
 import { join } from 'path'
 
+// Camoufox = build Firefox yang dipatch anti-fingerprint/anti-deteksi-bot — dipakai
+// (bukan Chromium biasa) karena TikTok/Tokopedia diam-diam menolak login (QR tak
+// bereaksi, OTP tak terkirim) saat mendeteksi Chromium+Playwright standar via
+// fingerprint otomasi. `launchOptions()` dari camoufox-js menghasilkan opsi
+// Playwright-compatible (args, executablePath, firefoxUserPrefs) yang dioper
+// langsung ke `firefox.launchPersistentContext()` asli — sisa API (newPage,
+// cookies, close) tetap Playwright standar, tidak berubah.
+
 // Kalau proses sebelumnya mati mendadak (container restart, OOM, dst) tanpa sempat
-// context.close(), Chromium meninggalkan Singleton*-lock di profile dir dan menolak
-// launch berikutnya dengan "profile appears to be in use" walau tak ada proses lain
-// yang benar-benar jalan. Aman dihapus di awal tiap attempt karena hanya satu proses
-// refresh yang pernah jalan bersamaan (loop scheduler serial, bukan paralel).
+// context.close(), browser meninggalkan file lock di profile dir dan menolak launch
+// berikutnya ("profile appears to be in use") walau tak ada proses lain yang benar-benar
+// jalan. Aman dihapus di awal tiap attempt karena hanya satu proses refresh yang pernah
+// jalan bersamaan (loop scheduler serial, bukan paralel). Firefox/Camoufox pakai
+// `.parentlock` (symlink) + `lock`, beda dari skema Singleton* milik Chromium.
 async function clearStaleSingletonLocks(profileDir: string): Promise<void> {
-  for (const name of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) {
+  for (const name of ['.parentlock', 'lock']) {
     await rm(join(profileDir, name), { force: true })
   }
 }
@@ -16,12 +26,16 @@ async function clearStaleSingletonLocks(profileDir: string): Promise<void> {
 export async function refreshTokopediaSession(
   cfg: { browserProfileDir: string; dashboardUrl: string; internalServiceToken: string },
 ): Promise<{ success: true } | { success: false; error: string }> {
-  let context: Awaited<ReturnType<typeof chromium.launchPersistentContext>> | undefined
+  let context: Awaited<ReturnType<typeof firefox.launchPersistentContext>> | undefined
   try {
     await clearStaleSingletonLocks(cfg.browserProfileDir)
-    context = await chromium.launchPersistentContext(cfg.browserProfileDir, {
-      headless: false, // false so the always-on Xvfb+VNC display shows it live
-      args: ['--no-sandbox'], // Chromium runs as root in this container and refuses to launch without this
+    context = await firefox.launchPersistentContext(cfg.browserProfileDir, {
+      // headless:false supaya selalu tampil live di Xvfb+VNC. exclude_addons: ['UBO']
+      // karena default addon (uBlock Origin) Camoufox coba di-download dari
+      // addons.mozilla.org saat launch — kalau jaringan ke situ diblokir/lambat,
+      // launchOptions() gagal dengan "manifest.json is missing" (dikonfirmasi via
+      // smoke test); addon ini tidak dibutuhkan untuk automasi login, aman di-skip.
+      ...(await launchOptions({ headless: false, exclude_addons: ['UBO'] })),
     })
     const page = await context.newPage()
     await page.goto('https://seller-id.tokopedia.com/', { waitUntil: 'networkidle' })

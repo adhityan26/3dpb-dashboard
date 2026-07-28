@@ -12,6 +12,12 @@ COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY services/tokopedia-session-refresher ./services/tokopedia-session-refresher
 RUN pnpm install --frozen-lockfile --filter @3pb/tokopedia-session-refresher...
 
+# Binary Camoufox (Firefox anti-deteksi-bot) — bukan Chromium bawaan image ini —
+# di-fetch eksplisit (bukan postinstall otomatis), disimpan ke direktori tetap
+# supaya path-nya konsisten dan bisa dipakai runtime tanpa fetch ulang tiap start.
+ENV CAMOUFOX_INSTALL_DIR=/opt/camoufox
+RUN cd services/tokopedia-session-refresher && npx camoufox-js fetch
+
 ENV DISPLAY=:99
 ENV BROWSER_PROFILE_DIR=/data/browser-profile
 
