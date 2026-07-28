@@ -4,6 +4,7 @@ WORKDIR /app
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb x11vnc novnc websockify \
+    build-essential python3 \
     && rm -rf /var/lib/apt/lists/*
 
 ENV COREPACK_INTEGRITY_KEYS=""
