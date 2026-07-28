@@ -10,6 +10,7 @@ export const DEFAULT_CONFIG: Record<string, string> = {
   "copy.refund": "Refund 7 hari sejak pembelian — hubungi kami via WhatsApp/email.",
   "feature.pos.status": "segera-hadir",
   "qris.static": "",
+  "printer.defaultSlots": "1",
 };
 
 /** Parse harga; kembalikan null bila non-numerik/kosong (biar caller fallback). */
@@ -39,4 +40,12 @@ export async function setConfig(key: string, value: string): Promise<void> {
     create: { key, value },
     update: { value },
   });
+}
+
+/** Baca Config sebagai integer; fallback kalau absen/bukan angka valid/< 1. */
+export async function getConfigInt(key: string, fallback: number): Promise<number> {
+  const raw = await getConfig(key);
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 1) return fallback;
+  return n;
 }
