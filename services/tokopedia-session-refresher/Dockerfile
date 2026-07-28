@@ -6,6 +6,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     xvfb x11vnc novnc websockify \
     && rm -rf /var/lib/apt/lists/*
 
+ENV COREPACK_INTEGRITY_KEYS=""
 RUN corepack enable
 COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 COPY services/tokopedia-session-refresher ./services/tokopedia-session-refresher
