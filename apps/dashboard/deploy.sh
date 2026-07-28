@@ -133,6 +133,7 @@ docker run -d \
   -e OPS_API_SECRET="${OPS_API_SECRET:-}" \
   -e BOT_API_TOKEN="${BOT_API_TOKEN:-}" \
   -e CYD_OTA_PASSWORD="${CYD_OTA_PASSWORD:-}" \
+  -e INTERNAL_SERVICE_TOKEN="${INTERNAL_SERVICE_TOKEN:-}" \
   "$DEPLOY_IMAGE"
 
 # ── Health check ───────────────────────────────────────────────────────────────

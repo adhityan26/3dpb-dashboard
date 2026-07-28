@@ -16,6 +16,7 @@
     "db:import-ams": "tsx scripts/import-ams.ts"
   },
   "dependencies": {
+    "@3pb/cyd-layout-schema": "workspace:*",
     "@3pb/kalkulator-core": "workspace:*",
     "@3pb/ui": "workspace:*",
     "@auth/prisma-adapter": "^2.11.1",

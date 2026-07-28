@@ -33,10 +33,15 @@ describe("AppHeader nav island", () => {
 
   it("modul belum jadi tampil tapi TIDAK dilinkkan (badge soon)", () => {
     render(<AppHeader owner={false} current="kalkulator" />);
-    for (const label of ["Invoice", "PO", "Filamen", "Printer"]) {
+    for (const label of ["Invoice", "PO", "Filamen"]) {
       expect(screen.getByText(label).closest("a")).toBeNull();
     }
-    expect(screen.getAllByText("soon").length).toBe(4);
+    expect(screen.getAllByText("soon").length).toBe(3);
+  });
+
+  it("tab Printer sudah promote — dilinkkan ke /printer", () => {
+    render(<AppHeader owner={false} current="kalkulator" />);
+    expect(hrefOf("Printer")).toBe("/printer");
   });
 
   it("avatar muncul dari userLabel; tanpa userLabel tak ada avatar", () => {

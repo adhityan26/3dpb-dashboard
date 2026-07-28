@@ -11,7 +11,7 @@ vi.mock("@/lib/db", () => ({
 }));
 
 import { prisma } from "@/lib/db";
-import { getConfig, getAllConfig, setConfig, parsePrice, DEFAULT_CONFIG } from "@/lib/config";
+import { getConfig, getAllConfig, setConfig, parsePrice, getConfigInt, DEFAULT_CONFIG } from "@/lib/config";
 
 describe("parsePrice", () => {
   it("angka valid", () => { expect(parsePrice("150000")).toBe(150000); });
@@ -55,5 +55,38 @@ describe("setConfig", () => {
       create: { key: "price.beli", value: "250000" },
       update: { value: "250000" },
     });
+  });
+});
+
+describe("getConfigInt", () => {
+  beforeEach(() => { vi.clearAllMocks() });
+  it("balikin fallback kalau Config belum ada baris & DEFAULT_CONFIG absen", async () => {
+    (prisma.config.findUnique as any).mockResolvedValue(null);
+    const n = await getConfigInt("key.belum.ada", 7);
+    expect(n).toBe(7);
+  });
+
+  it("parse nilai integer valid dari DB", async () => {
+    (prisma.config.findUnique as any).mockResolvedValue({ key: "printer.defaultSlots", value: "3" });
+    const n = await getConfigInt("printer.defaultSlots", 1);
+    expect(n).toBe(3);
+  });
+
+  it("balikin fallback kalau nilai di DB bukan integer valid (bukan NaN)", async () => {
+    (prisma.config.findUnique as any).mockResolvedValue({ key: "printer.defaultSlots", value: "abc" });
+    const n = await getConfigInt("printer.defaultSlots", 1);
+    expect(n).toBe(1);
+  });
+
+  it("balikin fallback kalau nilai < 1", async () => {
+    (prisma.config.findUnique as any).mockResolvedValue({ key: "printer.defaultSlots", value: "0" });
+    const n = await getConfigInt("printer.defaultSlots", 1);
+    expect(n).toBe(1);
+  });
+});
+
+describe("DEFAULT_CONFIG", () => {
+  it("punya key printer.defaultSlots terdaftar (wajib biar bisa di-PUT dari /admin)", () => {
+    expect(DEFAULT_CONFIG).toHaveProperty("printer.defaultSlots");
   });
 });

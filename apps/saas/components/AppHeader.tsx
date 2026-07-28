@@ -5,7 +5,7 @@ import { useTheme } from "next-themes";
 import { ThemeToggle } from "./ThemeToggle";
 import { LogoutButton } from "./LogoutButton";
 
-export type NavKey = "kalkulator" | "setting" | "admin" | "beli";
+export type NavKey = "kalkulator" | "setting" | "admin" | "beli" | "printer";
 
 type Tab = { key: string; href?: string; icon: string; label: string; soon?: boolean; ownerOnly?: boolean };
 
@@ -16,7 +16,7 @@ const TABS: Tab[] = [
   { key: "invoice", icon: "🧾", label: "Invoice", soon: true },
   { key: "po", icon: "📦", label: "PO", soon: true },
   { key: "filamen", icon: "🧵", label: "Filamen", soon: true },
-  { key: "printer", icon: "🖨️", label: "Printer", soon: true },
+  { key: "printer", href: "/printer", icon: "🖨️", label: "Printer" },
   { key: "setting", href: "/settings", icon: "⚙️", label: "Setting" },
   { key: "admin", href: "/admin", icon: "🛠️", label: "Admin", ownerOnly: true },
 ];
