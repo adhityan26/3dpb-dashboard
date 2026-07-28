@@ -2,7 +2,20 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireBotToken } from "@/lib/bot/auth"
 import { loadRates } from "@/lib/kalkulator/rates"
 import { hitungKalkulasi } from "@3pb/kalkulator-core"
+import { searchKalkulasiRingkas, parseLimit } from "@/lib/kalkulator/bot-view"
 import type { PrintTipe } from "@/lib/kalkulator/types"
+
+/** Cari kalkulasi TERSIMPAN by nama. Beda dari POST di path yang sama, yang
+ *  menghitung ad-hoc tanpa menyentuh data tersimpan. */
+export async function GET(req: NextRequest) {
+  if (!requireBotToken(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+
+  const params = new URL(req.url).searchParams
+  // q kosong / spasi saja = mode "terbaru", bukan pencarian spasi.
+  const q = params.get("q")?.trim() || null
+  const result = await searchKalkulasiRingkas({ q, limit: parseLimit(params.get("limit")) })
+  return NextResponse.json(result)
+}
 
 export async function POST(req: NextRequest) {
   if (!requireBotToken(req)) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })

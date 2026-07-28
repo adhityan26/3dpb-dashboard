@@ -38,8 +38,50 @@ All fields under `buyer`/`money` are `null` when the underlying data isn't avail
 → `{ "trackingNumber": "SPXTRK123" }` or `{ "trackingNumber": null }` when not yet assigned (e.g. not shipped). Never errors for the not-yet-available case.
 
 ### POST /api/bot/kalkulator
+Hitung **ad-hoc**, tidak menyentuh data tersimpan. Untuk membaca kalkulasi yang sudah disimpan, pakai `GET` di path yang sama (di bawah).
+
 Body: `{ "gramasi": 50, "jam": 2, "tipe": "FDM" }` (tipe FDM|SLA default FDM; field lain diabaikan — `tier` lama sudah tidak dipakai, respons selalu berisi semua tier via `shopeeA`/`offlineA`)
 → `{ "hppTotal", "floorPrice", "shopeeA", "offlineA", "marginShopeeA" }` · 400 if gramasi/jam ≤ 0.
+
+### GET /api/bot/kalkulator?q={kata}&limit={n}
+Cari kalkulasi **tersimpan** by nama. `q` opsional — kosong/spasi saja → kembalikan yang terbaru. `limit` default 5, di-clamp 1–20 (nilai aneh tidak menghasilkan 400). Urut terbaru dulu.
+→
+```json
+{ "items": [{ "id": "clx...", "nama": "Naga Artikulasi", "createdAt": "2026-07-20T04:11:02.000Z",
+              "batch": 1, "status": "AMAN", "hppTotal": 24500, "floorPrice": 30000,
+              "shopeeA": 52000, "offlineA": 45000 }],
+  "total": 23 }
+```
+`total` = jumlah seluruh baris yang cocok, bukan panjang `items` — dipakai untuk "menampilkan 5 dari 23".
+
+### GET /api/bot/kalkulator/{id}
+Detail satu kalkulasi tersimpan. 404 `{ "error": "not found" }` kalau id tidak ada.
+→
+```json
+{
+  "id": "clx...", "nama": "Naga Artikulasi",
+  "createdAt": "...", "updatedAt": "...",
+  "batch": 1, "marginTier": "A", "status": "AMAN", "testLayerEnabled": true,
+  "harga": { "hppProduksi", "hppKomponen", "hppFinishing", "hppTotal", "floorPrice",
+             "shopeeA", "shopeeB", "shopeeC", "offlineA", "offlineB", "offlineC",
+             "resellerStd", "resellerBulk", "marginShopeeA", "marginOfflineA" },
+  "aktual": { "shopee": 55000, "offline": null },
+  "plates": [{ "namaPart": "Badan", "tipe": "FDM", "printer": "P1S",
+               "durasiJam": 3.5, "gramasiTotal": 62,
+               "materials": [{ "brand": "Bambu", "material": "PLA Basic", "color": "Red",
+                               "colorHex": "#c12026", "gramasi": 40, "isSupport": false,
+                               "hargaPerGram": 320 }] }],
+  "komponen": [{ "nama": "Gantungan", "harga": 1500, "qty": 2 }],
+  "labor": [{ "nama": "Amplas", "jam": 0.5, "ratePerJam": 20000, "flat": null }],
+  "hargaChannel": [{ "channelId": "shopee", "A": 52000, "B": 48000, "C": 44000 }]
+}
+```
+
+**Yang wajib diketahui bot:**
+- **`hargaPerGram: null` berarti "tidak di-snapshot", BUKAN gratis** — tampilkan `—`, jangan `Rp0`. Plate yang memakai material profile menghitung HPP dari profil/tarif global, dan angka itu tidak disimpan per plate.
+- **`color` vs `colorHex`** — DB hanya menyimpan satu string warna per entry (nama kalau diinput manual, hex kalau dari import 3MF). Sisi yang kosong dilengkapi dari katalog filament kalau brand+material-nya cocok persis; kalau tidak, sisi itu `null`. Baca `color ?? colorHex`.
+- **`harga.hppKomponen` bisa lebih besar dari jumlah `komponen[]`** pada kalkulasi lama yang punya packing — biaya packing ikut terhitung tapi tidak muncul sebagai baris komponen.
+- **Bisa `null`**: `namaPart`, `printer`, `brand`, `material`, `color`, `colorHex`, `hargaPerGram`, `aktual.shopee`, `aktual.offline`. `hargaChannel` bisa `[]` untuk kalkulasi lama.
 
 ### GET /api/bot/produk?q={kata}
 → `{ "products":[{"name","priceMin","priceMax","hpp","margin","stock"}], "total" }` (top 5; hpp/margin may be null).
