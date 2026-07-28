@@ -3,11 +3,12 @@ import { chromium } from 'playwright'
 export async function refreshTokopediaSession(
   cfg: { browserProfileDir: string; dashboardUrl: string; internalServiceToken: string },
 ): Promise<{ success: true } | { success: false; error: string }> {
-  const context = await chromium.launchPersistentContext(cfg.browserProfileDir, {
-    headless: false, // false so the always-on Xvfb+VNC display shows it live
-    args: ['--no-sandbox'], // Chromium runs as root in this container and refuses to launch without this
-  })
+  let context: Awaited<ReturnType<typeof chromium.launchPersistentContext>> | undefined
   try {
+    context = await chromium.launchPersistentContext(cfg.browserProfileDir, {
+      headless: false, // false so the always-on Xvfb+VNC display shows it live
+      args: ['--no-sandbox'], // Chromium runs as root in this container and refuses to launch without this
+    })
     const page = await context.newPage()
     await page.goto('https://seller-id.tokopedia.com/', { waitUntil: 'networkidle' })
     const alreadyLoggedIn = page.url().includes('/homepage')
@@ -41,6 +42,6 @@ export async function refreshTokopediaSession(
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) }
   } finally {
-    await context.close()
+    if (context) await context.close()
   }
 }
