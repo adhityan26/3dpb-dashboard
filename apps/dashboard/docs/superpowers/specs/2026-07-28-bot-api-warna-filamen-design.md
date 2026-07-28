@@ -51,6 +51,7 @@ Endpoint ini punya **tepat dua** jalur 400: input kosong (di atas) dan `hex` tid
 {
   "mode": "hex",
   "total": 412,
+  "katalogTotal": 3505,
   "items": [
     { "brand": "Bambu Lab", "colorName": "Purple", "colorHex": "#A06EEA",
       "materials": ["PLA Basic", "PETG HF"], "deltaE": 2.4, "exact": false }
@@ -59,14 +60,17 @@ Endpoint ini punya **tepat dua** jalur 400: input kosong (di atas) dan `hex` tid
 ```
 
 - `mode` — `"hex"` kalau `hex` dikirim, selain itu `"nama"`.
-- `total` — **jumlah kandidat setelah filter `brand`/`material`/`q`, sebelum dipotong `limit`**. Definisi ini ditulis eksplisit supaya tidak ditafsirkan sebagai "jumlah yang mirip".
+- `total` — **jumlah grup hasil dedup (§6)** yang lolos filter `brand`/`material`/`q` **dan**, khusus mode `hex`, yang `colorHex`-nya berhasil di-parse; dihitung **sebelum** dipotong `limit`. Bukan jumlah baris katalog, bukan jumlah yang "mirip". Tiga hal itu disebut satu per satu karena masing-masing menghasilkan angka berbeda.
+- `katalogTotal` — jumlah seluruh baris katalog, tanpa filter apa pun. Ada khusus supaya bot bisa membedakan **katalog belum di-sync** (`katalogTotal: 0`) dari **tidak ada yang cocok** (`total: 0`, `katalogTotal > 0`) — dua kondisi yang tanpa field ini menghasilkan respons identik.
 - `deltaE` — `null` pada mode `nama`.
-- `exact` — `true` hanya kalau hex-nya identik setelah normalisasi. Ini yang membedakan "itu **namanya** X" dari "yang **mendekati** X"; bot tidak boleh menyimpulkannya sendiri dari `deltaE` kecil.
+- `exact` — `true` hanya di mode `hex` saat hex identik; **`null` pada mode `nama`** (bukan `false` — tidak ada hex acuan untuk dibandingkan). "Identik" = enam digit RGB hasil normalisasi §5 (alpha dibuang) sama, case-insensitive. Ini yang membedakan "itu **namanya** X" dari "yang **mendekati** X"; bot tidak boleh menyimpulkannya sendiri dari `deltaE` kecil.
 
 ### Pengurutan
 
-- Mode `hex`: `deltaE` menaik; seri diputus `brand` lalu `colorName` alfabetis (deterministik).
-- Mode `nama`: `brand` lalu `colorName` alfabetis.
+- Mode `hex`: `deltaE` menaik, lalu `brand`, `colorName`, **`colorHex`** alfabetis.
+- Mode `nama`: `brand`, `colorName`, **`colorHex`** alfabetis.
+
+`colorHex` wajib jadi kunci terakhir: §6 sengaja menghasilkan dua item dengan `brand` **dan** `colorName` identik saat hex-nya berbeda, dan itu bukan kasus langka — ada **147 grup** semacam itu di data SpoolmanDB saat ini (mis. 3DJAKE "Black": ASA `#414040` vs PLA `#000000`). Tanpa kunci ketiga, urutannya bergantung urutan baris dari DB.
 
 ## 5. Kemiripan warna: CIE ΔE2000
 
@@ -101,9 +105,13 @@ Tanpa dedup, jawaban bot untuk "eSUN Red" jadi tiga baris identik.
 |---|---|
 | `hex` tidak bisa di-parse (mis. `?hex=merah`) | `400 {"error":"hex tidak valid"}` — beda dari §4, ini input rusak yang eksplisit, bukan input kosong |
 | `colorHex` di katalog tidak bisa di-parse | Baris **dikeluarkan dari mode hex** (ΔE tak terhitung), tapi tetap bisa ditemukan mode `nama`. Tidak melempar |
-| Tidak ada yang cocok | `200` dengan `items: []`, `total: 0` — bukan 404 |
-| Katalog kosong (belum pernah sync) | Sama: `items: []`. Bot menampilkan "katalog belum di-sync" berdasarkan `total: 0` |
+| Tidak ada yang cocok | `200`, `items: []`, `total: 0`, `katalogTotal > 0` — bukan 404 |
+| Katalog kosong (belum pernah sync) | `200`, `items: []`, `total: 0`, **`katalogTotal: 0`**. Hanya inilah yang membedakannya dari baris di atas |
 | `limit` aneh | Clamp, tidak 400 |
+| `q`/`brand`/`material` dikirim tapi kosong/spasi saja | Di-trim dulu; kosong setelah trim = **dianggap tidak dikirim**. Jadi `?q=` tanpa `hex` tetap kena 400, dan `brand=` kosong tidak memfilter apa pun. Konvensi yang sama dengan spec kalkulasi |
+| Filament multi-warna (gradient/dual) | **Tidak akan pernah ketemu** — 101 entri SpoolmanDB memakai `color_hexes[]` dengan `color_hex` null, dan `syncCatalogFromSpoolmanDB` melewati baris tanpa `color_hex`, jadi mereka tidak pernah masuk katalog. Batasan data hulu, bukan bug endpoint ini. Memperluas sync = di luar lingkup |
+
+**Endpoint bot tidak melakukan auto-seed.** `/api/filamen/catalog` versi session memicu sync saat katalog kosong (`app/api/filamen/catalog/route.ts:11-18`); jalur bot sengaja **tidak** meniru itu — endpoint bot tidak pantas memicu fetch ke internet luar (`donkie.github.io`) yang lambat dan bisa gagal. Katalog kosong dijawab apa adanya lewat `katalogTotal: 0`, dan sync tetap dipicu dari dashboard.
 
 ## 8. Lapisan kode
 
@@ -116,9 +124,22 @@ lib/filamen/__tests__/color-lookup.test.ts   (baru)
 app/api/bot/filamen/warna/__tests__/route.test.ts (baru)
 ```
 
-Dipisah dua modul karena tanggung jawabnya beda: `color-distance.ts` matematika warna murni (tidak tahu apa-apa soal filament), `color-lookup.ts` aturan pencarian katalog. Yang pertama bisa dipakai ulang di tempat lain (mis. pencocokan warna import 3MF) tanpa membawa logika katalog.
+Dipisah dua modul karena tanggung jawabnya beda: `color-distance.ts` matematika warna murni (tidak tahu apa-apa soal filament), `color-lookup.ts` aturan pencarian katalog.
 
-**Query.** Satu `findMany` ke `filamentCatalog`. Filter `brand`/`material`/`q` pakai `contains` + `mode: 'insensitive'` di SQL; perhitungan ΔE dan dedup di memori — ΔE tidak bisa diekspresikan sebagai query SQL yang wajar, dan katalog ini berukuran ribuan baris, bukan jutaan.
+### Hubungan dengan kode warna yang sudah ada
+
+`lib/kalkulator/color-catalog.ts:61-88` **sudah** punya `hexToRgb` (3/6 digit, privat) dan `hexDistance` (Euclidean RGB), dipakai `sortCatalogColors` untuk mengurutkan pilihan warna di picker UI. Jadi setelah spec ini ada dua parser hex dan dua metrik jarak di repo. Itu disengaja, dengan batas yang tegas:
+
+- **`sortCatalogColors` UI dibiarkan apa adanya.** Fungsinya mengurutkan daftar yang tetap dilihat dan dipilih manusia — urutan yang kurang perseptual di situ paling banter sedikit mengganggu, tidak menghasilkan data salah. Memigrasikannya ke ΔE2000 adalah follow-up opsional, **bukan** bagian pekerjaan ini, dan tidak boleh dikerjakan sambil lalu.
+- **`enrichColor` di `lib/kalkulator/bot-view.ts` TIDAK boleh memakai `color-distance`.** Ini penting dan berlawanan dengan naluri "pakai ulang yang lebih akurat": semantik `enrichColor` adalah **pengisian data** dengan kecocokan persis. Mengganti kecocokan persis dengan nearest-match membuatnya mengisi nama warna yang **salah** dengan penuh percaya diri — mis. filament ber-hex tak terdaftar diberi nama warna lain yang kebetulan terdekat, lalu nama itu tampil di bot seolah fakta. Yang sekarang sudah benar; jangan "diperbaiki".
+
+Bedanya satu kalimat: **jarak dipakai saat manusia bertanya "yang mirip apa"; kecocokan persis dipakai saat sistem mengisi field.**
+
+**Query — satu sumber kebenaran, semua filter di memori.** Satu `findMany` ke `filamentCatalog` **tanpa `where`**, lalu **seluruh** filter (`brand`/`material`/`q`), perhitungan ΔE, dedup, pengurutan, dan pemotongan `limit` dilakukan di `cariWarna` yang pure.
+
+Sengaja **tidak** memfilter di SQL, walau `contains` + `mode: 'insensitive'` tersedia. Kalau SQL yang memfilter, filter di fungsi pure jadi tidak terpakai di produksi — dan test §9 yang mengujinya berubah jadi test hampa, persis cacat yang sudah kita perbaiki di spec kalkulasi (test mapping di route test yang cuma menguji mock). Kalau difilter di dua tempat, dua semantik substring (`ILIKE` Postgres vs `toLowerCase().includes` JS) harus dijaga setara selamanya — biaya tanpa imbalan.
+
+Ini terjangkau karena katalognya kecil: **±3.505 baris** (6.957 entri SpoolmanDB → 6.856 syncable → collapse oleh upsert `[brand, material, name]`), masing-masing 5 kolom pendek. Kalau suatu saat tabel ini tumbuh ordo besaran, barulah prefilter SQL layak ditinjau ulang.
 
 **Catatan pencocokan brand — sengaja berbeda dari `bot-view.ts`.** Di lookup kalkulasi, brand dicocokkan **ketat** karena dipakai mengisi data (salah cocok = data salah). Di sini brand adalah **kata pencarian yang diketik manusia** ("bambu" untuk "Bambu Lab"), jadi substring adalah perilaku yang benar. Perbedaan ini disebut eksplisit supaya tidak "diseragamkan" belakangan.
 
@@ -126,10 +147,15 @@ Dipisah dua modul karena tanggung jawabnya beda: `color-distance.ts` matematika 
 
 **`color-distance.test.ts`** — pure:
 - `parseHex`: 6 digit, 3 digit, 8 digit (alpha diabaikan), dengan/tanpa `#`, huruf besar/kecil, input sampah → `null`.
-- `rgbToLab`: putih → L≈100/a≈0/b≈0; hitam → L≈0.
-- `deltaE2000`: minimal 4 pasang dari test vector Sharma et al., toleransi 1e-4.
+- `deltaE2000`: **seluruh 34 pasang** test vector Sharma et al., toleransi 1e-4. Bukan sebagian — datanya kecil, dan pasangan 10–17 justru yang menguji pembungkusan sudut hue, bagian yang paling mudah salah dan paling mungkin terlewat kalau cuma diambil beberapa.
 - Warna identik → ΔE tepat 0.
-- **Regresi yang membenarkan Lab:** untuk `#aa67eb`, ungu harus menang atas abu-abu. Test ini akan gagal kalau ada yang mengganti implementasinya jadi jarak RGB.
+- **`rgbToLab` wajib punya anchor mid-tone**, bukan cuma putih/hitam:
+  - `#808080` → L≈53.59, a≈0, b≈0
+  - `#FF0000` → L≈53.23, a≈80.11, b≈67.22
+  - toleransi ±0.1
+
+  Alasannya penting: **vektor Sharma berpasangan Lab, bukan RGB** — ia membuktikan rumus ΔE2000 saja dan sama sekali tidak menyentuh pipeline sRGB→linear→XYZ→Lab. Implementasi yang **lupa linearisasi gamma** (jebakan paling umum di konversi ini) tetap memetakan putih→100 dan hitam→0, dan besar kemungkinan tetap lolos regresi ungu-vs-abu di bawah. Semua test hijau, semua mid-tone melenceng. Anchor inilah satu-satunya yang menangkapnya.
+- **Regresi yang membenarkan Lab** — fixture konkret, jangan dicari sendiri saat implementasi: acuan `#aa67eb`, kandidat abu `#999999` (jarak RGB ≈ 97,5) vs ungu tua `#6a0dad` (≈ 127,6). Jarak RGB memilih **abu**; ΔE2000 harus memilih **ungu**. Angka ΔE hasilnya di-pin di test. Test ini gagal seketika kalau ada yang mengganti implementasinya jadi jarak RGB.
 
 **`color-lookup.test.ts`** — pure, katalog sebagai fixture:
 - Mode nama: substring case-insensitive; `brand` mempersempit.
@@ -161,4 +187,14 @@ Dipisah dua modul karena tanggung jawabnya beda: `color-distance.ts` matematika 
 | Metrik jarak | CIEDE2000 di Lab, bukan jarak RGB, bukan ΔE76 |
 | Dedup material | Digabung, `materials[]`; hex ikut jadi kunci |
 | Pencocokan brand | Substring (beda dari `bot-view.ts` yang ketat — disengaja) |
+| Tempat filtering | Semuanya di memori; SQL tanpa `where` — satu sumber kebenaran, test tidak hampa |
+| `enrichColor` bot-view | **Tidak** ikut memakai `color-distance` — semantiknya kecocokan persis |
+| `sortCatalogColors` UI | Dibiarkan pakai jarak RGB; migrasi = follow-up opsional |
 | Stok/berat spool | Di luar lingkup, spec sendiri kalau dibutuhkan |
+| Browse per brand tanpa `q`/`hex` | **Belum diputuskan** — lihat §12 |
+
+## 12. Pertanyaan terbuka
+
+**Boleh tidak `?brand=bambu` saja, tanpa `q` maupun `hex`?** Sekarang kena 400. Rasional "dump bukan jawaban" (§4) melemah ketika `brand` diberikan: hasilnya toh terpotong `limit` maks 20, dan "warna Bambu Lab apa saja?" adalah pertanyaan yang wajar diajukan ke bot — pertanyaan keempat yang tidak ada di daftar awal.
+
+Ini keputusan produk, bukan teknis, dan menunggu jawaban user. Sampai dijawab, perilaku yang berlaku adalah **400** seperti tertulis di §4.
