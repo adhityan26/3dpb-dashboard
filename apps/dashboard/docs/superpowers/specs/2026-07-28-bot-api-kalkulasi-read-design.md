@@ -28,7 +28,7 @@ Keduanya dijaga `requireBotToken` dari `lib/bot/auth.ts`. Token tidak ada / sala
 
 Cari kalkulasi tersimpan berdasarkan nama. Ditempatkan sebagai handler `GET` di file route yang sama dengan `POST` yang sudah ada (`app/api/bot/kalkulator/route.ts`) — beda method, path sama. `POST` = hitung ad-hoc, `GET` = baca tersimpan.
 
-- `q` **opsional**. Substring `nama`, case-insensitive (Postgres `contains` + `mode: 'insensitive'`). Kosong/tidak dikirim → kembalikan yang terbaru, sehingga bot dapat perintah "kalkulasi terakhir apa saja" secara gratis.
+- `q` **opsional**. Substring `nama`, case-insensitive (Postgres `contains` + `mode: 'insensitive'`). **Di-trim dulu**; kosong setelah trim (termasuk `q="  "`) diperlakukan sama dengan tidak dikirim — klausa `where` dihilangkan sepenuhnya, bukan `contains " "`. Hasilnya: yang terbaru, sehingga bot dapat perintah "kalkulasi terakhir apa saja" secara gratis.
 - `limit` opsional, default 5, di-**clamp** ke 1–20. Nilai di luar rentang atau bukan angka tidak menghasilkan 400 — bot tidak pantas kena error karena minta 100.
 - Urutan: `createdAt desc`.
 
@@ -97,6 +97,7 @@ Juga tidak dikirim: **`packingType`**. Efek sampingnya harus disadari — untuk 
 | `namaPart`, `printer` | Nullable di DB (schema.prisma:227,229) → bisa `null` di respons; contoh di atas kebetulan terisi |
 | `hargaPerGram` | Boleh `null` — lihat §4.4 |
 | `brand`, `color`, `colorHex` | Boleh `null` — lihat §4.3 |
+| `material` | Boleh `null` pada entry multi-material. `FilamentEntry.material` bertipe `string` non-nullable, tapi nilainya bisa `""` — `slot?.type \|\| f.type` (`build-draft.ts:62`) dengan `f.type` = `attrValue(tag, "type") ?? ""` (`parse-slice-info.ts:53`). Kosong dinormalisasi jadi `null` (§4.3). Entry legacy selalu terisi karena fallback ke `plate.tipe` |
 
 ## 4. Normalisasi plate & material
 
@@ -109,14 +110,18 @@ Plate tersimpan dalam **dua bentuk** yang berbeda. API menyatukannya jadi satu b
 
 ### 4.2 Aturan
 
-1. **`materialsJson` ter-parse jadi array tidak kosong** → dipetakan langsung, satu entry per elemen. Elemen yang bukan objek, atau yang `gramasi`-nya bukan angka berhingga, dibuang (`gramasi` dianggap 0 kalau field lain valid).
+1. **`materialsJson` ter-parse jadi array tidak kosong** → dipetakan langsung, satu entry per elemen, dengan dua aturan validasi yang **berbeda dan tidak boleh dicampur**:
+   - Elemen yang **bukan objek** (mis. angka, string, `null`) → **dibuang**.
+   - Elemen objek yang `gramasi`-nya bukan angka berhingga → **dipertahankan** dengan `gramasi = 0`. Field lainnya tetap dipetakan seperti biasa.
+
+   Kalau setelah pembuangan array menjadi kosong (mis. `materialsJson` berisi `[1, "x"]`), plate **jatuh ke aturan 3** — diperlakukan sebagai legacy. Ini yang menjaga invarian "`materials` tidak pernah kosong" di bawah.
 2. **Selain itu (legacy)** → jadi **tepat satu entry**:
    - `gramasi` ← `plate.gramasi`
    - `hargaPerGram` ← `plate.filamentHargaPerGram ?? null`
    - `brand` / `material` ← hasil lookup `FilamentHarga` lewat `filamentHargaId`. Kalau `filamentHargaId` kosong **atau** barisnya sudah dihapus (id ada tapi tidak ketemu di map) → `brand: null`, `material` fallback ke `plate.tipe` (default `"FDM"`).
    - `isSupport` ← `false`
    - warna ← `plate.color` lewat aturan 4.3
-3. **`materialsJson` gagal di-parse, atau hasilnya bukan array, atau array kosong** → diperlakukan sebagai legacy (aturan 2), **tidak melempar error**. `JSON.parse` wajib dibungkus try/catch + cek `Array.isArray`, meniru `parseHargaChannel` (`lib/kalkulator/service.ts:27-33`) dan **bukan** `toKalkulasiData` (service.ts:42) yang mem-parse telanjang. Endpoint bot tidak boleh 500 gara-gara satu baris data rusak.
+3. **`materialsJson` gagal di-parse, hasilnya bukan array, array kosong, atau seluruh elemennya dibuang oleh aturan 1** → diperlakukan sebagai legacy (aturan 2), **tidak melempar error**. `JSON.parse` wajib dibungkus try/catch + cek `Array.isArray`, meniru `parseHargaChannel` (`lib/kalkulator/service.ts:27-33`) dan **bukan** `toKalkulasiData` (service.ts:42) yang mem-parse telanjang. Endpoint bot tidak boleh 500 gara-gara satu baris data rusak.
 4. `gramasiTotal` per plate = jumlah `gramasi` seluruh entry.
 
 Konsekuensi yang disengaja: **`materials` tidak pernah kosong** — plate legacy selalu menghasilkan tepat satu entry, walau `gramasi`-nya 0. `KalkulasiPlate.gramasi` non-nullable (schema.prisma:230) dan `platesCreate` selalu mengisi `p.gramasi ?? 0` (service.ts:77), jadi tidak ada kondisi "plate tanpa material" yang bisa dibedakan secara andal. Entry gramasi-0 dikirim apa adanya; bot yang memutuskan mau menampilkannya atau tidak.
@@ -164,7 +169,22 @@ Plus fungsi pure yang bisa dites langsung tanpa DB:
 ```
 splitColor(raw)                                   → { color, colorHex }
 toBotMaterials(plate, filamentHargaMap, catalog)  → BotMaterial[]
-toBotPlate(plate, ...)                            → BotPlate
+toBotPlate(plate, filamentHargaMap, catalog)      → BotPlate
+toBotDetail(row, filamentHargaMap, catalog)       → detail
+```
+
+`toBotDetail` menerima row hasil `findUnique` + include dan mengembalikan bentuk respons §3 secara utuh — termasuk `harga`, `aktual`, `komponen`, `labor`, `hargaChannel`, dan pemanggilan `toBotPlate`. `getKalkulasiForBot` jadi tipis: jalankan tiga query, panggil `toBotDetail`, selesai.
+
+Pemisahan ini bukan kosmetik — tanpanya, seluruh logika mapping detail hanya hidup di dalam fungsi ber-DB, sementara route test me-mock service. Test mapping apa pun yang ditaruh di route test cuma akan menguji bahwa mock di-echo kembali, dan tidak menjaga apa-apa (lihat §7).
+
+**Path file:**
+
+```
+lib/kalkulator/bot-view.ts                    (baru)
+app/api/bot/kalkulator/route.ts               (tambah handler GET, POST tetap)
+app/api/bot/kalkulator/[id]/route.ts          (baru)
+lib/kalkulator/__tests__/bot-view.test.ts     (baru)
+app/api/bot/kalkulator/__tests__/route.test.ts (baru)
 ```
 
 **Rencana query.** `searchKalkulasiRingkas` memakai `select` sempit (9 kolom skalar) — **bukan** `listKalkulasi`, yang menarik `INCLUDE_ALL` (join plates + komponenKustom + labor + produkLinks) untuk tiap baris. Hasil pencarian tidak butuh satu pun join itu.
@@ -201,7 +221,14 @@ Tidak ada jalur 400 di kedua endpoint. Bot tidak perlu menebak format input yang
 - Katalog **tidak** dipakai saat `brand`/`material` beda (mis. `"PLA"` vs `"PLA HS"` tidak boleh saling mengisi).
 - Pelengkapan dilewati saat `brand` `""` (bukan hanya null), dan `""` dinormalisasi jadi `null` di output.
 - Dua entry katalog beda `colorName` dengan `colorHex` sama → tie-break alfabetis, hasil deterministik.
+- Perbandingan hex case-insensitive: entry `"#C12026"` cocok dengan katalog `"#c12026"`.
+- `splitColor` men-trim dulu: `" #c12026"` tetap terbaca sebagai hex, bukan nama warna.
+- Elemen `materialsJson` bukan objek → dibuang; elemen objek ber-`gramasi` invalid → dipertahankan dengan `gramasi: 0` (dua perlakuan berbeda, §4.2 aturan 1).
+- `materialsJson` yang seluruh elemennya terbuang (mis. `[1, "x"]`) → jatuh ke legacy, bukan `materials: []`.
 - `hargaPerGram` null diteruskan apa adanya, tidak jadi 0.
+- Mapping `aktual`: `hargaShopeeAktual`/`hargaOfflineAktual` null → `null`.
+- `hargaChannel`: `hargaChannelJson` null → `[]`; entry hanya `{channelId, A, B, C}` walau input punya `margin`.
+- Hasil `toBotDetail` **tidak** memuat kunci internal (`printerProfileId`, `filamentHargaId`, `thumbnailKey`, `kalkulasiId`, `packingType`) — assert negatif yang menjaga kurasi tidak diam-diam jadi passthrough.
 
 **`app/api/bot/kalkulator/__tests__/route.test.ts`** — handler dipanggil langsung, service + `requireBotToken` di-mock, mengikuti pola `app/api/cyd-field-presets/__tests__/route.test.ts`:
 - 401 tanpa token di `GET` list maupun `GET` detail.
@@ -209,11 +236,10 @@ Tidak ada jalur 400 di kedua endpoint. Bot tidak perlu menebak format input yang
 - `q` diteruskan ke service; `q` kosong tetap memanggil service.
 - `limit` clamp: `0` → 1, `999` → 20, `"abc"` → 5.
 - Detail 404 saat service mengembalikan null.
-- Mapping `aktual`: `hargaShopeeAktual`/`hargaOfflineAktual` null → `null`.
-- `hargaChannel`: `hargaChannelJson` null → `[]`; entry hanya `{channelId, A, B, C}` walau input punya `margin`.
-- Bentuk respons detail **tidak** memuat kunci internal (`printerProfileId`, `filamentHargaId`, `thumbnailKey`, `kalkulasiId`, `packingType`) — assert negatif ini yang menjaga kurasi tidak diam-diam berubah jadi passthrough.
 
-**Tidak tertutup test, sengaja:** `searchKalkulasiRingkas`/`getKalkulasiForBot` sendiri (where insensitive-contains, `select` sempit, `count`, filter katalog case-insensitive) tidak dites karena route test me-mock service — mengikuti pola proyek yang sudah ada. Konsekuensinya klaim §5 tidak dijaga apa pun secara otomatis, jadi **dua hal ini masuk checklist review manual di implementation plan**: (a) query pakai `select` sempit, bukan `listKalkulasi`; (b) filter brand katalog case-insensitive, bukan `in`.
+**Yang TIDAK ditaruh di route test:** semua assertion soal bentuk/mapping detail (`aktual`, `hargaChannel`, assert negatif kunci internal). Karena service di-mock, test semacam itu di sini hanya menguji bahwa mock di-echo kembali — hampa. Semuanya hidup di `bot-view.test.ts` terhadap `toBotDetail`, yang pure dan tidak butuh mock.
+
+**Tidak tertutup test, sengaja:** `searchKalkulasiRingkas`/`getKalkulasiForBot` sendiri (where insensitive-contains, `select` sempit, `count`, filter katalog case-insensitive) tidak dites — keduanya tinggal fetch + delegasi ke fungsi pure, dan route test me-mock service, mengikuti pola proyek yang sudah ada. Konsekuensinya klaim §5 tidak dijaga apa pun secara otomatis, jadi **dua hal ini masuk checklist review manual di implementation plan**: (a) query pakai `select` sempit, bukan `listKalkulasi`; (b) filter brand katalog case-insensitive, bukan `in`.
 
 ## 8. Dokumentasi
 
@@ -222,7 +248,7 @@ Tidak ada jalur 400 di kedua endpoint. Bot tidak perlu menebak format input yang
 - Arti `hargaPerGram: null` = tidak di-snapshot, tampilkan `—` bukan `Rp0` (§4.4).
 - Arti `color` vs `colorHex`, dan bahwa salah satunya bisa `null` (§4.3).
 - Peringatan `harga.hppKomponen` bisa lebih besar dari jumlah `komponen[]` pada row lama ber-`packingType` (§3).
-- Field yang bisa `null`: `namaPart`, `printer`, `brand`, `aktual.*`.
+- Field yang bisa `null`: `namaPart`, `printer`, `brand`, `material`, `color`, `colorHex`, `aktual.*`.
 
 ## 9. Keputusan yang sudah ditutup
 
