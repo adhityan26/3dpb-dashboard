@@ -14,6 +14,9 @@ importers:
 
   apps/dashboard:
     dependencies:
+      '@3pb/cyd-layout-schema':
+        specifier: workspace:*
+        version: link:../../packages/cyd-layout-schema
       '@3pb/kalkulator-core':
         specifier: workspace:*
         version: link:../../packages/kalkulator-core
@@ -363,6 +366,15 @@ importers:
       vitest:
         specifier: ^1.6.1
         version: 1.6.1(@types/node@20.19.43)(jsdom@25.0.1)(lightningcss@1.32.0)
+
+  packages/cyd-layout-schema:
+    devDependencies:
+      typescript:
+        specifier: ^5
+        version: 5.9.3
+      vitest:
+        specifier: ^1.6.1
+        version: 1.6.1(@types/node@22.20.1)(jsdom@25.0.1)(lightningcss@1.32.0)
 
   packages/kalkulator-core:
     dependencies:
