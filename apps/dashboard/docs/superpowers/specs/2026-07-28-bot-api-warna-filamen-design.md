@@ -41,7 +41,9 @@ Bukan `SpoolmanSpool`/`Spool` — itu inventaris fisik dan berat, tidak relevan 
 
 `q` dan `hex` boleh dipakai bersamaan (mis. "merah yang mendekati aa67eb").
 
-**Tanpa `q` maupun `hex` → `400 {"error":"butuh minimal salah satu: q atau hex"}`.** Ini satu-satunya jalur 400, dan disengaja: tanpa keduanya tidak ada default yang masuk akal — mengembalikan seluruh katalog bukan jawaban, hanya dump.
+**Tanpa `q` maupun `hex` → `400 {"error":"butuh minimal salah satu: q atau hex"}`.** Disengaja: tanpa keduanya tidak ada default yang masuk akal — mengembalikan seluruh katalog bukan jawaban, hanya dump.
+
+Endpoint ini punya **tepat dua** jalur 400: input kosong (di atas) dan `hex` tidak bisa di-parse (§7). Keduanya kesalahan pemanggilan yang bot bisa perbaiki sendiri. Selain itu tidak ada 400 — `limit` aneh di-clamp, hasil kosong tetap `200`.
 
 ### Respons
 
