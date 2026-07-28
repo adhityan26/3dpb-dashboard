@@ -22,10 +22,16 @@ export async function refreshTokopediaSession(
       return { success: false, error: 'Login selesai tapi SELLER_TOKEN tidak ditemukan di cookie — flow mungkin belum lengkap' }
     }
 
+    const userAgent = await page.evaluate(() => navigator.userAgent)
+    const cookiesWithUA = [
+      ...cookies.map((c) => ({ name: c.name, value: c.value })),
+      { name: '_user_agent', value: userAgent },
+    ]
+
     const res = await fetch(`${cfg.dashboardUrl}/api/tokopedia/session`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'X-Internal-Token': cfg.internalServiceToken },
-      body: JSON.stringify({ cookies: cookies.map((c) => ({ name: c.name, value: c.value })) }),
+      body: JSON.stringify({ cookies: cookiesWithUA }),
     })
     if (!res.ok) {
       const body = await res.text().catch(() => '')
