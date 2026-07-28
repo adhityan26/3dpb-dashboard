@@ -1,10 +1,24 @@
 import { chromium } from 'playwright'
+import { rm } from 'fs/promises'
+import { join } from 'path'
+
+// Kalau proses sebelumnya mati mendadak (container restart, OOM, dst) tanpa sempat
+// context.close(), Chromium meninggalkan Singleton*-lock di profile dir dan menolak
+// launch berikutnya dengan "profile appears to be in use" walau tak ada proses lain
+// yang benar-benar jalan. Aman dihapus di awal tiap attempt karena hanya satu proses
+// refresh yang pernah jalan bersamaan (loop scheduler serial, bukan paralel).
+async function clearStaleSingletonLocks(profileDir: string): Promise<void> {
+  for (const name of ['SingletonLock', 'SingletonCookie', 'SingletonSocket']) {
+    await rm(join(profileDir, name), { force: true })
+  }
+}
 
 export async function refreshTokopediaSession(
   cfg: { browserProfileDir: string; dashboardUrl: string; internalServiceToken: string },
 ): Promise<{ success: true } | { success: false; error: string }> {
   let context: Awaited<ReturnType<typeof chromium.launchPersistentContext>> | undefined
   try {
+    await clearStaleSingletonLocks(cfg.browserProfileDir)
     context = await chromium.launchPersistentContext(cfg.browserProfileDir, {
       headless: false, // false so the always-on Xvfb+VNC display shows it live
       args: ['--no-sandbox'], // Chromium runs as root in this container and refuses to launch without this
