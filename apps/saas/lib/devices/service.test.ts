@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@/lib/db", () => ({
   prisma: {
     device: { findMany: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), findUnique: vi.fn(), count: vi.fn() },
+    entitlement: { findUnique: vi.fn() },
     cydLayout: { findUnique: vi.fn(), update: vi.fn() },
     $transaction: vi.fn(),
     $queryRaw: vi.fn(),
@@ -14,7 +15,7 @@ vi.mock("@/lib/config", () => ({ getConfigInt: vi.fn() }));
 import { prisma } from "@/lib/db";
 import { generateUniqueShortCode } from "@/lib/id/short-code";
 import { getConfigInt } from "@/lib/config";
-import { listDevices, createDevice, updateDevice, deleteDevice, PRINTER_TYPES } from "./service";
+import { listDevices, createDevice, updateDevice, deleteDevice, getDeviceLimit, PRINTER_TYPES } from "./service";
 import { SlotLimitExceeded, InvalidPrinterType, DeviceNotFound } from "./errors";
 
 beforeEach(() => vi.clearAllMocks());
@@ -128,6 +129,34 @@ describe("createDevice", () => {
     const configCallOrder = (getConfigInt as any).mock.invocationCallOrder[0];
     const txCallOrder = (prisma.$transaction as any).mock.invocationCallOrder[0];
     expect(configCallOrder).toBeLessThan(txCallOrder);
+  });
+
+  // Final review Finding 2: sama semangatnya dengan test getConfigInt di atas, tapi kebalikannya —
+  // generateUniqueShortCode TIDAK bisa dipindah keluar transaksi (butuh data terkini), jadi yang
+  // harus dijamin adalah query cek-collision-nya jalan di koneksi `tx` yang SAMA, bukan bikin
+  // checkout koneksi kedua dari pool selagi row-lock Entitlement masih dipegang.
+  it("oper `tx` ke generateUniqueShortCode (jangan checkout koneksi kedua saat pegang row-lock)", async () => {
+    (generateUniqueShortCode as any).mockResolvedValue("abc1234567");
+    const tx = mockTx(0, 2);
+
+    await createDevice("u1", { label: "Printer A", printerType: "bambu" });
+
+    expect(generateUniqueShortCode).toHaveBeenCalledWith(tx);
+  });
+});
+
+describe("getDeviceLimit", () => {
+  it("pakai Entitlement.printerSlots kalau ada (tanpa nanya Config)", async () => {
+    (prisma.entitlement.findUnique as any).mockResolvedValue({ printerSlots: 5 });
+    expect(await getDeviceLimit("u1")).toBe(5);
+    expect(getConfigInt).not.toHaveBeenCalled();
+  });
+
+  it("fallback ke Config printer.defaultSlots kalau printerSlots null / user belum punya baris", async () => {
+    (prisma.entitlement.findUnique as any).mockResolvedValue(null);
+    (getConfigInt as any).mockResolvedValue(1);
+    expect(await getDeviceLimit("u1")).toBe(1);
+    expect(getConfigInt).toHaveBeenCalledWith("printer.defaultSlots", 1);
   });
 });
 

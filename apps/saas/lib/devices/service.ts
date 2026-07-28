@@ -3,10 +3,13 @@ import { prisma } from "@/lib/db";
 import { generateUniqueShortCode } from "@/lib/id/short-code";
 import { getConfigInt } from "@/lib/config";
 import { SlotLimitExceeded, InvalidPrinterType, DeviceNotFound } from "./errors";
+import { PRINTER_TYPES, type PrinterType } from "./printer-types";
 import type { Device, Prisma } from "@prisma/client";
 
-export const PRINTER_TYPES = ["bambu", "moonraker"] as const;
-export type PrinterType = (typeof PRINTER_TYPES)[number];
+// Definisinya pindah ke ./printer-types (bebas Prisma) supaya bisa dipakai komponen client juga;
+// di-re-export di sini agar import lama dari "@/lib/devices/service" tak perlu diubah.
+export { PRINTER_TYPES };
+export type { PrinterType };
 
 function assertValidPrinterType(value: string): asserts value is PrinterType {
   if (!(PRINTER_TYPES as readonly string[]).includes(value)) {
@@ -16,6 +19,17 @@ function assertValidPrinterType(value: string): asserts value is PrinterType {
 
 export async function listDevices(userId: string): Promise<Device[]> {
   return prisma.device.findMany({ where: { userId } });
+}
+
+/**
+ * Batas slot printer efektif user — SATU sumber kebenaran, dipakai GET /api/devices (buat tampilan
+ * "X/Y slot terpakai") supaya rumusnya tak diduplikasi dari createDevice. TIDAK dipakai createDevice
+ * itu sendiri: di sana pembacaan Entitlement harus terjadi di dalam transaksi & di belakang row-lock
+ * (lihat komentar panjang di bawah), bukan lewat koneksi terpisah seperti helper read-only ini.
+ */
+export async function getDeviceLimit(userId: string): Promise<number> {
+  const entitlement = await prisma.entitlement.findUnique({ where: { userId } });
+  return entitlement?.printerSlots ?? (await getConfigInt("printer.defaultSlots", 1));
 }
 
 /**
@@ -50,6 +64,18 @@ export async function listDevices(userId: string): Promise<Device[]> {
  *   Config (koneksi terpisah dari tx) tidak menahan diri di belakang FOR UPDATE lock; request
  *   lain yang antre di lock bisa kena connection-pool starvation atau P2028 (interactive
  *   transaction timeout) kalau query config itu lambat.
+ * - `generateUniqueShortCode(tx)` — alasan SAMA dengan poin getConfigInt di atas, tapi solusinya
+ *   beda karena query-nya memang harus lihat data terkini: query cek-collision-nya dijalankan di
+ *   `tx` (koneksi yang SAMA), bukan lewat client global. Kalau pakai client global, tiap transaksi
+ *   yang sedang memegang row-lock ikut men-checkout koneksi kedua dari pool → di bawah konkurensi
+ *   semua transaksi in-flight saling menunggu slot pool yang dipegang transaksi yang juga menunggu.
+ * - RESIDUAL RISK (diterima sadar, bukan kelewat): kalau `tx.device.create` di bawah tetap kena
+ *   P2002 pada `shortCode` (ada transaksi lain commit shortCode yang sama persis di sela pre-check
+ *   dan INSERT), transaksinya abort total (gejala 25P02 seperti PERCOBAAN 2 di atas) dan request
+ *   balas 500 — TIDAK di-retry. Sengaja: keyspace 36^10 ≈ 3.6e15 dengan pre-check di transaksi yang
+ *   sama membuat peluangnya praktis nol, sedangkan retry harus mengulang SELURUH transaksi
+ *   (termasuk ambil ulang row-lock) sehingga menambah jalur konkurensi baru yang justru lebih
+ *   berisiko daripada masalah yang ditutupnya.
  */
 export async function createDevice(
   userId: string,
@@ -67,7 +93,7 @@ export async function createDevice(
     const count = await tx.device.count({ where: { userId } });
     if (count >= limit) throw new SlotLimitExceeded(limit);
 
-    const shortCode = await generateUniqueShortCode();
+    const shortCode = await generateUniqueShortCode(tx);
     return tx.device.create({
       data: { userId, label: input.label, printerType: input.printerType, shortCode },
     });

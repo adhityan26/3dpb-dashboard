@@ -1,27 +1,24 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { listDevices } from "@/lib/devices/service";
-import { getLayout, saveLayout, InvalidLayoutConfig } from "@/lib/cyd-layout/service";
+import { requirePaidCore } from "@/lib/session-auth";
+import { getLayout, saveLayoutForUser, InvalidLayoutConfig } from "@/lib/cyd-layout/service";
 
 export async function GET() {
-  const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  const layout = await getLayout(userId);
+  const gate = await requirePaidCore();
+  if (gate instanceof NextResponse) return gate;
+  const layout = await getLayout(gate.userId);
   return NextResponse.json(layout);
 }
 
 export async function PUT(req: Request) {
-  const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  const gate = await requirePaidCore();
+  if (gate instanceof NextResponse) return gate;
 
   const body = await req.json().catch(() => null);
-  const devices = await listDevices(userId);
-  const ownedShortCodes = devices.map((d) => d.shortCode);
 
   try {
-    const saved = await saveLayout(userId, body, ownedShortCodes);
+    // Cek kepemilikan shortCode + upsert dijalankan atomik di dalam saveLayoutForUser (lihat
+    // komentarnya) — jangan dipecah lagi jadi listDevices() + saveLayout() di sini.
+    const saved = await saveLayoutForUser(gate.userId, body);
     return NextResponse.json(saved);
   } catch (e) {
     if (e instanceof InvalidLayoutConfig) {

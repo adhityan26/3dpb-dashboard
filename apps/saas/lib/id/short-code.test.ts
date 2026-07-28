@@ -32,4 +32,15 @@ describe("generateUniqueShortCode", () => {
     await expect(generateUniqueShortCode()).rejects.toThrow(/gagal generate shortCode/);
     expect(prisma.device.findUnique).toHaveBeenCalledTimes(3);
   });
+
+  // Dipanggil dari dalam interactive transaction (createDevice) → cek collision HARUS lewat `tx`,
+  // bukan client global. Kalau lewat global, transaksi yang sedang memegang row-lock Entitlement
+  // ikut men-checkout koneksi kedua dari pool → saling tunggu di bawah konkurensi.
+  it("pakai client yang dioper (tx) buat cek collision, bukan prisma global", async () => {
+    const tx = { device: { findUnique: vi.fn().mockResolvedValue(null) } };
+    const code = await generateUniqueShortCode(tx as any);
+    expect(code).toHaveLength(10);
+    expect(tx.device.findUnique).toHaveBeenCalledTimes(1);
+    expect(prisma.device.findUnique).not.toHaveBeenCalled();
+  });
 });

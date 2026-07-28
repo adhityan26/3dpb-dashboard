@@ -2,11 +2,11 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/entitlement", () => ({ getEntitlement: vi.fn(), capabilities: vi.fn() }));
-vi.mock("@/lib/devices/service", () => ({ listDevices: vi.fn(), createDevice: vi.fn() }));
+vi.mock("@/lib/devices/service", () => ({ listDevices: vi.fn(), createDevice: vi.fn(), getDeviceLimit: vi.fn() }));
 
 import { auth } from "@/lib/auth";
 import { getEntitlement, capabilities } from "@/lib/entitlement";
-import { listDevices, createDevice } from "@/lib/devices/service";
+import { listDevices, createDevice, getDeviceLimit } from "@/lib/devices/service";
 import { SlotLimitExceeded } from "@/lib/devices/errors";
 import { GET, POST } from "./route";
 
@@ -19,13 +19,15 @@ describe("GET /api/devices", () => {
     expect(res.status).toBe(401);
   });
 
-  it("200 + list device kalau login", async () => {
+  it("200 + { devices, limit } kalau login", async () => {
     (auth as any).mockResolvedValue({ user: { id: "u1" } });
     (listDevices as any).mockResolvedValue([{ id: "d1" }]);
+    (getDeviceLimit as any).mockResolvedValue(3);
     const res = await GET();
     expect(res.status).toBe(200);
     const body = await res.json();
-    expect(body).toHaveLength(1);
+    expect(body.devices).toHaveLength(1);
+    expect(body.limit).toBe(3);
   });
 });
 
@@ -46,6 +48,7 @@ describe("POST /api/devices", () => {
     (capabilities as any).mockReturnValue({ paidCore: false, cloud: false });
     const res = await POST(req({ label: "A", printerType: "bambu" }));
     expect(res.status).toBe(403);
+    expect(createDevice).not.toHaveBeenCalled();
   });
 
   it("409 + pesan upsell kalau SlotLimitExceeded", async () => {
@@ -62,7 +65,8 @@ describe("POST /api/devices", () => {
     (getEntitlement as any).mockResolvedValue({});
     (capabilities as any).mockReturnValue({ paidCore: true, cloud: false });
     (createDevice as any).mockResolvedValue({ id: "new-d" });
-    const res = await POST(req({ label: "A", printerType: "bambu" }));
+    const res = await POST(req({ label: "A", printerType: "moonraker" }));
     expect(res.status).toBe(200);
+    expect(createDevice).toHaveBeenCalledWith("u1", { label: "A", printerType: "moonraker" });
   });
 });

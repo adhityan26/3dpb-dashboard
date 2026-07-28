@@ -3,6 +3,9 @@ import { validateLayoutConfig } from "@3pb/cyd-layout-schema";
 import type { LayoutConfigOut } from "@3pb/cyd-layout-schema";
 import type { Prisma } from "@prisma/client";
 
+/** Client Prisma yang cukup buat saveLayout — `prisma` global ATAU `tx` interactive transaction. */
+type LayoutDbClient = Pick<Prisma.TransactionClient, "cydLayout" | "device">;
+
 export class InvalidLayoutConfig extends Error {
   status = 400;
   constructor(reason: string) {
@@ -31,7 +34,12 @@ export async function getLayoutOrNull(userId: string): Promise<LayoutConfigOut |
   return row ? (row.config as unknown as LayoutConfigOut) : null;
 }
 
-export async function saveLayout(userId: string, input: unknown, ownedShortCodes: string[]): Promise<LayoutConfigOut> {
+export async function saveLayout(
+  userId: string,
+  input: unknown,
+  ownedShortCodes: string[],
+  client: LayoutDbClient = prisma
+): Promise<LayoutConfigOut> {
   const result = validateLayoutConfig(input);
   if (!result.valid) throw new InvalidLayoutConfig(result.error);
 
@@ -45,10 +53,29 @@ export async function saveLayout(userId: string, input: unknown, ownedShortCodes
   }
 
   const config = result.config as unknown as Prisma.InputJsonValue;
-  await prisma.cydLayout.upsert({
+  await client.cydLayout.upsert({
     where: { userId },
     create: { userId, config },
     update: { config },
   });
   return result.config;
+}
+
+/**
+ * Cek-kepemilikan + upsert dalam SATU transaksi. Sebelumnya route memanggil `listDevices()` lalu
+ * `saveLayout()` terpisah: di sela keduanya, `deleteDevice` paralel (tombol Hapus di DeviceList)
+ * bisa menghapus device yang shortCode-nya masih direferensikan layout yang sedang disimpan —
+ * hasilnya layout tersimpan menunjuk device yang sudah tak ada. Daftar device dibaca DI DALAM
+ * transaksi supaya validasi & upsert melihat snapshot yang konsisten.
+ */
+export async function saveLayoutForUser(userId: string, input: unknown): Promise<LayoutConfigOut> {
+  return prisma.$transaction(async (tx) => {
+    const devices = await tx.device.findMany({ where: { userId }, select: { shortCode: true } });
+    return saveLayout(
+      userId,
+      input,
+      devices.map((d) => d.shortCode),
+      tx
+    );
+  });
 }

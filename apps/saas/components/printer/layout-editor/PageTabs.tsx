@@ -20,6 +20,10 @@ function SortableTab({
   canRemove: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: page.id });
+  // `touch-none` WAJIB di elemen ber-ref useSortable/useDraggable: tanpa `touch-action: none`,
+  // browser mobile meng-klaim gesture sentuh buat scroll dan drag tak pernah jalan (app ini PWA
+  // yang memang dipakai di HP). Jangan ditambahkan ke elemen non-draggable — malah mematikan
+  // scroll normal di sekitarnya.
   return (
     <div
       ref={setNodeRef}
@@ -27,7 +31,7 @@ function SortableTab({
       {...listeners}
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.85 : 1, zIndex: isDragging ? 30 : undefined }}
       onClick={onSelect}
-      className={`relative flex cursor-pointer select-none items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm transition-colors ${
+      className={`relative flex touch-none cursor-pointer select-none items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm transition-colors ${
         isActive ? "text-white" : "text-gray-600 hover:text-gray-900 dark:text-slate-300 dark:hover:text-white"
       }`}
     >

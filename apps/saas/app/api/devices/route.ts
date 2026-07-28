@@ -1,24 +1,26 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { getEntitlement, capabilities } from "@/lib/entitlement";
-import { listDevices, createDevice } from "@/lib/devices/service";
+import { requirePaidCore } from "@/lib/session-auth";
+import { listDevices, createDevice, getDeviceLimit } from "@/lib/devices/service";
 import { SlotLimitExceeded, InvalidPrinterType } from "@/lib/devices/errors";
 
+/**
+ * Balas `{ devices, limit }`, bukan array telanjang — DeviceList butuh `limit` buat menampilkan
+ * "X/Y slot terpakai" tanpa harus menunggu POST gagal 409 dulu untuk tahu batasnya. Sengaja TIDAK
+ * dipagari paidCore (beda dari POST/PATCH): user yang entitlement-nya habis tetap boleh MELIHAT
+ * (dan menghapus) device miliknya, cuma tak boleh menambah/mengubah.
+ */
 export async function GET() {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  const devices = await listDevices(userId);
-  return NextResponse.json(devices);
+  const [devices, limit] = await Promise.all([listDevices(userId), getDeviceLimit(userId)]);
+  return NextResponse.json({ devices, limit });
 }
 
 export async function POST(req: Request) {
-  const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-
-  const ent = await getEntitlement(userId);
-  if (!capabilities(ent).paidCore) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  const gate = await requirePaidCore();
+  if (gate instanceof NextResponse) return gate;
 
   const body = (await req.json().catch(() => ({}))) as { label?: unknown; printerType?: unknown };
   if (typeof body.label !== "string" || !body.label.trim()) {
@@ -29,7 +31,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const device = await createDevice(userId, { label: body.label, printerType: body.printerType });
+    const device = await createDevice(gate.userId, { label: body.label, printerType: body.printerType });
     return NextResponse.json(device);
   } catch (e) {
     if (e instanceof SlotLimitExceeded) {

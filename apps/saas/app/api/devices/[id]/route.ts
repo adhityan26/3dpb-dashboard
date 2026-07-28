@@ -1,14 +1,15 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { requirePaidCore } from "@/lib/session-auth";
 import { updateDevice, deleteDevice } from "@/lib/devices/service";
 import { DeviceNotFound, InvalidPrinterType } from "@/lib/devices/errors";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: Request, { params }: Ctx) {
-  const session = await auth();
-  const userId = session?.user?.id;
-  if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
+  const gate = await requirePaidCore();
+  if (gate instanceof NextResponse) return gate;
+  const userId = gate.userId;
   const { id } = await params;
   const body = (await req.json().catch(() => ({}))) as { label?: unknown; printerType?: unknown };
 
@@ -25,6 +26,11 @@ export async function PATCH(req: Request, { params }: Ctx) {
   }
 }
 
+/**
+ * Sengaja HANYA cek login, tanpa gate paidCore (beda dari PATCH/POST): user yang paketnya sudah
+ * habis harus tetap bisa membereskan/menghapus device miliknya sendiri — memaksa mereka bayar dulu
+ * cuma untuk menghapus data sendiri tak masuk akal, dan hapus tak pernah menaikkan pemakaian slot.
+ */
 export async function DELETE(_req: Request, { params }: Ctx) {
   const session = await auth();
   const userId = session?.user?.id;
