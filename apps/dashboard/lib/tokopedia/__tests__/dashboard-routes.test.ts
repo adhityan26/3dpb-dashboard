@@ -21,7 +21,7 @@ const mockList = listOrders as any
 const mockById = getOrderById as any
 const authed = () => mockAuth.mockResolvedValue({ user: { email: "a@b.c" } })
 const reqJson = (body: unknown, url = "http://x/api/tokopedia/orders") =>
-  ({ json: async () => body, url } as any)
+  ({ json: async () => body, url, headers: new Headers() } as any)
 
 describe("dashboard tokopedia routes", () => {
   beforeEach(() => vi.clearAllMocks())
