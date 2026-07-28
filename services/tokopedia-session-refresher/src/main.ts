@@ -12,38 +12,59 @@ async function getTokenExpiryMs(dashboardUrl: string, internalServiceToken: stri
   return status.tokenExpiry ? new Date(status.tokenExpiry).getTime() : null
 }
 
-async function tick(cfg: ReturnType<typeof loadConfig>, lastNotifiedAtMs: number | null): Promise<number | null> {
+const DASHBOARD_UNREACHABLE_FAILURE_THRESHOLD = 3
+
+interface TickState {
+  lastNotifiedAtMs: number | null
+  consecutiveDashboardFailures: number
+}
+
+async function tick(cfg: ReturnType<typeof loadConfig>, state: TickState): Promise<TickState> {
   const now = Date.now()
+  let tokenExpiryMs: number | null
   try {
-    const tokenExpiryMs = await getTokenExpiryMs(cfg.dashboardUrl, cfg.internalServiceToken)
-    if (!shouldRefresh(tokenExpiryMs, now, cfg.refreshThresholdHours)) {
-      console.log(`[tick] Token masih valid, skip refresh.`)
-      return lastNotifiedAtMs
-    }
-    console.log(`[tick] Token dekat/sudah expired, menjalankan refresh...`)
-    const result = await refreshTokopediaSession(cfg)
-    if (result.success) {
-      console.log(`[tick] Refresh sukses.`)
-      return null // reset notify state on success
-    }
-    console.error(`[tick] Refresh gagal: ${result.error}`)
-    if (shouldNotify(lastNotifiedAtMs, now, cfg.notifyCooldownHours)) {
-      await sendFailureNotification(cfg, `Refresh sesi Tokopedia gagal: ${result.error}. Perlu login manual via VNC.`)
-      return now
-    }
-    return lastNotifiedAtMs
+    tokenExpiryMs = await getTokenExpiryMs(cfg.dashboardUrl, cfg.internalServiceToken)
   } catch (err) {
     console.error(`[tick] Error tak terduga:`, err)
-    return lastNotifiedAtMs
+    const consecutiveDashboardFailures = state.consecutiveDashboardFailures + 1
+    if (
+      consecutiveDashboardFailures >= DASHBOARD_UNREACHABLE_FAILURE_THRESHOLD &&
+      shouldNotify(state.lastNotifiedAtMs, now, cfg.notifyCooldownHours)
+    ) {
+      const message = err instanceof Error ? err.message : String(err)
+      await sendFailureNotification(
+        cfg,
+        `Tokopedia session refresher tidak bisa menghubungi dashboard setelah ${consecutiveDashboardFailures}x percobaan berturut-turut: ${message}. Cek koneksi/DASHBOARD_URL.`,
+      )
+      return { lastNotifiedAtMs: now, consecutiveDashboardFailures }
+    }
+    return { ...state, consecutiveDashboardFailures }
   }
+
+  if (!shouldRefresh(tokenExpiryMs, now, cfg.refreshThresholdHours)) {
+    console.log(`[tick] Token masih valid, skip refresh.`)
+    return { lastNotifiedAtMs: state.lastNotifiedAtMs, consecutiveDashboardFailures: 0 }
+  }
+  console.log(`[tick] Token dekat/sudah expired, menjalankan refresh...`)
+  const result = await refreshTokopediaSession(cfg)
+  if (result.success) {
+    console.log(`[tick] Refresh sukses.`)
+    return { lastNotifiedAtMs: null, consecutiveDashboardFailures: 0 } // reset notify state on success
+  }
+  console.error(`[tick] Refresh gagal: ${result.error}`)
+  if (shouldNotify(state.lastNotifiedAtMs, now, cfg.notifyCooldownHours)) {
+    await sendFailureNotification(cfg, `Refresh sesi Tokopedia gagal: ${result.error}. Perlu login manual via VNC.`)
+    return { lastNotifiedAtMs: now, consecutiveDashboardFailures: 0 }
+  }
+  return { lastNotifiedAtMs: state.lastNotifiedAtMs, consecutiveDashboardFailures: 0 }
 }
 
 async function main() {
   const cfg = loadConfig()
-  let lastNotifiedAtMs: number | null = null
+  let state: TickState = { lastNotifiedAtMs: null, consecutiveDashboardFailures: 0 }
   console.log(`[main] tokopedia-session-refresher started. check every ${cfg.checkIntervalHours}h, threshold ${cfg.refreshThresholdHours}h.`)
   while (true) {
-    lastNotifiedAtMs = await tick(cfg, lastNotifiedAtMs)
+    state = await tick(cfg, state)
     await new Promise((resolve) => setTimeout(resolve, cfg.checkIntervalHours * 60 * 60 * 1000))
   }
 }
