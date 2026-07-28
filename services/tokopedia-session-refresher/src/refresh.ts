@@ -13,7 +13,7 @@ export async function refreshTokopediaSession(
     await page.click('button:has-text("Masuk dengan akun TikTok")')
     await page.waitForURL('**/seller-id.tokopedia.com/homepage**', { timeout: 30_000 })
 
-    const cookies = await context.cookies()
+    const cookies = await context.cookies('https://seller-id.tokopedia.com/')
     const hasSellerToken = cookies.some((c) => c.name === 'SELLER_TOKEN')
     if (!hasSellerToken) {
       return { success: false, error: 'Login selesai tapi SELLER_TOKEN tidak ditemukan di cookie — flow mungkin belum lengkap' }
