@@ -245,6 +245,9 @@ importers:
 
   apps/saas:
     dependencies:
+      '@3pb/cyd-layout-schema':
+        specifier: workspace:*
+        version: link:../../packages/cyd-layout-schema
       '@3pb/kalkulator-core':
         specifier: workspace:*
         version: link:../../packages/kalkulator-core
