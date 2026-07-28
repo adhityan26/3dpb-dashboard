@@ -29,18 +29,22 @@ describe("listDevices", () => {
 });
 
 describe("createDevice", () => {
+  // Hoisted (bukan dibuat & dibuang di dalam mockImplementation) supaya test bisa assert
+  // langsung ke method-method tx-nya — termasuk urutan panggilan (lihat test row-lock di bawah).
   function mockTx(count: number, limit: number | null) {
-    (prisma.$transaction as any).mockImplementation(async (fn: any) => {
-      const tx = {
-        $queryRaw: vi.fn().mockResolvedValue([]),
-        entitlement: { findUnique: vi.fn().mockResolvedValue({ printerSlots: limit }) },
-        device: {
-          count: vi.fn().mockResolvedValue(count),
-          create: vi.fn().mockResolvedValue({ id: "new-d", userId: "u1", label: "Printer A", printerType: "bambu", shortCode: "abc1234567" }),
-        },
-      };
-      return fn(tx);
-    });
+    const tx = {
+      $queryRaw: vi.fn().mockResolvedValue([]),
+      $executeRaw: vi.fn().mockResolvedValue(1),
+      entitlement: {
+        findUnique: vi.fn().mockResolvedValue({ printerSlots: limit }),
+      },
+      device: {
+        count: vi.fn().mockResolvedValue(count),
+        create: vi.fn().mockResolvedValue({ id: "new-d", userId: "u1", label: "Printer A", printerType: "bambu", shortCode: "abc1234567" }),
+      },
+    };
+    (prisma.$transaction as any).mockImplementation(async (fn: any) => fn(tx));
+    return tx;
   }
 
   it("tolak printerType tak dikenal", async () => {
@@ -65,6 +69,66 @@ describe("createDevice", () => {
     await expect(createDevice("u1", { label: "Printer A", printerType: "bambu" })).rejects.toThrow(SlotLimitExceeded);
     expect(getConfigInt).toHaveBeenCalledWith("printer.defaultSlots", 1);
   });
+
+  // Finding A (code review): mutation-testing membuktikan tanpa test ini, menghapus baris
+  // `FOR UPDATE` dari createDevice tetap lolos 10/10 test lama. Test ini memverifikasi row-lock
+  // BENAR-BENAR diambil (bukan cuma di-comment sebagai niat baik) dan diambil SEBELUM count.
+  it("ambil row-lock (FOR UPDATE) sebelum COUNT devices", async () => {
+    (generateUniqueShortCode as any).mockResolvedValue("abc1234567");
+    const tx = mockTx(0, 2);
+
+    await createDevice("u1", { label: "Printer A", printerType: "bambu" });
+
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(1);
+    const sqlParts = (tx.$queryRaw as any).mock.calls[0][0] as TemplateStringsArray;
+    expect(Array.from(sqlParts).join("")).toContain("FOR UPDATE");
+
+    const lockCallOrder = (tx.$queryRaw as any).mock.invocationCallOrder[0];
+    const countCallOrder = (tx.device.count as any).mock.invocationCallOrder[0];
+    expect(lockCallOrder).toBeLessThan(countCallOrder);
+  });
+
+  // Finding C: SELECT ... FOR UPDATE pada 0 baris tidak mengunci apa pun — user tanpa baris
+  // Entitlement (umum untuk user baru/Free-tier, lihat lib/auth.ts) punya nol proteksi race kalau
+  // baris itu belum dipastikan ADA dulu. Dua pendekatan lain sudah dicoba & gagal di Postgres
+  // asli (lihat komentar panjang di service.ts): `upsert()` di dalam interactive transaction
+  // ternyata non-atomik (SELECT+INSERT terpisah di client), dan `create()` + catch P2002 GAGAL
+  // beda cara — Postgres meng-abort seluruh transaksi begitu satu statement error, jadi statement
+  // row-lock berikutnya ikut gagal (`25P02`) walau exception-nya "ditangkap" di JS. Fix final:
+  // raw SQL `INSERT ... ON CONFLICT DO NOTHING` — atomik & TIDAK PERNAH error, jadi tak butuh
+  // try/catch. Verifikasi urutan: $executeRaw (upsert-nothing) SEBELUM row-lock diambil.
+  it("pastikan baris Entitlement ADA (INSERT ... ON CONFLICT DO NOTHING) dulu sebelum ambil row-lock", async () => {
+    (generateUniqueShortCode as any).mockResolvedValue("abc1234567");
+    const tx = mockTx(0, 2);
+
+    await createDevice("u1", { label: "Printer A", printerType: "bambu" });
+
+    expect(tx.$executeRaw).toHaveBeenCalledTimes(1);
+    const sqlParts = (tx.$executeRaw as any).mock.calls[0][0] as TemplateStringsArray;
+    const sql = Array.from(sqlParts).join("");
+    expect(sql).toContain("INSERT INTO");
+    expect(sql).toContain("ON CONFLICT");
+    expect(sql).toContain("DO NOTHING");
+
+    const insertCallOrder = (tx.$executeRaw as any).mock.invocationCallOrder[0];
+    const lockCallOrder = (tx.$queryRaw as any).mock.invocationCallOrder[0];
+    expect(insertCallOrder).toBeLessThan(lockCallOrder);
+  });
+
+  // Finding D: getConfigInt lewat koneksi prisma global (bukan tx) — kalau dipanggil dari
+  // DALAM transaksi yang sedang pegang FOR UPDATE, request lain yang antre di lock itu bisa
+  // starvation di connection pool / P2028 timeout. Verifikasi dipanggil SEBELUM $transaction dibuka.
+  it("resolve fallback limit (getConfigInt) SEBELUM $transaction dibuka, bukan di dalamnya", async () => {
+    (getConfigInt as any).mockResolvedValue(1);
+    mockTx(0, 2); // Entitlement.printerSlots di-set (2) supaya fallback tak dipakai buat limit,
+    // tapi getConfigInt tetap dipanggil unconditionally sebelum transaksi (lihat implementasi).
+
+    await createDevice("u1", { label: "Printer A", printerType: "bambu" });
+
+    const configCallOrder = (getConfigInt as any).mock.invocationCallOrder[0];
+    const txCallOrder = (prisma.$transaction as any).mock.invocationCallOrder[0];
+    expect(configCallOrder).toBeLessThan(txCallOrder);
+  });
 });
 
 describe("updateDevice", () => {
@@ -81,24 +145,46 @@ describe("updateDevice", () => {
 
 describe("deleteDevice", () => {
   it("hapus device + bersihkan cell layout yang mereferensikan shortCode-nya, dalam 1 transaksi", async () => {
-    (prisma.$transaction as any).mockImplementation(async (fn: any) => {
-      const tx = {
-        device: {
-          findUnique: vi.fn().mockResolvedValue({ id: "d1", userId: "u1", shortCode: "abc1234567" }),
-          delete: vi.fn().mockResolvedValue({}),
-        },
-        cydLayout: {
-          findUnique: vi.fn().mockResolvedValue({
-            userId: "u1",
-            config: { schemaVersion: 1, pages: [{ id: "p1", grid: { cols: 2, rows: 2 }, fields: [], durationSec: 5, cells: [{ printer: "abc1234567", col: 0, row: 0 }] }] },
-          }),
-          update: vi.fn().mockResolvedValue({}),
-        },
-      };
-      return fn(tx);
-    });
+    const tx = {
+      device: {
+        findUnique: vi.fn().mockResolvedValue({ id: "d1", userId: "u1", shortCode: "abc1234567" }),
+        delete: vi.fn().mockResolvedValue({}),
+      },
+      cydLayout: {
+        findUnique: vi.fn().mockResolvedValue({
+          userId: "u1",
+          config: {
+            schemaVersion: 1,
+            pages: [
+              {
+                id: "p1",
+                grid: { cols: 2, rows: 2 },
+                fields: [],
+                durationSec: 5,
+                cells: [
+                  { printer: "abc1234567", col: 0, row: 0 },
+                  { printer: "other0000001", col: 1, row: 0 },
+                ],
+              },
+            ],
+          },
+        }),
+        update: vi.fn().mockResolvedValue({}),
+      },
+    };
+    (prisma.$transaction as any).mockImplementation(async (fn: any) => fn(tx));
+
     await deleteDevice("u1", "d1");
-    expect(prisma.$transaction).toHaveBeenCalled();
+
+    // Finding B: mutation-testing membuktikan membalik predikat filter (!== -> ===, yang
+    // SEHARUSNYA menghapus cell milik device yang dihapus, tapi malah cuma nyisain cell ITU dan
+    // buang semua cell lain) tetap lolos test lama, karena test lama cuma cek $transaction
+    // dipanggil — tak pernah cek payload update-nya. Assert di sini langsung ke isi `data`.
+    expect(tx.cydLayout.update).toHaveBeenCalledTimes(1);
+    const updateArgs = (tx.cydLayout.update as any).mock.calls[0][0];
+    const cells = updateArgs.data.config.pages[0].cells;
+    expect(cells).toHaveLength(1);
+    expect(cells[0].printer).toBe("other0000001");
   });
 
   it("throw DeviceNotFound kalau device bukan milik user", async () => {
