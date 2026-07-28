@@ -10,8 +10,11 @@ export async function refreshTokopediaSession(
   try {
     const page = await context.newPage()
     await page.goto('https://seller-id.tokopedia.com/', { waitUntil: 'networkidle' })
-    await page.click('button:has-text("Masuk dengan akun TikTok")')
-    await page.waitForURL('**/seller-id.tokopedia.com/homepage**', { timeout: 30_000 })
+    const alreadyLoggedIn = page.url().includes('/homepage')
+    if (!alreadyLoggedIn) {
+      await page.click('button:has-text("Masuk dengan akun TikTok")')
+      await page.waitForURL('**/seller-id.tokopedia.com/homepage**', { timeout: 30_000 })
+    }
 
     const cookies = await context.cookies('https://seller-id.tokopedia.com/')
     const hasSellerToken = cookies.some((c) => c.name === 'SELLER_TOKEN')
