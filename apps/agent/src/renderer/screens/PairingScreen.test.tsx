@@ -65,4 +65,66 @@ describe("PairingScreen", () => {
     resolveScan({ bambu: { ok: true, printers: [] }, moonraker: [] });
     await waitFor(() => expect(screen.getByRole("button", { name: /^scan lan$/i })).toBeTruthy());
   });
+
+  it("scanLan mengembalikan hasil Moonraker -> tampilkan kolom Moonraker, bisa dipasangkan", async () => {
+    (window as any).agentApi.scanLan.mockResolvedValue({
+      bambu: { ok: true, printers: [] },
+      moonraker: [{ ip: "192.168.1.20", name: "KlipperBox" }],
+    });
+    render(<PairingScreen devices={devices} onAllPaired={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /scan lan/i }));
+    await waitFor(() => expect(screen.getByText(/192\.168\.1\.20/)).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /pasangkan/i }));
+    fireEvent.change(screen.getByLabelText(/access code/i), { target: { value: "0000" } });
+    fireEvent.click(screen.getByRole("button", { name: /simpan pairing/i }));
+
+    // Moonraker connector (packages/printer-monitor-core) cuma pakai `ip` — serial dikirim
+    // kosong karena Moonraker tak punya konsep serial seperti Bambu.
+    await waitFor(() =>
+      expect((window as any).agentApi.pairDevice).toHaveBeenCalledWith("abc1234567", {
+        ip: "192.168.1.20",
+        serial: "",
+        accessCode: "0000",
+      }),
+    );
+  });
+
+  it("2 device terdaftar: onAllPaired HANYA terpanggil setelah SEMUA device dipasangkan, bukan setelah yang pertama", async () => {
+    const twoDevices = [
+      { id: "d1", shortCode: "abc1234567", userId: "u1", label: "Printer A", printerType: "bambu", createdAt: "x", updatedAt: "y" },
+      { id: "d2", shortCode: "def1234567", userId: "u1", label: "Printer B", printerType: "bambu", createdAt: "x", updatedAt: "y" },
+    ];
+    const onAllPaired = vi.fn();
+    render(<PairingScreen devices={twoDevices} onAllPaired={onAllPaired} />);
+    fireEvent.click(screen.getByRole("button", { name: /scan lan/i }));
+    await waitFor(() => screen.getByText(/192\.168\.1\.5/));
+
+    // pasangkan device pertama lewat hasil scan
+    fireEvent.click(screen.getByRole("button", { name: /pasangkan ke printer a/i }));
+    fireEvent.change(screen.getByLabelText(/access code/i), { target: { value: "1111" } });
+    fireEvent.click(screen.getByRole("button", { name: /simpan pairing/i }));
+
+    await waitFor(() =>
+      expect((window as any).agentApi.pairDevice).toHaveBeenCalledWith("abc1234567", {
+        ip: "192.168.1.5",
+        serial: "SER1",
+        accessCode: "1111",
+      }),
+    );
+    expect(onAllPaired).not.toHaveBeenCalled();
+    // device kedua masih belum dipasangkan -> form manual-nya masih tampil, device pertama
+    // sudah tampil "Terpasang" dan form pairing-nya sudah tidak ditampilkan lagi
+    expect(screen.getByRole("button", { name: /isi manual/i })).toBeTruthy();
+    expect(screen.getByText(/terpasang/i)).toBeTruthy();
+
+    // pasangkan device kedua lewat isi manual
+    fireEvent.click(screen.getByRole("button", { name: /isi manual/i }));
+    fireEvent.change(screen.getByLabelText(/^ip/i), { target: { value: "10.0.0.9" } });
+    fireEvent.change(screen.getByLabelText(/serial/i), { target: { value: "MANUAL1" } });
+    fireEvent.change(screen.getByLabelText(/access code/i), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: /simpan pairing/i }));
+
+    await waitFor(() => expect(onAllPaired).toHaveBeenCalled());
+  });
 });
