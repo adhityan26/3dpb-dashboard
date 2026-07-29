@@ -1,0 +1,37 @@
+{
+  "name": "@3pb/agent",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Electron desktop app for 3D printer fleet management",
+  "main": "out/main/index.js",
+  "author": "Adhitya Nugraha",
+  "homepage": "./",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "test": "vitest run",
+    "preview": "electron-vite preview",
+    "pack": "electron-builder --publish never",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "@3pb/printer-monitor-core": "workspace:*",
+    "aedes": "^0.51.3",
+    "bonjour-service": "^1.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.2",
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.1",
+    "electron": "^31.0.0",
+    "electron-builder": "^24.9.1",
+    "electron-vite": "^2.3.0",
+    "typescript": "^5.5.2",
+    "vite": "^5.3.2",
+    "vitest": "^1.6.1"
+  }
+}
