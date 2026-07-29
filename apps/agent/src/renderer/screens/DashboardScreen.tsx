@@ -16,6 +16,8 @@ function syncErrorMessage(kind: Extract<SyncResult, { ok: false }>["kind"]): str
       return "Akses Pro sudah berakhir — perbarui langganan buat Sync lagi.";
     case "engine_error":
       return "Gagal konek ulang ke printer — cek IP/access code device yang baru diubah.";
+    case "broker_unavailable":
+      return "Broker MQTT lokal belum jalan (lihat pesan di bawah) — tak ada device yang bisa dimonitor sampai itu diperbaiki.";
     case "network_error":
     default:
       return "Gagal konek ke server Slizebiz — device tetap jalan dari data lokal terakhir.";

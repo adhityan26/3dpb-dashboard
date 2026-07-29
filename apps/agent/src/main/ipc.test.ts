@@ -19,7 +19,7 @@ import { loadCredentials } from "./credential-store";
 import { reconcileDevices } from "./startup";
 import { startEngine } from "./engine-manager";
 import { publishLayout } from "./layout-publisher";
-import { getEngine, setEngine, setBrokerPort } from "./app-state";
+import { getEngine, setEngine, setBrokerPort, getReporters, setReporters } from "./app-state";
 
 describe("registerIpcHandlers", () => {
   it("daftarkan handler 'agent:activate'", () => {
@@ -73,6 +73,18 @@ describe("agent:sync", () => {
     expect(reconcileDevices).not.toHaveBeenCalled();
   });
 
+  it("broker gak pernah jalan (getBrokerPort()===null) -> {ok:false, kind:'broker_unavailable'}, TANPA panggil reconcileDevices/startEngine (Minor #1)", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
+    setBrokerPort(null);
+
+    const result = await handlers["agent:sync"]();
+
+    expect(result).toEqual({ ok: false, kind: "broker_unavailable" });
+    expect(reconcileDevices).not.toHaveBeenCalled();
+    expect(startEngine).not.toHaveBeenCalled();
+  });
+
   it("sukses: restart Engine dengan device terbaru, republish layout, balikin {ok:true, deviceCount}", async () => {
     registerIpcHandlers();
     (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
@@ -80,7 +92,8 @@ describe("agent:sync", () => {
     (reconcileDevices as any).mockResolvedValueOnce({ fetchResult: { ok: true, data: [] }, devices: [], paired });
     setBrokerPort(1883);
     const fakeEngine = { snapshot: () => ({ payload: [] }), stop: vi.fn() } as any;
-    (startEngine as any).mockResolvedValueOnce(fakeEngine);
+    const fakeReporter = { close: vi.fn().mockResolvedValue(undefined) } as any;
+    (startEngine as any).mockResolvedValueOnce({ engine: fakeEngine, reporters: [fakeReporter] });
 
     const result = await handlers["agent:sync"]();
 
@@ -88,9 +101,11 @@ describe("agent:sync", () => {
     expect(publishLayout).toHaveBeenCalledWith("slz_ok", 1883);
     expect(result).toEqual({ ok: true, deviceCount: 1 });
     expect(getEngine()).toBe(fakeEngine);
+    expect(getReporters()).toEqual([fakeReporter]);
 
     setBrokerPort(null);
     setEngine(null);
+    setReporters([]);
   });
 
   it("SaaS unreachable tapi ada device ter-pairing dari cache -> Engine TETAP direstart dari cache, tapi hasil tetap ok:false (distinguishable dari sukses)", async () => {
@@ -100,7 +115,7 @@ describe("agent:sync", () => {
     (reconcileDevices as any).mockResolvedValueOnce({ fetchResult: { ok: false, kind: "network_error" }, devices: [], paired });
     setBrokerPort(1883);
     const fakeEngine = { snapshot: () => ({ payload: [] }), stop: vi.fn() } as any;
-    (startEngine as any).mockResolvedValueOnce(fakeEngine);
+    (startEngine as any).mockResolvedValueOnce({ engine: fakeEngine, reporters: [] });
 
     const result = await handlers["agent:sync"]();
 
@@ -109,6 +124,7 @@ describe("agent:sync", () => {
 
     setBrokerPort(null);
     setEngine(null);
+    setReporters([]);
   });
 
   it("startEngine gagal (mis. accessCode salah) -> balikin {ok:false, kind:'engine_error'}, bukan reject/crash handler", async () => {
@@ -125,6 +141,84 @@ describe("agent:sync", () => {
 
     setBrokerPort(null);
     setEngine(null);
+  });
+
+  it("ganti Engine: Engine LAMA di-stop() SEBELUM Engine baru menggantikannya di app-state (Minor #2 -- urutan stop-before-restart belum ada test)", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
+    const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S1", accessCode: "1234" } }];
+    (reconcileDevices as any).mockResolvedValueOnce({ fetchResult: { ok: true, data: [] }, devices: [], paired });
+    setBrokerPort(1883);
+
+    const callOrder: string[] = [];
+    const oldEngine = { snapshot: () => ({ payload: [] }), stop: vi.fn().mockImplementation(async () => { callOrder.push("old-engine-stopped"); }) } as any;
+    setEngine(oldEngine);
+    const newEngine = { snapshot: () => ({ payload: [] }), stop: vi.fn() } as any;
+    (startEngine as any).mockImplementationOnce(async () => {
+      callOrder.push("new-engine-started");
+      return { engine: newEngine, reporters: [] };
+    });
+
+    await handlers["agent:sync"]();
+
+    expect(oldEngine.stop).toHaveBeenCalledTimes(1);
+    expect(callOrder).toEqual(["old-engine-stopped", "new-engine-started"]);
+    expect(getEngine()).toBe(newEngine); // Engine lama BENAR-BENAR diganti, bukan cuma di-stop lalu dibiarkan
+
+    setBrokerPort(null);
+    setEngine(null);
+  });
+
+  it("ganti Engine: reporter LAMA (mis. MqttReporter) di-close() sebelum diganti reporter baru -- TANPA ini tiap Sync leak 1 koneksi MQTT (Important finding)", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
+    const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S1", accessCode: "1234" } }];
+    (reconcileDevices as any).mockResolvedValueOnce({ fetchResult: { ok: true, data: [] }, devices: [], paired });
+    setBrokerPort(1883);
+
+    const oldEngine = { snapshot: () => ({ payload: [] }), stop: vi.fn().mockResolvedValue(undefined) } as any;
+    const oldReporter = { close: vi.fn().mockResolvedValue(undefined) } as any;
+    setEngine(oldEngine);
+    setReporters([oldReporter]);
+
+    const newEngine = { snapshot: () => ({ payload: [] }), stop: vi.fn() } as any;
+    const newReporter = { close: vi.fn().mockResolvedValue(undefined) } as any;
+    (startEngine as any).mockResolvedValueOnce({ engine: newEngine, reporters: [newReporter] });
+
+    await handlers["agent:sync"]();
+
+    // Reporter LAMA harus ke-close() -- ini yang mencegah leak koneksi MQTT (bug utama yang
+    // ditemukan review): tanpa baris ini, tiap klik Sync bikin 1 koneksi baru yang gak pernah
+    // ditutup.
+    expect(oldReporter.close).toHaveBeenCalledTimes(1);
+    // Reporter yang dilacak app-state sekarang HARUS reporter yang baru, bukan lama ataupun
+    // gabungan keduanya.
+    expect(getReporters()).toEqual([newReporter]);
+
+    setBrokerPort(null);
+    setEngine(null);
+    setReporters([]);
+  });
+
+  it("reporter lama gagal di-close() (mis. socket sudah putus) -> dicatat, TIDAK bikin seluruh Sync gagal", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
+    const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S1", accessCode: "1234" } }];
+    (reconcileDevices as any).mockResolvedValueOnce({ fetchResult: { ok: true, data: [] }, devices: [], paired });
+    setBrokerPort(1883);
+
+    setEngine(null);
+    setReporters([{ close: vi.fn().mockRejectedValue(new Error("socket sudah putus")) } as any]);
+    const newEngine = { snapshot: () => ({ payload: [] }), stop: vi.fn() } as any;
+    (startEngine as any).mockResolvedValueOnce({ engine: newEngine, reporters: [] });
+
+    const result = await handlers["agent:sync"]();
+
+    expect(result).toEqual({ ok: true, deviceCount: 1 });
+
+    setBrokerPort(null);
+    setEngine(null);
+    setReporters([]);
   });
 });
 

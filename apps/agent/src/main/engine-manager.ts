@@ -10,7 +10,18 @@ export interface PairedDevice {
   secret: DeviceSecret;
 }
 
-export async function startEngine(paired: PairedDevice[], brokerPort: number): Promise<Engine> {
+export interface StartedEngine {
+  engine: Engine;
+  // MqttReporter(s) startEngine() bikin (buka koneksi MQTT sendiri di connect(), Engine.stop()
+  // tidak pernah menutupnya) -- caller yang GANTI Engine ini WAJIB nutup reporter-nya juga
+  // (r.close()), kalau tidak jadi leak 1 koneksi MQTT per restart. Dityped konkret sebagai
+  // MqttReporter[] (bukan library-level Reporter[]) karena interface Reporter generik di
+  // packages/printer-monitor-core sengaja TIDAK punya close() -- cuma implementasi MQTT ini
+  // yang sebenarnya punya resource buat ditutup.
+  reporters: MqttReporter[];
+}
+
+export async function startEngine(paired: PairedDevice[], brokerPort: number): Promise<StartedEngine> {
   const devices: DeviceConfig[] = [];
   const connectors: Connector[] = [];
 
@@ -47,5 +58,5 @@ export async function startEngine(paired: PairedDevice[], brokerPort: number): P
     hms: new HmsLookup(hmsTable), // inject eksplisit — hindari gotcha import.meta.url default loading
   });
   await engine.start();
-  return engine;
+  return { engine, reporters: [reporter] };
 }

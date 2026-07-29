@@ -58,6 +58,15 @@ describe("DashboardScreen", () => {
     expect(screen.getByRole("alert").textContent).toMatch(/token tidak valid/i);
   });
 
+  it("Sync gagal karena broker gak pernah jalan (broker_unavailable) -> tampilkan pesan yang jelas, BUKAN 'Tersinkron (N device)' yang menyesatkan (Minor #1)", async () => {
+    (window as any).agentApi.sync.mockResolvedValue({ ok: false, kind: "broker_unavailable" });
+    render(<DashboardScreen />);
+    fireEvent.click(screen.getByRole("button", { name: /^sync$/i }));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    expect(screen.getByRole("alert").textContent).toMatch(/broker/i);
+    expect(screen.queryByText(/tersinkron/i)).toBeNull();
+  });
+
   it("Sync reject (IPC error) -> tidak crash, tampilkan pesan error generik", async () => {
     (window as any).agentApi.sync.mockRejectedValue(new Error("ipc boom"));
     render(<DashboardScreen />);

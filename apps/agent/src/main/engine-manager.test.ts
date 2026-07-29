@@ -28,7 +28,7 @@ import { hmsTable } from "./hms-table";
 describe("startEngine", () => {
   it("bikin DeviceConfig dengan id = shortCode (BUKAN label/serial lain)", async () => {
     const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", secret: { ip: "192.168.1.5", serial: "SER1", accessCode: "1234" } }];
-    const engine = await startEngine(paired, 1883);
+    const { engine } = await startEngine(paired, 1883);
     const snapshot = engine.snapshot();
     expect(snapshot.payload[0].id).toBe("abc1234567");
   });
@@ -43,12 +43,25 @@ describe("startEngine", () => {
       { shortCode: "a", label: "A", printerType: "bambu", secret: { ip: "1.1.1.1", serial: "S", accessCode: "C" } },
       { shortCode: "b", label: "B", printerType: "prusa-tak-didukung", secret: { ip: "2.2.2.2", serial: "", accessCode: "" } },
     ];
-    const engine = await startEngine(paired, 1883);
+    const { engine } = await startEngine(paired, 1883);
     expect(engine.snapshot().payload.map((p) => p.id)).toEqual(["a"]);
   });
 
   it("HmsLookup diisi table eksplisit dari hms-table.ts (BUKAN default zero-arg readFileSync)", async () => {
     await startEngine([{ shortCode: "h", label: "H", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S", accessCode: "C" } }], 1883);
     expect(HmsLookup).toHaveBeenCalledWith(hmsTable);
+  });
+
+  it("balikin reporter yang dibikin bareng Engine -- caller (agent:sync) WAJIB bisa nutupnya pas ganti Engine (Task 13 review: MqttReporter leak)", async () => {
+    const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", secret: { ip: "192.168.1.5", serial: "SER1", accessCode: "1234" } }];
+    const { reporters } = await startEngine(paired, 1883);
+    expect(reporters).toHaveLength(1);
+    expect(reporters[0].close).toBeDefined();
+
+    await reporters[0].close();
+    // Instance MqttReporter yang sama yang dioper ke Engine ({reporters:[reporter]} di
+    // engine-manager.ts) HARUS persis instance yang dibalikin lewat StartedEngine.reporters --
+    // makanya close() di sini semestinya sama seperti manggil close() di reporter internal Engine.
+    expect((reporters[0] as any).close).toHaveBeenCalledTimes(1);
   });
 });

@@ -6,7 +6,7 @@ import { startEngine } from './engine-manager'
 import { publishLayout } from './layout-publisher'
 import { loadCredentials } from './credential-store'
 import { registerIpcHandlers } from './ipc'
-import { setEngine, setBrokerPort } from './app-state'
+import { setEngine, setBrokerPort, setReporters } from './app-state'
 
 const gotLock = app.requestSingleInstanceLock()
 
@@ -33,7 +33,9 @@ async function bootstrap(): Promise<void> {
 
     const paired = await buildPairedDevices()
     if (paired.length > 0) {
-      setEngine(await startEngine(paired, brokerResult.port))
+      const started = await startEngine(paired, brokerResult.port)
+      setEngine(started.engine)
+      setReporters(started.reporters) // dilacak biar agent:sync bisa nutupnya pas ganti Engine
     }
 
     const blob = await loadCredentials()

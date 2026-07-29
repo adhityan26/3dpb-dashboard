@@ -3,7 +3,7 @@ import { loadCredentials, saveCredentials, type DeviceSecret } from "./credentia
 import { fetchDevices, type SaasDevice } from "./saas-client";
 import { scanBambu } from "./discovery/bambu-ssdp";
 import { scanMoonraker } from "./discovery/moonraker-mdns";
-import { getEngine, setEngine, getBrokerPort, getLocalIp } from "./app-state";
+import { getEngine, setEngine, getBrokerPort, getLocalIp, getReporters, setReporters } from "./app-state";
 import { reconcileDevices } from "./startup";
 import { startEngine } from "./engine-manager";
 import { publishLayout } from "./layout-publisher";
@@ -16,7 +16,7 @@ export interface ActivationState {
 
 export type SyncResult =
   | { ok: true; deviceCount: number }
-  | { ok: false; kind: "invalid_token" | "entitlement_expired" | "network_error" | "engine_error" };
+  | { ok: false; kind: "invalid_token" | "entitlement_expired" | "network_error" | "engine_error" | "broker_unavailable" };
 
 export function registerIpcHandlers(): void {
   ipcMain.handle("agent:activate", async (_event, token: string) => {
@@ -48,15 +48,34 @@ export function registerIpcHandlers(): void {
     const blob = await loadCredentials();
     if (!blob.agentToken) return { ok: false, kind: "invalid_token" };
 
-    const { fetchResult, paired } = await reconcileDevices(blob.agentToken);
     const brokerPort = getBrokerPort();
+    // Broker gak pernah jalan (mis. port 1883 dipakai proses lain saat startup, lihat
+    // main/index.ts bootstrap()) -- tak ada broker buat Engine baru konek. brokerPort CUMA
+    // null kalau broker gagal start SEJAK AWAL (setBrokerPort dipanggil PALING SEKALI, pas
+    // bootstrap sukses) jadi kalau ini null, dipastikan juga belum pernah ada Engine/reporter
+    // aktif buat direkonsiliasi. Balikin gagal EKSPLISIT -- BUKAN ok:true dengan deviceCount
+    // yang menyesatkan (device sebenarnya nol yang termonitor), yang kontradiksi sama pesan
+    // "broker belum jalan" yang sudah tampil di Dashboard yang sama (Task 13 review Minor #1).
+    if (brokerPort === null) return { ok: false, kind: "broker_unavailable" };
+
+    const { fetchResult, paired } = await reconcileDevices(blob.agentToken);
 
     const oldEngine = getEngine();
     if (oldEngine) await oldEngine.stop();
+    // MqttReporter buka koneksi MQTT sendiri di connect() -- Engine.stop() (packages/
+    // printer-monitor-core) CUMA stop connector+timer, tidak pernah menutup reporter-nya.
+    // Tanpa ini, TIAP Sync yang restart Engine bikin 1 koneksi MQTT baru yang gak pernah
+    // ditutup (leak — Task 13 review Important finding pasca fix-wave sebelumnya).
+    for (const r of getReporters()) {
+      await r.close().catch((err) => console.error("[ipc] agent:sync gagal tutup reporter lama", err));
+    }
+    setReporters([]);
 
-    if (paired.length > 0 && brokerPort !== null) {
+    if (paired.length > 0) {
       try {
-        setEngine(await startEngine(paired, brokerPort));
+        const started = await startEngine(paired, brokerPort);
+        setEngine(started.engine);
+        setReporters(started.reporters);
       } catch (err) {
         console.error("[ipc] agent:sync gagal restart engine dengan device terbaru", err);
         setEngine(null);
@@ -66,13 +85,11 @@ export function registerIpcHandlers(): void {
       setEngine(null);
     }
 
-    if (brokerPort !== null) {
-      // Republish layout non-fatal -- kegagalannya gak boleh bikin seluruh Sync dianggap gagal
-      // (device sudah kepasang duluan di atas), cukup dicatat.
-      await publishLayout(blob.agentToken, brokerPort).catch((err) => {
-        console.error("[ipc] agent:sync gagal republish layout (non-fatal)", err);
-      });
-    }
+    // Republish layout non-fatal -- kegagalannya gak boleh bikin seluruh Sync dianggap gagal
+    // (device sudah kepasang duluan di atas), cukup dicatat.
+    await publishLayout(blob.agentToken, brokerPort).catch((err) => {
+      console.error("[ipc] agent:sync gagal republish layout (non-fatal)", err);
+    });
 
     if (!fetchResult.ok) return fetchResult;
     return { ok: true, deviceCount: paired.length };
