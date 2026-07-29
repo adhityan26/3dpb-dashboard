@@ -21,7 +21,8 @@
     "@3pb/printer-monitor-core": "workspace:*",
     "@3pb/cyd-layout-schema": "workspace:*",
     "aedes": "^0.51.3",
-    "bonjour-service": "^1.2.1"
+    "bonjour-service": "^1.2.1",
+    "mqtt": "^5.10.1"
   },
   "devDependencies": {
     "@types/node": "^20.14.2",
