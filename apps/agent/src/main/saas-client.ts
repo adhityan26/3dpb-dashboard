@@ -14,8 +14,22 @@ export type FetchResult<T> =
   | { ok: true; data: T }
   | { ok: false; kind: "invalid_token" | "entitlement_expired" | "network_error" };
 
-function baseUrl(): string {
-  return process.env.SAAS_BASE_URL ?? "";
+// Di-inject `define` electron.vite.config.ts saat build. Dideklarasikan (bukan di-import)
+// karena identifier ini DIGANTI literal string oleh Vite; di luar build (vitest, tsx)
+// identifier-nya memang tak ada — makanya dibaca lewat `typeof` yang aman untuk identifier
+// yang tak terdeklarasi sama sekali.
+declare const __SAAS_BASE_URL__: string | undefined;
+
+const BUILD_TIME_BASE_URL = typeof __SAAS_BASE_URL__ === "string" ? __SAAS_BASE_URL__ : "";
+
+/**
+ * Env var runtime menang (buat test + debugging/self-host), fallback ke nilai build-time.
+ * Kalau dua-duanya kosong, SEMUA panggilan SaaS pasti gagal — `bootstrap()` (main/index.ts)
+ * mengecek ini di startup dan menulis warning eksplisit, supaya salah konfigurasi build
+ * tidak menyamar jadi "network_error" generik tanpa jejak.
+ */
+export function saasBaseUrl(): string {
+  return process.env.SAAS_BASE_URL || BUILD_TIME_BASE_URL;
 }
 
 // Bare `fetch` bisa hang di level TCP connect (~75s OS default) pada captive portal /
@@ -26,7 +40,7 @@ const FETCH_TIMEOUT_MS = 5_000;
 
 export async function fetchDevices(token: string): Promise<FetchResult<SaasDevice[]>> {
   try {
-    const res = await fetch(`${baseUrl()}/api/agent/devices`, {
+    const res = await fetch(`${saasBaseUrl()}/api/agent/devices`, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
@@ -41,7 +55,7 @@ export async function fetchDevices(token: string): Promise<FetchResult<SaasDevic
 
 export async function fetchLayout(token: string): Promise<FetchResult<LayoutConfigOut | null>> {
   try {
-    const res = await fetch(`${baseUrl()}/api/agent/layout`, {
+    const res = await fetch(`${saasBaseUrl()}/api/agent/layout`, {
       headers: { Authorization: `Bearer ${token}` },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });

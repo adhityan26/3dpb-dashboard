@@ -17,9 +17,56 @@ export function getBrokerPort(): number | null { return brokerPort; }
 export function setReporters(r: MqttReporter[]): void { reporters = r; }
 export function getReporters(): MqttReporter[] { return reporters; }
 
-export function getLocalIp(): string {
-  for (const iface of Object.values(os.networkInterfaces()).flat()) {
-    if (iface && iface.family === "IPv4" && !iface.internal) return iface.address;
+// Adapter virtual/VPN. IP-nya non-internal & IPv4 juga, jadi lolos filter naif "ambil yang
+// pertama" — dan di Windows dengan Hyper-V/WSL2 (`vEthernet (WSL)`), VirtualBox, atau VPN
+// aktif, adapter-adapter ini SERING muncul sebelum adapter LAN asli. Akibatnya user
+// mengetik IP yang tak bisa dijangkau CYD ke captive portal, dengan gejala ("CYD gak
+// pernah konek padahal IP-nya kelihatan benar") yang nyaris mustahil didiagnosis dari
+// percakapan support dan gampang tertukar dengan masalah Windows Firewall.
+const VIRTUAL_IFACE_PATTERNS: RegExp[] = [
+  /^vEthernet/i, // Hyper-V / WSL2 (Windows)
+  /hyper-?v/i,
+  /virtualbox|vboxnet/i,
+  /vmware|^vmnet/i,
+  /tailscale/i,
+  /zerotier/i,
+  /^wg\d/i, // WireGuard
+  /^ppp\d/i, // dial-up / beberapa client VPN
+  /^utun\d/i, // VPN tunnel macOS
+  /^tun\d|^tap\d/i, // OpenVPN dsb.
+  /^docker|^br-|^veth/i, // bridge Docker
+  /loopback/i,
+  /bluetooth/i,
+  /virtual/i,
+];
+
+function isVirtualIface(name: string): boolean {
+  return VIRTUAL_IFACE_PATTERNS.some((re) => re.test(name));
+}
+
+/**
+ * Semua IPv4 non-internal, diurutkan: adapter fisik dulu, adapter virtual/VPN belakangan.
+ * Dipisah dari `getLocalIp()` supaya bisa dites dengan `os.networkInterfaces()` palsu dan
+ * supaya startup bisa mencatat SEMUA kandidat (jejak diagnostik kalau tebakan utama salah).
+ */
+export function pickLocalIpCandidates(
+  interfaces: NodeJS.Dict<os.NetworkInterfaceInfo[]>,
+): string[] {
+  const real: string[] = [];
+  const virtual: string[] = [];
+  for (const [name, addrs] of Object.entries(interfaces)) {
+    for (const iface of addrs ?? []) {
+      if (!iface || iface.family !== "IPv4" || iface.internal) continue;
+      (isVirtualIface(name) ? virtual : real).push(iface.address);
+    }
   }
-  return "127.0.0.1";
+  return [...real, ...virtual];
+}
+
+export function listLocalIpCandidates(): string[] {
+  return pickLocalIpCandidates(os.networkInterfaces());
+}
+
+export function getLocalIp(): string {
+  return listLocalIpCandidates()[0] ?? "127.0.0.1";
 }

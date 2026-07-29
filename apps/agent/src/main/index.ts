@@ -6,7 +6,8 @@ import { startEngine } from './engine-manager'
 import { publishLayout } from './layout-publisher'
 import { loadCredentials } from './credential-store'
 import { registerIpcHandlers } from './ipc'
-import { setEngine, setBrokerPort, setReporters } from './app-state'
+import { saasBaseUrl } from './saas-client'
+import { setEngine, setBrokerPort, setReporters, listLocalIpCandidates } from './app-state'
 
 const gotLock = app.requestSingleInstanceLock()
 
@@ -24,9 +25,28 @@ const gotLock = app.requestSingleInstanceLock()
  */
 async function bootstrap(): Promise<void> {
   try {
+    // Diagnostik startup: base URL SaaS di-inject saat BUILD (define di
+    // electron.vite.config.ts). Kalau kosong, SEMUA panggilan SaaS bakal balik
+    // "network_error" generik yang mustahil dibedakan dari internet mati — jadi
+    // salah-konfigurasi build harus berteriak di sini, sekali, dengan jelas.
+    const base = saasBaseUrl()
+    if (base) {
+      console.log(`[agent] SaaS base URL: ${base}`)
+    } else {
+      console.error(
+        '[agent] SAAS_BASE_URL KOSONG — build ini tak tahu harus menghubungi server Slizebiz yang mana. ' +
+          'Aktivasi/sync/layout PASTI gagal ("network_error"). Rebuild dengan SAAS_BASE_URL=<url> di environment build.',
+      )
+    }
+    // Alamat ini yang diketik user ke captive-portal WiFi CYD; catat SEMUA kandidat biar
+    // kalau tebakan utama salah (adapter virtual/VPN) masih ada jejak buat support.
+    console.log('[agent] kandidat IP LAN (urut prioritas):', listLocalIpCandidates().join(', ') || '(tidak ada)')
+
     const brokerResult = await startBroker()
     if (!brokerResult.ok) {
-      console.error('[agent] broker gagal start (port 1883 dipakai proses lain) — monitoring lokal tak akan jalan')
+      console.error(
+        `[agent] broker MQTT lokal gagal start (${brokerResult.reason}) — monitoring lokal tak akan jalan`,
+      )
       return
     }
     setBrokerPort(brokerResult.port)

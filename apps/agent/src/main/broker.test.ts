@@ -1,5 +1,6 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import net from "node:net";
+import { EventEmitter } from "node:events";
 import { startBroker, stopBroker } from "./broker";
 
 /**
@@ -63,6 +64,39 @@ describe("startBroker", () => {
     const second = await startBroker(18831);
     expect(second).toEqual({ ok: false, reason: "port_in_use" });
     blocker.close();
+  });
+
+  it("listen error SELAIN EADDRINUSE (mis. EACCES) tetap resolve — bukan promise yang tak pernah settle", async () => {
+    // EACCES nyata di Windows saat port jatuh di rentang excluded Hyper-V/WSL. Dulu handler
+    // error cuma menangani EADDRINUSE, jadi startBroker() menggantung selamanya -> await-nya
+    // di bootstrap() ikut menggantung -> crash-guard try/catch/finally Task 10 terlewati
+    // (promise yang tak pernah settle tak bisa ditangkap try/catch) -> proses hidup tanpa
+    // window dan tanpa IPC.
+    const fakeServer = new EventEmitter() as unknown as net.Server & EventEmitter;
+    (fakeServer as unknown as { listen: unknown }).listen = () => {
+      setImmediate(() => {
+        const err: NodeJS.ErrnoException = new Error("permission denied");
+        err.code = "EACCES";
+        fakeServer.emit("error", err);
+      });
+      return fakeServer;
+    };
+    (fakeServer as unknown as { close: unknown }).close = (cb?: () => void) => {
+      cb?.();
+      return fakeServer;
+    };
+    const spy = vi.spyOn(net, "createServer").mockReturnValue(fakeServer);
+
+    try {
+      const timedOut = Symbol("timed-out");
+      const result = await Promise.race([
+        startBroker(18834),
+        new Promise((resolve) => setTimeout(() => resolve(timedOut), 2000)),
+      ]);
+      expect(result).toEqual({ ok: false, reason: "listen_error" });
+    } finally {
+      spy.mockRestore();
+    }
   });
 
   it("stopBroker() resolve walau ada client MQTT yang masih konek (bukan hang nunggu socket close sendiri)", async () => {

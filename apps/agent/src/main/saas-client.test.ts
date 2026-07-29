@@ -1,11 +1,34 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { fetchDevices, fetchLayout } from "./saas-client";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { fetchDevices, fetchLayout, saasBaseUrl } from "./saas-client";
 
 const fetchMock = vi.fn();
 beforeEach(() => {
   fetchMock.mockReset();
   (globalThis as any).fetch = fetchMock;
   process.env.SAAS_BASE_URL = "http://192.168.88.113:3300";
+});
+
+describe("saasBaseUrl", () => {
+  const original = process.env.SAAS_BASE_URL;
+  afterEach(() => {
+    if (original === undefined) delete process.env.SAAS_BASE_URL;
+    else process.env.SAAS_BASE_URL = original;
+  });
+
+  it("env var runtime menang kalau diisi", () => {
+    process.env.SAAS_BASE_URL = "http://127.0.0.1:9999";
+    expect(saasBaseUrl()).toBe("http://127.0.0.1:9999");
+  });
+
+  it("env var kosong -> jatuh ke konstanta build-time (di test = string kosong, di build = define electron.vite.config.ts)", () => {
+    delete process.env.SAAS_BASE_URL;
+    // Di lingkungan test `__SAAS_BASE_URL__` memang tak ada (tak ada define), jadi hasilnya
+    // "" — persis kondisi yang bikin bootstrap() menulis warning eksplisit. Yang dijamin
+    // test ini: pembacaan build-time constant tidak melempar ReferenceError.
+    expect(saasBaseUrl()).toBe("");
+    process.env.SAAS_BASE_URL = "";
+    expect(saasBaseUrl()).toBe("");
+  });
 });
 
 describe("fetchDevices", () => {

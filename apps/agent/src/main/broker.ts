@@ -1,10 +1,20 @@
 import Aedes from "aedes";
 import net from "node:net";
 
-export type BrokerStartResult = { ok: true; port: number } | { ok: false; reason: "port_in_use" };
+export type BrokerStartResult =
+  | { ok: true; port: number }
+  | { ok: false; reason: "port_in_use" | "listen_error" };
 
 let server: net.Server | null = null;
 let aedesInstance: Aedes | null = null;
+
+/**
+ * Jaring pengaman kalau `listen()` tak pernah memanggil callback DAN tak pernah emit
+ * "error" (secara teori tak terjadi, tapi murah). Tanpa ini, satu skenario aneh saja bikin
+ * `bootstrap()` menggantung selamanya — dan promise yang tak pernah settle TIDAK bisa
+ * ditangkap try/catch/finally di main/index.ts, jadi window pun tak pernah dibuat.
+ */
+const LISTEN_TIMEOUT_MS = 10_000;
 
 export async function startBroker(port = 1883): Promise<BrokerStartResult> {
   // Idempotent: starting twice without an intervening stop would otherwise
@@ -12,12 +22,36 @@ export async function startBroker(port = 1883): Promise<BrokerStartResult> {
   await stopBroker();
 
   return new Promise((resolve) => {
+    let settled = false;
+    let timer: NodeJS.Timeout | null = null;
+    const settle = (result: BrokerStartResult) => {
+      if (settled) return;
+      settled = true;
+      if (timer) clearTimeout(timer);
+      resolve(result);
+    };
+
     aedesInstance = new Aedes();
     server = net.createServer(aedesInstance.handle);
+    // WAJIB settle untuk SEMUA kode error, bukan cuma EADDRINUSE. EACCES (port di rentang
+    // excluded Hyper-V/WSL di Windows), EADDRNOTAVAIL, dsb. dulu bikin promise ini tak
+    // pernah settle -> `await startBroker()` di bootstrap() menggantung -> crash-guard
+    // try/catch/finally Task 10 terlewati total (proses hidup, tanpa window, tanpa IPC).
     server.once("error", (err: NodeJS.ErrnoException) => {
-      if (err.code === "EADDRINUSE") resolve({ ok: false, reason: "port_in_use" });
+      if (err.code === "EADDRINUSE") {
+        settle({ ok: false, reason: "port_in_use" });
+        return;
+      }
+      console.error("[broker] gagal listen (bukan EADDRINUSE)", err);
+      settle({ ok: false, reason: "listen_error" });
     });
-    server.listen(port, () => resolve({ ok: true, port }));
+    timer = setTimeout(() => {
+      console.error(`[broker] listen tak merespons dalam ${LISTEN_TIMEOUT_MS}ms — dianggap gagal`);
+      settle({ ok: false, reason: "listen_error" });
+    }, LISTEN_TIMEOUT_MS);
+    // Timer tak boleh menahan event loop kalau app mau keluar duluan.
+    timer.unref?.();
+    server.listen(port, () => settle({ ok: true, port }));
   });
 }
 
