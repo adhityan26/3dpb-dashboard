@@ -13,7 +13,17 @@ describe("fetchDevices", () => {
     fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => [{ id: "d1", shortCode: "abc1234567", userId: "u1", label: "A", printerType: "bambu", createdAt: "x", updatedAt: "y" }] });
     const result = await fetchDevices("slz_valid");
     expect(result).toEqual({ ok: true, data: [{ id: "d1", shortCode: "abc1234567", userId: "u1", label: "A", printerType: "bambu", createdAt: "x", updatedAt: "y" }] });
-    expect(fetchMock).toHaveBeenCalledWith("http://192.168.88.113:3300/api/agent/devices", { headers: { Authorization: "Bearer slz_valid" } });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://192.168.88.113:3300/api/agent/devices",
+      expect.objectContaining({ headers: { Authorization: "Bearer slz_valid" }, signal: expect.any(AbortSignal) })
+    );
+  });
+
+  it("pakai AbortSignal buat timeout — cegah TCP connect hang (captive portal/DNS blackhole)", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => [] });
+    await fetchDevices("slz_valid");
+    const [, options] = fetchMock.mock.calls[0];
+    expect(options.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("kind:invalid_token kalau 401", async () => {

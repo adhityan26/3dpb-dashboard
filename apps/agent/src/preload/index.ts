@@ -1,11 +1,22 @@
 import { contextBridge, ipcRenderer } from "electron";
 import type { DeviceSecret } from "../main/credential-store";
+import type { FetchResult, SaasDevice } from "../main/saas-client";
+import type { ScanResult } from "../main/discovery/bambu-ssdp";
+import type { DiscoveredMoonrakerPrinter } from "../main/discovery/moonraker-mdns";
 
+// Tipe return tiap method di-anotasi EKSPLISIT (bukan cuma `typeof agentApi` inherit
+// `Promise<any>` dari `ipcRenderer.invoke`) — dan HARUS persis cocok dengan tipe return
+// asli handler-nya di `ipc.ts`, bukan sekadar deskripsi Interfaces-nya task brief.
+// Contoh nyata bedanya: `scanLan` mengembalikan `bambu: ScanResult` (varian
+// `{ok:true; printers:[...]}` | `{ok:false; reason:"port_in_use"}`, sengaja mempertahankan
+// sinyal port_in_use dari Task 5), BUKAN bare `DiscoveredBambuPrinter[]`.
 const agentApi = {
-  activate: (token: string) => ipcRenderer.invoke("agent:activate", token),
-  scanLan: () => ipcRenderer.invoke("agent:scan-lan"),
-  pairDevice: (shortCode: string, secret: DeviceSecret) => ipcRenderer.invoke("agent:pair-device", shortCode, secret),
-  sync: () => ipcRenderer.invoke("agent:sync"),
+  activate: (token: string): Promise<FetchResult<SaasDevice[]>> => ipcRenderer.invoke("agent:activate", token),
+  scanLan: (): Promise<{ bambu: ScanResult; moonraker: DiscoveredMoonrakerPrinter[] }> =>
+    ipcRenderer.invoke("agent:scan-lan"),
+  pairDevice: (shortCode: string, secret: DeviceSecret): Promise<void> =>
+    ipcRenderer.invoke("agent:pair-device", shortCode, secret),
+  sync: (): Promise<FetchResult<SaasDevice[]>> => ipcRenderer.invoke("agent:sync"),
 };
 
 export type AgentApi = typeof agentApi;
