@@ -38,7 +38,16 @@ export async function refreshTokopediaSession(
       ...(await launchOptions({ headless: false, exclude_addons: ['UBO'] })),
     })
     const page = await context.newPage()
-    await page.goto('https://seller-id.tokopedia.com/', { waitUntil: 'networkidle' })
+    // 'networkidle' TERBUKTI tidak pernah tercapai di halaman ini (timeout 30s berulang
+    // kali di produksi) — situs e-commerce ini terus kirim request background (analytics,
+    // dst) sehingga network tak pernah benar-benar idle. 'domcontentloaded' cukup cepat
+    // dan reliabel; status login yang sesungguhnya (redirect ke /homepage vs tombol
+    // TikTok muncul) dicek langsung sesudahnya dengan wait terpisah yang lebih toleran.
+    await page.goto('https://seller-id.tokopedia.com/', { waitUntil: 'domcontentloaded' })
+    await Promise.race([
+      page.waitForURL('**/seller-id.tokopedia.com/homepage**', { timeout: 30_000 }).catch(() => {}),
+      page.waitForSelector('button:has-text("Masuk dengan akun TikTok")', { timeout: 30_000 }).catch(() => {}),
+    ])
     const alreadyLoggedIn = page.url().includes('/homepage')
     if (!alreadyLoggedIn) {
       await page.click('button:has-text("Masuk dengan akun TikTok")')
