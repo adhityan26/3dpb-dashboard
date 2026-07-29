@@ -3,6 +3,7 @@ import type { DeviceSecret } from "../main/credential-store";
 import type { FetchResult, SaasDevice } from "../main/saas-client";
 import type { ScanResult } from "../main/discovery/bambu-ssdp";
 import type { DiscoveredMoonrakerPrinter } from "../main/discovery/moonraker-mdns";
+import type { PrintersPayload } from "@3pb/printer-monitor-core";
 
 // Tipe return tiap method di-anotasi EKSPLISIT (bukan cuma `typeof agentApi` inherit
 // `Promise<any>` dari `ipcRenderer.invoke`) — dan HARUS persis cocok dengan tipe return
@@ -17,6 +18,9 @@ const agentApi = {
   pairDevice: (shortCode: string, secret: DeviceSecret): Promise<void> =>
     ipcRenderer.invoke("agent:pair-device", shortCode, secret),
   sync: (): Promise<FetchResult<SaasDevice[]>> => ipcRenderer.invoke("agent:sync"),
+  getSnapshot: (): Promise<PrintersPayload> => ipcRenderer.invoke("agent:get-snapshot"),
+  getBrokerInfo: (): Promise<{ ip: string; port: number | null }> =>
+    ipcRenderer.invoke("agent:get-broker-info"),
 };
 
 export type AgentApi = typeof agentApi;

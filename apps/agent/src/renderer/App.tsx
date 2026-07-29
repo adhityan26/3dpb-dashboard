@@ -1,35 +1,32 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { ActivationScreen } from './screens/ActivationScreen'
 import { PairingScreen } from './screens/PairingScreen'
+import { DashboardScreen } from './screens/DashboardScreen'
 import type { SaasDevice } from '../main/saas-client'
 
+type Step = 'activation' | 'pairing' | 'dashboard'
+
 export default function App() {
-  const [activated, setActivated] = useState(false)
+  const [step, setStep] = useState<Step>('activation')
   const [devices, setDevices] = useState<SaasDevice[]>([])
-  const [allPaired, setAllPaired] = useState(false)
 
-  useEffect(() => {
-    if (!activated) return
-    let cancelled = false
-    window.agentApi.sync().then((result) => {
-      if (!cancelled && result.ok) setDevices(result.data)
-    })
-    return () => {
-      cancelled = true
-    }
-  }, [activated])
-
-  if (!activated) {
-    return <ActivationScreen onActivated={() => setActivated(true)} />
+  if (step === 'activation') {
+    return (
+      <ActivationScreen
+        onActivated={(activatedDevices) => {
+          // `activatedDevices` datang langsung dari hasil sukses `agent:activate` (yang di
+          // baliknya sudah `fetchDevices` — lihat ipc.ts) — bukan dari fetch kedua yang
+          // terpisah setelah aktivasi. ActivationScreen HANYA memanggil callback ini saat
+          // result.ok === true (lihat handleSubmit), jadi tak ada jalur di sini yang bisa
+          // menerima daftar device "gagal" secara diam-diam (gap B3 review Task 12).
+          setDevices(activatedDevices)
+          setStep('pairing')
+        }}
+      />
+    )
   }
-
-  if (!allPaired) {
-    return <PairingScreen devices={devices} onAllPaired={() => setAllPaired(true)} />
+  if (step === 'pairing') {
+    return <PairingScreen devices={devices} onAllPaired={() => setStep('dashboard')} />
   }
-
-  return (
-    <div style={{ padding: 24, fontFamily: 'sans-serif' }}>
-      Semua device sudah dipasangkan — lanjut dashboard (Task 13)
-    </div>
-  )
+  return <DashboardScreen />
 }

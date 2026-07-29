@@ -8,13 +8,14 @@ beforeEach(() => {
 });
 
 describe("ActivationScreen", () => {
-  it("submit token sukses -> panggil onActivated", async () => {
-    (window as any).agentApi.activate.mockResolvedValue({ ok: true, data: [] });
+  it("submit token sukses -> panggil onActivated dengan SaasDevice[] dari hasil activate", async () => {
+    const devices = [{ id: "d1", shortCode: "abc1234567", userId: "u1", label: "Printer A", printerType: "bambu", createdAt: "x", updatedAt: "y" }];
+    (window as any).agentApi.activate.mockResolvedValue({ ok: true, data: devices });
     const onActivated = vi.fn();
     render(<ActivationScreen onActivated={onActivated} />);
     fireEvent.change(screen.getByLabelText(/token/i), { target: { value: "slz_abc" } });
     fireEvent.click(screen.getByRole("button", { name: /aktifkan/i }));
-    await waitFor(() => expect(onActivated).toHaveBeenCalled());
+    await waitFor(() => expect(onActivated).toHaveBeenCalledWith(devices));
   });
 
   it("401 -> pesan 'token gak valid', BUKAN pesan generik", async () => {

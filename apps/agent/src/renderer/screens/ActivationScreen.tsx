@@ -1,6 +1,7 @@
 import { useState } from "react";
+import type { SaasDevice } from "../../main/saas-client";
 
-export function ActivationScreen({ onActivated }: { onActivated: () => void }) {
+export function ActivationScreen({ onActivated }: { onActivated: (devices: SaasDevice[]) => void }) {
   const [token, setToken] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -20,7 +21,7 @@ export function ActivationScreen({ onActivated }: { onActivated: () => void }) {
         }
         return;
       }
-      onActivated();
+      onActivated(result.data);
     } finally {
       setSubmitting(false);
     }
