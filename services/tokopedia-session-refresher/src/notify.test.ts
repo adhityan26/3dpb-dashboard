@@ -38,6 +38,7 @@ describe('sendFailureNotification', () => {
         waOmniEndpoint: 'http://192.168.88.92:3020',
         waOmniToken: 'tok123',
         waOmniTargetNumber: '628123456789',
+        waOmniAccountId: 1,
       },
       'Refresh gagal, perlu login manual via VNC',
     )
@@ -52,6 +53,7 @@ describe('sendFailureNotification', () => {
     const body = JSON.parse(opts.body)
     expect(body.phone).toBe('628123456789')
     expect(body.body).toBe('Refresh gagal, perlu login manual via VNC')
+    expect(body.account_id).toBe(1)
   })
 
   it('response non-ok -> throw', async () => {
@@ -63,6 +65,7 @@ describe('sendFailureNotification', () => {
           waOmniEndpoint: 'http://192.168.88.92:3020',
           waOmniToken: 'tok123',
           waOmniTargetNumber: '628123456789',
+          waOmniAccountId: 1,
         },
         'pesan',
       ),

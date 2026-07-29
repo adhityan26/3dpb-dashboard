@@ -8,6 +8,7 @@ export interface RefresherConfig {
   waOmniEndpoint: string
   waOmniToken: string
   waOmniTargetNumber: string
+  waOmniAccountId: number
 }
 
 function requireEnv(name: string): string {
@@ -34,5 +35,6 @@ export function loadConfig(): RefresherConfig {
     waOmniEndpoint: requireEnv('WA_OMNI_ENDPOINT'),
     waOmniToken: requireEnv('WA_OMNI_TOKEN'),
     waOmniTargetNumber: requireEnv('WA_OMNI_TARGET_NUMBER'),
+    waOmniAccountId: Number(requireEnv('WA_OMNI_ACCOUNT_ID')),
   }
 }
