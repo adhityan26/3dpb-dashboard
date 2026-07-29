@@ -127,4 +127,59 @@ describe("PairingScreen", () => {
 
     await waitFor(() => expect(onAllPaired).toHaveBeenCalled());
   });
+
+  it("tombol 'Lanjut ke Dashboard' SELALU tampil dan panggil onAllPaired langsung -- termasuk akun 0-device (dead end lama)", async () => {
+    const onAllPaired = vi.fn();
+    render(<PairingScreen devices={[]} onAllPaired={onAllPaired} />);
+    fireEvent.click(screen.getByRole("button", { name: /lanjut ke dashboard/i }));
+    expect(onAllPaired).toHaveBeenCalled();
+  });
+
+  it("tombol 'Lanjut ke Dashboard' tetap tampil & bisa diklik walau ada device yang belum dipasangkan (skip manual)", async () => {
+    const onAllPaired = vi.fn();
+    render(<PairingScreen devices={devices} onAllPaired={onAllPaired} />);
+    expect(screen.getByRole("button", { name: /lanjut ke dashboard/i })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /lanjut ke dashboard/i }));
+    expect(onAllPaired).toHaveBeenCalled();
+  });
+
+  it("initialPairedShortCodes dari launch sebelumnya -> device itu langsung tampil 'Terpasang', tak perlu isi ulang access code", async () => {
+    const onAllPaired = vi.fn();
+    render(<PairingScreen devices={devices} onAllPaired={onAllPaired} initialPairedShortCodes={["abc1234567"]} />);
+    expect(screen.getByText(/terpasang/i)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /isi manual/i })).toBeNull();
+  });
+
+  it("2 device, 1 sudah paired dari launch sebelumnya (initialPairedShortCodes) -> pasangkan sisanya -> onAllPaired terpanggil", async () => {
+    const twoDevices = [
+      { id: "d1", shortCode: "abc1234567", userId: "u1", label: "Printer A", printerType: "bambu", createdAt: "x", updatedAt: "y" },
+      { id: "d2", shortCode: "def1234567", userId: "u1", label: "Printer B", printerType: "bambu", createdAt: "x", updatedAt: "y" },
+    ];
+    const onAllPaired = vi.fn();
+    render(<PairingScreen devices={twoDevices} onAllPaired={onAllPaired} initialPairedShortCodes={["abc1234567"]} />);
+
+    // Printer A sudah "Terpasang" dari awal, cuma Printer B yang perlu diisi.
+    fireEvent.click(screen.getByRole("button", { name: /isi manual/i }));
+    fireEvent.change(screen.getByLabelText(/^ip/i), { target: { value: "10.0.0.9" } });
+    fireEvent.change(screen.getByLabelText(/serial/i), { target: { value: "MANUAL1" } });
+    fireEvent.change(screen.getByLabelText(/access code/i), { target: { value: "2222" } });
+    fireEvent.click(screen.getByRole("button", { name: /simpan pairing/i }));
+
+    await waitFor(() => expect(onAllPaired).toHaveBeenCalled());
+  });
+
+  it("pairDevice gagal (IPC reject) -> tampilkan error, device TIDAK ditandai Terpasang, onAllPaired TIDAK terpanggil", async () => {
+    (window as any).agentApi.pairDevice.mockRejectedValue(new Error("disk penuh"));
+    const onAllPaired = vi.fn();
+    render(<PairingScreen devices={devices} onAllPaired={onAllPaired} />);
+    fireEvent.click(screen.getByRole("button", { name: /isi manual/i }));
+    fireEvent.change(screen.getByLabelText(/^ip/i), { target: { value: "10.0.0.9" } });
+    fireEvent.change(screen.getByLabelText(/serial/i), { target: { value: "MANUAL1" } });
+    fireEvent.change(screen.getByLabelText(/access code/i), { target: { value: "9999" } });
+    fireEvent.click(screen.getByRole("button", { name: /simpan pairing/i }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    expect(onAllPaired).not.toHaveBeenCalled();
+    expect(screen.queryByText(/terpasang/i)).toBeNull();
+  });
 });

@@ -13,9 +13,14 @@ interface PairingTarget {
 export function PairingScreen({
   devices,
   onAllPaired,
+  initialPairedShortCodes = [],
 }: {
   devices: SaasDevice[];
   onAllPaired: () => void;
+  // Device yang SUDAH dipasangkan di sesi/launch SEBELUMNYA (secret-nya sudah ada di
+  // credential-store) — dioper App.tsx dari `agent:get-activation-state` biar user relaunch
+  // tak perlu ulang isi access code buat device yang sudah beres (Task 13 review Finding 2).
+  initialPairedShortCodes?: string[];
 }) {
   const [scanning, setScanning] = useState(false);
   const [bambuPrinters, setBambuPrinters] = useState<DiscoveredBambuPrinter[]>([]);
@@ -23,10 +28,12 @@ export function PairingScreen({
   const [scanError, setScanError] = useState<string | null>(null);
   const [pairing, setPairing] = useState<PairingTarget | null>(null);
   const [accessCode, setAccessCode] = useState("");
-  // shortCode device yang sudah sukses dipasangkan di sesi ini — dipakai supaya onAllPaired()
-  // hanya terpanggil sekali SEMUA device terdaftar sudah dipasangkan (bukan setelah device
-  // pertama, lihat Task 12 review gap B1).
-  const [pairedCodes, setPairedCodes] = useState<Set<string>>(new Set());
+  const [pairError, setPairError] = useState<string | null>(null);
+  // shortCode device yang sudah sukses dipasangkan (sesi ini ATAU launch sebelumnya, lewat
+  // initialPairedShortCodes) — dipakai supaya onAllPaired() hanya terpanggil sekali SEMUA
+  // device terdaftar sudah dipasangkan (bukan setelah device pertama, lihat Task 12 review
+  // gap B1).
+  const [pairedCodes, setPairedCodes] = useState<Set<string>>(() => new Set(initialPairedShortCodes));
 
   async function handleScan() {
     setScanning(true);
@@ -59,11 +66,20 @@ export function PairingScreen({
 
   async function savePairing() {
     if (!pairing) return;
-    await window.agentApi.pairDevice(pairing.shortCode, {
-      ip: pairing.ip,
-      serial: pairing.serial,
-      accessCode,
-    });
+    setPairError(null);
+    try {
+      await window.agentApi.pairDevice(pairing.shortCode, {
+        ip: pairing.ip,
+        serial: pairing.serial,
+        accessCode,
+      });
+    } catch (err) {
+      // IPC rejection (mis. gagal tulis credential-store) TIDAK boleh diam-diam bikin UI
+      // beku — device juga TIDAK ditandai "Terpasang" biar user tahu harus coba lagi.
+      console.error("[pairing] gagal simpan pairing", err);
+      setPairError("Gagal simpan pairing — coba lagi.");
+      return;
+    }
     // Hitung set berikutnya di luar functional updater setState — memanggil onAllPaired()
     // (yang men-trigger setState di App, komponen LAIN) dari dalam updater React bisa terjadi
     // saat React sedang render, dan React larang "setState komponen lain saat render komponen
@@ -83,60 +99,68 @@ export function PairingScreen({
   const unpairedDevices = devices.filter((d) => !pairedCodes.has(d.shortCode));
 
   return (
-    <div style={{ display: "flex", gap: 24, padding: 24, fontFamily: "sans-serif" }}>
-      <div>
-        <h3>Device Terdaftar</h3>
-        {devices.map((d) => {
-          const isPaired = pairedCodes.has(d.shortCode);
-          return (
-            <div key={d.shortCode}>
-              <span>{d.label}</span>
-              {isPaired ? (
-                <span> Terpasang ✓</span>
-              ) : (
-                <button onClick={() => startManualPairing(d.shortCode)}>Isi manual</button>
-              )}
+    <div style={{ padding: 24, fontFamily: "sans-serif" }}>
+      <div style={{ marginBottom: 16 }}>
+        {/* Selalu tampil (bukan cuma pas devices kosong) -- user bisa lanjut ke dashboard
+            kapan saja, baik dia belum sempat pairing device manapun (akun 0-device, Task 13
+            review Finding 3) maupun sengaja mau pairing sisanya belakangan. */}
+        <button onClick={onAllPaired}>Lanjut ke Dashboard</button>
+      </div>
+      <div style={{ display: "flex", gap: 24 }}>
+        <div>
+          <h3>Device Terdaftar</h3>
+          {devices.map((d) => {
+            const isPaired = pairedCodes.has(d.shortCode);
+            return (
+              <div key={d.shortCode}>
+                <span>{d.label}</span>
+                {isPaired ? (
+                  <span> Terpasang ✓</span>
+                ) : (
+                  <button onClick={() => startManualPairing(d.shortCode)}>Isi manual</button>
+                )}
+              </div>
+            );
+          })}
+          <button onClick={handleScan} disabled={scanning}>
+            {scanning ? "Memindai..." : "Scan LAN"}
+          </button>
+          {scanError && <p role="alert">{scanError}</p>}
+        </div>
+        <div>
+          <h3>Hasil Scan Bambu</h3>
+          {bambuPrinters.map((p) => (
+            <div key={p.serial}>
+              <span>
+                {p.ip} ({p.name})
+              </span>
+              {unpairedDevices.map((d) => (
+                <button key={d.shortCode} onClick={() => startPairing(d.shortCode, p.ip, p.serial)}>
+                  Pasangkan ke {d.label}
+                </button>
+              ))}
             </div>
-          );
-        })}
-        <button onClick={handleScan} disabled={scanning}>
-          {scanning ? "Memindai..." : "Scan LAN"}
-        </button>
-        {scanError && <p role="alert">{scanError}</p>}
-      </div>
-      <div>
-        <h3>Hasil Scan Bambu</h3>
-        {bambuPrinters.map((p) => (
-          <div key={p.serial}>
-            <span>
-              {p.ip} ({p.name})
-            </span>
-            {unpairedDevices.map((d) => (
-              <button key={d.shortCode} onClick={() => startPairing(d.shortCode, p.ip, p.serial)}>
-                Pasangkan ke {d.label}
-              </button>
-            ))}
-          </div>
-        ))}
-      </div>
-      <div>
-        <h3>Hasil Scan Moonraker</h3>
-        {moonrakerPrinters.map((p) => (
-          <div key={p.ip}>
-            <span>
-              {p.ip} ({p.name})
-            </span>
-            {unpairedDevices.map((d) => (
-              // Moonraker (Klipper) tak punya konsep serial/access-code seperti Bambu — connector-nya
-              // (packages/printer-monitor-core/src/connectors/moonraker.ts) cuma pakai `device.ip`,
-              // jadi serial dikirim kosong; `accessCode` tetap diminta manual di form pairing yang sama
-              // demi konsistensi bentuk DeviceSecret (Task 2), meski Moonraker tak memvalidasinya.
-              <button key={d.shortCode} onClick={() => startPairing(d.shortCode, p.ip, "")}>
-                Pasangkan ke {d.label}
-              </button>
-            ))}
-          </div>
-        ))}
+          ))}
+        </div>
+        <div>
+          <h3>Hasil Scan Moonraker</h3>
+          {moonrakerPrinters.map((p) => (
+            <div key={p.ip}>
+              <span>
+                {p.ip} ({p.name})
+              </span>
+              {unpairedDevices.map((d) => (
+                // Moonraker (Klipper) tak punya konsep serial/access-code seperti Bambu — connector-nya
+                // (packages/printer-monitor-core/src/connectors/moonraker.ts) cuma pakai `device.ip`,
+                // jadi serial dikirim kosong; `accessCode` tetap diminta manual di form pairing yang sama
+                // demi konsistensi bentuk DeviceSecret (Task 2), meski Moonraker tak memvalidasinya.
+                <button key={d.shortCode} onClick={() => startPairing(d.shortCode, p.ip, "")}>
+                  Pasangkan ke {d.label}
+                </button>
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
       {pairing && (
         <div>
@@ -159,6 +183,7 @@ export function PairingScreen({
           <label htmlFor="access-code">Access Code</label>
           <input id="access-code" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} />
           <button onClick={savePairing}>Simpan Pairing</button>
+          {pairError && <p role="alert">{pairError}</p>}
         </div>
       )}
     </div>

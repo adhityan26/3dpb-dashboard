@@ -7,7 +7,7 @@ vi.mock("./saas-client", () => ({ fetchDevices: vi.fn() }));
 import { loadCredentials } from "./credential-store";
 import { loadDeviceCache, saveDeviceCache } from "./device-cache";
 import { fetchDevices } from "./saas-client";
-import { buildPairedDevices } from "./startup";
+import { buildPairedDevices, reconcileDevices } from "./startup";
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -54,5 +54,39 @@ describe("buildPairedDevices", () => {
     (fetchDevices as any).mockResolvedValue({ ok: true, data: [{ id: "d1", shortCode: "belum-dipasangkan", userId: "u1", label: "B", printerType: "bambu", createdAt: "x", updatedAt: "y" }] });
     const paired = await buildPairedDevices();
     expect(paired).toEqual([]);
+  });
+});
+
+describe("reconcileDevices", () => {
+  it("balikin fetchResult + devices (dari SaaS) + paired -- dipakai bareng agent:sync & agent:get-activation-state (Task 13 review Finding 1 & 2)", async () => {
+    (loadCredentials as any).mockResolvedValue({
+      agentToken: "slz_ok",
+      devices: { abc1234567: { ip: "192.168.1.5", serial: "S1", accessCode: "1234" } },
+    });
+    const fresh = [{ id: "d1", shortCode: "abc1234567", userId: "u1", label: "Printer A", printerType: "bambu", createdAt: "x", updatedAt: "y" }];
+    (fetchDevices as any).mockResolvedValue({ ok: true, data: fresh });
+
+    const result = await reconcileDevices("slz_ok");
+
+    expect(result.fetchResult).toEqual({ ok: true, data: fresh });
+    expect(result.devices).toEqual(fresh); // fresh dari SaaS -> devices SAMA PERSIS, bukan dipetakan ulang
+    expect(result.paired).toEqual([{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", secret: { ip: "192.168.1.5", serial: "S1", accessCode: "1234" } }]);
+  });
+
+  it("SaaS unreachable -> devices dipetakan dari device-cache (field non-esensial default kosong), paired tetap dari cache", async () => {
+    (loadCredentials as any).mockResolvedValue({
+      agentToken: "slz_ok",
+      devices: { abc1234567: { ip: "192.168.1.5", serial: "S1", accessCode: "1234" } },
+    });
+    (fetchDevices as any).mockResolvedValue({ ok: false, kind: "network_error" });
+    (loadDeviceCache as any).mockResolvedValue([{ shortCode: "abc1234567", label: "Printer A (cache)", printerType: "bambu" }]);
+
+    const result = await reconcileDevices("slz_ok");
+
+    expect(result.fetchResult).toEqual({ ok: false, kind: "network_error" });
+    expect(result.devices).toEqual([
+      { id: "abc1234567", shortCode: "abc1234567", userId: "", label: "Printer A (cache)", printerType: "bambu", createdAt: "", updatedAt: "" },
+    ]);
+    expect(result.paired).toEqual([{ shortCode: "abc1234567", label: "Printer A (cache)", printerType: "bambu", secret: { ip: "192.168.1.5", serial: "S1", accessCode: "1234" } }]);
   });
 });
