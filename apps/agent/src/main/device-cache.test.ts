@@ -8,7 +8,9 @@ vi.mock("node:fs", () => ({
 
 import { loadDeviceCache, saveDeviceCache } from "./device-cache";
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("loadDeviceCache", () => {
   it("balikin [] kalau file belum ada", async () => {

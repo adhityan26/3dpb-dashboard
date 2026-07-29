@@ -9,7 +9,9 @@ import { loadDeviceCache, saveDeviceCache } from "./device-cache";
 import { fetchDevices } from "./saas-client";
 import { buildPairedDevices, reconcileDevices } from "./startup";
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("buildPairedDevices", () => {
   it("SaaS reachable: pakai data fresh, DAN update device-cache biar tersedia offline nanti", async () => {

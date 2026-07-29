@@ -1,7 +1,9 @@
 out/
 dist/
+release/
 node_modules/
 .DS_Store
 *.log
 .env
 .env.local
+*.tsbuildinfo

@@ -1,4 +1,4 @@
-import { BrowserWindow, app } from 'electron'
+import { BrowserWindow } from 'electron'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import { isDev } from './utils'
@@ -13,7 +13,6 @@ export function createWindow(): BrowserWindow {
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.js'),
       contextIsolation: true,
-      enableRemoteModule: false,
       nodeIntegration: false
     }
   })

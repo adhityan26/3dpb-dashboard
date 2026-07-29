@@ -11,7 +11,9 @@ vi.mock("mqtt", () => ({
 import { fetchLayout } from "./saas-client";
 import { publishLayout } from "./layout-publisher";
 
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("publishLayout", () => {
   it("skip publish (published:false) kalau layout belum diatur (data:null)", async () => {

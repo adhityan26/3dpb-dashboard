@@ -1,0 +1,13 @@
+appId: com.slizebiz.agent
+productName: Slizebiz Agent
+directories:
+  output: release
+win:
+  target: nsis
+  artifactName: ${productName}-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+files:
+  - out/**/*
+  - package.json

@@ -47,7 +47,9 @@ describe("scanBambu", () => {
     };
   }
 
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
 
   it("kumpulkan printer dari beberapa packet dalam durasi scan", async () => {
     const sockets = [mockSocket(), mockSocket()];
