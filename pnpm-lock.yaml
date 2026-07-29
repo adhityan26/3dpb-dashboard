@@ -14,6 +14,9 @@ importers:
 
   apps/agent:
     dependencies:
+      '@3pb/cyd-layout-schema':
+        specifier: workspace:*
+        version: link:../../packages/cyd-layout-schema
       '@3pb/printer-monitor-core':
         specifier: workspace:*
         version: link:../../packages/printer-monitor-core
