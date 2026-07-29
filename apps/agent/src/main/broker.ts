@@ -6,7 +6,11 @@ export type BrokerStartResult = { ok: true; port: number } | { ok: false; reason
 let server: net.Server | null = null;
 let aedesInstance: Aedes | null = null;
 
-export function startBroker(port = 1883): Promise<BrokerStartResult> {
+export async function startBroker(port = 1883): Promise<BrokerStartResult> {
+  // Idempotent: starting twice without an intervening stop would otherwise
+  // leak the previous net.Server + Aedes instance (and its client sockets).
+  await stopBroker();
+
   return new Promise((resolve) => {
     aedesInstance = new Aedes();
     server = net.createServer(aedesInstance.handle);
@@ -19,11 +23,24 @@ export function startBroker(port = 1883): Promise<BrokerStartResult> {
 
 export function stopBroker(): Promise<void> {
   return new Promise((resolve) => {
-    if (!server) return resolve();
-    server.close(() => {
+    if (!server || !aedesInstance) {
       server = null;
       aedesInstance = null;
       resolve();
+      return;
+    }
+    const srv = server;
+    const instance = aedesInstance;
+    server = null;
+    aedesInstance = null;
+
+    // aedesInstance.close() terminates all connected MQTT client sockets
+    // (and clears its internal heartbeat/will-clearing timers). Closing the
+    // bare net.Server first would hang: net.Server#close()'s callback only
+    // fires once ALL existing TCP connections have ended, and nothing but
+    // Aedes itself ends them.
+    instance.close(() => {
+      srv.close(() => resolve());
     });
   });
 }
