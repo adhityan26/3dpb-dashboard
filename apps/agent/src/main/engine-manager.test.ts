@@ -14,11 +14,16 @@ vi.mock("@3pb/printer-monitor-core", async () => {
     // yang pakai connector in-memory, bukan koneksi network asli).
     BambuMqttConnector: vi.fn().mockImplementation((device: any) => ({ deviceId: device.id, start: vi.fn().mockResolvedValue(undefined), stop: vi.fn().mockResolvedValue(undefined) })),
     MoonrakerConnector: vi.fn().mockImplementation((device: any) => ({ deviceId: device.id, start: vi.fn().mockResolvedValue(undefined), stop: vi.fn().mockResolvedValue(undefined) })),
+    // Spy on HmsLookup's constructor so we can assert it's invoked with the explicit
+    // table (hms-table.ts), not the zero-arg default that triggers the library's
+    // fragile readFileSync(new URL(...)) bundling gotcha (see engine-manager.ts).
+    HmsLookup: vi.fn().mockImplementation(() => ({ translate: vi.fn().mockReturnValue([]) })),
   };
 });
 
 import { startEngine } from "./engine-manager";
-import { MqttReporter } from "@3pb/printer-monitor-core";
+import { MqttReporter, HmsLookup } from "@3pb/printer-monitor-core";
+import { hmsTable } from "./hms-table";
 
 describe("startEngine", () => {
   it("bikin DeviceConfig dengan id = shortCode (BUKAN label/serial lain)", async () => {
@@ -40,5 +45,10 @@ describe("startEngine", () => {
     ];
     const engine = await startEngine(paired, 1883);
     expect(engine.snapshot().payload.map((p) => p.id)).toEqual(["a"]);
+  });
+
+  it("HmsLookup diisi table eksplisit dari hms-table.ts (BUKAN default zero-arg readFileSync)", async () => {
+    await startEngine([{ shortCode: "h", label: "H", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S", accessCode: "C" } }], 1883);
+    expect(HmsLookup).toHaveBeenCalledWith(hmsTable);
   });
 });
