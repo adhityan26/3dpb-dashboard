@@ -21,4 +21,10 @@ const agentApi = {
 
 export type AgentApi = typeof agentApi;
 
+declare global {
+  interface Window {
+    agentApi: AgentApi;
+  }
+}
+
 contextBridge.exposeInMainWorld("agentApi", agentApi);
