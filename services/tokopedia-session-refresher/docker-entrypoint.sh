@@ -1,11 +1,19 @@
 #!/bin/bash
 set -e
 
+DISPLAY_NUM="${DISPLAY#:}"
+# Sisa socket dari boot sebelumnya (container di-restart, bukan direcreate — /tmp tidak
+# ikut bersih) membuat Xvfb menolak start ("Server is already active for display") tanpa
+# error yang terlihat karena proses ini di-background — hapus dulu supaya Xvfb baru bisa
+# benar-benar bind, bukan cuma numpang file lock lama yang sudah mati.
+rm -f "/tmp/.X11-unix/X${DISPLAY_NUM}"
+
 echo "[entrypoint] Starting Xvfb on display $DISPLAY..."
 Xvfb $DISPLAY -screen 0 1280x800x24 &
-DISPLAY_NUM="${DISPLAY#:}"
 for i in $(seq 1 30); do
-  if [ -e "/tmp/.X11-unix/X${DISPLAY_NUM}" ]; then
+  # xdpyinfo memverifikasi display benar-benar menjawab request X11, bukan cuma
+  # mengecek file socket ada (yang bisa jadi stale/palsu-positif seperti di atas).
+  if xdpyinfo -display "$DISPLAY" >/dev/null 2>&1; then
     echo "[entrypoint] Xvfb ready after ${i}00ms"
     break
   fi

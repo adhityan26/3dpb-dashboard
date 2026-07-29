@@ -8,7 +8,7 @@ WORKDIR /app
 # bookworm vanilla dipakai semua contoh Docker Camoufox yang terbukti jalan di komunitas.
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    xvfb x11vnc novnc websockify \
+    xvfb x11vnc novnc websockify x11-utils \
     build-essential python3 \
     libgtk-3-0 libasound2 libx11-xcb1 libdbus-glib-1-2 libgbm1 \
     && rm -rf /var/lib/apt/lists/*
