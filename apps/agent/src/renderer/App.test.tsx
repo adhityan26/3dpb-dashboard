@@ -40,6 +40,67 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByText(/192\.168\.1\.100/)).toBeTruthy());
   });
 
+  it("pairing pertama selesai -> Engine benar-benar distart (agent:sync dipanggil TEPAT sekali), bukan cuma pindah layar ke dashboard kosong", async () => {
+    // Sebelum fix, onAllPaired cuma setStep('dashboard'): main process belum punya Engine
+    // (bootstrap() jalan sebelum device dipasangkan) jadi getSnapshot() balik {payload: []},
+    // CYD tak pernah dapat layout, dan satu-satunya pemulihan adalah klik Sync manual /
+    // restart app.
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByLabelText(/token/i)).toBeTruthy());
+    fireEvent.change(screen.getByLabelText(/token/i), { target: { value: "slz_abc" } });
+    fireEvent.click(screen.getByRole("button", { name: /aktifkan/i }));
+
+    await waitFor(() => expect(screen.getByText("Printer A")).toBeTruthy());
+    expect((window as any).agentApi.sync).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole("button", { name: /isi manual/i }));
+    fireEvent.change(screen.getByLabelText(/^ip/i), { target: { value: "10.0.0.9" } });
+    fireEvent.change(screen.getByLabelText(/serial/i), { target: { value: "MANUAL1" } });
+    fireEvent.change(screen.getByLabelText(/access code/i), { target: { value: "9999" } });
+    fireEvent.click(screen.getByRole("button", { name: /simpan pairing/i }));
+
+    await waitFor(() => expect((window as any).agentApi.sync).toHaveBeenCalledTimes(1));
+  });
+
+  it("pairing pertama selesai -> ada indikator 'menyiapkan' selama sync awal, jadi dashboard kosong tak tampil tanpa penjelasan", async () => {
+    let resolveSync: (v: unknown) => void = () => {};
+    (window as any).agentApi.sync.mockReturnValue(
+      new Promise((resolve) => {
+        resolveSync = resolve;
+      }),
+    );
+    render(<App />);
+
+    await waitFor(() => expect(screen.getByLabelText(/token/i)).toBeTruthy());
+    fireEvent.change(screen.getByLabelText(/token/i), { target: { value: "slz_abc" } });
+    fireEvent.click(screen.getByRole("button", { name: /aktifkan/i }));
+
+    await waitFor(() => expect(screen.getByText("Printer A")).toBeTruthy());
+    fireEvent.click(screen.getByRole("button", { name: /isi manual/i }));
+    fireEvent.change(screen.getByLabelText(/^ip/i), { target: { value: "10.0.0.9" } });
+    fireEvent.change(screen.getByLabelText(/serial/i), { target: { value: "MANUAL1" } });
+    fireEvent.change(screen.getByLabelText(/access code/i), { target: { value: "9999" } });
+    fireEvent.click(screen.getByRole("button", { name: /simpan pairing/i }));
+
+    await waitFor(() => expect(screen.getByRole("status").textContent).toMatch(/menyiapkan/i));
+
+    resolveSync({ ok: true, deviceCount: 1 });
+    await waitFor(() => expect(screen.getByText(/tersinkron/i)).toBeTruthy());
+    expect(screen.queryByRole("status")).toBeNull();
+  });
+
+  it("relaunch (bukan pairing baru) TIDAK memicu sync otomatis — Engine sudah distart bootstrap()", async () => {
+    (window as any).agentApi.getActivationState.mockResolvedValue({
+      hasToken: true,
+      devices,
+      pairedShortCodes: ["abc1234567"],
+    });
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /^sync$/i })).toBeTruthy());
+    expect((window as any).agentApi.sync).not.toHaveBeenCalled();
+  });
+
   it("relaunch: token ada & SEMUA device sudah dipasangkan sebelumnya -> LANGSUNG dashboard, tak perlu re-aktivasi/re-pairing (Finding 2)", async () => {
     (window as any).agentApi.getActivationState.mockResolvedValue({
       hasToken: true,

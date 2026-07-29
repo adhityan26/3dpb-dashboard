@@ -22,6 +22,12 @@ export function ActivationScreen({ onActivated }: { onActivated: (devices: SaasD
         return;
       }
       onActivated(result.data);
+    } catch (err) {
+      // Tanpa catch, IPC yang reject (main process belum siap / handler throw) cuma bikin
+      // tombol aktif lagi tanpa pesan apa pun — user tak tahu harus apa. Konsisten dengan
+      // pola savePairing() di PairingScreen.
+      console.error("[activation] agent:activate gagal", err);
+      setError("Gagal menjalankan aktivasi. Tutup lalu buka lagi aplikasinya, kemudian coba lagi.");
     } finally {
       setSubmitting(false);
     }

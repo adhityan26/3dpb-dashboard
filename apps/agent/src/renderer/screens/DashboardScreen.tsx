@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { PrintersPayload } from "@3pb/printer-monitor-core";
 import type { SyncResult } from "../../main/ipc";
 
@@ -24,10 +24,24 @@ function syncErrorMessage(kind: Extract<SyncResult, { ok: false }>["kind"]): str
   }
 }
 
-export function DashboardScreen() {
+/**
+ * `initialSync` = layar ini dibuka LANGSUNG setelah pairing pertama selesai. Saat itu main
+ * process belum punya Engine (bootstrap() sudah lewat sebelum device dipasangkan), jadi
+ * `agent:get-snapshot` balik `{payload: []}` dan CYD belum pernah dapat layout. Tanpa sync
+ * otomatis di sini, satu-satunya jalan keluar buat user adalah menebak tombol Sync atau
+ * restart app.
+ */
+export function DashboardScreen({ initialSync = false }: { initialSync?: boolean } = {}) {
   const [snapshot, setSnapshot] = useState<PrintersPayload>({ payload: [] });
   const [brokerInfo, setBrokerInfo] = useState<{ ip: string; port: number | null } | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({ kind: "idle" });
+  const initialSyncStarted = useRef(false);
+
+  useEffect(() => {
+    if (!initialSync || initialSyncStarted.current) return;
+    initialSyncStarted.current = true; // StrictMode/remount tak boleh memicu sync dobel
+    void handleSync();
+  }, [initialSync]);
 
   useEffect(() => {
     const load = () => {
@@ -71,10 +85,15 @@ export function DashboardScreen() {
         {syncStatus.kind === "success" && <span> Tersinkron ({syncStatus.deviceCount} device)</span>}
         {syncStatus.kind === "error" && <p role="alert">{syncStatus.message}</p>}
       </div>
+      {initialSync && syncStatus.kind === "syncing" && (
+        <p role="status">Menyiapkan monitoring printer yang baru dipasangkan...</p>
+      )}
       {brokerInfo && (
         <p>
           Alamat broker (ketik ini di setup WiFi CYD):{" "}
-          {brokerInfo.port !== null ? `${brokerInfo.ip}:${brokerInfo.port}` : "broker belum jalan (port 1883 dipakai proses lain)"}
+          {brokerInfo.port !== null
+            ? `${brokerInfo.ip}:${brokerInfo.port}`
+            : "broker belum jalan (port 1883 dipakai proses lain, atau diblokir sistem — cek log aplikasi)"}
         </p>
       )}
       <ul>

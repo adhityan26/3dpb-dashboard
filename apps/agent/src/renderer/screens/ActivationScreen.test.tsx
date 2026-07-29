@@ -33,4 +33,13 @@ describe("ActivationScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: /aktifkan/i }));
     await waitFor(() => expect(screen.getByText(/akses pro.*berakhir/i)).toBeTruthy());
   });
+
+  it("agent:activate reject (IPC error) -> tampilkan pesan, BUKAN diam-diam cuma mengaktifkan tombol lagi", async () => {
+    (window as any).agentApi.activate.mockRejectedValue(new Error("ipc boom"));
+    render(<ActivationScreen onActivated={vi.fn()} />);
+    fireEvent.change(screen.getByLabelText(/token/i), { target: { value: "slz_x" } });
+    fireEvent.click(screen.getByRole("button", { name: /aktifkan/i }));
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    expect((screen.getByRole("button", { name: /aktifkan/i }) as HTMLButtonElement).disabled).toBe(false);
+  });
 });

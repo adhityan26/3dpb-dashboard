@@ -10,6 +10,11 @@ export default function App() {
   const [step, setStep] = useState<Step>('loading')
   const [devices, setDevices] = useState<SaasDevice[]>([])
   const [initialPairedShortCodes, setInitialPairedShortCodes] = useState<string[]>([])
+  // true HANYA untuk transisi "pairing baru selesai" -> Dashboard. Saat itu main process
+  // belum punya Engine sama sekali (bootstrap() jalan sebelum device dipasangkan), jadi
+  // Dashboard harus memicu agent:sync sendiri; kalau tidak, user pendatang baru mendarat di
+  // dashboard kosong tanpa penjelasan dan CYD tak pernah menerima layout-nya.
+  const [syncAfterPairing, setSyncAfterPairing] = useState(false)
 
   // Sekali di awal: tanya main process apa yang SUDAH tersimpan (token + device mana yang
   // sudah dipasangkan) lewat agent:get-activation-state, biar user relaunch app tak perlu
@@ -66,9 +71,12 @@ export default function App() {
       <PairingScreen
         devices={devices}
         initialPairedShortCodes={initialPairedShortCodes}
-        onAllPaired={() => setStep('dashboard')}
+        onAllPaired={() => {
+          setSyncAfterPairing(true)
+          setStep('dashboard')
+        }}
       />
     )
   }
-  return <DashboardScreen />
+  return <DashboardScreen initialSync={syncAfterPairing} />
 }
