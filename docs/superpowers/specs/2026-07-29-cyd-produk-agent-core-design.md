@@ -22,16 +22,27 @@ Keputusan lama (sesi brainstorm jauh sebelumnya) pakai Tauri tanpa alasan kuat y
 
 `Engine`, `BambuMqttConnector`, `MoonrakerConnector`, `normalize-bambu.ts`/`normalize-moonraker.ts`, `HmsLookup`, `payload.ts` (aggregator+staleness), `state-store.ts`, `capture-event.ts` — semua generic/config-driven (dikonfirmasi saat riset sub-proyek 1), reusable langsung sebagai dependency `apps/agent` (nama package baru) tanpa modifikasi core-nya.
 
+**2 gotcha packaging — ditemukan review Fable, dicatat biar gak kejadian pas plan:**
+- `HmsLookup` load `hms-codes.json` via `readFileSync(new URL(..., import.meta.url))` — pola ini rawan patah kalau Electron main process di-bundle (mis. ke asar/CJS). Mitigasi TANPA modifikasi core: `HmsLookup` konstruktornya sudah nerima table opsional (`HmsLookup(table?)`) — sisi `apps/agent` cukup `import` JSON itu sendiri lewat cara yang aman-bundle (mis. `require`/asset loader Electron) dan suntikkan ke konstruktor, bukan andalkan default loading internal core.
+- `aedes` di `packages/printer-monitor-core` cuma `devDependency` (dipakai buat test doang) — `apps/agent` WAJIB deklarasi `aedes` + `mqtt` sendiri secara eksplisit di `package.json`-nya (pnpm strict, phantom dependency gak resolve, aturan monorepo ini).
+
 ### Alur setup (dikonfirmasi user)
 
 1. User buka Agent, tempel **token** (di-generate dari halaman Settings SaaS, sub-proyek 1) → Agent panggil `GET /api/agent/devices` (header `Authorization: Bearer slz_...`) buat tarik daftar device.
 2. Tombol **"Scan LAN"** (manual, BUKAN auto-polling terus-menerus) — jalankan SSDP listener (Bambu, UDP port 2021/1900) + mDNS browse (Moonraker, `_moonraker._tcp.local`) barengan, kumpulkan hasil beberapa detik.
 3. UI 2-kolom: **daftar device terdaftar** (dari SaaS, kiri) vs **printer hasil scan** (LAN, kanan) — user **pasangkan manual** (pilih device → pilih hasil scan yang cocok). Setelah dipasangkan: IP+serial otomatis keisi dari hasil scan, **access code WAJIB diisi manual** (satu-satunya kredensial yang gak pernah ke-broadcast, gak bisa di-auto).
-4. Device yang sudah dipasangkan+diisi access code → `Engine` connect ke printer via LAN (`BambuMqttConnector`/`MoonrakerConnector`), publish status ke broker `aedes` tertanam (topic `3dpb/printers`, kontrak sama seperti internal — CYD gak perlu tahu bedanya), DAN tampil live di dashboard window Agent.
+   - **Fallback kalau printer gak ketemu scan** (ditemukan review Fable — POC sendiri cuma nangkep 8/10 printer, bukan 100%; mDNS Moonraker juga butuh komponen `[zeroconf]` aktif, gak dijamin ada di install lama): sediakan opsi **"Isi manual"** per device — IP+serial+access code diketik langsung tanpa nunggu hasil scan.
+4. Device yang sudah dipasangkan+diisi access code → `Engine` connect ke printer via LAN (`BambuMqttConnector`/`MoonrakerConnector`), publish status ke broker `aedes` tertanam, DAN tampil live di dashboard window Agent.
 
-**Auto-discovery — 2 gotcha yang sudah divalidasi POC (bukan asumsi):**
+**Mapping ID — klarifikasi eksplisit (ditemukan review Fable, sebelumnya cuma tersirat):** ID device di `Engine`/`DeviceConfig` (`packages/printer-monitor-core`) HARUS persis **`Device.shortCode`** dari SaaS — bukan `Device.id` (cuid), bukan ID lain. Ini yang dipakai buat korelasi ke cell layout (`cell.printer` di layout config referensi `shortCode`) — kalau Engine diisi ID lain, rendering CYD gagal diam-diam (cell gak pernah ketemu device yang benar).
+
+**Penanganan gagal auth (401 vs 403 — ditemukan review Fable, sebelumnya cuma dibahas 401):** `requireAgentToken` di server bisa balikin 2 jenis gagal beda arti — 401 (token gak valid/di-revoke, `error:"invalid_token"`) vs 403 (token valid tapi langganan Pro habis, `error:"entitlement_expired"`). Agent WAJIB bedakan pesannya ke user: 401 → "Token gak valid, generate ulang dari web"; 403 → "Akses Pro kamu berakhir — perbarui buat lanjut monitoring" (BUKAN pesan generik "gagal konek" buat keduanya, biar user tahu harus ngapain).
+
+**Auto-discovery — gotcha yang sudah divalidasi POC (bukan asumsi):**
 - Bambu: broadcast SSDP non-standar UDP port 2021 (destinasi)/1900 (source), berisi IP+serial+model+nama, tertangkap nyata 8/10 printer produksi <20 detik. Access code TETAP manual (gak pernah dibroadcast).
-- **BambuStudio bisa rebut port 2021 duluan** kalau jalan bareng di komputer yang sama (kejadian nyata pas POC) — scan HARUS gagal dengan pesan ramah ("Tutup BambuStudio dulu, coba scan lagi"), BUKAN crash/gagal diam-diam. Ini realistis kejadian di produksi karena target user Agent JUGA pengguna BambuStudio buat slicing.
+- **BambuStudio bisa rebut port 2021 duluan** kalau jalan bareng di komputer yang sama (kejadian nyata pas POC, dan terdokumentasi juga di tool komunitas lain kayak `ha-bambulab` — bukan kasus langka). Sebelum langsung nyerah ke pesan error, coba `dgram` socket dengan **`reuseAddr: true`** dulu (sering bisa koeksis di Windows) — kalau tetap gagal, baru tampilkan pesan ramah ("Tutup BambuStudio dulu, coba scan lagi"), BUKAN crash/gagal diam-diam.
+
+**Sinkronisasi ulang (ditemukan review Fable, sebelumnya gak didefinisikan):** device-list dan layout di-refresh dari SaaS saat Agent start, PLUS tombol **"Sync"** manual di dashboard (user edit layout/device di web → klik Sync di Agent biar kepakai, gak nunggu restart app).
 
 ### Penyimpanan kredensial — Electron `safeStorage`
 
@@ -39,9 +50,22 @@ IP, access code, serial per device (key = `Device.shortCode` dari SaaS) disimpan
 
 **Bentuk fisik (klarifikasi — `safeStorage` cuma API enkripsi string, bukan database):** satu file JSON lokal di folder data app (`app.getPath('userData')`, setara `%APPDATA%\slizebiz-agent\` di Windows), isinya map `{ [shortCode]: { ip, serial, accessCode } }`, **seluruh isi file dienkripsi jadi satu blob** via `safeStorage.encryptString(JSON.stringify(map))` sebelum ditulis, `decryptString` pas dibaca saat app start. Bukan per-field, satu file satu blob — lebih sederhana buat skala 1-beberapa device.
 
+**3 hal tambahan — ditemukan review Fable:**
+- **Token Agent JUGA kredensial** (spec awal sempat gak jelas nyimpennya di mana) — masuk blob terenkripsi `safeStorage` yang sama, key terpisah (mis. `agentToken`), BUKAN plain-text di tempat lain.
+- **Cache metadata device non-rahasia** (label, printerType — BUKAN kredensial, boleh plain JSON terpisah dari blob) disimpan lokal juga, supaya Engine bisa direkonstruksi & tetap monitoring printer LAN walau SaaS lagi unreachable pas Agent start (device+printer di LAN sehat, cuma gak bisa refresh dari web — jangan sampai monitoring lokal ikut mati gara-gara internet server down).
+- **Gagal decrypt** (mis. DPAPI Windows gagal — profil user berubah/blob korup/beda mesin) HARUS ditangani sebagai "anggap kosong, minta pairing ulang" — BUKAN crash. Cek `safeStorage.isEncryptionAvailable()` setelah `app.whenReady()` sebelum baca/tulis apa pun.
+
 ### Layout & broker — kontrak lama, TIDAK berubah
 
 Provisioning CYD (AP-mode captive portal first-boot, user ketik alamat broker) dan format layout (retained MQTT JSON `3dpb/cyd/<deviceId>/layout`) itu kontrak yang SUDAH ada dari spec CYD internal lama (§13) — TIDAK dirancang ulang di sini. Bedanya cuma: broker yang dituju sekarang **broker Agent (lokal, tertanam `aedes`)**, bukan mosquitto homelab. Agent tarik layout dari `GET /api/agent/layout` (404 kalau belum diatur di web — Agent skip publish sampai user atur), lalu republish sebagai retained message ke broker lokalnya sendiri.
+
+**Koreksi topic status — ditemukan review Fable:** `MqttReporter` bawaan `packages/printer-monitor-core` DEFAULT publish ke topic `3dpb/printers-v2`, BUKAN `3dpb/printers`. Kontrak CYD (yang firmware-nya baca) itu `3dpb/printers` — jadi `apps/agent` WAJIB override `statusTopic` secara eksplisit saat instansiasi reporter, jangan andalkan default.
+
+**Operasional broker lokal — belum dibahas sebelumnya, ditemukan review Fable:**
+- **Port konflik/single-instance:** kalau customer kebetulan sudah punya broker MQTT lain di port 1883, atau user gak sengaja buka Agent 2x — perlu deteksi & pesan jelas (bukan gagal diam-diam), plus lock single-instance di level app Electron (`app.requestSingleInstanceLock()`).
+- **Windows Firewall:** pertama kali Agent listen di port broker, Windows biasanya munculin prompt izin — kalau user klik "Block", CYD gak akan pernah bisa connect. Perlu guidance UX (deteksi gagal-listen → jelasin ke user buat cek Firewall).
+- **Tanpa auth** (keputusan sadar, bukan lupa): broker lokal ini gak pakai autentikasi — siapa pun di LAN yang sama bisa baca status atau publish layout palsu ke CYD. Diterima buat MVP (ancaman minim, LAN rumah/kantor kecil), dicatat di sini biar bukan oversight.
+- **IP Agent bisa berubah (DHCP):** IP yang diketik user ke captive portal CYD saat provisioning bisa berubah kalau router assign ulang. Dashboard Agent tampilkan **IP saat ini** dengan jelas + saran ke user buat setting DHCP reservation di router-nya kalau mau permanen.
 
 ### 2 tampilan live monitoring (BUKAN 3)
 
