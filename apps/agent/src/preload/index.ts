@@ -6,7 +6,6 @@ const agentApi = {
   scanLan: () => ipcRenderer.invoke("agent:scan-lan"),
   pairDevice: (shortCode: string, secret: DeviceSecret) => ipcRenderer.invoke("agent:pair-device", shortCode, secret),
   sync: () => ipcRenderer.invoke("agent:sync"),
-  getSnapshot: () => ipcRenderer.invoke("agent:get-snapshot"),
 };
 
 export type AgentApi = typeof agentApi;
