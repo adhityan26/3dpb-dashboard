@@ -7,7 +7,7 @@ vi.mock("@/lib/devices/service", () => ({ listDevices: vi.fn(), createDevice: vi
 import { auth } from "@/lib/auth";
 import { getEntitlement, capabilities } from "@/lib/entitlement";
 import { listDevices, createDevice, getDeviceLimit } from "@/lib/devices/service";
-import { SlotLimitExceeded } from "@/lib/devices/errors";
+import { SlotLimitExceeded, InvalidDeviceModel } from "@/lib/devices/errors";
 import { GET, POST } from "./route";
 
 beforeEach(() => vi.clearAllMocks());
@@ -68,5 +68,26 @@ describe("POST /api/devices", () => {
     const res = await POST(req({ label: "A", printerType: "moonraker" }));
     expect(res.status).toBe(200);
     expect(createDevice).toHaveBeenCalledWith("u1", { label: "A", printerType: "moonraker" });
+  });
+
+  it("200 + model tersimpan kalau diisi", async () => {
+    (auth as any).mockResolvedValue({ user: { id: "u1" } });
+    (getEntitlement as any).mockResolvedValue({});
+    (capabilities as any).mockReturnValue({ paidCore: true, cloud: false });
+    (createDevice as any).mockResolvedValue({ id: "new-d", model: "P1S" });
+    const res = await POST(req({ label: "A", printerType: "bambu", model: "P1S" }));
+    expect(res.status).toBe(200);
+    expect(createDevice).toHaveBeenCalledWith("u1", { label: "A", printerType: "bambu", model: "P1S" });
+  });
+
+  it("400 kalau InvalidDeviceModel", async () => {
+    (auth as any).mockResolvedValue({ user: { id: "u1" } });
+    (getEntitlement as any).mockResolvedValue({});
+    (capabilities as any).mockReturnValue({ paidCore: true, cloud: false });
+    (createDevice as any).mockRejectedValue(new InvalidDeviceModel("terlalu panjang sekali"));
+    const res = await POST(req({ label: "A", printerType: "bambu", model: "terlalu panjang sekali" }));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("invalid_device_model");
   });
 });

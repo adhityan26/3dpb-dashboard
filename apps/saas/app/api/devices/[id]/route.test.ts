@@ -7,7 +7,7 @@ vi.mock("@/lib/devices/service", () => ({ updateDevice: vi.fn(), deleteDevice: v
 import { auth } from "@/lib/auth";
 import { getEntitlement, capabilities } from "@/lib/entitlement";
 import { updateDevice, deleteDevice } from "@/lib/devices/service";
-import { DeviceNotFound, InvalidPrinterType } from "@/lib/devices/errors";
+import { DeviceNotFound, InvalidPrinterType, InvalidDeviceModel } from "@/lib/devices/errors";
 import { PATCH, DELETE } from "./route";
 
 beforeEach(() => vi.clearAllMocks());
@@ -56,6 +56,23 @@ describe("PATCH /api/devices/[id]", () => {
     (updateDevice as any).mockResolvedValue({ id: "d1", label: "Baru" });
     const res = await PATCH(new Request("http://x", { method: "PATCH", body: JSON.stringify({ label: "Baru" }) }), ctx("d1"));
     expect(res.status).toBe(200);
+  });
+
+  it("200 + model diteruskan kalau diisi", async () => {
+    loginAs(true);
+    (updateDevice as any).mockResolvedValue({ id: "d1", model: "P1S" });
+    const res = await PATCH(new Request("http://x", { method: "PATCH", body: JSON.stringify({ model: "P1S" }) }), ctx("d1"));
+    expect(res.status).toBe(200);
+    expect(updateDevice).toHaveBeenCalledWith("u1", "d1", { model: "P1S" });
+  });
+
+  it("400 kalau InvalidDeviceModel", async () => {
+    loginAs(true);
+    (updateDevice as any).mockRejectedValue(new InvalidDeviceModel("x".repeat(12)));
+    const res = await PATCH(new Request("http://x", { method: "PATCH", body: JSON.stringify({ model: "x".repeat(12) }) }), ctx("d1"));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toBe("invalid_device_model");
   });
 });
 
