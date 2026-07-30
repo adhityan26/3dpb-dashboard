@@ -1,3 +1,16 @@
 @import "tailwindcss";
 @import "@3pb/ui/glass.css";
+/* @tailwindcss/vite otomatis scan berdasarkan Vite `root` (apps/agent/src/renderer) —
+   @3pb/ui di-resolve lewat symlink node_modules/@3pb/ui, yang di-exclude scanner default
+   Tailwind. Tanpa @source eksplisit ini, utility class YANG DIPAKAI DI DALAM
+   GlassButton/GlassInput/GlassCard (mis. rounded-[10px], h-10, px-4) tak pernah masuk ke
+   CSS hasil build — hanya class yang KEBETULAN juga muncul literal di
+   apps/agent/src/renderer/** yang ikut ter-generate. Path relatif dari file ini. */
+@source "../../../../../packages/ui/src";
 @custom-variant dark (&:is(.dark *));
+
+/* Guard defensif: kalau konten pernah melebihi box AgentShell, tepi yang kelihatan tetap
+   gelap (bukan putih) — warna sama dengan ujung gelap gradient .bg-glass-page. */
+body {
+  background: #0c0c26;
+}
