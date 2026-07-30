@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { AgentShell } from './AgentShell'
 import { ActivationScreen } from './screens/ActivationScreen'
 import { PairingScreen } from './screens/PairingScreen'
 import { DashboardScreen } from './screens/DashboardScreen'
@@ -47,7 +48,11 @@ export default function App() {
   }, [])
 
   if (step === 'loading') {
-    return <div style={{ padding: 24, fontFamily: 'sans-serif' }}>Memuat...</div>
+    return (
+      <AgentShell>
+        <p className="g-t2 text-sm">Memuat...</p>
+      </AgentShell>
+    )
   }
 
   if (step === 'activation') {
