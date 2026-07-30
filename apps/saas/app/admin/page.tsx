@@ -39,7 +39,7 @@ export default async function AdminPage() {
   const payUserIds = [...new Set([...pending, ...paid].map((p) => p.userId))];
   const payUsers = await prisma.user.findMany({ where: { id: { in: payUserIds } }, select: { id: true, email: true, phone: true } });
   const whoOf = (uid: string) => {
-    const u = payUsers.find((x) => x.id === uid);
+    const u = payUsers.find((x: (typeof payUsers)[number]) => x.id === uid);
     return u?.email ?? u?.phone ?? uid.slice(0, 6);
   };
   const pendingRows: PendingRow[] = pending.map((p) => ({
@@ -60,14 +60,14 @@ export default async function AdminPage() {
   });
   // Pembayaran terverifikasi terbaru per user (untuk kolom Pembayaran di tab User aktif)
   const verified = await prisma.payment.findMany({
-    where: { userId: { in: allUsers.map((u) => u.id) }, status: "PAID" },
+    where: { userId: { in: allUsers.map((u: (typeof allUsers)[number]) => u.id) }, status: "PAID" },
     orderBy: { verifiedAt: "desc" },
     select: { id: true, userId: true, amount: true, verifiedAt: true, proofKey: true },
   });
   const latestPay = new Map<string, (typeof verified)[number]>();
   for (const p of verified) if (!latestPay.has(p.userId)) latestPay.set(p.userId, p);
 
-  const userRows: UserRow[] = allUsers.map((u) => {
+  const userRows: UserRow[] = allUsers.map((u: (typeof allUsers)[number]) => {
     const p = latestPay.get(u.id);
     return {
       who: u.email ?? u.phone ?? u.id.slice(0, 6),
