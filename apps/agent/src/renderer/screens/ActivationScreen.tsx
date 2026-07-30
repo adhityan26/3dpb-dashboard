@@ -1,5 +1,7 @@
 import { useState } from "react";
 import type { SaasDevice } from "../../main/saas-client";
+import { AgentShell } from "../AgentShell";
+import { GlassButton, GlassInput } from "@3pb/ui";
 
 export function ActivationScreen({ onActivated }: { onActivated: (devices: SaasDevice[]) => void }) {
   const [token, setToken] = useState("");
@@ -34,19 +36,28 @@ export function ActivationScreen({ onActivated }: { onActivated: (devices: SaasD
   }
 
   return (
-    <div style={{ padding: 24, fontFamily: "sans-serif" }}>
-      <h1>Aktivasi Agent</h1>
-      <label htmlFor="token-input">Token Agent</label>
-      <input
-        id="token-input"
-        value={token}
-        onChange={(e) => setToken(e.target.value)}
-        disabled={submitting}
-      />
-      <button onClick={handleSubmit} disabled={submitting}>
-        Aktifkan
-      </button>
-      {error && <p role="alert">{error}</p>}
-    </div>
+    <AgentShell>
+      <h1 className="g-t1 text-lg font-semibold mb-4">Aktivasi Agent</h1>
+      <label htmlFor="token-input" className="g-t2 text-sm block mb-1.5">
+        Token Agent
+      </label>
+      <div className="flex gap-2">
+        <GlassInput
+          id="token-input"
+          value={token}
+          onChange={(e) => setToken(e.target.value)}
+          disabled={submitting}
+          className="flex-1"
+        />
+        <GlassButton onClick={handleSubmit} disabled={submitting}>
+          Aktifkan
+        </GlassButton>
+      </div>
+      {error && (
+        <p role="alert" className="g-error text-sm mt-3">
+          {error}
+        </p>
+      )}
+    </AgentShell>
   );
 }
