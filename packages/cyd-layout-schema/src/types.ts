@@ -48,6 +48,11 @@ export const LAYOUT_LIMITS = {
   // Batas panjang string — cocok buffer firmware char[N] (kapasitas = N-1 sebelum null-terminator).
   // BARU: gap ini belum ada sebelumnya di apps/dashboard, ditambah di sini (dipakai KEDUA app).
   maxPrinterIdLength: 23,
+  // Batas nilai `Device.model` (SaaS) yang dikirim Agent sebagai field `type` payload
+  // 3dpb/printers — cocok kapasitas `char type[12]` firmware (11 byte efektif sebelum
+  // null-terminator). BUKAN bagian validasi layout cell seperti limit lain di atas; dipakai
+  // langsung oleh apps/saas/lib/devices/service.ts saat validasi input model.
+  maxPrinterModelLength: 11,
   maxLabelLength: 15,
   maxLabelTextLength: 31,
   maxPageIdLength: 15,

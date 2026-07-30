@@ -1,6 +1,6 @@
 import { ipcMain } from "electron";
 import { loadCredentials, saveCredentials, type DeviceSecret } from "./credential-store";
-import { fetchDevices, type SaasDevice } from "./saas-client";
+import { fetchDevices, patchDeviceModel, type SaasDevice } from "./saas-client";
 import { scanBambu } from "./discovery/bambu-ssdp";
 import { scanMoonraker } from "./discovery/moonraker-mdns";
 import { getEngine, setEngine, getBrokerPort, getLocalIp, getReporters, setReporters } from "./app-state";
@@ -13,6 +13,11 @@ export interface ActivationState {
   devices: SaasDevice[];
   pairedShortCodes: string[];
 }
+
+// `kind` cuma diisi kalau kegagalannya SPESIFIK bisa dijelaskan ke user (model ditolak
+// validasi) -- kegagalan generik (token hilang, network_error, dll) tetap `{ok:false}` polos,
+// konsisten dengan kontrak `{ok:boolean}` yang sudah ada sejak Task 8 (final-review Fix 2b).
+export type UpdateDeviceModelResult = { ok: boolean; kind?: "invalid_model" };
 
 export type SyncResult =
   | { ok: true; deviceCount: number }
@@ -37,6 +42,21 @@ export function registerIpcHandlers(): void {
     const blob = await loadCredentials();
     blob.devices[shortCode] = secret;
     await saveCredentials(blob);
+  });
+
+  /**
+   * Dipanggil PairingScreen sesudah pairing tersimpan, kalau user mengisi/mengubah model di
+   * form pairing -- best-effort, non-blocking (spec §6): pairing lokal SUDAH selesai terlepas
+   * dari hasil ini, jadi kegagalan di sini cuma balikin {ok:false} buat ditampilkan sebagai
+   * peringatan ringan, BUKAN reject yang bisa dianggap "pairing gagal".
+   */
+  ipcMain.handle("agent:update-device-model", async (_event, shortCode: string, model: string): Promise<UpdateDeviceModelResult> => {
+    const blob = await loadCredentials();
+    if (!blob.agentToken) return { ok: false };
+    const result = await patchDeviceModel(blob.agentToken, shortCode, model);
+    if (result.ok) return { ok: true };
+    if (result.kind === "invalid_model") return { ok: false, kind: "invalid_model" };
+    return { ok: false };
   });
 
   // Sync HARUS lakukan rekonsiliasi nyata (bukan cuma fetch dibuang) -- ini yang dipakai

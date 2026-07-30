@@ -64,4 +64,23 @@ describe("startEngine", () => {
     // makanya close() di sini semestinya sama seperti manggil close() di reporter internal Engine.
     expect((reporters[0] as any).close).toHaveBeenCalledTimes(1);
   });
+
+  it("isi DeviceConfig.type dari PairedDevice.model kalau ada", async () => {
+    const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", model: "P1S", secret: { ip: "1.1.1.1", serial: "S", accessCode: "C" } }];
+    const { engine } = await startEngine(paired, 1883);
+    expect(engine.snapshot().payload[0].type).toBe("P1S");
+  });
+
+  it("model null/kosong/whitespace -> fallback CYD_TYPE_FALLBACK per printerType", async () => {
+    const paired = [
+      { shortCode: "a", label: "A", printerType: "bambu", model: null, secret: { ip: "1.1.1.1", serial: "S", accessCode: "C" } },
+      { shortCode: "b", label: "B", printerType: "bambu", model: "   ", secret: { ip: "1.1.1.2", serial: "S", accessCode: "C" } },
+      { shortCode: "c", label: "C", printerType: "moonraker", model: undefined, secret: { ip: "1.1.1.3", serial: "", accessCode: "" } },
+    ];
+    const { engine } = await startEngine(paired, 1883);
+    const byId = Object.fromEntries(engine.snapshot().payload.map((p) => [p.id, p.type]));
+    expect(byId.a).toBe("Bambu Lab");
+    expect(byId.b).toBe("Bambu Lab");
+    expect(byId.c).toBe("Klipper");
+  });
 });

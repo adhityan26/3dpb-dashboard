@@ -4,11 +4,14 @@ import type { DiscoveredBambuPrinter } from "../../main/discovery/bambu-ssdp";
 import type { DiscoveredMoonrakerPrinter } from "../../main/discovery/moonraker-mdns";
 import { AgentShell } from "../AgentShell";
 import { GlassButton, GlassCard, GlassInput } from "@3pb/ui";
+import { suggestModelFromSsdp, matchDeviceByName } from "../../main/printer-model";
+import { LAYOUT_LIMITS } from "@3pb/cyd-layout-schema";
 
 interface PairingTarget {
   shortCode: string;
   ip: string;
   serial: string;
+  model: string;
   isManual: boolean;
 }
 
@@ -31,6 +34,7 @@ export function PairingScreen({
   const [pairing, setPairing] = useState<PairingTarget | null>(null);
   const [accessCode, setAccessCode] = useState("");
   const [pairError, setPairError] = useState<string | null>(null);
+  const [modelWarning, setModelWarning] = useState<string | null>(null);
   // shortCode device yang sudah sukses dipasangkan (sesi ini ATAU launch sebelumnya, lewat
   // initialPairedShortCodes) — dipakai supaya onAllPaired() hanya terpanggil sekali SEMUA
   // device terdaftar sudah dipasangkan (bukan setelah device pertama, lihat Task 12 review
@@ -54,21 +58,27 @@ export function PairingScreen({
     }
   }
 
-  function startPairing(shortCode: string, ip: string, serial: string) {
+  function startPairing(shortCode: string, ip: string, serial: string, suggestedModel: string) {
     // accessCode SENGAJA tidak pernah di-prefill dari hasil scan (tidak ada di paket SSDP
     // maupun mDNS) — user selalu wajib mengetik manual sesuai desain keamanan spec.
-    setPairing({ shortCode, ip, serial, isManual: false });
+    setPairing({ shortCode, ip, serial, model: suggestedModel, isManual: false });
     setAccessCode("");
+    // Warning dari device SEBELUMNYA (kalau ada) tak relevan lagi buat form device baru ini
+    // -- tanpa ini, peringatan model lama nyangkut kelihatan sementara user isi device
+    // berikutnya (final-review Fix 3).
+    setModelWarning(null);
   }
 
   function startManualPairing(shortCode: string) {
-    setPairing({ shortCode, ip: "", serial: "", isManual: true });
+    setPairing({ shortCode, ip: "", serial: "", model: "", isManual: true });
     setAccessCode("");
+    setModelWarning(null);
   }
 
   async function savePairing() {
     if (!pairing) return;
     setPairError(null);
+    setModelWarning(null);
     try {
       await window.agentApi.pairDevice(pairing.shortCode, {
         ip: pairing.ip,
@@ -82,6 +92,26 @@ export function PairingScreen({
       setPairError("Gagal simpan pairing — coba lagi.");
       return;
     }
+
+    // Model diusulkan balik ke SaaS best-effort SETELAH secret lokal tersimpan -- kegagalan di
+    // sini TIDAK membatalkan pairing (secret sudah aman), cuma tampil sebagai peringatan ringan
+    // (spec §6). Device di SaaS yang model-nya sudah sama tak perlu di-PATCH ulang.
+    const modelTrimmed = pairing.model.trim();
+    const currentDevice = devices.find((d) => d.shortCode === pairing.shortCode);
+    if (modelTrimmed && modelTrimmed !== (currentDevice?.model ?? "")) {
+      const result = await window.agentApi.updateDeviceModel(pairing.shortCode, modelTrimmed);
+      if (!result.ok) {
+        // kind:"invalid_model" berarti SaaS menolak karena panjangnya melebihi batas firmware
+        // (LAYOUT_LIMITS.maxPrinterModelLength) -- "coba lagi lewat web" menyesatkan di sini
+        // karena mengulang input yang sama lewat web akan ditolak juga (final-review Fix 2b).
+        setModelWarning(
+          result.kind === "invalid_model"
+            ? `Model terlalu panjang (maks ${LAYOUT_LIMITS.maxPrinterModelLength} karakter) — belum tersimpan ke akun.`
+            : "Model belum tersimpan ke akun — bisa diisi lewat web.",
+        );
+      }
+    }
+
     // Hitung set berikutnya di luar functional updater setState — memanggil onAllPaired()
     // (yang men-trigger setState di App, komponen LAIN) dari dalam updater React bisa terjadi
     // saat React sedang render, dan React larang "setState komponen lain saat render komponen
@@ -145,24 +175,31 @@ export function PairingScreen({
         <div className="flex-1">
           <h3 className="g-t2 text-xs font-semibold uppercase tracking-wide mb-2">Hasil Scan Bambu</h3>
           <div className="space-y-2">
-            {bambuPrinters.map((p) => (
-              <GlassCard key={p.serial} className="p-3">
-                <span className="g-t1 text-sm">
-                  {p.ip} ({p.name})
-                </span>
-                <div className="flex flex-wrap gap-1.5 mt-1.5">
-                  {unpairedDevices.map((d) => (
-                    <GlassButton
-                      key={d.shortCode}
-                      onClick={() => startPairing(d.shortCode, p.ip, p.serial)}
-                      className="text-xs"
-                    >
-                      Pasangkan ke {d.label}
-                    </GlassButton>
-                  ))}
-                </div>
-              </GlassCard>
-            ))}
+            {bambuPrinters.map((p) => {
+              // Rekomendasi SAJA (spec §6) -- dihitung terhadap unpairedDevices (bukan `devices`)
+              // karena device yang sudah dipasangkan tak lagi punya tombol "Pasangkan ke ..." buat
+              // ditandai; user tetap bebas klik tombol device manapun.
+              const recommendedShortCode = matchDeviceByName(p.name, unpairedDevices);
+              return (
+                <GlassCard key={p.serial} className="p-3">
+                  <span className="g-t1 text-sm">
+                    {p.ip} ({p.name})
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {unpairedDevices.map((d) => (
+                      <GlassButton
+                        key={d.shortCode}
+                        onClick={() => startPairing(d.shortCode, p.ip, p.serial, suggestModelFromSsdp(p.model) ?? "")}
+                        className="text-xs"
+                      >
+                        Pasangkan ke {d.label}
+                        {d.shortCode === recommendedShortCode ? " (disarankan)" : ""}
+                      </GlassButton>
+                    ))}
+                  </div>
+                </GlassCard>
+              );
+            })}
           </div>
         </div>
         <div className="flex-1">
@@ -181,7 +218,7 @@ export function PairingScreen({
                     // demi konsistensi bentuk DeviceSecret (Task 2), meski Moonraker tak memvalidasinya.
                     <GlassButton
                       key={d.shortCode}
-                      onClick={() => startPairing(d.shortCode, p.ip, "")}
+                      onClick={() => startPairing(d.shortCode, p.ip, "", "")}
                       className="text-xs"
                     >
                       Pasangkan ke {d.label}
@@ -217,6 +254,21 @@ export function PairingScreen({
               />
             </>
           )}
+          <label htmlFor="model" className="g-t2 text-sm block mb-1">
+            Model
+          </label>
+          <GlassInput
+            id="model"
+            value={pairing.model}
+            onChange={(e) => setPairing({ ...pairing, model: e.target.value })}
+            placeholder="mis. P1S"
+            className="w-full mb-1"
+          />
+          {pairing.model.length > LAYOUT_LIMITS.maxPrinterModelLength && (
+            <p className="g-warning text-xs mb-2">
+              Maks {LAYOUT_LIMITS.maxPrinterModelLength} karakter (sekarang {pairing.model.length}) — simpan akan ditolak.
+            </p>
+          )}
           <label htmlFor="access-code" className="g-t2 text-sm block mb-1">
             Access Code
           </label>
@@ -233,6 +285,14 @@ export function PairingScreen({
             </p>
           )}
         </GlassCard>
+      )}
+      {/* Di luar blok `{pairing && ...}` SENGAJA -- savePairing() men-set pairing kembali ke
+          null setelah sukses (form pairing ditutup, device pindah ke status "Terpasang"),
+          jadi peringatan model non-blocking ini harus tetap terlihat SESUDAH form hilang. */}
+      {modelWarning && (
+        <p role="alert" className="g-warning text-sm mt-2">
+          {modelWarning}
+        </p>
       )}
     </AgentShell>
   );

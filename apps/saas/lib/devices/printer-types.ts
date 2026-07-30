@@ -12,3 +12,10 @@ export const PRINTER_TYPE_LABELS: Record<PrinterType, string> = {
   bambu: "Bambu Lab",
   moonraker: "Moonraker (Klipper)",
 };
+
+/** Saran (bukan pembatas) untuk datalist input model di DeviceList -- ejaan kanonik sama
+ * dengan services/printer-monitor/config.example.json (mis. "A1Mini", bukan "A1 mini"). */
+export const PRINTER_MODEL_SUGGESTIONS: Record<PrinterType, readonly string[]> = {
+  bambu: ["X1C", "X1E", "X1", "P1S", "P1P", "A1", "A1Mini", "H2D"],
+  moonraker: ["U1", "Voron", "Ender3"],
+};

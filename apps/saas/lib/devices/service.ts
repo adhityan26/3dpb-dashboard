@@ -2,7 +2,8 @@ import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { generateUniqueShortCode } from "@/lib/id/short-code";
 import { getConfigInt } from "@/lib/config";
-import { SlotLimitExceeded, InvalidPrinterType, DeviceNotFound } from "./errors";
+import { LAYOUT_LIMITS } from "@3pb/cyd-layout-schema";
+import { SlotLimitExceeded, InvalidPrinterType, InvalidDeviceModel, DeviceNotFound } from "./errors";
 import { PRINTER_TYPES, type PrinterType } from "./printer-types";
 import type { Device, Prisma } from "@prisma/client";
 
@@ -15,6 +16,19 @@ function assertValidPrinterType(value: string): asserts value is PrinterType {
   if (!(PRINTER_TYPES as readonly string[]).includes(value)) {
     throw new InvalidPrinterType(value);
   }
+}
+
+/** Trim; kosong/whitespace -> null (mengosongkan model itu sah, bukan error); >11 byte (batas
+ * `char type[12]` firmware, LAYOUT_LIMITS.maxPrinterModelLength) -> InvalidDeviceModel. Byte
+ * length, BUKAN `.length` -- buffer firmware dihitung per byte, string multibyte pendek secara
+ * karakter bisa tetap kepanjangan secara byte. */
+function normalizeDeviceModel(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  if (Buffer.byteLength(trimmed, "utf8") > LAYOUT_LIMITS.maxPrinterModelLength) {
+    throw new InvalidDeviceModel(trimmed);
+  }
+  return trimmed;
 }
 
 export async function listDevices(userId: string): Promise<Device[]> {
@@ -79,9 +93,10 @@ export async function getDeviceLimit(userId: string): Promise<number> {
  */
 export async function createDevice(
   userId: string,
-  input: { label: string; printerType: string }
+  input: { label: string; printerType: string; model?: string }
 ): Promise<Device> {
   assertValidPrinterType(input.printerType);
+  const model = input.model !== undefined ? normalizeDeviceModel(input.model) : undefined;
 
   const fallbackLimit = await getConfigInt("printer.defaultSlots", 1);
 
@@ -95,7 +110,13 @@ export async function createDevice(
 
     const shortCode = await generateUniqueShortCode(tx);
     return tx.device.create({
-      data: { userId, label: input.label, printerType: input.printerType, shortCode },
+      data: {
+        userId,
+        label: input.label,
+        printerType: input.printerType,
+        shortCode,
+        ...(model !== undefined && { model }),
+      },
     });
   });
 }
@@ -103,15 +124,28 @@ export async function createDevice(
 export async function updateDevice(
   userId: string,
   id: string,
-  input: { label?: string; printerType?: string }
+  input: { label?: string; printerType?: string; model?: string }
 ): Promise<Device> {
   const existing = await prisma.device.findUnique({ where: { id } });
   if (!existing || existing.userId !== userId) throw new DeviceNotFound();
   if (input.printerType !== undefined) assertValidPrinterType(input.printerType);
+  const model = input.model !== undefined ? normalizeDeviceModel(input.model) : undefined;
   return prisma.device.update({
     where: { id },
-    data: { ...(input.label !== undefined && { label: input.label }), ...(input.printerType !== undefined && { printerType: input.printerType }) },
+    data: {
+      ...(input.label !== undefined && { label: input.label }),
+      ...(input.printerType !== undefined && { printerType: input.printerType }),
+      ...(input.model !== undefined && { model }),
+    },
   });
+}
+
+/** Dipakai HANYA oleh PATCH /api/agent/devices/[shortCode] -- Agent tak tahu `id` internal Device,
+ * cuma `shortCode` (kunci korelasi yang sama dipakai di seluruh kontrak Agent<->SaaS). */
+export async function updateDeviceModelByShortCode(userId: string, shortCode: string, model: string): Promise<Device> {
+  const existing = await prisma.device.findUnique({ where: { shortCode } });
+  if (!existing || existing.userId !== userId) throw new DeviceNotFound();
+  return prisma.device.update({ where: { shortCode }, data: { model: normalizeDeviceModel(model) } });
 }
 
 /** Hapus device + drop cell layout yang mereferensikan shortCode-nya, dalam 1 transaksi (cegah race vs PUT /api/cyd-layout). */

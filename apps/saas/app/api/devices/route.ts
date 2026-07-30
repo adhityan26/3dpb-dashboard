@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { requirePaidCore } from "@/lib/session-auth";
 import { listDevices, createDevice, getDeviceLimit } from "@/lib/devices/service";
-import { SlotLimitExceeded, InvalidPrinterType } from "@/lib/devices/errors";
+import { SlotLimitExceeded, InvalidPrinterType, InvalidDeviceModel } from "@/lib/devices/errors";
 
 /**
  * Balas `{ devices, limit }`, bukan array telanjang — DeviceList butuh `limit` buat menampilkan
@@ -22,7 +22,7 @@ export async function POST(req: Request) {
   const gate = await requirePaidCore();
   if (gate instanceof NextResponse) return gate;
 
-  const body = (await req.json().catch(() => ({}))) as { label?: unknown; printerType?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { label?: unknown; printerType?: unknown; model?: unknown };
   if (typeof body.label !== "string" || !body.label.trim()) {
     return NextResponse.json({ error: "invalid_body", reason: "label wajib diisi" }, { status: 400 });
   }
@@ -31,7 +31,11 @@ export async function POST(req: Request) {
   }
 
   try {
-    const device = await createDevice(gate.userId, { label: body.label, printerType: body.printerType });
+    const device = await createDevice(gate.userId, {
+      label: body.label,
+      printerType: body.printerType,
+      ...(typeof body.model === "string" && { model: body.model }),
+    });
     return NextResponse.json(device);
   } catch (e) {
     if (e instanceof SlotLimitExceeded) {
@@ -39,6 +43,9 @@ export async function POST(req: Request) {
     }
     if (e instanceof InvalidPrinterType) {
       return NextResponse.json({ error: "invalid_printer_type" }, { status: 400 });
+    }
+    if (e instanceof InvalidDeviceModel) {
+      return NextResponse.json({ error: "invalid_device_model" }, { status: 400 });
     }
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }

@@ -5,7 +5,7 @@ vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn((channel: string, fn: any) => { handlers[channel] = fn; }) },
 }));
 vi.mock("./credential-store", () => ({ loadCredentials: vi.fn().mockResolvedValue({ agentToken: null, devices: {} }), saveCredentials: vi.fn() }));
-vi.mock("./saas-client", () => ({ fetchDevices: vi.fn().mockResolvedValue({ ok: true, data: [] }), fetchLayout: vi.fn() }));
+vi.mock("./saas-client", () => ({ fetchDevices: vi.fn().mockResolvedValue({ ok: true, data: [] }), fetchLayout: vi.fn(), patchDeviceModel: vi.fn() }));
 vi.mock("./discovery/bambu-ssdp", () => ({ scanBambu: vi.fn().mockResolvedValue({ ok: true, printers: [] }) }));
 vi.mock("./discovery/moonraker-mdns", () => ({ scanMoonraker: vi.fn().mockResolvedValue([]) }));
 vi.mock("./startup", () => ({ reconcileDevices: vi.fn() }));
@@ -14,7 +14,7 @@ vi.mock("./layout-publisher", () => ({ publishLayout: vi.fn().mockResolvedValue(
 
 import { registerIpcHandlers } from "./ipc";
 import { ipcMain } from "electron";
-import { fetchDevices } from "./saas-client";
+import { fetchDevices, patchDeviceModel } from "./saas-client";
 import { loadCredentials } from "./credential-store";
 import { reconcileDevices } from "./startup";
 import { startEngine } from "./engine-manager";
@@ -242,5 +242,48 @@ describe("agent:get-activation-state", () => {
       devices,
       pairedShortCodes: ["abc1234567"],
     });
+  });
+});
+
+describe("agent:update-device-model", () => {
+  it("belum ada token -> {ok:false}, TANPA panggil patchDeviceModel", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: null, devices: {} });
+
+    const result = await handlers["agent:update-device-model"]({}, "abc1234567", "P1S");
+
+    expect(result).toEqual({ ok: false });
+    expect(patchDeviceModel).not.toHaveBeenCalled();
+  });
+
+  it("ada token -> panggil patchDeviceModel dengan token+shortCode+model, balikin {ok:true} kalau sukses", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
+    (patchDeviceModel as any).mockResolvedValueOnce({ ok: true, data: { model: "P1S" } });
+
+    const result = await handlers["agent:update-device-model"]({}, "abc1234567", "P1S");
+
+    expect(patchDeviceModel).toHaveBeenCalledWith("slz_ok", "abc1234567", "P1S");
+    expect(result).toEqual({ ok: true });
+  });
+
+  it("patchDeviceModel gagal (mis. offline) -> {ok:false}, TIDAK throw", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
+    (patchDeviceModel as any).mockResolvedValueOnce({ ok: false, kind: "network_error" });
+
+    const result = await handlers["agent:update-device-model"]({}, "abc1234567", "P1S");
+
+    expect(result).toEqual({ ok: false });
+  });
+
+  it("patchDeviceModel gagal validasi (kind:invalid_model) -> {ok:false, kind:'invalid_model'} -- beda dari kegagalan network generik", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
+    (patchDeviceModel as any).mockResolvedValueOnce({ ok: false, kind: "invalid_model" });
+
+    const result = await handlers["agent:update-device-model"]({}, "abc1234567", "TerlaluPanjangUntukFirmware");
+
+    expect(result).toEqual({ ok: false, kind: "invalid_model" });
   });
 });

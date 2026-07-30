@@ -1,8 +1,9 @@
 "use client";
 import { useEffect, useState } from "react";
-import { PRINTER_TYPES, PRINTER_TYPE_LABELS, type PrinterType } from "@/lib/devices/printer-types";
+import { PRINTER_TYPES, PRINTER_TYPE_LABELS, PRINTER_MODEL_SUGGESTIONS, type PrinterType } from "@/lib/devices/printer-types";
+import { LAYOUT_LIMITS } from "@3pb/cyd-layout-schema";
 
-type Device = { id: string; label: string; printerType: string };
+type Device = { id: string; label: string; printerType: string; model: string | null };
 
 export function DeviceList({ paidCore }: { paidCore: boolean }) {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -10,6 +11,9 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
   const [printerType, setPrinterType] = useState<PrinterType>(PRINTER_TYPES[0]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draftLabel, setDraftLabel] = useState("");
+  const [model, setModel] = useState("");
+  const [editingModelId, setEditingModelId] = useState<string | null>(null);
+  const [draftModel, setDraftModel] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(paidCore);
 
@@ -38,7 +42,7 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
     const label = `Printer ${devices.length + 1}`;
     const res = await fetch("/api/devices", {
       method: "POST",
-      body: JSON.stringify({ label, printerType }),
+      body: JSON.stringify({ label, printerType, model }),
     });
     if (!res.ok) {
       const body = await res.json();
@@ -51,6 +55,7 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
     }
     const created = await res.json();
     setDevices((prev) => [...prev, created]);
+    setModel(""); // reset input model form-tambah -- tanpa ini nilai lama nyangkut buat device berikutnya (final-review Fix 4)
   }
 
   function startRename(device: Device) {
@@ -71,6 +76,26 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
     }
     const updated = await res.json();
     setDevices((prev) => prev.map((d) => (d.id === id ? { ...d, label: updated?.label ?? label } : d)));
+  }
+
+  function startEditModel(device: Device) {
+    setEditingModelId(device.id);
+    setDraftModel(device.model ?? "");
+  }
+
+  async function saveModel(id: string) {
+    const value = draftModel.trim();
+    setEditingModelId(null);
+    const current = devices.find((d) => d.id === id);
+    if (value === (current?.model ?? "")) return; // tak berubah -> jangan buang request
+    setError(null);
+    const res = await fetch(`/api/devices/${id}`, { method: "PATCH", body: JSON.stringify({ model: value }) });
+    if (!res.ok) {
+      setError("Gagal mengubah model printer.");
+      return;
+    }
+    const updated = await res.json();
+    setDevices((prev) => prev.map((d) => (d.id === id ? { ...d, model: updated?.model ?? (value || null) } : d)));
   }
 
   async function handleDelete(device: Device) {
@@ -113,6 +138,26 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
               </option>
             ))}
           </select>
+          <div className="flex flex-col">
+            <input
+              aria-label="Model printer"
+              list="model-suggestions"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder="Model (opsional)"
+              className="g-inner text-[12px] px-2 py-1.5 rounded-md w-28"
+            />
+            {model.length > LAYOUT_LIMITS.maxPrinterModelLength && (
+              <span className="mt-1 block text-[10px] leading-relaxed text-red-500">
+                Maks {LAYOUT_LIMITS.maxPrinterModelLength} karakter (sekarang {model.length}) — simpan akan ditolak.
+              </span>
+            )}
+          </div>
+          <datalist id="model-suggestions">
+            {PRINTER_MODEL_SUGGESTIONS[printerType].map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
           <button type="button" onClick={handleAdd} className="text-[12px] px-3 py-1.5 rounded-md" style={{ background: "var(--g-accent)", color: "#fff" }}>
             + Tambah
           </button>
@@ -139,6 +184,36 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
               <span className="flex-1 min-w-0 truncate">{d.label}</span>
             )}
             <span className="g-t4 text-[11px]">{d.printerType}</span>
+            {editingModelId === d.id ? (
+              <div className="flex flex-col">
+                <input
+                  aria-label={`Model printer ${d.label}`}
+                  autoFocus
+                  value={draftModel}
+                  onChange={(e) => setDraftModel(e.target.value)}
+                  onBlur={() => saveModel(d.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveModel(d.id);
+                    if (e.key === "Escape") setEditingModelId(null);
+                  }}
+                  placeholder="mis. P1S"
+                  className="g-inner text-[11px] px-1 py-0.5 rounded-md w-24"
+                />
+                {draftModel.length > LAYOUT_LIMITS.maxPrinterModelLength && (
+                  <span className="mt-1 block text-[10px] leading-relaxed text-red-500">
+                    Maks {LAYOUT_LIMITS.maxPrinterModelLength} karakter (sekarang {draftModel.length}) — simpan akan ditolak.
+                  </span>
+                )}
+              </div>
+            ) : d.model ? (
+              <button type="button" onClick={() => startEditModel(d)} className="g-t4 text-[11px] underline" aria-label={`Ubah model ${d.label}`}>
+                {d.model}
+              </button>
+            ) : (
+              <button type="button" onClick={() => startEditModel(d)} className="text-[11px] text-amber-500 underline" aria-label={`Isi model ${d.label}`}>
+                Model belum diisi
+              </button>
+            )}
             <button type="button" onClick={() => startRename(d)} className="g-t4 text-[11px] underline" aria-label={`Ubah nama ${d.label}`}>
               Ubah nama
             </button>

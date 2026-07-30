@@ -28,7 +28,7 @@ export async function reconcileDevices(token: string): Promise<ReconcileResult> 
   let metadata: CachedDevice[];
   const fetchResult = await fetchDevices(token);
   if (fetchResult.ok) {
-    metadata = fetchResult.data.map((d) => ({ shortCode: d.shortCode, label: d.label, printerType: d.printerType }));
+    metadata = fetchResult.data.map((d) => ({ shortCode: d.shortCode, label: d.label, printerType: d.printerType, model: d.model }));
     await saveDeviceCache(metadata); // refresh cache tiap kali fresh-fetch sukses
   } else {
     metadata = await loadDeviceCache(); // SaaS unreachable (401/403/network_error semua) -> andalkan cache lokal
@@ -42,6 +42,7 @@ export async function reconcileDevices(token: string): Promise<ReconcileResult> 
         userId: "",
         label: m.label,
         printerType: m.printerType,
+        model: m.model ?? null,
         createdAt: "",
         updatedAt: "",
       }));
@@ -51,7 +52,7 @@ export async function reconcileDevices(token: string): Promise<ReconcileResult> 
   for (const m of metadata) {
     const secret = blob.devices[m.shortCode];
     if (!secret) continue; // device terdaftar tapi belum di-pairing (belum diisi IP/serial/accessCode)
-    paired.push({ shortCode: m.shortCode, label: m.label, printerType: m.printerType, secret });
+    paired.push({ shortCode: m.shortCode, label: m.label, printerType: m.printerType, model: m.model, secret });
   }
   return { fetchResult, devices, paired };
 }

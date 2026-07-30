@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { requirePaidCore } from "@/lib/session-auth";
 import { updateDevice, deleteDevice } from "@/lib/devices/service";
-import { DeviceNotFound, InvalidPrinterType } from "@/lib/devices/errors";
+import { DeviceNotFound, InvalidPrinterType, InvalidDeviceModel } from "@/lib/devices/errors";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -11,17 +11,19 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (gate instanceof NextResponse) return gate;
   const userId = gate.userId;
   const { id } = await params;
-  const body = (await req.json().catch(() => ({}))) as { label?: unknown; printerType?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { label?: unknown; printerType?: unknown; model?: unknown };
 
   try {
     const device = await updateDevice(userId, id, {
       ...(typeof body.label === "string" && { label: body.label }),
       ...(typeof body.printerType === "string" && { printerType: body.printerType }),
+      ...(typeof body.model === "string" && { model: body.model }),
     });
     return NextResponse.json(device);
   } catch (e) {
     if (e instanceof DeviceNotFound) return NextResponse.json({ error: "not_found" }, { status: 404 });
     if (e instanceof InvalidPrinterType) return NextResponse.json({ error: "invalid_printer_type" }, { status: 400 });
+    if (e instanceof InvalidDeviceModel) return NextResponse.json({ error: "invalid_device_model" }, { status: 400 });
     return NextResponse.json({ error: "server_error" }, { status: 500 });
   }
 }

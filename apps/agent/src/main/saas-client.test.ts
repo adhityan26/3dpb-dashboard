@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fetchDevices, fetchLayout, saasBaseUrl } from "./saas-client";
+import { fetchDevices, fetchLayout, patchDeviceModel, saasBaseUrl } from "./saas-client";
 
 const fetchMock = vi.fn();
 beforeEach(() => {
@@ -80,5 +80,52 @@ describe("fetchLayout", () => {
   it("kind:invalid_token kalau 401", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 401, json: async () => ({ error: "invalid_token" }) });
     expect(await fetchLayout("slz_bad")).toEqual({ ok: false, kind: "invalid_token" });
+  });
+});
+
+describe("patchDeviceModel", () => {
+  it("ok:true + data kalau 200", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ model: "P1S" }) });
+    const result = await patchDeviceModel("slz_valid", "abc1234567", "P1S");
+    expect(result).toEqual({ ok: true, data: { model: "P1S" } });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://192.168.88.113:3300/api/agent/devices/abc1234567",
+      expect.objectContaining({
+        method: "PATCH",
+        headers: { Authorization: "Bearer slz_valid", "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "P1S" }),
+        signal: expect.any(AbortSignal),
+      })
+    );
+  });
+
+  it("kind:invalid_token kalau 401", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 401, json: async () => ({ error: "invalid_token" }) });
+    expect(await patchDeviceModel("slz_bad", "abc1234567", "P1S")).toEqual({ ok: false, kind: "invalid_token" });
+  });
+
+  it("kind:entitlement_expired kalau 403", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 403, json: async () => ({ error: "entitlement_expired" }) });
+    expect(await patchDeviceModel("slz_valid", "abc1234567", "P1S")).toEqual({ ok: false, kind: "entitlement_expired" });
+  });
+
+  it("kind:network_error kalau fetch throw", async () => {
+    fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
+    expect(await patchDeviceModel("slz_valid", "abc1234567", "P1S")).toEqual({ ok: false, kind: "network_error" });
+  });
+
+  it("kind:network_error kalau 404 (shortCode tak dikenal SaaS ini)", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 404, json: async () => ({ error: "not_found" }) });
+    expect(await patchDeviceModel("slz_valid", "abc-lain", "P1S")).toEqual({ ok: false, kind: "network_error" });
+  });
+
+  it("kind:invalid_model kalau 400 { error: 'invalid_device_model' } -- beda dari network_error, model-nya yang ditolak", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: "invalid_device_model" }) });
+    expect(await patchDeviceModel("slz_valid", "abc1234567", "TerlaluPanjangUntukFirmware")).toEqual({ ok: false, kind: "invalid_model" });
+  });
+
+  it("kind:network_error kalau 400 dengan body error lain (bukan invalid_device_model)", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: "something_else" }) });
+    expect(await patchDeviceModel("slz_valid", "abc1234567", "P1S")).toEqual({ ok: false, kind: "network_error" });
   });
 });

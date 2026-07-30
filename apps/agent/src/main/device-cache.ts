@@ -6,6 +6,7 @@ export interface CachedDevice {
   shortCode: string;
   label: string;
   printerType: string;
+  model?: string | null;
 }
 
 function cacheFilePath(): string {
