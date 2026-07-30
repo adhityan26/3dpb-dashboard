@@ -1,5 +1,6 @@
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
 
 // Paket workspace internal (`workspace:*`) TIDAK punya build step — package.json-nya
@@ -37,6 +38,6 @@ export default defineConfig({
         '@': path.resolve('src/renderer')
       }
     },
-    plugins: [react()]
+    plugins: [react(), tailwindcss()]
   }
 })
