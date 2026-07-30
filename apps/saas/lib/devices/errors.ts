@@ -1,3 +1,5 @@
+import { LAYOUT_LIMITS } from "@3pb/cyd-layout-schema";
+
 export class SlotLimitExceeded extends Error {
   status = 409;
   constructor(public limit: number) {
@@ -25,7 +27,9 @@ export class DeviceNotFound extends Error {
 export class InvalidDeviceModel extends Error {
   status = 400;
   constructor(public value: string) {
-    super(`model tidak valid (kosongkan atau maks ${11} byte): ${value}`);
+    super(
+      `model tidak valid (kosongkan atau maks ${LAYOUT_LIMITS.maxPrinterModelLength} byte): ${value}`,
+    );
     this.name = "InvalidDeviceModel";
   }
 }
