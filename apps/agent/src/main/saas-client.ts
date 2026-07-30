@@ -15,6 +15,14 @@ export type FetchResult<T> =
   | { ok: true; data: T }
   | { ok: false; kind: "invalid_token" | "entitlement_expired" | "network_error" };
 
+// Bentuk KHUSUS buat patchDeviceModel -- BUKAN memperluas FetchResult<T> yang dipakai
+// fetchDevices/fetchLayout, karena kode yang exhaustive-switch atas union `kind` FetchResult
+// itu (mis. renderer lama) tidak siap sama sekali dengan member "invalid_model" yang cuma
+// relevan buat PATCH model (Task final-review Fix 2b).
+export type PatchDeviceModelResult =
+  | { ok: true; data: { model: string | null } }
+  | { ok: false; kind: "invalid_token" | "entitlement_expired" | "network_error" | "invalid_model" };
+
 // Di-inject `define` electron.vite.config.ts saat build. Dideklarasikan (bukan di-import)
 // karena identifier ini DIGANTI literal string oleh Vite; di luar build (vitest, tsx)
 // identifier-nya memang tak ada — makanya dibaca lewat `typeof` yang aman untuk identifier
@@ -70,7 +78,7 @@ export async function fetchLayout(token: string): Promise<FetchResult<LayoutConf
   }
 }
 
-export async function patchDeviceModel(token: string, shortCode: string, model: string): Promise<FetchResult<{ model: string | null }>> {
+export async function patchDeviceModel(token: string, shortCode: string, model: string): Promise<PatchDeviceModelResult> {
   try {
     const res = await fetch(`${saasBaseUrl()}/api/agent/devices/${shortCode}`, {
       method: "PATCH",
@@ -80,6 +88,17 @@ export async function patchDeviceModel(token: string, shortCode: string, model: 
     });
     if (res.status === 401) return { ok: false, kind: "invalid_token" };
     if (res.status === 403) return { ok: false, kind: "entitlement_expired" };
+    // 400 SPESIFIK dicek body-nya -- `PATCH /api/agent/devices/[shortCode]` balas
+    // `{ error: "invalid_device_model" }` kalau model > LAYOUT_LIMITS.maxPrinterModelLength.
+    // Ini beda kelas dari kegagalan jaringan/koneksi: user perlu tahu MODEL-nya yang salah
+    // (dan akan tetap ditolak kalau diulang lewat web), bukan disuruh "coba lagi lewat web".
+    if (res.status === 400) {
+      const body = await res.json().catch(() => null);
+      if (body && (body as { error?: string }).error === "invalid_device_model") {
+        return { ok: false, kind: "invalid_model" };
+      }
+      return { ok: false, kind: "network_error" };
+    }
     if (!res.ok) return { ok: false, kind: "network_error" };
     return { ok: true, data: (await res.json()) as { model: string | null } };
   } catch {

@@ -76,6 +76,48 @@ describe("DeviceList", () => {
     expect(JSON.parse(init.body)).toEqual({ label: "Printer 1", printerType: "bambu", model: "A1Mini" });
   });
 
+  it("model form-tambah > 11 karakter -> tampilkan hint batas firmware", async () => {
+    mockList([], 3);
+    render(<DeviceList paidCore={true} />);
+    await waitFor(() => screen.getByRole("button", { name: /tambah/i }));
+
+    fireEvent.change(screen.getByLabelText("Model printer"), { target: { value: "TerlaluPanjangUntukFirmware" } });
+    expect(screen.getByText(/maks 11 karakter/i)).toBeTruthy();
+  });
+
+  it("model form-tambah <= 11 karakter -> tak tampilkan hint", async () => {
+    mockList([], 3);
+    render(<DeviceList paidCore={true} />);
+    await waitFor(() => screen.getByRole("button", { name: /tambah/i }));
+
+    fireEvent.change(screen.getByLabelText("Model printer"), { target: { value: "P1S" } });
+    expect(screen.queryByText(/maks 11 karakter/i)).toBeNull();
+  });
+
+  it("tambah sukses -> input model form-tambah direset (tak nyangkut buat device berikutnya)", async () => {
+    mockList([], 3);
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ id: "d2", label: "Printer 1", printerType: "bambu", model: "A1Mini" }) });
+    render(<DeviceList paidCore={true} />);
+    await waitFor(() => screen.getByRole("button", { name: /tambah/i }));
+
+    const input = screen.getByLabelText("Model printer") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "A1Mini" } });
+    fireEvent.click(screen.getByRole("button", { name: /tambah/i }));
+
+    await waitFor(() => expect(screen.getByText("Printer 1")).toBeTruthy());
+    expect((screen.getByLabelText("Model printer") as HTMLInputElement).value).toBe("");
+  });
+
+  it("edit inline model > 11 karakter -> tampilkan hint batas firmware", async () => {
+    mockList([{ ...DEVICE_A, model: null }]);
+    render(<DeviceList paidCore={true} />);
+    await waitFor(() => screen.getByText(/model belum diisi/i));
+
+    fireEvent.click(screen.getByRole("button", { name: /isi model printer a/i }));
+    fireEvent.change(screen.getByLabelText("Model printer Printer A"), { target: { value: "TerlaluPanjangUntukFirmware" } });
+    expect(screen.getByText(/maks 11 karakter/i)).toBeTruthy();
+  });
+
   it("tampilkan model kalau terisi", async () => {
     mockList([DEVICE_A]);
     render(<DeviceList paidCore={true} />);

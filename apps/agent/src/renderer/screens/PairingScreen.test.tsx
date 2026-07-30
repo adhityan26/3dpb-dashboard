@@ -201,6 +201,20 @@ describe("PairingScreen", () => {
     expect((screen.getByLabelText(/^model/i) as HTMLInputElement).value).toBe("");
   });
 
+  it("Model > 11 karakter -> tampilkan hint batas firmware", async () => {
+    render(<PairingScreen devices={devices} onAllPaired={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /isi manual/i }));
+    fireEvent.change(screen.getByLabelText(/^model/i), { target: { value: "TerlaluPanjangUntukFirmware" } });
+    expect(screen.getByText(/maks 11 karakter/i)).toBeTruthy();
+  });
+
+  it("Model <= 11 karakter -> tak tampilkan hint", async () => {
+    render(<PairingScreen devices={devices} onAllPaired={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /isi manual/i }));
+    fireEvent.change(screen.getByLabelText(/^model/i), { target: { value: "P1P" } });
+    expect(screen.queryByText(/maks 11 karakter/i)).toBeNull();
+  });
+
   it("simpan pairing dengan model terisi -> panggil updateDeviceModel(shortCode, model) sesudah pairDevice", async () => {
     render(<PairingScreen devices={devices} onAllPaired={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /isi manual/i }));
@@ -224,6 +238,68 @@ describe("PairingScreen", () => {
 
     await waitFor(() => expect(screen.getByText(/terpasang/i)).toBeTruthy());
     expect((window as any).agentApi.updateDeviceModel).not.toHaveBeenCalled();
+  });
+
+  it("updateDeviceModel gagal dengan kind:invalid_model -> pesan sebut batas karakter, BUKAN 'coba lagi lewat web'", async () => {
+    (window as any).agentApi.updateDeviceModel.mockResolvedValue({ ok: false, kind: "invalid_model" });
+    render(<PairingScreen devices={devices} onAllPaired={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /isi manual/i }));
+    fireEvent.change(screen.getByLabelText(/^ip/i), { target: { value: "10.0.0.9" } });
+    fireEvent.change(screen.getByLabelText(/serial/i), { target: { value: "MANUAL1" } });
+    fireEvent.change(screen.getByLabelText(/^model/i), { target: { value: "TerlaluPanjangUntukFirmware" } });
+    fireEvent.change(screen.getByLabelText(/access code/i), { target: { value: "9999" } });
+    fireEvent.click(screen.getByRole("button", { name: /simpan pairing/i }));
+
+    await waitFor(() => expect(screen.getByText(/model terlalu panjang/i)).toBeTruthy());
+    expect(screen.queryByText(/model belum tersimpan ke akun — bisa diisi lewat web/i)).toBeNull();
+    expect(screen.getByText(/terpasang/i)).toBeTruthy();
+  });
+
+  it("pasangkan device kedua -> peringatan model dari device pertama tidak nyangkut (Fix 3)", async () => {
+    (window as any).agentApi.updateDeviceModel.mockResolvedValue({ ok: false });
+    const twoDevices = [
+      { id: "d1", shortCode: "abc1234567", userId: "u1", label: "Printer A", printerType: "bambu", model: null, createdAt: "x", updatedAt: "y" },
+      { id: "d2", shortCode: "def1234567", userId: "u1", label: "Printer B", printerType: "bambu", model: null, createdAt: "x", updatedAt: "y" },
+    ];
+    render(<PairingScreen devices={twoDevices} onAllPaired={vi.fn()} />);
+
+    // Ada 2 tombol "Isi manual" (satu per device belum-dipasangkan) -- device A duluan (index 0).
+    fireEvent.click(screen.getAllByRole("button", { name: /isi manual/i })[0]);
+    fireEvent.change(screen.getByLabelText(/^ip/i), { target: { value: "10.0.0.9" } });
+    fireEvent.change(screen.getByLabelText(/serial/i), { target: { value: "MANUAL1" } });
+    fireEvent.change(screen.getByLabelText(/^model/i), { target: { value: "P1P" } });
+    fireEvent.change(screen.getByLabelText(/access code/i), { target: { value: "1111" } });
+    fireEvent.click(screen.getByRole("button", { name: /simpan pairing/i }));
+    await waitFor(() => expect(screen.getByText(/model belum tersimpan ke akun/i)).toBeTruthy());
+
+    // Mulai isi device kedua (sekarang tinggal satu tombol "Isi manual" -- Printer B) --
+    // warning device pertama HARUS hilang begitu form baru dibuka.
+    fireEvent.click(screen.getByRole("button", { name: /isi manual/i }));
+    expect(screen.queryByText(/model belum tersimpan ke akun/i)).toBeNull();
+  });
+
+  it("hasil scan Bambu yang namanya cocok dengan label device -> tombol 'Pasangkan ke ...'-nya diberi penanda rekomendasi", async () => {
+    const deviceMatchingName = [
+      { id: "d1", shortCode: "abc1234567", userId: "u1", label: "Neptune", printerType: "bambu", model: null, createdAt: "x", updatedAt: "y" },
+      { id: "d2", shortCode: "def1234567", userId: "u1", label: "Printer Lain", printerType: "bambu", model: null, createdAt: "x", updatedAt: "y" },
+    ];
+    // scanLan mock (beforeEach) balas printer bernama "Neptune" -- cocok persis dengan label d1.
+    render(<PairingScreen devices={deviceMatchingName} onAllPaired={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /scan lan/i }));
+    await waitFor(() => screen.getByText(/192\.168\.1\.5/));
+
+    expect(screen.getByRole("button", { name: /pasangkan ke neptune.*disarankan/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^pasangkan ke printer lain$/i })).toBeTruthy();
+  });
+
+  it("hasil scan Bambu yang namanya TAK cocok dengan device manapun -> tak ada tombol yang diberi penanda rekomendasi", async () => {
+    render(<PairingScreen devices={devices} onAllPaired={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /scan lan/i }));
+    await waitFor(() => screen.getByText(/192\.168\.1\.5/));
+
+    // scanLan mock balas printer bernama "Neptune", devices fixture cuma punya "Printer A" -- tak cocok.
+    expect(screen.getByRole("button", { name: /^pasangkan ke printer a$/i })).toBeTruthy();
+    expect(screen.queryByText(/disarankan/i)).toBeNull();
   });
 
   it("updateDeviceModel gagal -> peringatan non-blocking, pairing TETAP dianggap selesai", async () => {

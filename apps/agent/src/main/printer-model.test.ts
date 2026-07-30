@@ -23,6 +23,13 @@ describe("suggestModelFromSsdp", () => {
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining("3DPrinter-Unknown-Future-Model"));
     warnSpy.mockRestore();
   });
+
+  it("devModel string kosong (header DevModel.bambu.com absen) -> null, TANPA warning", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    expect(suggestModelFromSsdp("")).toBeNull();
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
 });
 
 describe("matchDeviceByName", () => {

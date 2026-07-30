@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { PRINTER_TYPES, PRINTER_TYPE_LABELS, PRINTER_MODEL_SUGGESTIONS, type PrinterType } from "@/lib/devices/printer-types";
+import { LAYOUT_LIMITS } from "@3pb/cyd-layout-schema";
 
 type Device = { id: string; label: string; printerType: string; model: string | null };
 
@@ -54,6 +55,7 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
     }
     const created = await res.json();
     setDevices((prev) => [...prev, created]);
+    setModel(""); // reset input model form-tambah -- tanpa ini nilai lama nyangkut buat device berikutnya (final-review Fix 4)
   }
 
   function startRename(device: Device) {
@@ -136,14 +138,21 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
               </option>
             ))}
           </select>
-          <input
-            aria-label="Model printer"
-            list="model-suggestions"
-            value={model}
-            onChange={(e) => setModel(e.target.value)}
-            placeholder="Model (opsional)"
-            className="g-inner text-[12px] px-2 py-1.5 rounded-md w-28"
-          />
+          <div className="flex flex-col">
+            <input
+              aria-label="Model printer"
+              list="model-suggestions"
+              value={model}
+              onChange={(e) => setModel(e.target.value)}
+              placeholder="Model (opsional)"
+              className="g-inner text-[12px] px-2 py-1.5 rounded-md w-28"
+            />
+            {model.length > LAYOUT_LIMITS.maxPrinterModelLength && (
+              <span className="mt-1 block text-[10px] leading-relaxed text-red-500">
+                Maks {LAYOUT_LIMITS.maxPrinterModelLength} karakter (sekarang {model.length}) — simpan akan ditolak.
+              </span>
+            )}
+          </div>
           <datalist id="model-suggestions">
             {PRINTER_MODEL_SUGGESTIONS[printerType].map((m) => (
               <option key={m} value={m} />
@@ -176,19 +185,26 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
             )}
             <span className="g-t4 text-[11px]">{d.printerType}</span>
             {editingModelId === d.id ? (
-              <input
-                aria-label={`Model printer ${d.label}`}
-                autoFocus
-                value={draftModel}
-                onChange={(e) => setDraftModel(e.target.value)}
-                onBlur={() => saveModel(d.id)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") saveModel(d.id);
-                  if (e.key === "Escape") setEditingModelId(null);
-                }}
-                placeholder="mis. P1S"
-                className="g-inner text-[11px] px-1 py-0.5 rounded-md w-24"
-              />
+              <div className="flex flex-col">
+                <input
+                  aria-label={`Model printer ${d.label}`}
+                  autoFocus
+                  value={draftModel}
+                  onChange={(e) => setDraftModel(e.target.value)}
+                  onBlur={() => saveModel(d.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") saveModel(d.id);
+                    if (e.key === "Escape") setEditingModelId(null);
+                  }}
+                  placeholder="mis. P1S"
+                  className="g-inner text-[11px] px-1 py-0.5 rounded-md w-24"
+                />
+                {draftModel.length > LAYOUT_LIMITS.maxPrinterModelLength && (
+                  <span className="mt-1 block text-[10px] leading-relaxed text-red-500">
+                    Maks {LAYOUT_LIMITS.maxPrinterModelLength} karakter (sekarang {draftModel.length}) — simpan akan ditolak.
+                  </span>
+                )}
+              </div>
             ) : d.model ? (
               <button type="button" onClick={() => startEditModel(d)} className="g-t4 text-[11px] underline" aria-label={`Ubah model ${d.label}`}>
                 {d.model}

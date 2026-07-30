@@ -276,4 +276,14 @@ describe("agent:update-device-model", () => {
 
     expect(result).toEqual({ ok: false });
   });
+
+  it("patchDeviceModel gagal validasi (kind:invalid_model) -> {ok:false, kind:'invalid_model'} -- beda dari kegagalan network generik", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
+    (patchDeviceModel as any).mockResolvedValueOnce({ ok: false, kind: "invalid_model" });
+
+    const result = await handlers["agent:update-device-model"]({}, "abc1234567", "TerlaluPanjangUntukFirmware");
+
+    expect(result).toEqual({ ok: false, kind: "invalid_model" });
+  });
 });

@@ -27,6 +27,10 @@ const SSDP_MODEL_CODES: Record<string, string> = {
 export function suggestModelFromSsdp(devModel: string): string | null {
   const known = SSDP_MODEL_CODES[devModel];
   if (known) return known;
+  // String kosong = header `DevModel.bambu.com` absen dari broadcast SSDP (bukan kode tak
+  // dikenal) -- tak ada apa pun buat dicatat di sini, warning-nya cuma berguna buat menumbuhkan
+  // SSDP_MODEL_CODES dari kode MENTAH yang nyata di lapangan.
+  if (devModel === "") return null;
   console.warn(`[printer-model] kode DevModel Bambu tak dikenal, tak disarankan: ${devModel}`);
   return null;
 }

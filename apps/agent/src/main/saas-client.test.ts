@@ -118,4 +118,14 @@ describe("patchDeviceModel", () => {
     fetchMock.mockResolvedValue({ ok: false, status: 404, json: async () => ({ error: "not_found" }) });
     expect(await patchDeviceModel("slz_valid", "abc-lain", "P1S")).toEqual({ ok: false, kind: "network_error" });
   });
+
+  it("kind:invalid_model kalau 400 { error: 'invalid_device_model' } -- beda dari network_error, model-nya yang ditolak", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: "invalid_device_model" }) });
+    expect(await patchDeviceModel("slz_valid", "abc1234567", "TerlaluPanjangUntukFirmware")).toEqual({ ok: false, kind: "invalid_model" });
+  });
+
+  it("kind:network_error kalau 400 dengan body error lain (bukan invalid_device_model)", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: "something_else" }) });
+    expect(await patchDeviceModel("slz_valid", "abc1234567", "P1S")).toEqual({ ok: false, kind: "network_error" });
+  });
 });

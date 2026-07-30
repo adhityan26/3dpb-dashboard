@@ -14,6 +14,11 @@ export interface ActivationState {
   pairedShortCodes: string[];
 }
 
+// `kind` cuma diisi kalau kegagalannya SPESIFIK bisa dijelaskan ke user (model ditolak
+// validasi) -- kegagalan generik (token hilang, network_error, dll) tetap `{ok:false}` polos,
+// konsisten dengan kontrak `{ok:boolean}` yang sudah ada sejak Task 8 (final-review Fix 2b).
+export type UpdateDeviceModelResult = { ok: boolean; kind?: "invalid_model" };
+
 export type SyncResult =
   | { ok: true; deviceCount: number }
   | { ok: false; kind: "invalid_token" | "entitlement_expired" | "network_error" | "engine_error" | "broker_unavailable" };
@@ -45,11 +50,13 @@ export function registerIpcHandlers(): void {
    * dari hasil ini, jadi kegagalan di sini cuma balikin {ok:false} buat ditampilkan sebagai
    * peringatan ringan, BUKAN reject yang bisa dianggap "pairing gagal".
    */
-  ipcMain.handle("agent:update-device-model", async (_event, shortCode: string, model: string): Promise<{ ok: boolean }> => {
+  ipcMain.handle("agent:update-device-model", async (_event, shortCode: string, model: string): Promise<UpdateDeviceModelResult> => {
     const blob = await loadCredentials();
     if (!blob.agentToken) return { ok: false };
     const result = await patchDeviceModel(blob.agentToken, shortCode, model);
-    return { ok: result.ok };
+    if (result.ok) return { ok: true };
+    if (result.kind === "invalid_model") return { ok: false, kind: "invalid_model" };
+    return { ok: false };
   });
 
   // Sync HARUS lakukan rekonsiliasi nyata (bukan cuma fetch dibuang) -- ini yang dipakai

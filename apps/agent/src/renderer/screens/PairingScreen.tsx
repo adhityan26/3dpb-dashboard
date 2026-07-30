@@ -2,7 +2,8 @@ import { useState } from "react";
 import type { SaasDevice } from "../../main/saas-client";
 import type { DiscoveredBambuPrinter } from "../../main/discovery/bambu-ssdp";
 import type { DiscoveredMoonrakerPrinter } from "../../main/discovery/moonraker-mdns";
-import { suggestModelFromSsdp } from "../../main/printer-model";
+import { suggestModelFromSsdp, matchDeviceByName } from "../../main/printer-model";
+import { LAYOUT_LIMITS } from "@3pb/cyd-layout-schema";
 
 interface PairingTarget {
   shortCode: string;
@@ -60,11 +61,16 @@ export function PairingScreen({
     // maupun mDNS) — user selalu wajib mengetik manual sesuai desain keamanan spec.
     setPairing({ shortCode, ip, serial, model: suggestedModel, isManual: false });
     setAccessCode("");
+    // Warning dari device SEBELUMNYA (kalau ada) tak relevan lagi buat form device baru ini
+    // -- tanpa ini, peringatan model lama nyangkut kelihatan sementara user isi device
+    // berikutnya (final-review Fix 3).
+    setModelWarning(null);
   }
 
   function startManualPairing(shortCode: string) {
     setPairing({ shortCode, ip: "", serial: "", model: "", isManual: true });
     setAccessCode("");
+    setModelWarning(null);
   }
 
   async function savePairing() {
@@ -92,7 +98,16 @@ export function PairingScreen({
     const currentDevice = devices.find((d) => d.shortCode === pairing.shortCode);
     if (modelTrimmed && modelTrimmed !== (currentDevice?.model ?? "")) {
       const result = await window.agentApi.updateDeviceModel(pairing.shortCode, modelTrimmed);
-      if (!result.ok) setModelWarning("Model belum tersimpan ke akun — bisa diisi lewat web.");
+      if (!result.ok) {
+        // kind:"invalid_model" berarti SaaS menolak karena panjangnya melebihi batas firmware
+        // (LAYOUT_LIMITS.maxPrinterModelLength) -- "coba lagi lewat web" menyesatkan di sini
+        // karena mengulang input yang sama lewat web akan ditolak juga (final-review Fix 2b).
+        setModelWarning(
+          result.kind === "invalid_model"
+            ? `Model terlalu panjang (maks ${LAYOUT_LIMITS.maxPrinterModelLength} karakter) — belum tersimpan ke akun.`
+            : "Model belum tersimpan ke akun — bisa diisi lewat web.",
+        );
+      }
     }
 
     // Hitung set berikutnya di luar functional updater setState — memanggil onAllPaired()
@@ -144,18 +159,25 @@ export function PairingScreen({
         </div>
         <div>
           <h3>Hasil Scan Bambu</h3>
-          {bambuPrinters.map((p) => (
-            <div key={p.serial}>
-              <span>
-                {p.ip} ({p.name})
-              </span>
-              {unpairedDevices.map((d) => (
-                <button key={d.shortCode} onClick={() => startPairing(d.shortCode, p.ip, p.serial, suggestModelFromSsdp(p.model) ?? "")}>
-                  Pasangkan ke {d.label}
-                </button>
-              ))}
-            </div>
-          ))}
+          {bambuPrinters.map((p) => {
+            // Rekomendasi SAJA (spec §6) -- dihitung terhadap unpairedDevices (bukan `devices`)
+            // karena device yang sudah dipasangkan tak lagi punya tombol "Pasangkan ke ..." buat
+            // ditandai; user tetap bebas klik tombol device manapun.
+            const recommendedShortCode = matchDeviceByName(p.name, unpairedDevices);
+            return (
+              <div key={p.serial}>
+                <span>
+                  {p.ip} ({p.name})
+                </span>
+                {unpairedDevices.map((d) => (
+                  <button key={d.shortCode} onClick={() => startPairing(d.shortCode, p.ip, p.serial, suggestModelFromSsdp(p.model) ?? "")}>
+                    Pasangkan ke {d.label}
+                    {d.shortCode === recommendedShortCode ? " (disarankan)" : ""}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
         </div>
         <div>
           <h3>Hasil Scan Moonraker</h3>
@@ -202,6 +224,11 @@ export function PairingScreen({
             onChange={(e) => setPairing({ ...pairing, model: e.target.value })}
             placeholder="mis. P1S"
           />
+          {pairing.model.length > LAYOUT_LIMITS.maxPrinterModelLength && (
+            <span style={{ color: "red", display: "block" }}>
+              Maks {LAYOUT_LIMITS.maxPrinterModelLength} karakter (sekarang {pairing.model.length}) — simpan akan ditolak.
+            </span>
+          )}
           <label htmlFor="access-code">Access Code</label>
           <input id="access-code" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} />
           <button onClick={savePairing}>Simpan Pairing</button>
@@ -211,7 +238,7 @@ export function PairingScreen({
       {/* Di luar blok `{pairing && ...}` SENGAJA -- savePairing() men-set pairing kembali ke
           null setelah sukses (form pairing ditutup, device pindah ke status "Terpasang"),
           jadi peringatan model non-blocking ini harus tetap terlihat SESUDAH form hilang. */}
-      {modelWarning && <p>{modelWarning}</p>}
+      {modelWarning && <p role="alert">{modelWarning}</p>}
     </div>
   );
 }
