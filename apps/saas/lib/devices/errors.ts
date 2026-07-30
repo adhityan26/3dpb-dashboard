@@ -21,3 +21,11 @@ export class DeviceNotFound extends Error {
     this.name = "DeviceNotFound";
   }
 }
+
+export class InvalidDeviceModel extends Error {
+  status = 400;
+  constructor(public value: string) {
+    super(`model tidak valid (kosongkan atau maks ${11} byte): ${value}`);
+    this.name = "InvalidDeviceModel";
+  }
+}

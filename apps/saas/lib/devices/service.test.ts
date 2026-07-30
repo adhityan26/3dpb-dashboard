@@ -15,8 +15,8 @@ vi.mock("@/lib/config", () => ({ getConfigInt: vi.fn() }));
 import { prisma } from "@/lib/db";
 import { generateUniqueShortCode } from "@/lib/id/short-code";
 import { getConfigInt } from "@/lib/config";
-import { listDevices, createDevice, updateDevice, deleteDevice, getDeviceLimit, PRINTER_TYPES } from "./service";
-import { SlotLimitExceeded, InvalidPrinterType, DeviceNotFound } from "./errors";
+import { listDevices, createDevice, updateDevice, updateDeviceModelByShortCode, deleteDevice, getDeviceLimit, PRINTER_TYPES } from "./service";
+import { SlotLimitExceeded, InvalidPrinterType, InvalidDeviceModel, DeviceNotFound } from "./errors";
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -143,6 +143,50 @@ describe("createDevice", () => {
 
     expect(generateUniqueShortCode).toHaveBeenCalledWith(tx);
   });
+
+  it("simpan model kalau diisi (trim dulu)", async () => {
+    (generateUniqueShortCode as any).mockResolvedValue("abc1234567");
+    const tx = mockTx(0, 2);
+    await createDevice("u1", { label: "Printer A", printerType: "bambu", model: "  P1S  " });
+    expect(tx.device.create).toHaveBeenCalledWith({
+      data: { userId: "u1", label: "Printer A", printerType: "bambu", shortCode: "abc1234567", model: "P1S" },
+    });
+  });
+
+  it("model kosong/whitespace -> disimpan sebagai null", async () => {
+    (generateUniqueShortCode as any).mockResolvedValue("abc1234567");
+    const tx = mockTx(0, 2);
+    await createDevice("u1", { label: "Printer A", printerType: "bambu", model: "   " });
+    expect(tx.device.create).toHaveBeenCalledWith({
+      data: { userId: "u1", label: "Printer A", printerType: "bambu", shortCode: "abc1234567", model: null },
+    });
+  });
+
+  it("model tak diisi sama sekali (undefined) -> tak masuk ke data create sebagai key eksplisit", async () => {
+    (generateUniqueShortCode as any).mockResolvedValue("abc1234567");
+    const tx = mockTx(0, 2);
+    await createDevice("u1", { label: "Printer A", printerType: "bambu" });
+    expect(tx.device.create).toHaveBeenCalledWith({
+      data: { userId: "u1", label: "Printer A", printerType: "bambu", shortCode: "abc1234567" },
+    });
+  });
+
+  it("model >11 byte -> InvalidDeviceModel, tolak SEBELUM buka transaksi", async () => {
+    await expect(createDevice("u1", { label: "X", printerType: "bambu", model: "ABCDEFGHIJKL" })).rejects.toThrow(InvalidDeviceModel);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("model persis 11 byte ASCII lolos, 12 byte ditolak (batas firmware char type[12])", async () => {
+    (generateUniqueShortCode as any).mockResolvedValue("abc1234567");
+    mockTx(0, 2);
+    await expect(createDevice("u1", { label: "X", printerType: "bambu", model: "12345678901" })).resolves.toBeTruthy();
+    await expect(createDevice("u1", { label: "X", printerType: "bambu", model: "123456789012" })).rejects.toThrow(InvalidDeviceModel);
+  });
+
+  it("validasi model pakai byte length, bukan .length -- string multibyte pendek tapi berat byte harus ditolak", async () => {
+    // "文" (U+6587) = 3 byte UTF-8. 4 karakter = 12 byte > batas 11, walau .length cuma 4.
+    await expect(createDevice("u1", { label: "X", printerType: "bambu", model: "文文文文" })).rejects.toThrow(InvalidDeviceModel);
+  });
 });
 
 describe("getDeviceLimit", () => {
@@ -169,6 +213,52 @@ describe("updateDevice", () => {
   it("tolak printerType tak dikenal saat update", async () => {
     (prisma.device.findUnique as any).mockResolvedValue({ id: "d1", userId: "u1" });
     await expect(updateDevice("u1", "d1", { printerType: "prusa" })).rejects.toThrow(InvalidPrinterType);
+  });
+
+  it("update model (trim, kosong -> null)", async () => {
+    (prisma.device.findUnique as any).mockResolvedValue({ id: "d1", userId: "u1" });
+    (prisma.device.update as any).mockResolvedValue({ id: "d1", model: "P1S" });
+    await updateDevice("u1", "d1", { model: "  P1S  " });
+    expect(prisma.device.update).toHaveBeenCalledWith({ where: { id: "d1" }, data: { model: "P1S" } });
+  });
+
+  it("model tak dioper (undefined) -> tak ikut di data update sama sekali", async () => {
+    (prisma.device.findUnique as any).mockResolvedValue({ id: "d1", userId: "u1" });
+    (prisma.device.update as any).mockResolvedValue({ id: "d1" });
+    await updateDevice("u1", "d1", { label: "Baru" });
+    expect(prisma.device.update).toHaveBeenCalledWith({ where: { id: "d1" }, data: { label: "Baru" } });
+  });
+
+  it("model >11 byte saat update -> InvalidDeviceModel", async () => {
+    (prisma.device.findUnique as any).mockResolvedValue({ id: "d1", userId: "u1" });
+    await expect(updateDevice("u1", "d1", { model: "ABCDEFGHIJKL" })).rejects.toThrow(InvalidDeviceModel);
+    expect(prisma.device.update).not.toHaveBeenCalled();
+  });
+});
+
+describe("updateDeviceModelByShortCode", () => {
+  it("update model by shortCode kalau device milik user", async () => {
+    (prisma.device.findUnique as any).mockResolvedValue({ id: "d1", userId: "u1", shortCode: "abc1234567" });
+    (prisma.device.update as any).mockResolvedValue({ id: "d1", model: "P1S" });
+    await updateDeviceModelByShortCode("u1", "abc1234567", "P1S");
+    expect(prisma.device.findUnique).toHaveBeenCalledWith({ where: { shortCode: "abc1234567" } });
+    expect(prisma.device.update).toHaveBeenCalledWith({ where: { shortCode: "abc1234567" }, data: { model: "P1S" } });
+  });
+
+  it("throw DeviceNotFound kalau shortCode tak ada", async () => {
+    (prisma.device.findUnique as any).mockResolvedValue(null);
+    await expect(updateDeviceModelByShortCode("u1", "tidak-ada", "P1S")).rejects.toThrow(DeviceNotFound);
+  });
+
+  it("throw DeviceNotFound kalau shortCode milik user LAIN (jangan bocorkan keberadaannya)", async () => {
+    (prisma.device.findUnique as any).mockResolvedValue({ id: "d1", userId: "u2", shortCode: "abc1234567" });
+    await expect(updateDeviceModelByShortCode("u1", "abc1234567", "P1S")).rejects.toThrow(DeviceNotFound);
+    expect(prisma.device.update).not.toHaveBeenCalled();
+  });
+
+  it("model >11 byte -> InvalidDeviceModel", async () => {
+    (prisma.device.findUnique as any).mockResolvedValue({ id: "d1", userId: "u1", shortCode: "abc1234567" });
+    await expect(updateDeviceModelByShortCode("u1", "abc1234567", "ABCDEFGHIJKL")).rejects.toThrow(InvalidDeviceModel);
   });
 });
 
