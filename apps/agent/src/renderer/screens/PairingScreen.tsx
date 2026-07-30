@@ -2,6 +2,8 @@ import { useState } from "react";
 import type { SaasDevice } from "../../main/saas-client";
 import type { DiscoveredBambuPrinter } from "../../main/discovery/bambu-ssdp";
 import type { DiscoveredMoonrakerPrinter } from "../../main/discovery/moonraker-mdns";
+import { AgentShell } from "../AgentShell";
+import { GlassButton, GlassCard, GlassInput } from "@3pb/ui";
 
 interface PairingTarget {
   shortCode: string;
@@ -99,93 +101,138 @@ export function PairingScreen({
   const unpairedDevices = devices.filter((d) => !pairedCodes.has(d.shortCode));
 
   return (
-    <div style={{ padding: 24, fontFamily: "sans-serif" }}>
-      <div style={{ marginBottom: 16 }}>
+    <AgentShell>
+      <div className="mb-4 flex justify-end">
         {/* Selalu tampil (bukan cuma pas devices kosong) -- user bisa lanjut ke dashboard
             kapan saja, baik dia belum sempat pairing device manapun (akun 0-device, Task 13
-            review Finding 3) maupun sengaja mau pairing sisanya belakangan. */}
-        <button onClick={onAllPaired}>Lanjut ke Dashboard</button>
+            review Finding 3) maupun sengaja mau pairing sisanya belakangan. Dibuat visual
+            lebih kecil/redup dari tombol lain (bukan komponen "secondary" terpisah -- @3pb/ui
+            cuma py satu varian GlassButton) biar tidak terlihat seperti aksi utama. */}
+        <GlassButton onClick={onAllPaired} className="text-xs opacity-70">
+          Lanjut ke Dashboard
+        </GlassButton>
       </div>
-      <div style={{ display: "flex", gap: 24 }}>
-        <div>
-          <h3>Device Terdaftar</h3>
-          {devices.map((d) => {
-            const isPaired = pairedCodes.has(d.shortCode);
-            return (
-              <div key={d.shortCode}>
-                <span>{d.label}</span>
-                {isPaired ? (
-                  <span> Terpasang ✓</span>
-                ) : (
-                  <button onClick={() => startManualPairing(d.shortCode)}>Isi manual</button>
-                )}
-              </div>
-            );
-          })}
-          <button onClick={handleScan} disabled={scanning}>
+      <div className="flex gap-4">
+        <div className="flex-1">
+          <h3 className="g-t2 text-xs font-semibold uppercase tracking-wide mb-2">Device Terdaftar</h3>
+          <div className="space-y-2 mb-3">
+            {devices.map((d) => {
+              const isPaired = pairedCodes.has(d.shortCode);
+              return (
+                <GlassCard key={d.shortCode} className="p-3 flex items-center justify-between">
+                  <span className="g-t1 text-sm">{d.label}</span>
+                  {isPaired ? (
+                    <span className="g-success text-sm">Terpasang ✓</span>
+                  ) : (
+                    <GlassButton onClick={() => startManualPairing(d.shortCode)} className="text-xs">
+                      Isi manual
+                    </GlassButton>
+                  )}
+                </GlassCard>
+              );
+            })}
+          </div>
+          <GlassButton onClick={handleScan} disabled={scanning}>
             {scanning ? "Memindai..." : "Scan LAN"}
-          </button>
-          {scanError && <p role="alert">{scanError}</p>}
+          </GlassButton>
+          {scanError && (
+            <p role="alert" className="g-warning text-sm mt-2">
+              {scanError}
+            </p>
+          )}
         </div>
-        <div>
-          <h3>Hasil Scan Bambu</h3>
-          {bambuPrinters.map((p) => (
-            <div key={p.serial}>
-              <span>
-                {p.ip} ({p.name})
-              </span>
-              {unpairedDevices.map((d) => (
-                <button key={d.shortCode} onClick={() => startPairing(d.shortCode, p.ip, p.serial)}>
-                  Pasangkan ke {d.label}
-                </button>
-              ))}
-            </div>
-          ))}
+        <div className="flex-1">
+          <h3 className="g-t2 text-xs font-semibold uppercase tracking-wide mb-2">Hasil Scan Bambu</h3>
+          <div className="space-y-2">
+            {bambuPrinters.map((p) => (
+              <GlassCard key={p.serial} className="p-3">
+                <span className="g-t1 text-sm">
+                  {p.ip} ({p.name})
+                </span>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {unpairedDevices.map((d) => (
+                    <GlassButton
+                      key={d.shortCode}
+                      onClick={() => startPairing(d.shortCode, p.ip, p.serial)}
+                      className="text-xs"
+                    >
+                      Pasangkan ke {d.label}
+                    </GlassButton>
+                  ))}
+                </div>
+              </GlassCard>
+            ))}
+          </div>
         </div>
-        <div>
-          <h3>Hasil Scan Moonraker</h3>
-          {moonrakerPrinters.map((p) => (
-            <div key={p.ip}>
-              <span>
-                {p.ip} ({p.name})
-              </span>
-              {unpairedDevices.map((d) => (
-                // Moonraker (Klipper) tak punya konsep serial/access-code seperti Bambu — connector-nya
-                // (packages/printer-monitor-core/src/connectors/moonraker.ts) cuma pakai `device.ip`,
-                // jadi serial dikirim kosong; `accessCode` tetap diminta manual di form pairing yang sama
-                // demi konsistensi bentuk DeviceSecret (Task 2), meski Moonraker tak memvalidasinya.
-                <button key={d.shortCode} onClick={() => startPairing(d.shortCode, p.ip, "")}>
-                  Pasangkan ke {d.label}
-                </button>
-              ))}
-            </div>
-          ))}
+        <div className="flex-1">
+          <h3 className="g-t2 text-xs font-semibold uppercase tracking-wide mb-2">Hasil Scan Moonraker</h3>
+          <div className="space-y-2">
+            {moonrakerPrinters.map((p) => (
+              <GlassCard key={p.ip} className="p-3">
+                <span className="g-t1 text-sm">
+                  {p.ip} ({p.name})
+                </span>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  {unpairedDevices.map((d) => (
+                    // Moonraker (Klipper) tak punya konsep serial/access-code seperti Bambu — connector-nya
+                    // (packages/printer-monitor-core/src/connectors/moonraker.ts) cuma pakai `device.ip`,
+                    // jadi serial dikirim kosong; `accessCode` tetap diminta manual di form pairing yang sama
+                    // demi konsistensi bentuk DeviceSecret (Task 2), meski Moonraker tak memvalidasinya.
+                    <GlassButton
+                      key={d.shortCode}
+                      onClick={() => startPairing(d.shortCode, p.ip, "")}
+                      className="text-xs"
+                    >
+                      Pasangkan ke {d.label}
+                    </GlassButton>
+                  ))}
+                </div>
+              </GlassCard>
+            ))}
+          </div>
         </div>
       </div>
       {pairing && (
-        <div>
+        <GlassCard className="p-4 mt-4 max-w-sm">
           {pairing.isManual && (
             <>
-              <label htmlFor="manual-ip">IP</label>
-              <input
+              <label htmlFor="manual-ip" className="g-t2 text-sm block mb-1">
+                IP
+              </label>
+              <GlassInput
                 id="manual-ip"
                 value={pairing.ip}
                 onChange={(e) => setPairing({ ...pairing, ip: e.target.value })}
+                className="w-full mb-2"
               />
-              <label htmlFor="manual-serial">Serial</label>
-              <input
+              <label htmlFor="manual-serial" className="g-t2 text-sm block mb-1">
+                Serial
+              </label>
+              <GlassInput
                 id="manual-serial"
                 value={pairing.serial}
                 onChange={(e) => setPairing({ ...pairing, serial: e.target.value })}
+                className="w-full mb-2"
               />
             </>
           )}
-          <label htmlFor="access-code">Access Code</label>
-          <input id="access-code" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} />
-          <button onClick={savePairing}>Simpan Pairing</button>
-          {pairError && <p role="alert">{pairError}</p>}
-        </div>
+          <label htmlFor="access-code" className="g-t2 text-sm block mb-1">
+            Access Code
+          </label>
+          <GlassInput
+            id="access-code"
+            value={accessCode}
+            onChange={(e) => setAccessCode(e.target.value)}
+            className="w-full mb-3"
+          />
+          <GlassButton onClick={savePairing}>Simpan Pairing</GlassButton>
+          {pairError && (
+            <p role="alert" className="g-error text-sm mt-2">
+              {pairError}
+            </p>
+          )}
+        </GlassCard>
       )}
-    </div>
+    </AgentShell>
   );
 }
