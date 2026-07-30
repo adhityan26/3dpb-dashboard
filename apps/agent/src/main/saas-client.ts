@@ -69,3 +69,20 @@ export async function fetchLayout(token: string): Promise<FetchResult<LayoutConf
     return { ok: false, kind: "network_error" };
   }
 }
+
+export async function patchDeviceModel(token: string, shortCode: string, model: string): Promise<FetchResult<{ model: string | null }>> {
+  try {
+    const res = await fetch(`${saasBaseUrl()}/api/agent/devices/${shortCode}`, {
+      method: "PATCH",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (res.status === 401) return { ok: false, kind: "invalid_token" };
+    if (res.status === 403) return { ok: false, kind: "entitlement_expired" };
+    if (!res.ok) return { ok: false, kind: "network_error" };
+    return { ok: true, data: (await res.json()) as { model: string | null } };
+  } catch {
+    return { ok: false, kind: "network_error" };
+  }
+}
