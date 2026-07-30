@@ -18,6 +18,8 @@ const agentApi = {
     ipcRenderer.invoke("agent:scan-lan"),
   pairDevice: (shortCode: string, secret: DeviceSecret): Promise<void> =>
     ipcRenderer.invoke("agent:pair-device", shortCode, secret),
+  updateDeviceModel: (shortCode: string, model: string): Promise<{ ok: boolean }> =>
+    ipcRenderer.invoke("agent:update-device-model", shortCode, model),
   sync: (): Promise<SyncResult> => ipcRenderer.invoke("agent:sync"),
   getSnapshot: (): Promise<PrintersPayload> => ipcRenderer.invoke("agent:get-snapshot"),
   getBrokerInfo: (): Promise<{ ip: string; port: number | null }> =>
