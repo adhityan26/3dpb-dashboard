@@ -37,6 +37,11 @@ function statusColorClass(state: string): string {
   switch (state.toLowerCase()) {
     case "running":
       return "g-success";
+    // "finish" = print selesai sukses, bukan status netral -- disamakan dengan "running"
+    // (g-success) karena "selesai" adalah outcome positif, sama seperti "sedang jalan"
+    // (final review Finding 3).
+    case "finish":
+      return "g-success";
     case "idle":
     case "pause":
     case "paused":
@@ -44,6 +49,10 @@ function statusColorClass(state: string): string {
     case "error":
       return "g-error";
     default:
+      // Termasuk "offline" (dari payload `packages/agent` yang kirim "OFFLINE" uppercase,
+      // di-lowercase di atas jadi "offline") -- SENGAJA jatuh ke sini, bukan lupa
+      // ditangani. Dim/netral (g-t4) memang perlakuan yang benar untuk printer yang tak
+      // bisa dihubungi, sama seperti state yang benar-benar tak dikenal.
       return "g-t4";
   }
 }

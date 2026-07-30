@@ -101,7 +101,8 @@ export function PairingScreen({
   const unpairedDevices = devices.filter((d) => !pairedCodes.has(d.shortCode));
 
   return (
-    <AgentShell>
+    <AgentShell maxWidth="max-w-3xl">
+      <h1 className="g-t1 text-lg font-semibold mb-4">Pairing Device</h1>
       <div className="mb-4 flex justify-end">
         {/* Selalu tampil (bukan cuma pas devices kosong) -- user bisa lanjut ke dashboard
             kapan saja, baik dia belum sempat pairing device manapun (akun 0-device, Task 13
