@@ -29,11 +29,16 @@ function syncErrorMessage(kind: Extract<SyncResult, { ok: false }>["kind"]): str
 // Pemetaan state printer -> warna status (skill glass-ui-theme §Status Colors). Kasus tak
 // dikenal (state baru dari firmware/printer yang belum dipetakan) sengaja jatuh ke g-t4
 // (redup netral), bukan warna status apa pun -- lebih aman daripada menyiratkan makna salah.
+// Nilai kanonik dari PrinterState (packages/printer-monitor-core/src/types.ts) adalah "pause"
+// (tanpa "d") -- STATE_MAP di normalize-bambu.ts/normalize-moonraker.ts menormalisasi semua
+// varian upstream (RUNNING/PAUSE/PAUSED, dst) ke situ. "paused" dipertahankan sebagai jaga-jaga
+// kalau ada sumber data lama/lain yang masih pakai ejaan itu.
 function statusColorClass(state: string): string {
   switch (state.toLowerCase()) {
     case "running":
       return "g-success";
     case "idle":
+    case "pause":
     case "paused":
       return "g-info";
     case "error":
