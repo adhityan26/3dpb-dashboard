@@ -2,11 +2,13 @@ import { Engine, BambuMqttConnector, MoonrakerConnector, MqttReporter, HmsLookup
 import type { DeviceConfig, Connector } from "@3pb/printer-monitor-core";
 import type { DeviceSecret } from "./credential-store";
 import { hmsTable } from "./hms-table";
+import { CYD_TYPE_FALLBACK } from "./printer-model";
 
 export interface PairedDevice {
   shortCode: string;
   label: string;
   printerType: string;
+  model?: string | null;
   secret: DeviceSecret;
 }
 
@@ -33,7 +35,7 @@ export async function startEngine(paired: PairedDevice[], brokerPort: number): P
     const device: DeviceConfig = {
       id: p.shortCode, // WAJIB persis shortCode — kunci korelasi ke cell layout (Global Constraints)
       name: p.label,
-      type: p.printerType,
+      type: p.model?.trim() || CYD_TYPE_FALLBACK[p.printerType],
       connector: p.printerType,
       ip: p.secret.ip,
       serial: p.secret.serial || undefined,

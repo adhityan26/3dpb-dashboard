@@ -6,6 +6,7 @@ export interface SaasDevice {
   userId: string;
   label: string;
   printerType: string;
+  model: string | null;
   createdAt: string;
   updatedAt: string;
 }
