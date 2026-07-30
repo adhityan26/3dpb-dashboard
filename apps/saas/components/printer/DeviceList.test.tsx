@@ -10,11 +10,11 @@ beforeEach(() => {
 });
 
 /** GET /api/devices balas { devices, limit } (bukan array telanjang). */
-function mockList(devices: Array<{ id: string; label: string; printerType: string }>, limit = 3) {
+function mockList(devices: Array<{ id: string; label: string; printerType: string; model: string | null }>, limit = 3) {
   fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ devices, limit }) });
 }
 
-const DEVICE_A = { id: "d1", label: "Printer A", printerType: "bambu" };
+const DEVICE_A = { id: "d1", label: "Printer A", printerType: "bambu", model: "P1S" };
 
 describe("DeviceList", () => {
   it("tampilkan daftar device dari GET /api/devices", async () => {
@@ -58,8 +58,53 @@ describe("DeviceList", () => {
     const [url, init] = fetchMock.mock.calls[1];
     expect(url).toBe("/api/devices");
     expect(init.method).toBe("POST");
-    expect(JSON.parse(init.body)).toEqual({ label: "Printer 1", printerType: "moonraker" });
+    expect(JSON.parse(init.body)).toEqual({ label: "Printer 1", printerType: "moonraker", model: "" });
     await waitFor(() => expect(screen.getByText("Printer 1")).toBeTruthy());
+  });
+
+  it("kirim model yang diisi user saat tambah", async () => {
+    mockList([], 3);
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ id: "d2", label: "Printer 1", printerType: "bambu", model: "A1Mini" }) });
+    render(<DeviceList paidCore={true} />);
+    await waitFor(() => screen.getByRole("button", { name: /tambah/i }));
+
+    fireEvent.change(screen.getByLabelText("Model printer"), { target: { value: "A1Mini" } });
+    fireEvent.click(screen.getByRole("button", { name: /tambah/i }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const [, init] = fetchMock.mock.calls[1];
+    expect(JSON.parse(init.body)).toEqual({ label: "Printer 1", printerType: "bambu", model: "A1Mini" });
+  });
+
+  it("tampilkan model kalau terisi", async () => {
+    mockList([DEVICE_A]);
+    render(<DeviceList paidCore={true} />);
+    await waitFor(() => expect(screen.getByText("P1S")).toBeTruthy());
+  });
+
+  it("model null -> tampilkan badge 'Model belum diisi'", async () => {
+    mockList([{ ...DEVICE_A, model: null }]);
+    render(<DeviceList paidCore={true} />);
+    await waitFor(() => expect(screen.getByText(/model belum diisi/i)).toBeTruthy());
+  });
+
+  it("edit inline model: klik badge -> isi -> Enter -> PATCH { model }", async () => {
+    mockList([{ ...DEVICE_A, model: null }]);
+    fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ ...DEVICE_A, model: "X1C" }) });
+    render(<DeviceList paidCore={true} />);
+    await waitFor(() => screen.getByText(/model belum diisi/i));
+
+    fireEvent.click(screen.getByRole("button", { name: /isi model printer a/i }));
+    const input = screen.getByLabelText("Model printer Printer A") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "X1C" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    const [url, init] = fetchMock.mock.calls[1];
+    expect(url).toBe("/api/devices/d1");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body)).toEqual({ model: "X1C" });
+    await waitFor(() => expect(screen.getByText("X1C")).toBeTruthy());
   });
 
   it("rename: PATCH /api/devices/{id} dengan label baru + update list lokal", async () => {
