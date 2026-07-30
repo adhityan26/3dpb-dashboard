@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { PrintersPayload } from "@3pb/printer-monitor-core";
 import type { SyncResult } from "../../main/ipc";
+import { AgentShell } from "../AgentShell";
+import { GlassButton, GlassCard } from "@3pb/ui";
 
 type SyncStatus =
   | { kind: "idle" }
@@ -21,6 +23,23 @@ function syncErrorMessage(kind: Extract<SyncResult, { ok: false }>["kind"]): str
     case "network_error":
     default:
       return "Gagal konek ke server Slizebiz — device tetap jalan dari data lokal terakhir.";
+  }
+}
+
+// Pemetaan state printer -> warna status (skill glass-ui-theme §Status Colors). Kasus tak
+// dikenal (state baru dari firmware/printer yang belum dipetakan) sengaja jatuh ke g-t4
+// (redup netral), bukan warna status apa pun -- lebih aman daripada menyiratkan makna salah.
+function statusColorClass(state: string): string {
+  switch (state.toLowerCase()) {
+    case "running":
+      return "g-success";
+    case "idle":
+    case "paused":
+      return "g-info";
+    case "error":
+      return "g-error";
+    default:
+      return "g-t4";
   }
 }
 
@@ -77,32 +96,46 @@ export function DashboardScreen({ initialSync = false }: { initialSync?: boolean
   }
 
   return (
-    <div style={{ padding: 24, fontFamily: "sans-serif" }}>
-      <div>
-        <button onClick={handleSync} disabled={syncStatus.kind === "syncing"}>
+    <AgentShell>
+      <h1 className="g-t1 text-lg font-semibold mb-4">Dashboard</h1>
+      <div className="mb-3 flex items-center gap-3">
+        <GlassButton onClick={handleSync} disabled={syncStatus.kind === "syncing"}>
           {syncStatus.kind === "syncing" ? "Sync..." : "Sync"}
-        </button>
-        {syncStatus.kind === "success" && <span> Tersinkron ({syncStatus.deviceCount} device)</span>}
-        {syncStatus.kind === "error" && <p role="alert">{syncStatus.message}</p>}
+        </GlassButton>
+        {syncStatus.kind === "success" && (
+          <span className="g-success text-sm">Tersinkron ({syncStatus.deviceCount} device)</span>
+        )}
       </div>
-      {initialSync && syncStatus.kind === "syncing" && (
-        <p role="status">Menyiapkan monitoring printer yang baru dipasangkan...</p>
-      )}
-      {brokerInfo && (
-        <p>
-          Alamat broker (ketik ini di setup WiFi CYD):{" "}
-          {brokerInfo.port !== null
-            ? `${brokerInfo.ip}:${brokerInfo.port}`
-            : "broker belum jalan (port 1883 dipakai proses lain, atau diblokir sistem — cek log aplikasi)"}
+      {syncStatus.kind === "error" && (
+        <p role="alert" className="g-error text-sm mb-3">
+          {syncStatus.message}
         </p>
       )}
-      <ul>
+      {initialSync && syncStatus.kind === "syncing" && (
+        <p role="status" className="g-t3 text-sm mb-3">
+          Menyiapkan monitoring printer yang baru dipasangkan...
+        </p>
+      )}
+      {brokerInfo && (
+        <GlassCard className="p-3 mb-4">
+          <p className="g-t2 text-sm">
+            Alamat broker (ketik ini di setup WiFi CYD):{" "}
+            {brokerInfo.port !== null
+              ? `${brokerInfo.ip}:${brokerInfo.port}`
+              : "broker belum jalan (port 1883 dipakai proses lain, atau diblokir sistem — cek log aplikasi)"}
+          </p>
+        </GlassCard>
+      )}
+      <div className="space-y-2">
         {snapshot.payload.map((p) => (
-          <li key={p.id}>
-            <span>{p.name}</span> — {p.state} — {p.progress}%
-          </li>
+          <GlassCard key={p.id} className="p-3 flex items-center justify-between">
+            <span className="g-t1 text-sm">{p.name}</span>
+            <span className={`text-sm ${statusColorClass(p.state)}`}>
+              {p.state} — {p.progress}%
+            </span>
+          </GlassCard>
         ))}
-      </ul>
-    </div>
+      </div>
+    </AgentShell>
   );
 }
