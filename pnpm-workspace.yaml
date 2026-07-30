@@ -14,3 +14,4 @@ onlyBuiltDependencies:
   - sharp
   - lightningcss
   - '@tailwindcss/oxide'
+  - electron
