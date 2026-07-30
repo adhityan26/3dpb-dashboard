@@ -1,6 +1,7 @@
 out/
 dist/
 release/
+.build-win-deploy/
 node_modules/
 .DS_Store
 *.log
