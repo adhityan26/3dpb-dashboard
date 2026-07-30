@@ -2,11 +2,13 @@ import { useState } from "react";
 import type { SaasDevice } from "../../main/saas-client";
 import type { DiscoveredBambuPrinter } from "../../main/discovery/bambu-ssdp";
 import type { DiscoveredMoonrakerPrinter } from "../../main/discovery/moonraker-mdns";
+import { suggestModelFromSsdp } from "../../main/printer-model";
 
 interface PairingTarget {
   shortCode: string;
   ip: string;
   serial: string;
+  model: string;
   isManual: boolean;
 }
 
@@ -29,6 +31,7 @@ export function PairingScreen({
   const [pairing, setPairing] = useState<PairingTarget | null>(null);
   const [accessCode, setAccessCode] = useState("");
   const [pairError, setPairError] = useState<string | null>(null);
+  const [modelWarning, setModelWarning] = useState<string | null>(null);
   // shortCode device yang sudah sukses dipasangkan (sesi ini ATAU launch sebelumnya, lewat
   // initialPairedShortCodes) — dipakai supaya onAllPaired() hanya terpanggil sekali SEMUA
   // device terdaftar sudah dipasangkan (bukan setelah device pertama, lihat Task 12 review
@@ -52,21 +55,22 @@ export function PairingScreen({
     }
   }
 
-  function startPairing(shortCode: string, ip: string, serial: string) {
+  function startPairing(shortCode: string, ip: string, serial: string, suggestedModel: string) {
     // accessCode SENGAJA tidak pernah di-prefill dari hasil scan (tidak ada di paket SSDP
     // maupun mDNS) — user selalu wajib mengetik manual sesuai desain keamanan spec.
-    setPairing({ shortCode, ip, serial, isManual: false });
+    setPairing({ shortCode, ip, serial, model: suggestedModel, isManual: false });
     setAccessCode("");
   }
 
   function startManualPairing(shortCode: string) {
-    setPairing({ shortCode, ip: "", serial: "", isManual: true });
+    setPairing({ shortCode, ip: "", serial: "", model: "", isManual: true });
     setAccessCode("");
   }
 
   async function savePairing() {
     if (!pairing) return;
     setPairError(null);
+    setModelWarning(null);
     try {
       await window.agentApi.pairDevice(pairing.shortCode, {
         ip: pairing.ip,
@@ -80,6 +84,17 @@ export function PairingScreen({
       setPairError("Gagal simpan pairing — coba lagi.");
       return;
     }
+
+    // Model diusulkan balik ke SaaS best-effort SETELAH secret lokal tersimpan -- kegagalan di
+    // sini TIDAK membatalkan pairing (secret sudah aman), cuma tampil sebagai peringatan ringan
+    // (spec §6). Device di SaaS yang model-nya sudah sama tak perlu di-PATCH ulang.
+    const modelTrimmed = pairing.model.trim();
+    const currentDevice = devices.find((d) => d.shortCode === pairing.shortCode);
+    if (modelTrimmed && modelTrimmed !== (currentDevice?.model ?? "")) {
+      const result = await window.agentApi.updateDeviceModel(pairing.shortCode, modelTrimmed);
+      if (!result.ok) setModelWarning("Model belum tersimpan ke akun — bisa diisi lewat web.");
+    }
+
     // Hitung set berikutnya di luar functional updater setState — memanggil onAllPaired()
     // (yang men-trigger setState di App, komponen LAIN) dari dalam updater React bisa terjadi
     // saat React sedang render, dan React larang "setState komponen lain saat render komponen
@@ -135,7 +150,7 @@ export function PairingScreen({
                 {p.ip} ({p.name})
               </span>
               {unpairedDevices.map((d) => (
-                <button key={d.shortCode} onClick={() => startPairing(d.shortCode, p.ip, p.serial)}>
+                <button key={d.shortCode} onClick={() => startPairing(d.shortCode, p.ip, p.serial, suggestModelFromSsdp(p.model) ?? "")}>
                   Pasangkan ke {d.label}
                 </button>
               ))}
@@ -154,7 +169,7 @@ export function PairingScreen({
                 // (packages/printer-monitor-core/src/connectors/moonraker.ts) cuma pakai `device.ip`,
                 // jadi serial dikirim kosong; `accessCode` tetap diminta manual di form pairing yang sama
                 // demi konsistensi bentuk DeviceSecret (Task 2), meski Moonraker tak memvalidasinya.
-                <button key={d.shortCode} onClick={() => startPairing(d.shortCode, p.ip, "")}>
+                <button key={d.shortCode} onClick={() => startPairing(d.shortCode, p.ip, "", "")}>
                   Pasangkan ke {d.label}
                 </button>
               ))}
@@ -180,12 +195,23 @@ export function PairingScreen({
               />
             </>
           )}
+          <label htmlFor="model">Model</label>
+          <input
+            id="model"
+            value={pairing.model}
+            onChange={(e) => setPairing({ ...pairing, model: e.target.value })}
+            placeholder="mis. P1S"
+          />
           <label htmlFor="access-code">Access Code</label>
           <input id="access-code" value={accessCode} onChange={(e) => setAccessCode(e.target.value)} />
           <button onClick={savePairing}>Simpan Pairing</button>
           {pairError && <p role="alert">{pairError}</p>}
         </div>
       )}
+      {/* Di luar blok `{pairing && ...}` SENGAJA -- savePairing() men-set pairing kembali ke
+          null setelah sukses (form pairing ditutup, device pindah ke status "Terpasang"),
+          jadi peringatan model non-blocking ini harus tetap terlihat SESUDAH form hilang. */}
+      {modelWarning && <p>{modelWarning}</p>}
     </div>
   );
 }
