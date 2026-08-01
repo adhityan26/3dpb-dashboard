@@ -83,5 +83,17 @@ export default function App() {
       />
     )
   }
-  return <DashboardScreen initialSync={syncAfterPairing} />
+  return (
+    <DashboardScreen
+      initialSync={syncAfterPairing}
+      onManageDevices={() => {
+        // `devices`/`initialPairedShortCodes` sudah ada di state (diisi saat activation ATAU
+        // dari agent:get-activation-state di awal) -- tak perlu fetch ulang buat balik ke
+        // PairingScreen dari Dashboard. `onAllPaired` (dipanggil PairingScreen begitu selesai,
+        // baik lewat edit maupun "Lanjut ke Dashboard") selalu men-set syncAfterPairing=true
+        // lagi sebelum balik kesini, jadi tak perlu direset manual di sini.
+        setStep('pairing')
+      }}
+    />
+  )
 }

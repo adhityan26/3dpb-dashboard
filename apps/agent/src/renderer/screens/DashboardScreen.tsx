@@ -64,7 +64,10 @@ function statusColorClass(state: string): string {
  * otomatis di sini, satu-satunya jalan keluar buat user adalah menebak tombol Sync atau
  * restart app.
  */
-export function DashboardScreen({ initialSync = false }: { initialSync?: boolean } = {}) {
+export function DashboardScreen({
+  initialSync = false,
+  onManageDevices = () => {},
+}: { initialSync?: boolean; onManageDevices?: () => void } = {}) {
   const [snapshot, setSnapshot] = useState<PrintersPayload>({ payload: [] });
   const [brokerInfo, setBrokerInfo] = useState<{ ip: string; port: number | null } | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({ kind: "idle" });
@@ -111,7 +114,15 @@ export function DashboardScreen({ initialSync = false }: { initialSync?: boolean
 
   return (
     <AgentShell>
-      <h1 className="g-t1 text-lg font-semibold mb-4">Dashboard</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="g-t1 text-lg font-semibold">Dashboard</h1>
+        {/* Satu-satunya jalan balik ke PairingScreen -- dari sini user bisa Edit/Lupakan
+            device yang salah access code-nya atau salah pasang ke slot yang keliru, tanpa
+            harus tahu trik "refresh app". */}
+        <GlassButton onClick={onManageDevices} className="text-xs opacity-70">
+          Pengaturan
+        </GlassButton>
+      </div>
       <div className="mb-3 flex items-center gap-3">
         <GlassButton onClick={handleSync} disabled={syncStatus.kind === "syncing"}>
           {syncStatus.kind === "syncing" ? "Sync..." : "Sync"}
@@ -144,9 +155,18 @@ export function DashboardScreen({ initialSync = false }: { initialSync?: boolean
         {snapshot.payload.map((p) => (
           <GlassCard key={p.id} className="p-3 flex items-center justify-between">
             <span className="g-t1 text-sm">{p.name}</span>
-            <span className={`text-sm ${statusColorClass(p.state)}`}>
-              {p.state} — {p.progress}%
-            </span>
+            <div className="flex items-center gap-3">
+              {/* Suhu terakhir diketahui tetap ditampilkan walau printer OFFLINE (sama
+                  seperti progress/filename -- payload.ts sengaja mempertahankan data
+                  terakhir, bukan me-reset ke 0, kecuali memang belum pernah ada data sama
+                  sekali). */}
+              <span className="g-t3 text-xs">
+                Nozzle {p.nozzle_temp}°C · Bed {p.bed_temp}°C
+              </span>
+              <span className={`text-sm ${statusColorClass(p.state)}`}>
+                {p.state} — {p.progress}%
+              </span>
+            </div>
           </GlassCard>
         ))}
       </div>

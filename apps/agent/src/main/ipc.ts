@@ -44,6 +44,18 @@ export function registerIpcHandlers(): void {
     await saveCredentials(blob);
   });
 
+  // Kebalikan agent:pair-device -- hapus secret device (mis. salah pasang printer fisik ke
+  // slot device yang salah), biar PairingScreen anggap device itu belum dipasangkan lagi dan
+  // user bisa isi ulang IP/serial/access code yang benar. TIDAK memicu Sync/restart Engine di
+  // sini (v1 sengaja minimal) -- koneksi lama baru benar-benar berhenti setelah user
+  // menyelesaikan pairing ulang (lewat onAllPaired -> initialSync di Dashboard) atau klik Sync
+  // manual.
+  ipcMain.handle("agent:forget-device", async (_event, shortCode: string): Promise<void> => {
+    const blob = await loadCredentials();
+    delete blob.devices[shortCode];
+    await saveCredentials(blob);
+  });
+
   /**
    * Dipanggil PairingScreen sesudah pairing tersimpan, kalau user mengisi/mengubah model di
    * form pairing -- best-effort, non-blocking (spec §6): pairing lokal SUDAH selesai terlepas

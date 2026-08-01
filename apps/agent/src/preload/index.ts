@@ -18,6 +18,7 @@ const agentApi = {
     ipcRenderer.invoke("agent:scan-lan"),
   pairDevice: (shortCode: string, secret: DeviceSecret): Promise<void> =>
     ipcRenderer.invoke("agent:pair-device", shortCode, secret),
+  forgetDevice: (shortCode: string): Promise<void> => ipcRenderer.invoke("agent:forget-device", shortCode),
   updateDeviceModel: (shortCode: string, model: string): Promise<UpdateDeviceModelResult> =>
     ipcRenderer.invoke("agent:update-device-model", shortCode, model),
   sync: (): Promise<SyncResult> => ipcRenderer.invoke("agent:sync"),

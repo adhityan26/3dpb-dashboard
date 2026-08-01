@@ -10,6 +10,7 @@ beforeEach(() => {
     activate: vi.fn().mockResolvedValue({ ok: true, data: devices }),
     scanLan: vi.fn().mockResolvedValue({ bambu: { ok: true, printers: [] }, moonraker: [] }),
     pairDevice: vi.fn().mockResolvedValue(undefined),
+    forgetDevice: vi.fn().mockResolvedValue(undefined),
     sync: vi.fn().mockResolvedValue({ ok: true, deviceCount: 1 }),
     getSnapshot: vi.fn().mockResolvedValue({ payload: [] }),
     getBrokerInfo: vi.fn().mockResolvedValue({ ip: "192.168.1.100", port: 1883 }),
@@ -137,6 +138,22 @@ describe("App", () => {
     await waitFor(() => expect(screen.getByText(/terpasang/i)).toBeTruthy());
     // Printer B (belum dipasangkan) masih punya tombol "Isi manual", Printer A tidak.
     expect(screen.getByRole("button", { name: /isi manual/i })).toBeTruthy();
+  });
+
+  it("dari Dashboard, klik Pengaturan -> balik ke PairingScreen dengan device yang sudah paired tetap tampil Terpasang (bukan direset)", async () => {
+    (window as any).agentApi.getActivationState.mockResolvedValue({
+      hasToken: true,
+      devices,
+      pairedShortCodes: ["abc1234567"],
+    });
+    render(<App />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /sync/i })).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /pengaturan/i }));
+
+    await waitFor(() => expect(screen.getByText(/terpasang/i)).toBeTruthy());
+    expect(screen.getByRole("button", { name: /^edit$/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /lupakan/i })).toBeTruthy();
   });
 
   it("agent:get-activation-state gagal (IPC reject) -> fallback ke layar Aktivasi, tidak macet di loading", async () => {

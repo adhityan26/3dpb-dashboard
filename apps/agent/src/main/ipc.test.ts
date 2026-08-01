@@ -15,7 +15,7 @@ vi.mock("./layout-publisher", () => ({ publishLayout: vi.fn().mockResolvedValue(
 import { registerIpcHandlers } from "./ipc";
 import { ipcMain } from "electron";
 import { fetchDevices, patchDeviceModel } from "./saas-client";
-import { loadCredentials } from "./credential-store";
+import { loadCredentials, saveCredentials } from "./credential-store";
 import { reconcileDevices } from "./startup";
 import { startEngine } from "./engine-manager";
 import { publishLayout } from "./layout-publisher";
@@ -36,6 +36,24 @@ describe("registerIpcHandlers", () => {
   it("daftarkan handler 'agent:scan-lan'", () => {
     registerIpcHandlers();
     expect(ipcMain.handle).toHaveBeenCalledWith("agent:scan-lan", expect.any(Function));
+  });
+
+  it("'agent:forget-device' hapus secret device dari credential-store, sisa device lain tak tersentuh", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({
+      agentToken: "slz_ok",
+      devices: {
+        abc1234567: { ip: "1.2.3.4", serial: "S1", accessCode: "1111" },
+        def1234567: { ip: "5.6.7.8", serial: "S2", accessCode: "2222" },
+      },
+    });
+
+    await handlers["agent:forget-device"]({}, "abc1234567");
+
+    expect(saveCredentials).toHaveBeenCalledWith({
+      agentToken: "slz_ok",
+      devices: { def1234567: { ip: "5.6.7.8", serial: "S2", accessCode: "2222" } },
+    });
   });
 
   it("'agent:get-snapshot' baca getEngine() TERKINI tiap dipanggil, bukan snapshot beku saat register", async () => {
