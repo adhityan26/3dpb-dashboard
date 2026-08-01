@@ -7,7 +7,16 @@ win:
   artifactName: ${productName}-Setup-${version}.${ext}
 nsis:
   oneClick: false
-  allowToChangeInstallationDirectory: true
+  # SENGAJA false (sebelumnya true): kalau user (atau kita sendiri, waktu testing) install ke
+  # path yang beda-beda antar run, NSIS gagal cocokkan "versi lama di path X" -> logic
+  # auto-uninstall-versi-lama-sebelum-install-baru gak pernah terpicu, file lama nyangkut, dan
+  # update berikutnya gagal kecuali folder AppData/Program dihapus manual. Path instalasi tetap
+  # (selalu %LOCALAPPDATA%\Programs\Slizebiz Agent) menghilangkan sumber ketidakcocokan itu.
+  allowToChangeInstallationDirectory: false
+  # Eksplisit (bukan cuma andalkan auto-derive dari appId) -- dokumentasi electron-builder:
+  # "Used to identify the application for upgrade and uninstall operations", jangan pernah
+  # diganti setelah ini biar update-in-place tetap konsisten ke depannya.
+  guid: 04F84627-6088-42AF-9F62-8045052DA997
 mac:
   target: dmg
   artifactName: ${productName}-${version}.${ext}
