@@ -21,6 +21,8 @@ export function buildPrintersPayload(
         filename: r?.last_filename ?? '',
         error_msg: r?.last_error_code ?? '',
         last_seen: r?.last_seen_at ?? null,
+        nozzle_temp: r?.last_nozzle_temp ?? 0,
+        bed_temp: r?.last_bed_temp ?? 0,
       }
     }),
   }

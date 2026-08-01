@@ -10,6 +10,10 @@ export function normalizeMoonraker(deviceId: string, body: unknown): NormalizedS
   const ps = status.print_stats ?? {}
   const vs = status.virtual_sdcard ?? {}
   const ds = status.display_status ?? {}
+  // extruder/heater_bed cuma ada di response kalau diminta lewat query string (lihat
+  // connectors/moonraker.ts) -- absen (mis. response lama sebelum fitur suhu) jatuh ke {}.
+  const extruder = status.extruder ?? {}
+  const heaterBed = status.heater_bed ?? {}
 
   const rawState = String(ps.state ?? 'standby').toLowerCase()
   const state = STATE_MAP[rawState] ?? 'idle'
@@ -23,5 +27,7 @@ export function normalizeMoonraker(deviceId: string, body: unknown): NormalizedS
     progress, file: String(ps.filename ?? ''), taskId: '',
     remainingMin, printError: 0, mcPrintErrorCode: '0', failReason: '0',
     hms: [], errorDetails: '', eventTime: new Date().toISOString(),
+    nozzleTemp: Math.round(Number(extruder.temperature ?? 0)),
+    bedTemp: Math.round(Number(heaterBed.temperature ?? 0)),
   }
 }

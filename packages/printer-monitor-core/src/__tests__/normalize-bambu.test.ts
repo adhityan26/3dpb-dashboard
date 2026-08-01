@@ -39,6 +39,14 @@ describe('normalizeBambu (port n8n Normalize Message)', () => {
     expect(s.file).toBe('part.gcode.3mf')
   })
 
+  it('nozzle_temper/bed_temper diekstrak & dibulatkan; absen -> 0', () => {
+    const s = normalizeBambu('mars', { print: { ...running.print, nozzle_temper: 219.6, bed_temper: 59.8 } })
+    expect(s.nozzleTemp).toBe(220)
+    expect(s.bedTemp).toBe(60)
+    expect(normalizeBambu('x', { print: { gcode_state: 'IDLE' } }).nozzleTemp).toBe(0)
+    expect(normalizeBambu('x', { print: { gcode_state: 'IDLE' } }).bedTemp).toBe(0)
+  })
+
   it('errorDetails gaya Capture Event: HMS + print_error desimal', () => {
     const s = normalizeBambu('x', {
       print: { gcode_state: 'RUNNING', print_error: 117473285, mc_print_error_code: '0',

@@ -16,6 +16,7 @@ describe('StateStore + buildPrintersPayload', () => {
       id: 'mars',
       name: 'Mars', type: 'P1P', state: 'OFFLINE', progress: 0,
       remaining_min: 0, filename: '', error_msg: '', last_seen: null,
+      nozzle_temp: 0, bed_temp: 0,
     }])
   })
 
@@ -38,6 +39,16 @@ describe('StateStore + buildPrintersPayload', () => {
     const stale = buildPrintersPayload([mars], store, T0 + 11 * 60_000)
     expect(stale.payload[0].state).toBe('OFFLINE')
     expect(stale.payload[0].progress).toBe(100) // data terakhir dipertahankan (paritas n8n)
+  })
+
+  it('nozzle_temp/bed_temp mengalir dari NormalizedStatus sampai ke PrinterRow', () => {
+    const store = new StateStore()
+    const s = normalizeBambu('mars', { print: {
+      gcode_state: 'RUNNING', mc_percent: 50, nozzle_temper: 219.6, bed_temper: 59.8 } })
+    store.upsertFromStatus(mars, s, null)
+
+    const p = buildPrintersPayload([mars], store, T0)
+    expect(p.payload[0]).toMatchObject({ nozzle_temp: 220, bed_temp: 60 })
   })
 
   it('urutan payload = urutan devices config; payload adalah array (bukan string)', () => {

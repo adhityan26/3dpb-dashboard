@@ -15,6 +15,8 @@ export class StateStore {
       last_filename: s.file,
       last_error_code: s.errorDetails,
       last_seen_at: s.eventTime,
+      last_nozzle_temp: s.nozzleTemp,
+      last_bed_temp: s.bedTemp,
     }
     this.m.set(device.id, row)
     return row

@@ -28,6 +28,8 @@ export interface NormalizedStatus {
   hms: HmsEntry[]
   errorDetails: string      // gaya n8n Capture Event: "hms=... | print_error=N | mc_print_error_code=M"
   eventTime: string         // ISO
+  nozzleTemp: number        // celcius, 0 kalau tak ada di message/response
+  bedTemp: number           // celcius, 0 kalau tak ada di message/response
 }
 
 export type PrinterEventKind = 'started' | 'error' | 'finished'
@@ -49,9 +51,14 @@ export interface StoredState {
   last_filename: string
   last_error_code: string
   last_seen_at: string | null
+  last_nozzle_temp: number
+  last_bed_temp: number
 }
 
-// Kontrak CYD — JANGAN diubah (spec §2)
+// Kontrak CYD — field lama JANGAN diubah (spec §2). nozzle_temp/bed_temp ditambahkan
+// belakangan sebagai field BARU (additive) khusus buat Dashboard Electron -- firmware CYD
+// yang belum tahu field ini diasumsikan mengabaikannya (parser JSON umum begitu), field
+// yang SUDAH ada di atas tetap persis sama.
 export interface PrinterRow {
   id: string
   name: string
@@ -62,5 +69,7 @@ export interface PrinterRow {
   filename: string
   error_msg: string
   last_seen: string | null
+  nozzle_temp: number
+  bed_temp: number
 }
 export interface PrintersPayload { payload: PrinterRow[] }

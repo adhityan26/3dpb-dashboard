@@ -24,4 +24,25 @@ describe('normalizeMoonraker (port ganymede Parse Status, casing distandarkan lo
     expect(normalizeMoonraker('g', body({ state: 'printing', print_duration: 100 }, 0)).remainingMin).toBe(0)
     expect(normalizeMoonraker('g', body({ state: 'complete', print_duration: 100 }, 1)).remainingMin).toBe(0)
   })
+
+  it('extruder.temperature/heater_bed.temperature diekstrak & dibulatkan; absen (mis. response lama sebelum object ini di-query) -> 0', () => {
+    const withTemp = {
+      result: {
+        status: {
+          print_stats: { state: 'printing' },
+          virtual_sdcard: { progress: 0.4 },
+          display_status: { progress: 0.4 },
+          extruder: { temperature: 219.6 },
+          heater_bed: { temperature: 59.8 },
+        },
+      },
+    }
+    const s = normalizeMoonraker('g', withTemp)
+    expect(s.nozzleTemp).toBe(220)
+    expect(s.bedTemp).toBe(60)
+
+    const withoutTemp = normalizeMoonraker('g', body({ state: 'printing' }))
+    expect(withoutTemp.nozzleTemp).toBe(0)
+    expect(withoutTemp.bedTemp).toBe(0)
+  })
 })

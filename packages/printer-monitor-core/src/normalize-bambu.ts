@@ -38,5 +38,9 @@ export function normalizeBambu(deviceId: string, message: unknown): NormalizedSt
     hms,
     errorDetails: buildErrorDetails(hms, printError, mcPrintErrorCode),
     eventTime: new Date().toISOString(),
+    // nozzle_temper/bed_temper sudah ada di message `pushall` yang sama (protokol MQTT
+    // Bambu) -- cuma belum pernah diekstrak sebelum fitur suhu ini.
+    nozzleTemp: Math.round(Number(raw.nozzle_temper ?? 0)),
+    bedTemp: Math.round(Number(raw.bed_temper ?? 0)),
   }
 }
