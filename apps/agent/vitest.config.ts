@@ -7,11 +7,12 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'jsdom',
-    // `.build-win-deploy/` (scripts/build-win.mjs) is a full `pnpm deploy`
+    // `.build-{win,mac}-deploy/` (scripts/build-installer.mjs) is a full `pnpm deploy`
     // snapshot of this package's own source, including its test files --
     // without this exclude, vitest double-collects every test from inside
     // it (duplicate describe blocks, doubled file count).
-    exclude: [...configDefaults.exclude, '.build-win-deploy/**']
+    exclude: [...configDefaults.exclude, '.build-win-deploy/**', '.build-mac-deploy/**'],
+    setupFiles: ['./src/test-setup.ts']
   },
   resolve: {
     alias: {

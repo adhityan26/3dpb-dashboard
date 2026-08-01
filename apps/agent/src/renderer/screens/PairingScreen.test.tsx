@@ -12,6 +12,7 @@ beforeEach(() => {
       moonraker: [],
     }),
     pairDevice: vi.fn().mockResolvedValue(undefined),
+    forgetDevice: vi.fn().mockResolvedValue(undefined),
     updateDeviceModel: vi.fn().mockResolvedValue({ ok: true }),
   };
 });
@@ -101,8 +102,10 @@ describe("PairingScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: /scan lan/i }));
     await waitFor(() => screen.getByText(/192\.168\.1\.5/));
 
-    // pasangkan device pertama lewat hasil scan
-    fireEvent.click(screen.getByRole("button", { name: /pasangkan ke printer a/i }));
+    // pasangkan device pertama lewat hasil scan -- pilih "Printer A" di dropdown, baru klik
+    // tombol "Pasangkan" generik (bukan lagi satu tombol per device)
+    fireEvent.change(screen.getByLabelText(/pilih device/i), { target: { value: "abc1234567" } });
+    fireEvent.click(screen.getByRole("button", { name: /^pasangkan$/i }));
     fireEvent.change(screen.getByLabelText(/access code/i), { target: { value: "1111" } });
     fireEvent.click(screen.getByRole("button", { name: /simpan pairing/i }));
 
@@ -278,7 +281,7 @@ describe("PairingScreen", () => {
     expect(screen.queryByText(/model belum tersimpan ke akun/i)).toBeNull();
   });
 
-  it("hasil scan Bambu yang namanya cocok dengan label device -> tombol 'Pasangkan ke ...'-nya diberi penanda rekomendasi", async () => {
+  it("hasil scan Bambu yang namanya cocok dengan label device -> device itu jadi pilihan default dropdown + opsinya diberi penanda rekomendasi", async () => {
     const deviceMatchingName = [
       { id: "d1", shortCode: "abc1234567", userId: "u1", label: "Neptune", printerType: "bambu", model: null, createdAt: "x", updatedAt: "y" },
       { id: "d2", shortCode: "def1234567", userId: "u1", label: "Printer Lain", printerType: "bambu", model: null, createdAt: "x", updatedAt: "y" },
@@ -288,18 +291,117 @@ describe("PairingScreen", () => {
     fireEvent.click(screen.getByRole("button", { name: /scan lan/i }));
     await waitFor(() => screen.getByText(/192\.168\.1\.5/));
 
-    expect(screen.getByRole("button", { name: /pasangkan ke neptune.*disarankan/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^pasangkan ke printer lain$/i })).toBeTruthy();
+    const select = screen.getByLabelText(/pilih device/i) as HTMLSelectElement;
+    expect(select.value).toBe("abc1234567");
+    expect(screen.getByRole("option", { name: /neptune.*disarankan/i })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /^printer lain$/i })).toBeTruthy();
   });
 
-  it("hasil scan Bambu yang namanya TAK cocok dengan device manapun -> tak ada tombol yang diberi penanda rekomendasi", async () => {
+  it("hasil scan Bambu yang namanya TAK cocok dengan device manapun -> tak ada opsi dropdown yang diberi penanda rekomendasi", async () => {
     render(<PairingScreen devices={devices} onAllPaired={vi.fn()} />);
     fireEvent.click(screen.getByRole("button", { name: /scan lan/i }));
     await waitFor(() => screen.getByText(/192\.168\.1\.5/));
 
     // scanLan mock balas printer bernama "Neptune", devices fixture cuma punya "Printer A" -- tak cocok.
-    expect(screen.getByRole("button", { name: /^pasangkan ke printer a$/i })).toBeTruthy();
+    expect(screen.getByRole("option", { name: /^printer a$/i })).toBeTruthy();
     expect(screen.queryByText(/disarankan/i)).toBeNull();
+  });
+
+  it("ganti pilihan dropdown ke device LAIN dari default rekomendasi -> Pasangkan target device yang dipilih user, bukan defaultnya", async () => {
+    const deviceMatchingName = [
+      { id: "d1", shortCode: "abc1234567", userId: "u1", label: "Neptune", printerType: "bambu", model: null, createdAt: "x", updatedAt: "y" },
+      { id: "d2", shortCode: "def1234567", userId: "u1", label: "Printer Lain", printerType: "bambu", model: null, createdAt: "x", updatedAt: "y" },
+    ];
+    render(<PairingScreen devices={deviceMatchingName} onAllPaired={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /scan lan/i }));
+    await waitFor(() => screen.getByText(/192\.168\.1\.5/));
+
+    // Default dropdown = "Neptune" (rekomendasi nama-cocok) -- user sengaja ganti ke "Printer
+    // Lain".
+    fireEvent.change(screen.getByLabelText(/pilih device/i), { target: { value: "def1234567" } });
+    fireEvent.click(screen.getByRole("button", { name: /^pasangkan$/i }));
+    fireEvent.change(screen.getByLabelText(/access code/i), { target: { value: "1234" } });
+    fireEvent.click(screen.getByRole("button", { name: /simpan pairing/i }));
+
+    await waitFor(() =>
+      expect((window as any).agentApi.pairDevice).toHaveBeenCalledWith("def1234567", {
+        ip: "192.168.1.5",
+        serial: "SER1",
+        accessCode: "1234",
+      }),
+    );
+  });
+
+  it("form pairing auto-scroll ke tampilan begitu muncul -- window Agent 900x670 gampang bikin form ke-render di luar viewport tanpa ini (user pernah kira tombol pasangkan mati)", async () => {
+    const scrollSpy = vi.spyOn(Element.prototype, "scrollIntoView");
+    render(<PairingScreen devices={devices} onAllPaired={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /isi manual/i }));
+    expect(scrollSpy).toHaveBeenCalledWith(expect.objectContaining({ block: "center" }));
+  });
+
+  it("device sudah Terpasang -> tombol Edit muncul, klik buka form kosong (bukan prefill), Simpan overwrite pairDevice dengan nilai baru", async () => {
+    render(<PairingScreen devices={devices} onAllPaired={vi.fn()} initialPairedShortCodes={["abc1234567"]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+    expect((screen.getByLabelText(/^ip/i) as HTMLInputElement).value).toBe("");
+    fireEvent.change(screen.getByLabelText(/^ip/i), { target: { value: "10.0.0.55" } });
+    fireEvent.change(screen.getByLabelText(/serial/i), { target: { value: "FIXEDSERIAL" } });
+    fireEvent.change(screen.getByLabelText(/access code/i), { target: { value: "5678" } });
+    fireEvent.click(screen.getByRole("button", { name: /simpan pairing/i }));
+
+    await waitFor(() =>
+      expect((window as any).agentApi.pairDevice).toHaveBeenCalledWith("abc1234567", {
+        ip: "10.0.0.55",
+        serial: "FIXEDSERIAL",
+        accessCode: "5678",
+      }),
+    );
+  });
+
+  it("device sudah Terpasang, semua device lain juga sudah paired -> selesai Edit langsung panggil onAllPaired lagi (balik ke Dashboard + auto-sync)", async () => {
+    const onAllPaired = vi.fn();
+    render(<PairingScreen devices={devices} onAllPaired={onAllPaired} initialPairedShortCodes={["abc1234567"]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+    fireEvent.change(screen.getByLabelText(/^ip/i), { target: { value: "10.0.0.55" } });
+    fireEvent.change(screen.getByLabelText(/serial/i), { target: { value: "FIXEDSERIAL" } });
+    fireEvent.change(screen.getByLabelText(/access code/i), { target: { value: "5678" } });
+    fireEvent.click(screen.getByRole("button", { name: /simpan pairing/i }));
+
+    await waitFor(() => expect(onAllPaired).toHaveBeenCalled());
+  });
+
+  it("device sudah Terpasang -> tombol Lupakan panggil forgetDevice, device balik status belum-dipasangkan (tombol Isi manual muncul lagi)", async () => {
+    render(<PairingScreen devices={devices} onAllPaired={vi.fn()} initialPairedShortCodes={["abc1234567"]} />);
+    expect(screen.getByText(/terpasang/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /lupakan/i }));
+
+    await waitFor(() => expect((window as any).agentApi.forgetDevice).toHaveBeenCalledWith("abc1234567"));
+    expect(screen.queryByText(/terpasang/i)).toBeNull();
+    expect(screen.getByRole("button", { name: /isi manual/i })).toBeTruthy();
+  });
+
+  it("klik Edit lalu Lupakan device yang sama (belum sempat Simpan) -> form pairing ikut tertutup", async () => {
+    render(<PairingScreen devices={devices} onAllPaired={vi.fn()} initialPairedShortCodes={["abc1234567"]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /^edit$/i }));
+    expect(screen.getByLabelText(/access code/i)).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: /lupakan/i }));
+
+    await waitFor(() => expect((window as any).agentApi.forgetDevice).toHaveBeenCalled());
+    expect(screen.queryByLabelText(/access code/i)).toBeNull();
+  });
+
+  it("forgetDevice gagal (IPC reject) -> tampilkan error, device TETAP Terpasang", async () => {
+    (window as any).agentApi.forgetDevice.mockRejectedValue(new Error("disk penuh"));
+    render(<PairingScreen devices={devices} onAllPaired={vi.fn()} initialPairedShortCodes={["abc1234567"]} />);
+
+    fireEvent.click(screen.getByRole("button", { name: /lupakan/i }));
+
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    expect(screen.getByText(/terpasang/i)).toBeTruthy();
   });
 
   it("updateDeviceModel gagal -> peringatan non-blocking, pairing TETAP dianggap selesai", async () => {

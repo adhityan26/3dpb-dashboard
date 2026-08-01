@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { SaasDevice } from "../../main/saas-client";
 import type { DiscoveredBambuPrinter } from "../../main/discovery/bambu-ssdp";
 import type { DiscoveredMoonrakerPrinter } from "../../main/discovery/moonraker-mdns";
@@ -7,12 +7,20 @@ import { GlassButton, GlassCard, GlassInput } from "@3pb/ui";
 import { suggestModelFromSsdp, matchDeviceByName } from "../../main/printer-model";
 import { LAYOUT_LIMITS } from "@3pb/cyd-layout-schema";
 
+// Kartu mana yang harus menampilkan form pairing inline -- "device" = baris di kolom Device
+// Terdaftar (key: shortCode device itu sendiri, sudah ada di PairingTarget.shortCode);
+// "bambu"/"moonraker" = kartu hasil scan (key: serial/ip PRINTER yang di-scan, beda dari
+// shortCode device TARGET-nya, karena satu kartu hasil scan bisa dipasangkan ke device
+// manapun lewat dropdown).
+type PairingSource = { kind: "device" } | { kind: "bambu"; key: string } | { kind: "moonraker"; key: string };
+
 interface PairingTarget {
   shortCode: string;
   ip: string;
   serial: string;
   model: string;
   isManual: boolean;
+  source: PairingSource;
 }
 
 export function PairingScreen({
@@ -40,6 +48,23 @@ export function PairingScreen({
   // device terdaftar sudah dipasangkan (bukan setelah device pertama, lihat Task 12 review
   // gap B1).
   const [pairedCodes, setPairedCodes] = useState<Set<string>>(() => new Set(initialPairedShortCodes));
+  // Device yang lagi dipilih di dropdown tiap kartu hasil scan, key = serial (Bambu) / ip
+  // (Moonraker) printer -- dipisah dari `pairing` karena ini cuma pilihan UI sebelum tombol
+  // "Pasangkan" diklik, bukan sesi pairing yang sedang berjalan.
+  const [selectedTargets, setSelectedTargets] = useState<Record<string, string>>({});
+  const formRef = useRef<HTMLDivElement>(null);
+
+  // Window Agent cuma 900x670 -- kalau kolom yang lagi dibuka formnya ada di bagian bawah
+  // daftar yang panjang, form bisa ke-render di luar viewport tanpa indikasi apa pun buat
+  // scroll (dilaporkan langsung, dikonfirmasi lewat DevTools element-picker: klik memang
+  // mendarat di tombol yang benar, bukan overlay -- cuma form-nya di luar layar). Form sekarang
+  // inline di bawah kartu yang diklik (bukan lagi di paling bawah halaman), tapi safety-net ini
+  // tetap dipertahankan buat kartu yang posisinya jauh di bawah.
+  useEffect(() => {
+    if (pairing) {
+      formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [pairing]);
 
   async function handleScan() {
     setScanning(true);
@@ -58,10 +83,10 @@ export function PairingScreen({
     }
   }
 
-  function startPairing(shortCode: string, ip: string, serial: string, suggestedModel: string) {
+  function startPairing(shortCode: string, ip: string, serial: string, suggestedModel: string, source: PairingSource) {
     // accessCode SENGAJA tidak pernah di-prefill dari hasil scan (tidak ada di paket SSDP
     // maupun mDNS) — user selalu wajib mengetik manual sesuai desain keamanan spec.
-    setPairing({ shortCode, ip, serial, model: suggestedModel, isManual: false });
+    setPairing({ shortCode, ip, serial, model: suggestedModel, isManual: false, source });
     setAccessCode("");
     // Warning dari device SEBELUMNYA (kalau ada) tak relevan lagi buat form device baru ini
     // -- tanpa ini, peringatan model lama nyangkut kelihatan sementara user isi device
@@ -70,7 +95,7 @@ export function PairingScreen({
   }
 
   function startManualPairing(shortCode: string) {
-    setPairing({ shortCode, ip: "", serial: "", model: "", isManual: true });
+    setPairing({ shortCode, ip: "", serial: "", model: "", isManual: true, source: { kind: "device" } });
     setAccessCode("");
     setModelWarning(null);
   }
@@ -128,110 +153,46 @@ export function PairingScreen({
     if (devices.every((d) => next.has(d.shortCode))) onAllPaired();
   }
 
+  // Kebalikan pairing -- buat kasus salah pasang (mis. printer Mars ke-pair ke slot device
+  // Mercury): hapus secret device ini biar statusnya balik "belum dipasangkan" dan user bisa
+  // isi ulang IP/serial/access code yang benar lewat "Isi manual"/hasil scan seperti biasa.
+  async function forgetDevice(shortCode: string) {
+    setPairError(null);
+    try {
+      await window.agentApi.forgetDevice(shortCode);
+    } catch (err) {
+      console.error("[pairing] gagal lupakan device", err);
+      setPairError("Gagal lupakan device — coba lagi.");
+      return;
+    }
+    setPairedCodes((prev) => {
+      const next = new Set(prev);
+      next.delete(shortCode);
+      return next;
+    });
+    // Form pairing yang lagi kebuka mungkin punya shortCode yang sama (user klik Edit lalu
+    // Lupakan tanpa Simpan) -- tutup biar tak nyangkut ngedit device yang secret-nya sudah
+    // dihapus.
+    setPairing((current) => (current?.shortCode === shortCode ? null : current));
+  }
+
   const unpairedDevices = devices.filter((d) => !pairedCodes.has(d.shortCode));
 
-  return (
-    <AgentShell maxWidth="max-w-3xl">
-      <h1 className="g-t1 text-lg font-semibold mb-4">Pairing Device</h1>
-      <div className="mb-4 flex justify-end">
-        {/* Selalu tampil (bukan cuma pas devices kosong) -- user bisa lanjut ke dashboard
-            kapan saja, baik dia belum sempat pairing device manapun (akun 0-device, Task 13
-            review Finding 3) maupun sengaja mau pairing sisanya belakangan. Dibuat visual
-            lebih kecil/redup dari tombol lain (bukan komponen "secondary" terpisah -- @3pb/ui
-            cuma py satu varian GlassButton) biar tidak terlihat seperti aksi utama. */}
-        <GlassButton onClick={onAllPaired} className="text-xs opacity-70">
-          Lanjut ke Dashboard
-        </GlassButton>
-      </div>
-      <div className="flex gap-4">
-        <div className="flex-1">
-          <h3 className="g-t2 text-xs font-semibold uppercase tracking-wide mb-2">Device Terdaftar</h3>
-          <div className="space-y-2 mb-3">
-            {devices.map((d) => {
-              const isPaired = pairedCodes.has(d.shortCode);
-              return (
-                <GlassCard key={d.shortCode} className="p-3 flex items-center justify-between">
-                  <span className="g-t1 text-sm">{d.label}</span>
-                  {isPaired ? (
-                    <span className="g-success text-sm">Terpasang ✓</span>
-                  ) : (
-                    <GlassButton onClick={() => startManualPairing(d.shortCode)} className="text-xs">
-                      Isi manual
-                    </GlassButton>
-                  )}
-                </GlassCard>
-              );
-            })}
-          </div>
-          <GlassButton onClick={handleScan} disabled={scanning}>
-            {scanning ? "Memindai..." : "Scan LAN"}
-          </GlassButton>
-          {scanError && (
-            <p role="alert" className="g-warning text-sm mt-2">
-              {scanError}
-            </p>
-          )}
-        </div>
-        <div className="flex-1">
-          <h3 className="g-t2 text-xs font-semibold uppercase tracking-wide mb-2">Hasil Scan Bambu</h3>
-          <div className="space-y-2">
-            {bambuPrinters.map((p) => {
-              // Rekomendasi SAJA (spec §6) -- dihitung terhadap unpairedDevices (bukan `devices`)
-              // karena device yang sudah dipasangkan tak lagi punya tombol "Pasangkan ke ..." buat
-              // ditandai; user tetap bebas klik tombol device manapun.
-              const recommendedShortCode = matchDeviceByName(p.name, unpairedDevices);
-              return (
-                <GlassCard key={p.serial} className="p-3">
-                  <span className="g-t1 text-sm">
-                    {p.ip} ({p.name})
-                  </span>
-                  <div className="flex flex-wrap gap-1.5 mt-1.5">
-                    {unpairedDevices.map((d) => (
-                      <GlassButton
-                        key={d.shortCode}
-                        onClick={() => startPairing(d.shortCode, p.ip, p.serial, suggestModelFromSsdp(p.model) ?? "")}
-                        className="text-xs"
-                      >
-                        Pasangkan ke {d.label}
-                        {d.shortCode === recommendedShortCode ? " (disarankan)" : ""}
-                      </GlassButton>
-                    ))}
-                  </div>
-                </GlassCard>
-              );
-            })}
-          </div>
-        </div>
-        <div className="flex-1">
-          <h3 className="g-t2 text-xs font-semibold uppercase tracking-wide mb-2">Hasil Scan Moonraker</h3>
-          <div className="space-y-2">
-            {moonrakerPrinters.map((p) => (
-              <GlassCard key={p.ip} className="p-3">
-                <span className="g-t1 text-sm">
-                  {p.ip} ({p.name})
-                </span>
-                <div className="flex flex-wrap gap-1.5 mt-1.5">
-                  {unpairedDevices.map((d) => (
-                    // Moonraker (Klipper) tak punya konsep serial/access-code seperti Bambu — connector-nya
-                    // (packages/printer-monitor-core/src/connectors/moonraker.ts) cuma pakai `device.ip`,
-                    // jadi serial dikirim kosong; `accessCode` tetap diminta manual di form pairing yang sama
-                    // demi konsistensi bentuk DeviceSecret (Task 2), meski Moonraker tak memvalidasinya.
-                    <GlassButton
-                      key={d.shortCode}
-                      onClick={() => startPairing(d.shortCode, p.ip, "", "")}
-                      className="text-xs"
-                    >
-                      Pasangkan ke {d.label}
-                    </GlassButton>
-                  ))}
-                </div>
-              </GlassCard>
-            ))}
-          </div>
-        </div>
-      </div>
-      {pairing && (
-        <GlassCard className="p-4 mt-4 max-w-sm">
+  // Device yang lagi aktif di dropdown kartu hasil scan `key` (serial Bambu / ip Moonraker):
+  // pilihan eksplisit user > rekomendasi nama-cocok > device pertama yang belum dipasangkan.
+  function effectiveTarget(key: string, recommended: string | null): string {
+    return selectedTargets[key] ?? recommended ?? unpairedDevices[0]?.shortCode ?? "";
+  }
+
+  // Dirender inline persis di bawah kartu yang memicunya (baris device / kartu hasil scan) --
+  // BUKAN lagi satu blok terpisah di paling bawah halaman. Hanya SATU pemanggilan yang pernah
+  // menghasilkan JSX non-null di satu waktu (source di `pairing` cuma cocok dengan tepat satu
+  // kartu), jadi id-id di dalamnya (mis. "access-code") tak pernah dobel di DOM.
+  function renderPairingForm() {
+    if (!pairing) return null;
+    return (
+      <div ref={formRef} className="mt-3">
+        <GlassCard className="p-3 w-full">
           {pairing.isManual && (
             <>
               <label htmlFor="manual-ip" className="g-t2 text-sm block mb-1">
@@ -279,16 +240,176 @@ export function PairingScreen({
             className="w-full mb-3"
           />
           <GlassButton onClick={savePairing}>Simpan Pairing</GlassButton>
-          {pairError && (
-            <p role="alert" className="g-error text-sm mt-2">
-              {pairError}
+        </GlassCard>
+      </div>
+    );
+  }
+
+  return (
+    <AgentShell maxWidth="max-w-3xl">
+      <h1 className="g-t1 text-lg font-semibold mb-4">Pairing Device</h1>
+      <div className="mb-4 flex justify-end">
+        {/* Selalu tampil (bukan cuma pas devices kosong) -- user bisa lanjut ke dashboard
+            kapan saja, baik dia belum sempat pairing device manapun (akun 0-device, Task 13
+            review Finding 3) maupun sengaja mau pairing sisanya belakangan. Dibuat visual
+            lebih kecil/redup dari tombol lain (bukan komponen "secondary" terpisah -- @3pb/ui
+            cuma py satu varian GlassButton) biar tidak terlihat seperti aksi utama. */}
+        <GlassButton onClick={onAllPaired} className="text-xs opacity-70">
+          Lanjut ke Dashboard
+        </GlassButton>
+      </div>
+      <div className="flex gap-4">
+        <div className="flex-1">
+          <h3 className="g-t2 text-xs font-semibold uppercase tracking-wide mb-2">Device Terdaftar</h3>
+          <div className="space-y-2 mb-3">
+            {devices.map((d) => {
+              const isPaired = pairedCodes.has(d.shortCode);
+              const showFormHere = pairing?.source.kind === "device" && pairing.shortCode === d.shortCode;
+              return (
+                <GlassCard key={d.shortCode} className="p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="g-t1 text-sm">{d.label}</span>
+                    {isPaired ? (
+                      <div className="flex items-center gap-2">
+                        <span className="g-success text-sm">Terpasang ✓</span>
+                        {/* Edit: buka ulang form kosong (bukan prefill) -- access code tak pernah
+                            dikirim balik ke renderer demi keamanan, konsisten dengan pairing baru.
+                            Skenario nyata: user salah ketik access code atau printer fisik ke-pair
+                            ke slot device yang salah. */}
+                        <GlassButton onClick={() => startManualPairing(d.shortCode)} className="text-xs">
+                          Edit
+                        </GlassButton>
+                        <GlassButton onClick={() => forgetDevice(d.shortCode)} className="text-xs">
+                          Lupakan
+                        </GlassButton>
+                      </div>
+                    ) : (
+                      <GlassButton onClick={() => startManualPairing(d.shortCode)} className="text-xs">
+                        Isi manual
+                      </GlassButton>
+                    )}
+                  </div>
+                  {showFormHere && renderPairingForm()}
+                </GlassCard>
+              );
+            })}
+          </div>
+          <GlassButton onClick={handleScan} disabled={scanning}>
+            {scanning ? "Memindai..." : "Scan LAN"}
+          </GlassButton>
+          {scanError && (
+            <p role="alert" className="g-warning text-sm mt-2">
+              {scanError}
             </p>
           )}
-        </GlassCard>
+        </div>
+        <div className="flex-1">
+          <h3 className="g-t2 text-xs font-semibold uppercase tracking-wide mb-2">Hasil Scan Bambu</h3>
+          <div className="space-y-2">
+            {bambuPrinters.map((p) => {
+              // Rekomendasi SAJA (spec §6) -- dihitung terhadap unpairedDevices (bukan `devices`)
+              // karena device yang sudah dipasangkan tak lagi punya opsi di dropdown buat
+              // ditandai; user tetap bebas pilih device manapun.
+              const recommendedShortCode = matchDeviceByName(p.name, unpairedDevices);
+              const target = effectiveTarget(p.serial, recommendedShortCode);
+              const showFormHere = pairing?.source.kind === "bambu" && pairing.source.key === p.serial;
+              return (
+                <GlassCard key={p.serial} className="p-3">
+                  <span className="g-t1 text-sm">
+                    {p.ip} ({p.name})
+                  </span>
+                  {/* Dropdown, bukan satu tombol per device belum-dipasangkan -- kalau device
+                      belum-dipasangkan banyak, deretan tombol "Pasangkan ke ..." jadi sangat
+                      panjang per kartu hasil scan. */}
+                  {unpairedDevices.length > 0 && (
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      <select
+                        aria-label={`Pilih device untuk ${p.name}`}
+                        className="glass-input rounded-[5px] px-2 h-9 text-xs flex-1"
+                        value={target}
+                        onChange={(e) => setSelectedTargets((prev) => ({ ...prev, [p.serial]: e.target.value }))}
+                      >
+                        {unpairedDevices.map((d) => (
+                          <option key={d.shortCode} value={d.shortCode}>
+                            {d.label}
+                            {d.shortCode === recommendedShortCode ? " (disarankan)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <GlassButton
+                        onClick={() =>
+                          startPairing(target, p.ip, p.serial, suggestModelFromSsdp(p.model) ?? "", {
+                            kind: "bambu",
+                            key: p.serial,
+                          })
+                        }
+                        className="text-xs"
+                      >
+                        Pasangkan
+                      </GlassButton>
+                    </div>
+                  )}
+                  {showFormHere && renderPairingForm()}
+                </GlassCard>
+              );
+            })}
+          </div>
+        </div>
+        <div className="flex-1">
+          <h3 className="g-t2 text-xs font-semibold uppercase tracking-wide mb-2">Hasil Scan Moonraker</h3>
+          <div className="space-y-2">
+            {moonrakerPrinters.map((p) => {
+              const target = effectiveTarget(p.ip, null);
+              const showFormHere = pairing?.source.kind === "moonraker" && pairing.source.key === p.ip;
+              return (
+                <GlassCard key={p.ip} className="p-3">
+                  <span className="g-t1 text-sm">
+                    {p.ip} ({p.name})
+                  </span>
+                  {unpairedDevices.length > 0 && (
+                    <div className="flex items-center gap-1.5 mt-1.5">
+                      {/* Moonraker (Klipper) tak punya konsep serial/access-code seperti Bambu --
+                          connector-nya (packages/printer-monitor-core/src/connectors/moonraker.ts)
+                          cuma pakai `device.ip`, jadi serial dikirim kosong; `accessCode` tetap
+                          diminta manual di form pairing yang sama demi konsistensi bentuk
+                          DeviceSecret (Task 2), meski Moonraker tak memvalidasinya. */}
+                      <select
+                        aria-label={`Pilih device untuk ${p.name}`}
+                        className="glass-input rounded-[5px] px-2 h-9 text-xs flex-1"
+                        value={target}
+                        onChange={(e) => setSelectedTargets((prev) => ({ ...prev, [p.ip]: e.target.value }))}
+                      >
+                        {unpairedDevices.map((d) => (
+                          <option key={d.shortCode} value={d.shortCode}>
+                            {d.label}
+                          </option>
+                        ))}
+                      </select>
+                      <GlassButton
+                        onClick={() => startPairing(target, p.ip, "", "", { kind: "moonraker", key: p.ip })}
+                        className="text-xs"
+                      >
+                        Pasangkan
+                      </GlassButton>
+                    </div>
+                  )}
+                  {showFormHere && renderPairingForm()}
+                </GlassCard>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+      {/* modelWarning: savePairing() men-set pairing kembali ke null setelah sukses (form
+          ditutup, device pindah ke status "Terpasang"), jadi peringatan model non-blocking ini
+          harus tetap terlihat SESUDAH form hilang. pairError: forgetDevice() bisa gagal SAAT
+          form pairing sedang TERTUTUP sama sekali (tombol "Lupakan" ada di baris device, bukan
+          di dalam form) -- keduanya level halaman, bukan diikat ke satu kartu tertentu. */}
+      {pairError && (
+        <p role="alert" className="g-error text-sm mt-2">
+          {pairError}
+        </p>
       )}
-      {/* Di luar blok `{pairing && ...}` SENGAJA -- savePairing() men-set pairing kembali ke
-          null setelah sukses (form pairing ditutup, device pindah ke status "Terpasang"),
-          jadi peringatan model non-blocking ini harus tetap terlihat SESUDAH form hilang. */}
       {modelWarning && (
         <p role="alert" className="g-warning text-sm mt-2">
           {modelWarning}
