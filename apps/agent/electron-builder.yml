@@ -1,5 +1,8 @@
 appId: com.slizebiz.agent
 productName: Slizebiz Agent
+# build/icon.png (1024x1024, generated via `pnpm generate-icons` dari src/renderer/public/
+# logo.svg) -- electron-builder otomatis derive .icns (mac) / .ico (win) dari satu file ini.
+icon: build/icon.png
 directories:
   output: release
 win:
@@ -23,3 +26,6 @@ mac:
 files:
   - out/**/*
   - package.json
+  # tray-icon.png -- dimuat runtime oleh src/main/tray.ts lewat app.getAppPath(), harus ikut
+  # ke-package (di luar out/, karena bukan hasil build Vite -- lihat generate-icons.mjs).
+  - resources/**/*
