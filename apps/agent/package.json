@@ -14,7 +14,9 @@
     "preview": "electron-vite preview",
     "pack": "electron-builder --publish never",
     "dist": "electron-builder",
-    "build:win": "node scripts/build-win.mjs"
+    "build:win": "node scripts/build-installer.mjs --win",
+    "build:mac": "node scripts/build-installer.mjs --mac",
+    "build:installers": "node scripts/build-installer.mjs --mac && node scripts/build-installer.mjs --win"
   },
   "dependencies": {
     "react": "^18.3.1",

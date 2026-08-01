@@ -8,6 +8,9 @@ win:
 nsis:
   oneClick: false
   allowToChangeInstallationDirectory: true
+mac:
+  target: dmg
+  artifactName: ${productName}-${version}.${ext}
 files:
   - out/**/*
   - package.json

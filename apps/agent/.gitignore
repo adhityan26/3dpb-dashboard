@@ -2,6 +2,7 @@ out/
 dist/
 release/
 .build-win-deploy/
+.build-mac-deploy/
 node_modules/
 .DS_Store
 *.log
