@@ -12,7 +12,13 @@ vi.mock("@3pb/printer-monitor-core", async () => {
     // membuat test ini non-deterministik/lambat. Stub keduanya jadi no-op sinkron
     // (pola sama seperti packages/printer-monitor-core/src/__tests__/engine.test.ts
     // yang pakai connector in-memory, bukan koneksi network asli).
-    BambuMqttConnector: vi.fn().mockImplementation((device: any) => ({ deviceId: device.id, start: vi.fn().mockResolvedValue(undefined), stop: vi.fn().mockResolvedValue(undefined) })),
+    // Meniru validasi ASLI BambuMqttConnector (throw kalau serial/accessCode kosong) --
+    // dibutuhkan buat test isolasi-kegagalan (satu device gagal construct tak boleh
+    // menjatuhkan device lain), bukan cuma stub selalu-sukses.
+    BambuMqttConnector: vi.fn().mockImplementation((device: any) => {
+      if (!device.serial || !device.accessCode) throw new Error(`bambu device ${device.id} butuh serial+accessCode`);
+      return { deviceId: device.id, start: vi.fn().mockResolvedValue(undefined), stop: vi.fn().mockResolvedValue(undefined) };
+    }),
     MoonrakerConnector: vi.fn().mockImplementation((device: any) => ({ deviceId: device.id, start: vi.fn().mockResolvedValue(undefined), stop: vi.fn().mockResolvedValue(undefined) })),
     // Spy on HmsLookup's constructor so we can assert it's invoked with the explicit
     // table (hms-table.ts), not the zero-arg default that triggers the library's
@@ -69,6 +75,26 @@ describe("startEngine", () => {
     const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", model: "P1S", secret: { ip: "1.1.1.1", serial: "S", accessCode: "C" } }];
     const { engine } = await startEngine(paired, 1883);
     expect(engine.snapshot().payload[0].type).toBe("P1S");
+  });
+
+  it("satu device bambu dengan secret salah (serial/accessCode kosong) gagal construct -> device LAIN (bambu+moonraker valid) TETAP termonitor, startEngine() tidak throw", async () => {
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const paired = [
+      { shortCode: "good-bambu", label: "Printer Baik", printerType: "bambu", secret: { ip: "1.1.1.1", serial: "SER1", accessCode: "1234" } },
+      // Skenario nyata: device slot ber-type "bambu" dipasangkan dengan info yang salah
+      // (mis. printer Klipper, serial dikosongkan) -- BambuMqttConnector menolak ini.
+      { shortCode: "bad-bambu", label: "Printer Salah Pasang", printerType: "bambu", secret: { ip: "2.2.2.2", serial: "", accessCode: "" } },
+      { shortCode: "good-moonraker", label: "Printer Klipper", printerType: "moonraker", secret: { ip: "3.3.3.3", serial: "", accessCode: "" } },
+    ];
+
+    const { engine } = await startEngine(paired, 1883);
+
+    // Device yang gagal construct TETAP muncul di snapshot (kelihatan di dashboard, bukan
+    // hilang diam-diam) -- cuma tanpa data status karena tak pernah termonitor.
+    const ids = engine.snapshot().payload.map((p) => p.id);
+    expect(ids).toEqual(["good-bambu", "bad-bambu", "good-moonraker"]);
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("bad-bambu"), expect.any(Error));
+    errSpy.mockRestore();
   });
 
   it("model null/kosong/whitespace -> fallback CYD_TYPE_FALLBACK per printerType", async () => {

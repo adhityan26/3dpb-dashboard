@@ -190,6 +190,12 @@ export function PairingScreen({
   // kartu), jadi id-id di dalamnya (mis. "access-code") tak pernah dobel di DOM.
   function renderPairingForm() {
     if (!pairing) return null;
+    // Serial + Access Code cuma relevan buat Bambu (BambuMqttConnector butuh keduanya buat
+    // konek MQTT). Moonraker/Klipper cuma pakai IP -- serial dikirim kosong & accessCode
+    // diabaikan connector-nya, jadi tak perlu bikin user isi field yang percuma (dan gampang
+    // salah paham harus diisi). printerType berasal dari registrasi device di SaaS, dicari
+    // dari `devices` (prop), bukan dari pilihan di form ini.
+    const isBambu = devices.find((d) => d.shortCode === pairing.shortCode)?.printerType === "bambu";
     return (
       <div ref={formRef} className="mt-3">
         <GlassCard className="p-3 w-full">
@@ -204,15 +210,19 @@ export function PairingScreen({
                 onChange={(e) => setPairing({ ...pairing, ip: e.target.value })}
                 className="w-full mb-2"
               />
-              <label htmlFor="manual-serial" className="g-t2 text-sm block mb-1">
-                Serial
-              </label>
-              <GlassInput
-                id="manual-serial"
-                value={pairing.serial}
-                onChange={(e) => setPairing({ ...pairing, serial: e.target.value })}
-                className="w-full mb-2"
-              />
+              {isBambu && (
+                <>
+                  <label htmlFor="manual-serial" className="g-t2 text-sm block mb-1">
+                    Serial
+                  </label>
+                  <GlassInput
+                    id="manual-serial"
+                    value={pairing.serial}
+                    onChange={(e) => setPairing({ ...pairing, serial: e.target.value })}
+                    className="w-full mb-2"
+                  />
+                </>
+              )}
             </>
           )}
           <label htmlFor="model" className="g-t2 text-sm block mb-1">
@@ -230,15 +240,19 @@ export function PairingScreen({
               Maks {LAYOUT_LIMITS.maxPrinterModelLength} karakter (sekarang {pairing.model.length}) — simpan akan ditolak.
             </p>
           )}
-          <label htmlFor="access-code" className="g-t2 text-sm block mb-1">
-            Access Code
-          </label>
-          <GlassInput
-            id="access-code"
-            value={accessCode}
-            onChange={(e) => setAccessCode(e.target.value)}
-            className="w-full mb-3"
-          />
+          {isBambu && (
+            <>
+              <label htmlFor="access-code" className="g-t2 text-sm block mb-1">
+                Access Code
+              </label>
+              <GlassInput
+                id="access-code"
+                value={accessCode}
+                onChange={(e) => setAccessCode(e.target.value)}
+                className="w-full mb-3"
+              />
+            </>
+          )}
           <GlassButton onClick={savePairing}>Simpan Pairing</GlassButton>
         </GlassCard>
       </div>

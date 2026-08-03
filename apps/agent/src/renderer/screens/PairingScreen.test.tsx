@@ -47,6 +47,22 @@ describe("PairingScreen", () => {
     await waitFor(() => expect((window as any).agentApi.pairDevice).toHaveBeenCalledWith("abc1234567", { ip: "10.0.0.9", serial: "MANUAL1", accessCode: "9999" }));
   });
 
+  it("device slot ber-type moonraker -> 'Isi manual' cuma minta IP, TANPA field Serial/Access Code (keduanya tak dipakai MoonrakerConnector)", async () => {
+    const moonrakerDevice = [{ id: "d2", shortCode: "def1234567", userId: "u1", label: "Printer Klipper", printerType: "moonraker", model: null, createdAt: "x", updatedAt: "y" }];
+    render(<PairingScreen devices={moonrakerDevice} onAllPaired={vi.fn()} />);
+    fireEvent.click(screen.getByRole("button", { name: /isi manual/i }));
+
+    expect(screen.getByLabelText(/^ip/i)).toBeTruthy();
+    expect(screen.queryByLabelText(/serial/i)).toBeNull();
+    expect(screen.queryByLabelText(/access code/i)).toBeNull();
+
+    fireEvent.change(screen.getByLabelText(/^ip/i), { target: { value: "10.0.0.50" } });
+    fireEvent.click(screen.getByRole("button", { name: /simpan pairing/i }));
+    await waitFor(() =>
+      expect((window as any).agentApi.pairDevice).toHaveBeenCalledWith("def1234567", { ip: "10.0.0.50", serial: "", accessCode: "" }),
+    );
+  });
+
   it("scanLan sukses tapi bambu port_in_use -> tampilkan pesan, tidak crash", async () => {
     (window as any).agentApi.scanLan.mockResolvedValue({ bambu: { ok: false, reason: "port_in_use" }, moonraker: [] });
     render(<PairingScreen devices={devices} onAllPaired={vi.fn()} />);

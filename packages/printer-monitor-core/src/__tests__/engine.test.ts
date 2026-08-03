@@ -67,6 +67,34 @@ describe('Engine', () => {
     await engine.stop()
   })
 
+  it('satu connector gagal start() (throw) -- connector LAIN tetap dipanggil start(), engine.start() tidak ikut throw', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const jupiter: DeviceConfig = { id: 'jupiter', name: 'Jupiter', type: 'P1P', connector: 'bambu', ip: 'y', serial: '', accessCode: '' }
+    const startedIds: string[] = []
+    const badConnector = {
+      deviceId: 'mars',
+      start: () => { throw new Error('bambu device mars butuh serial+accessCode') },
+      stop: async () => {},
+    }
+    const goodConnector = {
+      deviceId: 'jupiter',
+      start: async () => { startedIds.push('jupiter') },
+      stop: async () => {},
+    }
+    const reporter: Reporter = { publishStatus: () => {}, emitEvent: () => {} }
+    const engine = new Engine({
+      devices: [mars, jupiter], connectors: [badConnector, goodConnector], reporters: [reporter],
+      now: () => Date.parse('2026-07-16T01:00:00Z'),
+    })
+
+    await expect(engine.start()).resolves.toBeUndefined()
+
+    expect(startedIds).toEqual(['jupiter']) // connector Jupiter TETAP jalan meski Mars gagal
+    expect(errSpy).toHaveBeenCalledWith(expect.stringContaining('mars'), expect.any(Error))
+    errSpy.mockRestore()
+    await engine.stop()
+  })
+
   it('reporter yang throw (emitEvent/publishStatus) tidak menghentikan engine — reporter lain & status berikutnya tetap diproses', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const published: PrintersPayload[] = []

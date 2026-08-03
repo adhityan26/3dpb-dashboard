@@ -42,9 +42,20 @@ export async function startEngine(paired: PairedDevice[], brokerPort: number): P
       accessCode: p.secret.accessCode || undefined,
     };
     devices.push(device);
-    connectors.push(
-      p.printerType === "bambu" ? new BambuMqttConnector(device) : new MoonrakerConnector(device)
-    );
+    // BambuMqttConnector melempar error di constructor kalau serial/accessCode kosong (guard
+    // yang memang dibutuhkan). Tanpa try/catch di sini, SATU device dengan secret salah (mis.
+    // device slot ber-type "bambu" dipasangkan dengan info printer yang salah) bikin loop ini
+    // throw dan SELURUH startEngine() gagal -- device LAIN yang secret-nya benar ikut tak
+    // termonitor sama sekali (real incident). Device yang gagal construct TETAP masuk `devices`
+    // (kelihatan di dashboard, statusnya OFFLINE/stale karena tak pernah dapat update) tapi
+    // tanpa connector -- device lain tetap jalan normal.
+    try {
+      connectors.push(
+        p.printerType === "bambu" ? new BambuMqttConnector(device) : new MoonrakerConnector(device)
+      );
+    } catch (err) {
+      console.error(`[engine-manager] gagal bikin connector utk ${p.shortCode} (${p.printerType}) -- device ini TIDAK termonitor, device lain tetap jalan`, err);
+    }
   }
 
   const reporter = new MqttReporter({

@@ -74,7 +74,20 @@ export class Engine {
   }
 
   async start(): Promise<void> {
-    for (const c of this.opts.connectors) await c.start((s) => void this.handleStatus(s))
+    // Satu connector gagal start() (throw/reject -- mis. BambuMqttConnector menolak device
+    // dengan serial/accessCode kosong) TIDAK BOLEH menghentikan connector LAIN dari start().
+    // Tanpa guard ini, satu device dengan secret salah bikin SELURUH Engine gagal ter-start,
+    // menjatuhkan monitoring utk SEMUA device lain yang sebenarnya baik-baik saja (real
+    // incident: user pairing 1 device Klipper ke slot device ber-type "bambu", serial kosong
+    // -> BambuMqttConnector throw -> semua printer, termasuk yang sudah benar, jadi tak
+    // termonitor).
+    for (const c of this.opts.connectors) {
+      try {
+        await c.start((s) => void this.handleStatus(s))
+      } catch (err) {
+        console.error(`[engine] connector ${c.deviceId} gagal start -- device lain tetap lanjut`, err)
+      }
+    }
     this.timer = setInterval(() => void this.publish(), this.opts.republishIntervalMs ?? 60_000)
   }
 
