@@ -28,11 +28,14 @@ export interface EngineOpts {
 }
 
 export class Engine {
-  private store = new StateStore()
+  private hms: HmsLookup
+  private store: StateStore
   private timer: ReturnType<typeof setInterval> | null = null
   private deviceById: Map<string, DeviceConfig>
   constructor(private opts: EngineOpts) {
     this.deviceById = new Map(opts.devices.map((d) => [d.id, d]))
+    this.hms = opts.hms ?? new HmsLookup()
+    this.store = new StateStore(this.hms)
   }
 
   snapshot(): PrintersPayload {
@@ -52,7 +55,7 @@ export class Engine {
 
     if (event) {
       const e: PrinterEvent = { deviceId: device.id, kind: event, status: s, prevState: prev?.last_state ?? 'idle' }
-      const hmsText = (this.opts.hms ?? new HmsLookup()).translate(s.hms)
+      const hmsText = this.hms.translate(s.hms)
       for (const r of this.opts.reporters) {
         try { await r.emitEvent(e) }
         catch (err) { console.error('[reporter]', err) }
