@@ -2,17 +2,17 @@
 
 ## 🔒 Security / Production Ready
 - [ ] Regenerate `NEXTAUTH_SECRET` dengan random value (48+ char)
-- [ ] Switch dari sandbox ke production Shopee keys (PARTNER_ID, PARTNER_KEY, BASE_URL, hapus MOCK flags)
-- [ ] Re-authorize Shopee OAuth setelah ganti ke production keys
+- [x] Switch dari sandbox ke production Shopee keys — selesai
+- [x] Re-authorize Shopee OAuth setelah ganti ke production keys — selesai
 
 ## 🛍 Shopee App Review Submission
-- [ ] Buat Test User account di tab Settings untuk tim Shopee reviewer
-- [ ] Siapkan dokumentasi app + screenshots untuk submit review
+- [x] Buat Test User account di tab Settings untuk tim Shopee reviewer — selesai
+- [x] Siapkan dokumentasi app + screenshots untuk submit review — **review Shopee sudah approved**
 
 ## ✨ Feature Ideas (user-requested)
-- [ ] **Harga jual rekomendasi** berdasarkan HPP — logic sudah ada di Google Sheet pribadi, perlu di-translate jadi app. Harusnya jadi tab/section baru di Produk atau popup saat edit HPP.
+- [ ] **Harga jual rekomendasi** berdasarkan HPP — logic sudah ada di Google Sheet pribadi, perlu di-translate jadi app. Harusnya jadi tab/section baru di Produk atau popup saat edit HPP. _(Catatan: kalkulator internal sudah punya "Rekomendasi Harga Jual" — cek dulu apakah ini sudah cukup sebelum kerjakan ulang.)_
 - [ ] **Konfigurasi AMS per produk** — material/slicer settings untuk tiap produk yang dicetak (filament type, infill, waktu, dsb). Integrasi ke HPP calc.
-- [ ] **Import manual data** sementara nunggu production API key — upload CSV/Excel untuk orders/products. _Keputusan: TBD (mungkin tidak perlu kalau switch ke production Shopee cepat)._
+- [x] ~~Import manual data sementara nunggu production API key~~ — tidak diperlukan, production key sudah aktif.
 - [ ] **POS (Point of Sale)** — sistem kasir untuk penjualan offline/walk-in, terintegrasi ke stock Shopee produk yang sama.
 
 ## ✨ Feature Ideas (other)
@@ -32,4 +32,4 @@
 
 ---
 
-_Last updated: 2026-04-11_
+_Last updated: 2026-07-29_

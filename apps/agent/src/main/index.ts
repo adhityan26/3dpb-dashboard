@@ -1,5 +1,7 @@
 import { app, BrowserWindow } from 'electron'
 import { createWindow } from './window'
+import { createTray } from './tray'
+import { attachHideOnClose } from './window-lifecycle'
 import { startBroker } from './broker'
 import { buildPairedDevices } from './startup'
 import { startEngine } from './engine-manager'
@@ -10,6 +12,12 @@ import { saasBaseUrl } from './saas-client'
 import { setEngine, setBrokerPort, setReporters, listLocalIpCandidates } from './app-state'
 
 const gotLock = app.requestSingleInstanceLock()
+
+let mainWindow: BrowserWindow | null = null
+// App ini dirancang jalan terus di background (broker MQTT + monitoring printer harus tetap
+// hidup walau window ditutup) -- isQuitting cuma jadi true lewat "Keluar" di tray atau
+// before-quit (Cmd+Q dkk di mac), TIDAK PERNAH lewat menutup window biasa.
+let isQuitting = false
 
 /**
  * Urutan WAJIB: broker duluan (engine butuh broker buat konek) -> paired devices ->
@@ -73,11 +81,17 @@ if (!gotLock) {
   app.quit()
 } else {
   app.on('second-instance', () => {
-    const win = BrowserWindow.getAllWindows()[0]
-    if (win) {
-      if (win.isMinimized()) win.restore()
-      win.focus()
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      // Window bisa dalam keadaan hidden (di-close user, disembunyikan ke tray) -- .focus()
+      // saja tak cukup buat window yang tak kelihatan.
+      if (!mainWindow.isVisible()) mainWindow.show()
+      mainWindow.focus()
     }
+  })
+
+  app.on('before-quit', () => {
+    isQuitting = true
   })
 
   app.on('ready', async () => {
@@ -90,19 +104,24 @@ if (!gotLock) {
       // gagal muncul — window HARUS selalu dibuat.
       console.error('[agent] bootstrap gagal total', err)
     } finally {
-      createWindow()
-    }
-  })
-
-  app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') {
-      app.quit()
+      mainWindow = createWindow()
+      attachHideOnClose(mainWindow, () => isQuitting)
+      createTray(
+        () => mainWindow,
+        () => {
+          isQuitting = true
+          app.quit()
+        },
+      )
     }
   })
 
   app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow()
+    if (mainWindow) {
+      mainWindow.show()
+      mainWindow.focus()
+    } else if (BrowserWindow.getAllWindows().length === 0) {
+      mainWindow = createWindow()
     }
   })
 }
