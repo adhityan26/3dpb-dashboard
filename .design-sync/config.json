@@ -1,0 +1,16 @@
+{
+  "projectId": "65a77b21-211b-44b9-bff7-8f85b20cf9ee",
+  "shape": "package",
+  "pkg": "@3pb/ui",
+  "globalName": "ThreePBUI",
+  "cssEntry": "src/design-sync-preview.css",
+  "readmeHeader": ".design-sync/conventions.md",
+  "componentSrcMap": {
+    "GlassCard": "src/GlassCard.tsx",
+    "GlassButton": "src/GlassButton.tsx",
+    "GlassInput": "src/GlassInput.tsx",
+    "HexColorSwatch": "src/HexColorSwatch.tsx",
+    "HexColorPicker": "src/HexColorPicker.tsx",
+    "CalcSection": "src/CalcSection.tsx"
+  }
+}
