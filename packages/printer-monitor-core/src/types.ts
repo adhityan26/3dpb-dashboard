@@ -50,6 +50,7 @@ export interface StoredState {
   last_task_id: string
   last_filename: string
   last_error_code: string
+  last_error_message: string
   last_seen_at: string | null
   last_nozzle_temp: number
   last_bed_temp: number
@@ -68,6 +69,7 @@ export interface PrinterRow {
   remaining_min: number
   filename: string
   error_msg: string
+  error_message: string
   last_seen: string | null
   nozzle_temp: number
   bed_temp: number

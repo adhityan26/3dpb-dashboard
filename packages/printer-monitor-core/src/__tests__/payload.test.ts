@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { StateStore } from '../state-store'
 import { buildPrintersPayload } from '../payload'
 import { normalizeBambu } from '../normalize-bambu'
+import { HmsLookup } from '../hms'
 import type { DeviceConfig } from '../types'
 
 const mars: DeviceConfig = { id: 'mars', name: 'Mars', type: 'P1P', connector: 'bambu', ip: '10.0.0.9', serial: '01S00A2C0502433', accessCode: 'x' }
@@ -15,7 +16,7 @@ describe('StateStore + buildPrintersPayload', () => {
     expect(p.payload).toEqual([{
       id: 'mars',
       name: 'Mars', type: 'P1P', state: 'OFFLINE', progress: 0,
-      remaining_min: 0, filename: '', error_msg: '', last_seen: null,
+      remaining_min: 0, filename: '', error_msg: '', error_message: '', last_seen: null,
       nozzle_temp: 0, bed_temp: 0,
     }])
   })
@@ -70,5 +71,34 @@ describe('StateStore + buildPrintersPayload', () => {
     const p = buildPrintersPayload([mars], store, T0)
     expect(p.payload[0].id).toBe('mars')
     expect(p.payload[0].name).toBe('Mars')
+  })
+
+  it('error_message terisi dari HmsLookup kalau state error dgn entri HMS; error_msg lama tetap ada', () => {
+    const hms = new HmsLookup({ '1201_8007': 'Extruder clogged.' })
+    const store = new StateStore(hms)
+    const s = normalizeBambu('mars', { print: {
+      gcode_state: 'FAILED', print_error: 117473285, mc_print_error_code: '0',
+      hms: [{ attr: 0x12018007, code: 66 }] } })
+    store.upsertFromStatus(mars, s, 'error')
+    const p = buildPrintersPayload([mars], store, T0)
+    expect(p.payload[0].error_message).toBe('[1201_8007] Extruder clogged.')
+    expect(p.payload[0].error_msg).toContain('print_error=117473285')
+  })
+
+  it('error_message fallback kode print_error kalau HMS kosong', () => {
+    const store = new StateStore(new HmsLookup({}))
+    const s = normalizeBambu('mars', { print: {
+      gcode_state: 'FAILED', print_error: 5, mc_print_error_code: '0', hms: [] } })
+    store.upsertFromStatus(mars, s, 'error')
+    const p = buildPrintersPayload([mars], store, T0)
+    expect(p.payload[0].error_message).toBe('Print error (kode 5)')
+  })
+
+  it('error_message kosong kalau state bukan error', () => {
+    const store = new StateStore()
+    const s = normalizeBambu('mars', { print: { gcode_state: 'RUNNING', mc_percent: 50 } })
+    store.upsertFromStatus(mars, s, null)
+    const p = buildPrintersPayload([mars], store, T0)
+    expect(p.payload[0].error_message).toBe('')
   })
 })

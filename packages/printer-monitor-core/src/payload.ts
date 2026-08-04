@@ -20,6 +20,7 @@ export function buildPrintersPayload(
         remaining_min: r?.last_remaining_min ?? 0,
         filename: r?.last_filename ?? '',
         error_msg: r?.last_error_code ?? '',
+        error_message: r?.last_error_message ?? '',
         last_seen: r?.last_seen_at ?? null,
         nozzle_temp: r?.last_nozzle_temp ?? 0,
         bed_temp: r?.last_bed_temp ?? 0,
