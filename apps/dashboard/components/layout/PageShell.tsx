@@ -1,5 +1,5 @@
 import type { ReactNode } from "react"
-import { GlassPageHeader } from "@/components/ui/GlassPageHeader"
+import { GlassPageHeader } from "@3pb/ui"
 
 /**
  * Kerangka SEMUA halaman dashboard. Pedoman lengkap: `docs/ui-page-layout.md`.

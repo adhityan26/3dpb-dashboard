@@ -1,11 +1,23 @@
 import { auth } from "@/lib/auth"
 import { redirect } from "next/navigation"
 import { TabNav } from "@/components/layout/TabNav"
-import { MobileBottomNav } from "@/components/layout/MobileBottomNav"
-import { AmbientOrbs } from "@/components/ui/AmbientOrbs"
+import { AmbientOrbs, MobileBottomNav } from "@3pb/ui"
+import { ThemeToggle } from "@/components/ThemeToggle"
 import { countBelumCetak } from "@/lib/orders/service"
 import { getAdsPerformance } from "@/lib/ads/service"
 import { countPerluPerhatian } from "@/lib/products/service"
+
+// Sama dengan daftar tab di TabNav (desktop) — MobileBottomNav generik (dari @3pb/ui,
+// dipakai lintas app) sehingga daftar tab & filter role jadi tanggung jawab caller.
+const MOBILE_NAV_TABS = [
+  { href: "/order",    label: "Order",    icon: "📦", roles: ["OWNER", "ADMIN", "TEST_USER"] },
+  { href: "/iklan",    label: "Iklan",    icon: "📊", roles: ["OWNER", "TEST_USER"] },
+  { href: "/analisa",  label: "Analisa",  icon: "📈", roles: ["OWNER", "TEST_USER"] },
+  { href: "/produk",   label: "Produk",   icon: "🏷️", roles: ["OWNER", "ADMIN", "TEST_USER"] },
+  { href: "/finance",  label: "Finance",  icon: "💰", roles: ["OWNER", "ADMIN"] },
+  { href: "/landing",  label: "Landing",  icon: "🌐", roles: ["OWNER"] },
+  { href: "/settings", label: "Settings", icon: "⚙️", roles: ["OWNER"] },
+]
 
 // Hard timeout so Shopee API hangs never block page render
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
@@ -49,7 +61,12 @@ export default async function DashboardLayout({ children }: { children: React.Re
         {children}
       </main>
 
-      <MobileBottomNav role={session.user.role} badges={badges} userName={userName} />
+      <MobileBottomNav
+        tabs={MOBILE_NAV_TABS.filter((t) => t.roles.includes(session.user.role))}
+        badges={badges}
+        userName={userName}
+        extra={<ThemeToggle />}
+      />
       {/* Build version footer bar — sticky at bottom */}
       <div className="fixed bottom-0 left-0 right-0 z-20 bg-black/40 backdrop-blur border-t border-white/10 py-1.5 px-4 text-center md:text-right">
         <span className="text-[7px] md:text-[9px] font-mono" style={{ color: "rgba(255,255,255,0.25)" }}>

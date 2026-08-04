@@ -1,7 +1,9 @@
+import type { ReactNode } from 'react'
+
 interface GlassPageHeaderProps {
   title: string
   subtitle?: string
-  children?: React.ReactNode
+  children?: ReactNode
 }
 
 export function GlassPageHeader({ title, subtitle, children }: GlassPageHeaderProps) {

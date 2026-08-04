@@ -7,6 +7,6 @@
     ".": "./src/index.ts",
     "./glass.css": "./src/glass.css"
   },
-  "peerDependencies": { "react": "^19", "react-dom": "^19" },
+  "peerDependencies": { "react": "^19", "react-dom": "^19", "next": "^16", "framer-motion": "^12" },
   "devDependencies": { "typescript": "^5", "@types/react": "^19" }
 }

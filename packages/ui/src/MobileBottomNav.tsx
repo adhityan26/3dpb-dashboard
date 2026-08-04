@@ -1,35 +1,36 @@
 "use client"
 
+import type { ReactNode } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { motion, LayoutGroup } from "framer-motion"
 import { useState } from "react"
-import { GooeyFilter } from "@/components/ui/GooeyFilter"
-import { ThemeToggle } from "@/components/ThemeToggle"
+import { GooeyFilter } from "./GooeyFilter"
 
-const ALL_TABS = [
-  { href: "/order",    label: "Order",    icon: "📦", roles: ["OWNER", "ADMIN", "TEST_USER"] },
-  { href: "/iklan",    label: "Iklan",    icon: "📊", roles: ["OWNER", "TEST_USER"] },
-  { href: "/analisa",  label: "Analisa",  icon: "📈", roles: ["OWNER", "TEST_USER"] },
-  { href: "/produk",   label: "Produk",   icon: "🏷️", roles: ["OWNER", "ADMIN", "TEST_USER"] },
-  { href: "/finance",  label: "Finance",  icon: "💰", roles: ["OWNER", "ADMIN"] },
-  { href: "/landing",        label: "Landing",   icon: "🌐", roles: ["OWNER"] },
-  { href: "/settings",        label: "Settings",  icon: "⚙️", roles: ["OWNER"] },
-]
-
-interface MobileBottomNavProps {
-  role: string
-  badges?: Record<string, number>
-  userName?: string
+export interface MobileBottomNavTab {
+  href: string
+  label: string
+  icon: string
 }
 
-export function MobileBottomNav({ role, badges = {}, userName = "A" }: MobileBottomNavProps) {
+export interface MobileBottomNavProps {
+  /** Tab yang sudah difilter caller (mis. berdasarkan role) — 4 pertama tampil di bar, sisanya masuk sheet "More". */
+  tabs: MobileBottomNavTab[]
+  /** Badge count per tab, keyed by `href` tanpa slash awal (mis. "order" untuk href "/order"). */
+  badges?: Record<string, number>
+  userName?: string
+  /** Route logout. Default "/api/auth/logout". */
+  logoutHref?: string
+  /** Slot tambahan di baris bawah sheet "More" (mis. ThemeToggle) — di kiri avatar/logout. */
+  extra?: ReactNode
+}
+
+export function MobileBottomNav({ tabs, badges = {}, userName = "A", logoutHref = "/api/auth/logout", extra }: MobileBottomNavProps) {
   const pathname = usePathname()
   const [sheetOpen, setSheetOpen] = useState(false)
 
-  const visibleTabs = ALL_TABS.filter((t) => t.roles.includes(role))
-  const mainTabs = visibleTabs.slice(0, 4)
-  const moreTabs = visibleTabs.slice(4)
+  const mainTabs = tabs.slice(0, 4)
+  const moreTabs = tabs.slice(4)
 
   const activeBlobIdx = mainTabs.findIndex((t) => pathname.startsWith(t.href))
   const totalSlots = mainTabs.length + 1 // +1 for More button
@@ -155,7 +156,7 @@ export function MobileBottomNav({ role, badges = {}, userName = "A" }: MobileBot
                   <Link
                     key={tab.href}
                     href={tab.href}
-                prefetch={false}
+                    prefetch={false}
                     onClick={() => setSheetOpen(false)}
                     className="flex flex-col items-center gap-2 p-3 rounded-[5px]"
                     style={{
@@ -172,7 +173,7 @@ export function MobileBottomNav({ role, badges = {}, userName = "A" }: MobileBot
 
             {/* Theme + user row */}
             <div className="flex items-center justify-between px-2">
-              <ThemeToggle />
+              {extra}
               <div className="flex items-center gap-3">
                 <div
                   className="w-[32px] h-[32px] rounded-full p-[2px]"
@@ -186,7 +187,7 @@ export function MobileBottomNav({ role, badges = {}, userName = "A" }: MobileBot
                   </div>
                 </div>
                 <a
-                  href="/api/auth/logout"
+                  href={logoutHref}
                   className="w-[32px] h-[32px] rounded-full flex items-center justify-center text-sm"
                   style={{ color: "rgba(255,255,255,0.3)" }}
                   aria-label="Logout"

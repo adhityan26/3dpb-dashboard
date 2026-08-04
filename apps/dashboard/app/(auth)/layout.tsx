@@ -1,4 +1,4 @@
-import { AmbientOrbs } from "@/components/ui/AmbientOrbs"
+import { AmbientOrbs } from "@3pb/ui"
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
