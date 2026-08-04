@@ -56,4 +56,10 @@ describe('describeError', () => {
     expect(result.endsWith('…')).toBe(true)
     expect(result.startsWith('[1201_8007] AAAA')).toBe(true)
   })
+
+  it('HMS ada tapi kode-nya tidak ada di tabel -- fallback ke kode printError, BUKAN raw fallback string', () => {
+    const l = new HmsLookup({}) // tabel kosong -> translate() balikin raw fallback form utk entri ini
+    expect(describeError([{ attr: 0x0c000100, code: 65540 }], 117473285, l))
+      .toBe('Print error (kode 117473285)')
+  })
 })

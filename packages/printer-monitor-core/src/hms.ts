@@ -30,10 +30,14 @@ export class HmsLookup {
   }
 }
 
-const MAX_ERROR_MESSAGE_LEN = 120
+// Batas KARAKTER (bukan byte) -- ellipsis '…' 3 byte UTF-8, jadi firmware C
+// yang nyimpen string ini ke buffer tetap harus alokasi >=123 byte + NUL,
+// bukan cuma 120.
+export const MAX_ERROR_MESSAGE_LEN = 120
 
 export function describeError(hms: HmsEntry[], printError: number, lookup: HmsLookup): string {
   const translated = lookup.translate(hms)
-  const raw = translated[0] ?? (printError !== 0 ? `Print error (kode ${printError})` : 'Print error')
+  const hit = translated[0]?.startsWith('[') ? translated[0] : undefined
+  const raw = hit ?? (printError !== 0 ? `Print error (kode ${printError})` : 'Print error')
   return raw.length > MAX_ERROR_MESSAGE_LEN ? raw.slice(0, MAX_ERROR_MESSAGE_LEN - 1) + '…' : raw
 }
