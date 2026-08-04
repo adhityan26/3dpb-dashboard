@@ -48,11 +48,11 @@ describe('describeError', () => {
     expect(describeError([], 0, l)).toBe('Print error')
   })
 
-  it('dipotong ke 120 karakter + ellipsis kalau lebih panjang', () => {
-    const longDesc = 'A'.repeat(150)
+  it('dipotong ke 240 karakter + ellipsis kalau lebih panjang', () => {
+    const longDesc = 'A'.repeat(300)
     const l = new HmsLookup({ '1201_8007': longDesc })
     const result = describeError([{ attr: 0x12018007, code: 66 }], 0, l)
-    expect(result.length).toBe(120)
+    expect(result.length).toBe(240)
     expect(result.endsWith('…')).toBe(true)
     expect(result.startsWith('[1201_8007] AAAA')).toBe(true)
   })
