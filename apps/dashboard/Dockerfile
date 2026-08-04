@@ -2,6 +2,9 @@
 FROM node:22-alpine AS builder
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
+# better-sqlite3 (dep Prisma) fallback compile dari source kalau fetch prebuilt binary
+# gagal — alpine tidak punya toolchain ini secara default.
+RUN apk add --no-cache python3 make g++
 WORKDIR /repo
 
 # Layer caching: download dependensi hanya dari lockfile, sebelum COPY . .
