@@ -119,7 +119,8 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
         const payload = buildDynamicQris(qrisPayload, amount)
         const dataUrl = await QRCode.toDataURL(payload)
         if (!cancelled) setDynamicQrImage(dataUrl)
-      } catch {
+      } catch (err) {
+        console.warn(err)
         if (!cancelled) setDynamicQrImage(null)
       }
     }, 200)
@@ -244,7 +245,7 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
       h1{font-size:20px;font-weight:700}table{width:100%;border-collapse:collapse}
       th{font-size:10px;text-transform:uppercase;letter-spacing:0.05em;color:#666;padding:6px 0;border-bottom:1px solid #e5e7eb;text-align:left}
       th.r,td.r{text-align:right}td{padding:7px 0;border-bottom:1px solid #f3f4f6;font-size:12px}
-      @media print{body{padding:20px}button{display:none!important}}
+      @media print{body{padding:20px}button,.no-print{display:none!important}}
     </style></head><body>${printRef.current.innerHTML}</body></html>`)
     win.document.close(); win.focus()
     setTimeout(() => win.print(), 300)
@@ -707,7 +708,7 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={displayedQris} alt="QRIS" style={{ width: 110, height: 110, objectFit: "contain" }} />
                   <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.06em", color: "#555", marginTop: 2 }}>Scan QRIS</div>
-                  <div style={{ marginTop: 4 }}>
+                  <div className="no-print" data-html2canvas-ignore="true" style={{ marginTop: 4 }}>
                     <label style={{ fontSize: 8, color: "#888", display: "block" }} htmlFor="qris-amount-input">
                       Jumlah QRIS
                     </label>
