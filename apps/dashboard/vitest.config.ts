@@ -7,6 +7,7 @@ export default defineConfig({
   test: {
     environment: 'node',
     globals: true,
+    setupFiles: ['./vitest.setup.ts'],
     // Default vitest excludes don't cover .claude/ — worktrees created there
     // (e.g. apps/dashboard/.claude/worktrees/<name>) carry their own full
     // node_modules, so leaving this unset lets vitest pick up a second,
