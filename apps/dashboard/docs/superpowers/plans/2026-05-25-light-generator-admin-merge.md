@@ -95,7 +95,7 @@ model LightGeneratorOrder {
 
 ```bash
 cd /Users/adhityatangahu/Documents/shopee-analysis/shopee-dashboard
-DATABASE_URL="postgresql://postgres:sI92qLc9z3Buf4iY9C6l2tmd6R9QarYE@light-generator-postgres-1:5432/shopee_dashboard" npx prisma db push --accept-data-loss
+DATABASE_URL="postgresql://postgres:<pass>@light-generator-postgres-1:5432/shopee_dashboard" npx prisma db push --accept-data-loss
 ```
 
 Expected: `Your database is now in sync with your Prisma schema.`
@@ -2552,7 +2552,7 @@ Expected: `Your database is now in sync with your Prisma schema.`
 ```bash
 DOCKER_HOST=tcp://192.168.88.113:2375 docker exec shopee-dashboard sh -c \
   "LIGHTGENERATOR_DB_URL='postgresql://postgres:<pass>@light-generator-postgres-1:5432/lightgenerator' \
-   DATABASE_URL='postgresql://postgres:sI92qLc9z3Buf4iY9C6l2tmd6R9QarYE@light-generator-postgres-1:5432/shopee_dashboard' \
+   DATABASE_URL='postgresql://postgres:<pass>@light-generator-postgres-1:5432/shopee_dashboard' \
    node scripts/migrate-lg-orders.mjs"
 ```
 
