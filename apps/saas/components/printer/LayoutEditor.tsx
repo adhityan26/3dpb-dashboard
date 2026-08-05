@@ -47,7 +47,7 @@ function HeaderTextField({ value, onCommit }: { value: string; onCommit: (text: 
       <input
         value={text}
         onChange={(e) => setText(e.target.value)}
-        onBlur={() => onCommit(text)}
+        onBlur={() => onCommit(text.trim())}
         placeholder='mis. "Semangat pagi! Cetak lancar hari ini"'
         className="glass-input mt-1 w-full rounded-[5px] px-2 py-1.5 text-xs"
       />

@@ -60,6 +60,25 @@ describe("saveLayout", () => {
     });
   });
 
+  // Regresi: validateLayoutConfig() saat ini balikin input apa adanya (tak rekonstruksi object),
+  // jadi headerText ikut lolos ke Prisma tanpa whitelist eksplisit. Kalau nanti fungsi itu
+  // "dikeraskan" jadi membangun ulang output & lupa copy headerText, test ini yang menangkapnya.
+  it("headerText ikut tersimpan ke config yang di-upsert ke Prisma", async () => {
+    const config = {
+      schemaVersion: 1,
+      headerText: "Semangat pagi!",
+      pages: [{ id: "p1", grid: { cols: 2, rows: 2 }, fields: [], durationSec: 5, cells: [{ printer: "punya-user-1", col: 0, row: 0 }] }],
+    };
+    (prisma.cydLayout.upsert as any).mockResolvedValue({ userId: "u1", config });
+    const result = await saveLayout("u1", config, ["punya-user-1"]);
+    expect(result).toEqual(config);
+    expect(prisma.cydLayout.upsert).toHaveBeenCalledWith({
+      where: { userId: "u1" },
+      create: { userId: "u1", config: expect.objectContaining({ headerText: "Semangat pagi!" }) },
+      update: { config: expect.objectContaining({ headerText: "Semangat pagi!" }) },
+    });
+  });
+
   it("pakai client yang dioper (tx) buat upsert kalau ada", async () => {
     const config = { schemaVersion: 1, pages: [{ id: "p1", grid: { cols: 2, rows: 2 }, fields: [], durationSec: 5, cells: [] }] };
     const tx = { cydLayout: { upsert: vi.fn().mockResolvedValue({}) }, device: { findMany: vi.fn() } };

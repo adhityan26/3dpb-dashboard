@@ -97,6 +97,26 @@ describe("LayoutEditor", () => {
     expect(body.headerText).toBe("Kata baru");
   });
 
+  it("teks header berisi spasi doang -> di-trim jadi string kosong sebelum dikirim", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ schemaVersion: 1, pages: [{ id: "page-1", grid: { cols: 2, rows: 2 }, fields: [], durationSec: 5, cells: [] }] }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+    render(<LayoutEditor devices={[]} />);
+
+    const input = (await screen.findByLabelText(/teks header/i)) as HTMLInputElement;
+
+    fireEvent.change(input, { target: { value: "   " } });
+    fireEvent.blur(input);
+
+    fireEvent.click(screen.getByRole("button", { name: /^simpan$/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/cyd-layout", expect.objectContaining({ method: "PUT" })));
+    const body = JSON.parse((fetchMock.mock.calls.at(-1)![1] as { body: string }).body);
+    expect(body.headerText).toBe("");
+  });
+
   it("teks header lebih dari 120 byte -> simpan ditolak di client, PUT tak terpanggil", async () => {
     fetchMock.mockResolvedValueOnce({
       ok: true,

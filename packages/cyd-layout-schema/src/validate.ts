@@ -115,7 +115,7 @@ export function validateLayoutConfig(input: unknown): ValidationResult {
 
   if (input.headerText !== undefined) {
     if (typeof input.headerText !== 'string') return { valid: false, error: 'headerText wajib string' }
-    if (Buffer.byteLength(input.headerText, 'utf8') > LAYOUT_LIMITS.headerTextMaxLength) {
+    if (new TextEncoder().encode(input.headerText).length > LAYOUT_LIMITS.headerTextMaxLength) {
       return { valid: false, error: `headerText melebihi batas ${LAYOUT_LIMITS.headerTextMaxLength} byte` }
     }
   }
