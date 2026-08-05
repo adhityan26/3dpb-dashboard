@@ -140,6 +140,7 @@ export async function getReadyToShipOrders(): Promise<OrderListResult> {
       labelPrintedBy: label?.printedBy ?? null,
       isPreOrder: (d.days_to_ship ?? 0) >= 7,
       shipByDate: d.ship_by_date ?? null,
+      shippingCarrier: d.shipping_carrier ?? null,
     }
   })
 

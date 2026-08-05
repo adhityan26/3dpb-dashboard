@@ -21,6 +21,7 @@ export interface OrderSummary {
   labelPrintedBy: string | null
   isPreOrder: boolean
   shipByDate: number | null
+  shippingCarrier: string | null
 }
 
 export interface OrderListResult {

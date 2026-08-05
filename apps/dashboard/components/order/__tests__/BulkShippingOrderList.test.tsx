@@ -19,6 +19,7 @@ function makeOrder(orderSn: string): OrderSummary {
     labelPrintedBy: null,
     isPreOrder: false,
     shipByDate: null,
+    shippingCarrier: null,
   }
 }
 
@@ -74,6 +75,29 @@ describe("BulkShippingOrderList", () => {
       />,
     )
     expect(screen.getByLabelText("Pilih order S1")).toBeChecked()
+  })
+
+  it("renders product name and variant name separately", () => {
+    const order = makeOrder("S1")
+    order.items = [{ productName: "Vas Bunga", variantName: "Merah / Besar", sku: null, qty: 1, unitPrice: 10000, imageUrl: null }]
+    render(
+      <BulkShippingOrderList orders={[order]} selectedSns={new Set()} onToggleSelect={() => {}} onToggleSelectAll={() => {}} />,
+    )
+    expect(screen.getByText("Vas Bunga")).toBeInTheDocument()
+    expect(screen.getByText(/Merah \/ Besar/)).toBeInTheDocument()
+  })
+
+  it("renders order date, ship-by date, and shipping carrier", () => {
+    const order = makeOrder("S1")
+    order.createTime = 1735689600
+    order.shipByDate = 1735776000
+    order.shippingCarrier = "JNE Reguler"
+    render(
+      <BulkShippingOrderList orders={[order]} selectedSns={new Set()} onToggleSelect={() => {}} onToggleSelectAll={() => {}} />,
+    )
+    expect(screen.getByText(/Dipesan/)).toBeInTheDocument()
+    expect(screen.getByText(/Kirim sebelum/)).toBeInTheDocument()
+    expect(screen.getByText(/JNE Reguler/)).toBeInTheDocument()
   })
 
   it("renders an empty state when there are no orders", () => {
