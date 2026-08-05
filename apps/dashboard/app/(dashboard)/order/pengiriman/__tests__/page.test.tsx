@@ -1,0 +1,85 @@
+// @vitest-environment jsdom
+import { describe, it, expect, vi, beforeEach } from "vitest"
+import { render, screen, fireEvent, waitFor } from "@testing-library/react"
+
+vi.mock("@/lib/hooks/use-orders", () => ({
+  useOrders: () => ({
+    data: {
+      orders: [
+        { orderSn: "S1", shopeeStatus: "READY_TO_SHIP", items: [{ productName: "Vas Bunga" }], buyerUsername: "b1" },
+        { orderSn: "S2", shopeeStatus: "READY_TO_SHIP", items: [{ productName: "Miniatur" }], buyerUsername: "b2" },
+        { orderSn: "S3", shopeeStatus: "PROCESSED", items: [{ productName: "Sudah diproses" }], buyerUsername: "b3" },
+      ],
+    },
+    isLoading: false,
+    error: null,
+  }),
+}))
+
+const mockFetch = vi.fn()
+vi.stubGlobal("fetch", mockFetch)
+vi.stubGlobal("open", vi.fn())
+// jsdom doesn't implement URL.createObjectURL — stub it so the
+// generate-resi flow (blob -> object URL -> window.open) can run in tests.
+if (typeof URL.createObjectURL !== "function") {
+  URL.createObjectURL = vi.fn(() => "blob:mock-url")
+}
+
+import PengirimanPage from "../page"
+
+describe("Pengiriman Massal page", () => {
+  beforeEach(() => { vi.clearAllMocks() })
+
+  it("only lists READY_TO_SHIP orders (filters out PROCESSED)", () => {
+    render(<PengirimanPage />)
+    expect(screen.getByText(/S1/)).toBeInTheDocument()
+    expect(screen.getByText(/S2/)).toBeInTheDocument()
+    expect(screen.queryByText(/S3/)).not.toBeInTheDocument()
+  })
+
+  it("disables the arrange-shipment button until at least one order is selected", () => {
+    render(<PengirimanPage />)
+    expect(screen.getByRole("button", { name: /atur pengiriman/i })).toBeDisabled()
+  })
+
+  it("enables arrange-shipment once an order is checked, and posts to /api/shopee/logistics/ship", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ results: [{ orderSn: "S1", success: true }] }),
+    })
+
+    render(<PengirimanPage />)
+    fireEvent.click(screen.getByLabelText("Pilih order S1"))
+    fireEvent.click(screen.getByRole("button", { name: /pickup/i }))
+
+    const shipButton = screen.getByRole("button", { name: /atur pengiriman/i })
+    expect(shipButton).not.toBeDisabled()
+    fireEvent.click(shipButton)
+
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledWith(
+      "/api/shopee/logistics/ship",
+      expect.objectContaining({ method: "POST" }),
+    ))
+    await waitFor(() => expect(screen.getByText(/1 order berhasil diatur/i)).toBeInTheDocument())
+  })
+
+  it("shows the generate-resi button only after at least one order ships successfully, and opens the PDF in a new tab", async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ results: [{ orderSn: "S1", success: true }] }) })
+      .mockResolvedValueOnce({ ok: true, blob: async () => new Blob(["pdf"], { type: "application/pdf" }) })
+
+    render(<PengirimanPage />)
+    fireEvent.click(screen.getByLabelText("Pilih order S1"))
+    fireEvent.click(screen.getByRole("button", { name: /pickup/i }))
+    fireEvent.click(screen.getByRole("button", { name: /atur pengiriman/i }))
+    await waitFor(() => screen.getByRole("button", { name: /generate.*cetak resi/i }))
+
+    fireEvent.click(screen.getByRole("button", { name: /generate.*cetak resi/i }))
+
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledWith(
+      "/api/shopee/logistics/document",
+      expect.objectContaining({ method: "POST" }),
+    ))
+    await waitFor(() => expect(window.open).toHaveBeenCalled())
+  })
+})
