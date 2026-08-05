@@ -50,15 +50,18 @@ export interface StoredState {
   last_task_id: string
   last_filename: string
   last_error_code: string
+  last_error_message: string
   last_seen_at: string | null
   last_nozzle_temp: number
   last_bed_temp: number
 }
 
-// Kontrak CYD — field lama JANGAN diubah (spec §2). nozzle_temp/bed_temp ditambahkan
-// belakangan sebagai field BARU (additive) khusus buat Dashboard Electron -- firmware CYD
-// yang belum tahu field ini diasumsikan mengabaikannya (parser JSON umum begitu), field
-// yang SUDAH ada di atas tetap persis sama.
+// Kontrak CYD — field lama JANGAN diubah (spec §2). nozzle_temp/bed_temp dan
+// error_message ditambahkan belakangan sebagai field BARU (additive) khusus buat
+// Dashboard Electron (nozzle_temp/bed_temp) dan pesan error human-readable dari
+// describeError() (error_message) -- firmware CYD yang belum tahu field-field ini
+// diasumsikan mengabaikannya (parser JSON umum begitu), field yang SUDAH ada di
+// atas tetap persis sama.
 export interface PrinterRow {
   id: string
   name: string
@@ -68,6 +71,7 @@ export interface PrinterRow {
   remaining_min: number
   filename: string
   error_msg: string
+  error_message: string
   last_seen: string | null
   nozzle_temp: number
   bed_temp: number

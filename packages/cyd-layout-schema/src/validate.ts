@@ -113,6 +113,13 @@ export function validateLayoutConfig(input: unknown): ValidationResult {
   if (!isPlainObject(input)) return { valid: false, error: 'config wajib berupa object' }
   if (input.schemaVersion !== 1) return { valid: false, error: 'schemaVersion wajib 1' }
 
+  if (input.headerText !== undefined) {
+    if (typeof input.headerText !== 'string') return { valid: false, error: 'headerText wajib string' }
+    if (new TextEncoder().encode(input.headerText).length > LAYOUT_LIMITS.headerTextMaxLength) {
+      return { valid: false, error: `headerText melebihi batas ${LAYOUT_LIMITS.headerTextMaxLength} byte` }
+    }
+  }
+
   const pages = input.pages
   if (!Array.isArray(pages) || pages.length === 0) return { valid: false, error: 'pages wajib array non-kosong' }
   if (pages.length > LAYOUT_LIMITS.maxPages) return { valid: false, error: `pages melebihi batas ${LAYOUT_LIMITS.maxPages}` }

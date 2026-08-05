@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { Engine, type Reporter, type Notifier } from '../engine'
 import { normalizeBambu } from '../normalize-bambu'
 import { BambuMqttConnector } from '../connectors/bambu-mqtt'
+import { HmsLookup } from '../hms'
 import type { DeviceConfig, PrintersPayload, PrinterEvent } from '../types'
 
 const mars: DeviceConfig = { id: 'mars', name: 'Mars', type: 'P1P', connector: 'bambu', ip: 'x', serial: 's', accessCode: 'a' }
@@ -117,5 +118,21 @@ describe('Engine', () => {
     errSpy.mockRestore()
     expect(events.map((e) => e.kind)).toEqual(['started'])
     expect(published).toHaveLength(2)
+  })
+
+  it('event error dgn HMS → snapshot payload berisi error_message manusiawi (via HmsLookup ter-inject)', async () => {
+    const published: PrintersPayload[] = []
+    const reporter: Reporter = { publishStatus: (p) => void published.push(p), emitEvent: () => {} }
+    const engine = new Engine({
+      devices: [mars], connectors: [], reporters: [reporter],
+      hms: new HmsLookup({ '1201_8007': 'Extruder clogged.' }),
+      now: () => Date.parse('2026-07-16T01:00:00Z'),
+    })
+    await engine.handleStatus(normalizeBambu('mars', { print: {
+      gcode_state: 'FAILED', print_error: 117473285, mc_print_error_code: '0',
+      hms: [{ attr: 0x12018007, code: 66 }] } }))
+    expect(published.at(-1)!.payload[0]).toMatchObject({
+      state: 'error', error_message: '[1201_8007] Extruder clogged.',
+    })
   })
 })

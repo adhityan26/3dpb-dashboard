@@ -220,3 +220,44 @@ describe('validateLayoutConfig — batas panjang string (BARU)', () => {
     expect(result.valid).toBe(true)
   })
 })
+
+describe('validateLayoutConfig — headerText (BARU)', () => {
+  it('headerText absen -> valid (opsional)', () => {
+    const cfg = validConfig()
+    const result = validateLayoutConfig(cfg)
+    expect(result.valid).toBe(true)
+  })
+
+  it('headerText string kosong -> valid', () => {
+    const cfg = { ...validConfig(), headerText: '' }
+    const result = validateLayoutConfig(cfg)
+    expect(result.valid).toBe(true)
+  })
+
+  it('headerText bukan string -> invalid', () => {
+    const cfg = { ...validConfig(), headerText: 123 }
+    const result = validateLayoutConfig(cfg)
+    expect(result.valid).toBe(false)
+  })
+
+  it('headerText persis 120 byte -> valid', () => {
+    const cfg = { ...validConfig(), headerText: 'a'.repeat(120) }
+    const result = validateLayoutConfig(cfg)
+    expect(result.valid).toBe(true)
+  })
+
+  it('headerText 121 byte -> invalid', () => {
+    const cfg = { ...validConfig(), headerText: 'a'.repeat(121) }
+    const result = validateLayoutConfig(cfg)
+    expect(result.valid).toBe(false)
+  })
+
+  it('headerText multibyte (emoji) -- .length pendek tapi byte melebihi batas -> invalid', () => {
+    // '🚀' = 2 UTF-16 code unit (.length menghitungnya 2) tapi 4 byte UTF-8.
+    // 31 emoji: .length = 62 (jauh di bawah 120), byte = 124 (di atas 120). Test ini gagal kalau
+    // implementasi salah pakai .length alih-alih Buffer.byteLength.
+    const cfg = { ...validConfig(), headerText: '🚀'.repeat(31) }
+    const result = validateLayoutConfig(cfg)
+    expect(result.valid).toBe(false)
+  })
+})

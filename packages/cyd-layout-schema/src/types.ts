@@ -33,6 +33,7 @@ export interface LayoutPageOut {
 
 export interface LayoutConfigOut {
   schemaVersion: 1
+  headerText?: string
   pages: LayoutPageOut[]
 }
 
@@ -56,4 +57,7 @@ export const LAYOUT_LIMITS = {
   maxLabelLength: 15,
   maxLabelTextLength: 31,
   maxPageIdLength: 15,
+  // Batas teks header strip notif CYD (fitur marquee) -- byte UTF-8, cocok kapasitas buffer
+  // firmware `char headerText[125]` (120 byte usable + null + margin kecil).
+  headerTextMaxLength: 120,
 } as const

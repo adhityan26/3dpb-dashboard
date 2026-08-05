@@ -71,4 +71,65 @@ describe("LayoutEditor", () => {
     const body = JSON.parse((fetchMock.mock.calls.at(-1)![1] as { body: string }).body);
     expect(body.pages.map((p: { id: string }) => p.id)).toEqual(["page-1", "hal-2", "hal-3"]);
   });
+
+  it("teks header: ter-render dari GET, bisa diedit, ikut terkirim di PUT", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          schemaVersion: 1,
+          headerText: "Semangat pagi!",
+          pages: [{ id: "page-1", grid: { cols: 2, rows: 2 }, fields: [], durationSec: 5, cells: [] }],
+        }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+    render(<LayoutEditor devices={[]} />);
+
+    const input = (await screen.findByLabelText(/teks header/i)) as HTMLInputElement;
+    await waitFor(() => expect(input.value).toBe("Semangat pagi!"));
+
+    fireEvent.change(input, { target: { value: "Kata baru" } });
+    fireEvent.blur(input);
+
+    fireEvent.click(screen.getByRole("button", { name: /^simpan$/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/cyd-layout", expect.objectContaining({ method: "PUT" })));
+    const body = JSON.parse((fetchMock.mock.calls.at(-1)![1] as { body: string }).body);
+    expect(body.headerText).toBe("Kata baru");
+  });
+
+  it("teks header berisi spasi doang -> di-trim jadi string kosong sebelum dikirim", async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ schemaVersion: 1, pages: [{ id: "page-1", grid: { cols: 2, rows: 2 }, fields: [], durationSec: 5, cells: [] }] }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+    render(<LayoutEditor devices={[]} />);
+
+    const input = (await screen.findByLabelText(/teks header/i)) as HTMLInputElement;
+
+    fireEvent.change(input, { target: { value: "   " } });
+    fireEvent.blur(input);
+
+    fireEvent.click(screen.getByRole("button", { name: /^simpan$/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/cyd-layout", expect.objectContaining({ method: "PUT" })));
+    const body = JSON.parse((fetchMock.mock.calls.at(-1)![1] as { body: string }).body);
+    expect(body.headerText).toBe("");
+  });
+
+  it("teks header lebih dari 120 byte -> simpan ditolak di client, PUT tak terpanggil", async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ schemaVersion: 1, pages: [{ id: "page-1", grid: { cols: 2, rows: 2 }, fields: [], durationSec: 5, cells: [] }] }),
+    });
+    render(<LayoutEditor devices={[]} />);
+
+    const input = (await screen.findByLabelText(/teks header/i)) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "a".repeat(121) } });
+    fireEvent.blur(input);
+
+    fireEvent.click(screen.getByRole("button", { name: /^simpan$/i }));
+    await waitFor(() => expect(screen.getByText(/lebih dari 120 byte/i)).toBeTruthy());
+    expect(fetchMock).toHaveBeenCalledTimes(1); // cuma GET awal, PUT tak pernah terpanggil
+  });
 });
