@@ -77,7 +77,8 @@ describe('buildDynamicQris', () => {
     const reconverted = buildDynamicQris(alreadyDynamic, 75000)
     expect(reconverted).toContain('540575000')
     expect(reconverted).not.toContain('540550000')
-    // exactly one tag 54 field
-    expect(reconverted.split('54').length - 1).toBe(1)
+    // exactly one tag 54 field: match tag (54) + 2-digit length prefix (tag boundary awareness)
+    const tag54Matches = reconverted.match(/54\d{2}/g) || []
+    expect(tag54Matches.length).toBe(1)
   })
 })
