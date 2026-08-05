@@ -90,14 +90,13 @@ async function saveTokens(accessToken: string, refreshToken: string) {
 }
 
 /**
- * Call a Shopee Shop-scoped API. Handles signing and auto token refresh.
- * Throws if the shop isn't connected (no access token in DB).
+ * Build the signed request URL shared by shopeeRequest and shopeeRequestPost.
+ * Throws the same connection-state errors both callers need to surface.
  */
-export async function shopeeRequest<T = unknown>(
+async function buildSignedUrl(
   path: string,
-  params: Record<string, string | number> = {},
-  options: { transientAttempt?: number } = {},
-): Promise<T> {
+  params: Record<string, string | number>,
+): Promise<{ url: URL; shopId: string; accessToken: string }> {
   const partnerId = process.env.SHOPEE_PARTNER_ID
   if (!partnerId) {
     throw new Error("SHOPEE_PARTNER_ID is not set in env")
@@ -128,13 +127,28 @@ export async function shopeeRequest<T = unknown>(
     url.searchParams.set(k, String(v))
   }
 
-  // Timeout 8s — prevents Shopee API hangs from blocking page renders
-  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) })
-  const json = (await res.json()) as {
-    error?: string
-    message?: string
-  } & Record<string, unknown>
+  return { url, shopId, accessToken }
+}
 
+type ShopeeJsonResponse = {
+  error?: string
+  message?: string
+} & Record<string, unknown>
+
+/**
+ * Shared error-branch handling for both shopeeRequest and shopeeRequestPost:
+ * token-refresh-and-retry-once on error_auth-family codes, retry with
+ * exponential backoff on transient server errors, else throw.
+ * `retry` is called with the same args as options.transientAttempt bumped
+ * (or unchanged, for the auth-refresh case) to re-issue the original call.
+ */
+async function handleShopeeErrorResponse<T>(
+  json: ShopeeJsonResponse,
+  path: string,
+  shopId: string,
+  options: { transientAttempt?: number },
+  retry: (options: { transientAttempt?: number }) => Promise<T>,
+): Promise<T | undefined> {
   // Token expired → refresh and retry once.
   if (json.error && TOKEN_ERROR_CODES.has(json.error)) {
     const { refreshToken } = await getTokens()
@@ -145,7 +159,7 @@ export async function shopeeRequest<T = unknown>(
     }
     const newTokens = await refreshShopeeToken(refreshToken, shopId)
     await saveTokens(newTokens.accessToken, newTokens.refreshToken)
-    return shopeeRequest<T>(path, params, options)
+    return retry(options)
   }
 
   // Transient server errors → retry with exponential backoff.
@@ -157,9 +171,7 @@ export async function shopeeRequest<T = unknown>(
         `Shopee transient error (${json.error}) on ${path}. Retrying in ${delayMs}ms (attempt ${attempt + 1}/${MAX_TRANSIENT_RETRIES})`,
       )
       await sleep(delayMs)
-      return shopeeRequest<T>(path, params, {
-        transientAttempt: attempt + 1,
-      })
+      return retry({ transientAttempt: attempt + 1 })
     }
   }
 
@@ -167,6 +179,69 @@ export async function shopeeRequest<T = unknown>(
     throw new Error(
       `Shopee API error: ${json.error} — ${json.message ?? "no message"}`,
     )
+  }
+
+  return undefined
+}
+
+/**
+ * Call a Shopee Shop-scoped API. Handles signing and auto token refresh.
+ * Throws if the shop isn't connected (no access token in DB).
+ */
+export async function shopeeRequest<T = unknown>(
+  path: string,
+  params: Record<string, string | number> = {},
+  options: { transientAttempt?: number } = {},
+): Promise<T> {
+  const { url, shopId } = await buildSignedUrl(path, params)
+
+  // Timeout 8s — prevents Shopee API hangs from blocking page renders
+  const res = await fetch(url.toString(), { signal: AbortSignal.timeout(8000) })
+  const json = (await res.json()) as ShopeeJsonResponse
+
+  if (json.error) {
+    const retried = await handleShopeeErrorResponse<T>(
+      json,
+      path,
+      shopId,
+      options,
+      (opts) => shopeeRequest<T>(path, params, opts),
+    )
+    if (retried !== undefined) return retried
+  }
+
+  return json as T
+}
+
+/**
+ * Call a Shopee Shop-scoped API with a JSON body (POST). Shares the same
+ * signing/token-refresh/transient-retry logic as shopeeRequest.
+ */
+export async function shopeeRequestPost<T = unknown>(
+  path: string,
+  params: Record<string, string | number>,
+  body: Record<string, unknown>,
+  options: { transientAttempt?: number } = {},
+): Promise<T> {
+  const { url, shopId } = await buildSignedUrl(path, params)
+
+  const res = await fetch(url.toString(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(8000),
+  })
+  const json = (await res.json()) as ShopeeJsonResponse
+
+  if (json.error) {
+    const retried = await handleShopeeErrorResponse<T>(
+      json,
+      path,
+      shopId,
+      options,
+      (opts) => shopeeRequestPost<T>(path, params, body, opts),
+    )
+    if (retried !== undefined) return retried
   }
 
   return json as T
