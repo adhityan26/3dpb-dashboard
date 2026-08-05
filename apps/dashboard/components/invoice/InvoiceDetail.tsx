@@ -3,6 +3,8 @@
 import { useRef, useState, useEffect } from "react"
 import { useInvoice, useUpdateInvoice, useAddPayment, useDeletePayment, usePaymentMethods, useInvoiceBankAccount, useInvoiceQris } from "@/lib/hooks/use-invoice"
 import type { QuotationStatus, QuotationItemInput } from "@/lib/invoice/types"
+import QRCode from "qrcode"
+import { buildDynamicQris } from "@/lib/invoice/qris"
 
 function fmt(n: number) { return `Rp ${Math.round(n).toLocaleString("id-ID")}` }
 function formatDate(iso: string) {
@@ -56,7 +58,11 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
   const { data: inv, isLoading } = useInvoice(invoiceId)
   const { data: paymentMethods } = usePaymentMethods()
   const { data: bankAccount } = useInvoiceBankAccount()
-  const { data: qris } = useInvoiceQris()
+  const { data: qrisData } = useInvoiceQris()
+  const qris = qrisData?.qris
+  const qrisPayload = qrisData?.qrisPayload ?? null
+  const [qrisAmountInput, setQrisAmountInput] = useState<string>("")
+  const [dynamicQrImage, setDynamicQrImage] = useState<string | null>(null)
   const updateMut = useUpdateInvoice()
   const addPaymentMut = useAddPayment()
   const deletePaymentMut = useDeletePayment()
@@ -97,10 +103,34 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
     setOngkirVal(inv.ongkir > 0 ? String(inv.ongkir) : "")
   }, [inv])
 
+  useEffect(() => {
+    if (inv) setQrisAmountInput(String(inv.sisaBayar))
+  }, [inv?.id, inv?.sisaBayar])
+
+  useEffect(() => {
+    const amount = Number(qrisAmountInput)
+    if (!qrisAmountInput || !Number.isFinite(amount) || amount <= 0 || !qrisPayload) {
+      setDynamicQrImage(null)
+      return
+    }
+    let cancelled = false
+    const timer = setTimeout(async () => {
+      try {
+        const payload = buildDynamicQris(qrisPayload, amount)
+        const dataUrl = await QRCode.toDataURL(payload)
+        if (!cancelled) setDynamicQrImage(dataUrl)
+      } catch {
+        if (!cancelled) setDynamicQrImage(null)
+      }
+    }, 200)
+    return () => { cancelled = true; clearTimeout(timer) }
+  }, [qrisAmountInput, qrisPayload])
+
   if (isLoading) return <div className="text-center py-12 text-sm g-t4">Memuat...</div>
   if (!inv) return null
 
   const invoice = inv
+  const displayedQris = dynamicQrImage ?? qris
   const cfg = STATUS_CONFIG[invoice.status]
   const transitions = STATUS_TRANSITIONS[invoice.status]
   const canEdit = invoice.status !== "PAID" && invoice.status !== "CANCELLED"
@@ -675,8 +705,22 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
               {qris && (
                 <div style={{ textAlign: "center" }}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={qris} alt="QRIS" style={{ width: 110, height: 110, objectFit: "contain" }} />
+                  <img src={displayedQris} alt="QRIS" style={{ width: 110, height: 110, objectFit: "contain" }} />
                   <div style={{ fontSize: 9, textTransform: "uppercase", letterSpacing: "0.06em", color: "#555", marginTop: 2 }}>Scan QRIS</div>
+                  <div style={{ marginTop: 4 }}>
+                    <label style={{ fontSize: 8, color: "#888", display: "block" }} htmlFor="qris-amount-input">
+                      Jumlah QRIS
+                    </label>
+                    <input
+                      id="qris-amount-input"
+                      aria-label="Jumlah QRIS"
+                      type="number"
+                      value={qrisAmountInput}
+                      onChange={(e) => setQrisAmountInput(e.target.value)}
+                      disabled={!qrisPayload}
+                      style={{ width: 90, fontSize: 10, padding: "2px 4px", textAlign: "right" }}
+                    />
+                  </div>
                 </div>
               )}
             </div>
