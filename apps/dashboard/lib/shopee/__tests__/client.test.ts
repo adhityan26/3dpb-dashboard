@@ -90,4 +90,17 @@ describe("shopeeDownloadDocument", () => {
       shopeeDownloadDocument("/api/v2/logistics/download_shipping_document", {}, { order_list: [{ order_sn: "S1" }] }),
     ).rejects.toThrow(/document not ready/)
   })
+
+  it("throws on a non-ok response even when the body isn't JSON (e.g. a gateway error page)", async () => {
+    mockFetch.mockResolvedValue({
+      ok: false,
+      status: 502,
+      headers: { get: (name: string) => (name === "content-type" ? "text/html" : null) },
+      arrayBuffer: async () => new TextEncoder().encode("<html>Bad Gateway</html>").buffer,
+    })
+
+    await expect(
+      shopeeDownloadDocument("/api/v2/logistics/download_shipping_document", {}, { order_list: [{ order_sn: "S1" }] }),
+    ).rejects.toThrow(/502/)
+  })
 })

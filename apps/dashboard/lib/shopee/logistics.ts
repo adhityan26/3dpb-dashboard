@@ -61,11 +61,22 @@ export async function shipOrder(
   }
 }
 
+// Shared across create/poll/download so the document Shopee generates at
+// creation time matches the type we later request when downloading — Shopee
+// generates the document per the requested type at creation time, so all
+// three calls must agree.
+const SHIPPING_DOCUMENT_TYPE = "THERMAL_AIR_WAYBILL"
+
 export async function createShippingDocument(orderSnList: string[]): Promise<void> {
   await shopeeRequestPost(
     "/api/v2/logistics/create_shipping_document",
     {},
-    { order_list: orderSnList.map((orderSn) => ({ order_sn: orderSn })) },
+    {
+      order_list: orderSnList.map((orderSn) => ({
+        order_sn: orderSn,
+        shipping_document_type: SHIPPING_DOCUMENT_TYPE,
+      })),
+    },
   )
 }
 
@@ -76,9 +87,16 @@ interface ShippingDocumentResultResponse {
 export async function getShippingDocumentResult(
   orderSnList: string[],
 ): Promise<{ orderSn: string; status: "PROCESSING" | "READY" | "FAILED" }[]> {
-  const json = await shopeeRequest<ShippingDocumentResultResponse>(
+  // Shopee's get_shipping_document_result endpoint is POST-only — it 404s on GET.
+  const json = await shopeeRequestPost<ShippingDocumentResultResponse>(
     "/api/v2/logistics/get_shipping_document_result",
-    { order_sn_list: orderSnList.join(",") },
+    {},
+    {
+      order_list: orderSnList.map((orderSn) => ({
+        order_sn: orderSn,
+        shipping_document_type: SHIPPING_DOCUMENT_TYPE,
+      })),
+    },
   )
   return json.response.result_list.map((r) => ({ orderSn: r.order_sn, status: r.status }))
 }
@@ -90,7 +108,7 @@ export async function downloadShippingDocument(orderSnList: string[]): Promise<B
     {
       order_list: orderSnList.map((orderSn) => ({
         order_sn: orderSn,
-        shipping_document_type: "THERMAL_AIR_WAYBILL",
+        shipping_document_type: SHIPPING_DOCUMENT_TYPE,
       })),
     },
   )
@@ -98,14 +116,17 @@ export async function downloadShippingDocument(orderSnList: string[]): Promise<B
 
 /**
  * Orchestrates the full flow: kick off generation, poll until every order's
- * document is READY (or fail fast on FAILED / timeout), then download the
- * combined PDF. Default poll: every 1500ms, up to 10 attempts (~15s) —
- * override via options for tests.
+ * document is READY or FAILED (or timeout), then download the PDF for
+ * whichever orders reached READY. Partial failure must be surfaced per-order
+ * (never all-or-nothing) — if 1 of N orders fails, the other N-1 still get a
+ * PDF and the caller learns which order sns failed via `failedOrderSns`.
+ * Default poll: every 1500ms, up to 10 attempts (~15s) — override via
+ * options for tests.
  */
 export async function generateShippingDocument(
   orderSnList: string[],
   options: { pollIntervalMs?: number; maxPolls?: number } = {},
-): Promise<Buffer> {
+): Promise<{ pdf: Buffer; failedOrderSns: string[] }> {
   const pollIntervalMs = options.pollIntervalMs ?? 1500
   const maxPolls = options.maxPolls ?? 10
 
@@ -114,11 +135,19 @@ export async function generateShippingDocument(
   for (let attempt = 0; attempt < maxPolls; attempt++) {
     const results = await getShippingDocumentResult(orderSnList)
 
-    const failed = results.find((r) => r.status === "FAILED")
-    if (failed) throw new Error(`Pembuatan dokumen resi gagal untuk order ${failed.orderSn}`)
+    const failedOrderSns = results.filter((r) => r.status === "FAILED").map((r) => r.orderSn)
+    const readyOrderSns = results.filter((r) => r.status === "READY").map((r) => r.orderSn)
+    const stillPending = results.some((r) => r.status === "PROCESSING")
 
-    const allReady = results.every((r) => r.status === "READY")
-    if (allReady) return downloadShippingDocument(orderSnList)
+    if (!stillPending) {
+      if (readyOrderSns.length === 0) {
+        throw new Error(
+          `Pembuatan dokumen resi gagal untuk semua order: ${failedOrderSns.join(", ")}`,
+        )
+      }
+      const pdf = await downloadShippingDocument(readyOrderSns)
+      return { pdf, failedOrderSns }
+    }
 
     if (attempt < maxPolls - 1 && pollIntervalMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, pollIntervalMs))

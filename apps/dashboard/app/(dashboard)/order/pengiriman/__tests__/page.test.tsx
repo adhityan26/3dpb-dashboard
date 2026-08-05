@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import { render, screen, fireEvent, waitFor } from "@testing-library/react"
 
+const mockRefetch = vi.fn()
 vi.mock("@/lib/hooks/use-orders", () => ({
   useOrders: () => ({
     data: {
@@ -13,12 +14,13 @@ vi.mock("@/lib/hooks/use-orders", () => ({
     },
     isLoading: false,
     error: null,
+    refetch: mockRefetch,
   }),
 }))
 
 const mockFetch = vi.fn()
 vi.stubGlobal("fetch", mockFetch)
-vi.stubGlobal("open", vi.fn())
+vi.stubGlobal("open", vi.fn(() => ({}) as Window))
 // jsdom doesn't implement URL.createObjectURL — stub it so the
 // generate-resi flow (blob -> object URL -> window.open) can run in tests.
 if (typeof URL.createObjectURL !== "function") {
@@ -61,12 +63,17 @@ describe("Pengiriman Massal page", () => {
       expect.objectContaining({ method: "POST" }),
     ))
     await waitFor(() => expect(screen.getByText(/1 order berhasil diatur/i)).toBeInTheDocument())
+    expect(mockRefetch).toHaveBeenCalled()
   })
 
   it("shows the generate-resi button only after at least one order ships successfully, and opens the PDF in a new tab", async () => {
     mockFetch
       .mockResolvedValueOnce({ ok: true, json: async () => ({ results: [{ orderSn: "S1", success: true }] }) })
-      .mockResolvedValueOnce({ ok: true, blob: async () => new Blob(["pdf"], { type: "application/pdf" }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => null },
+        blob: async () => new Blob(["pdf"], { type: "application/pdf" }),
+      })
 
     render(<PengirimanPage />)
     fireEvent.click(screen.getByLabelText("Pilih order S1"))
@@ -81,6 +88,48 @@ describe("Pengiriman Massal page", () => {
       expect.objectContaining({ method: "POST" }),
     ))
     await waitFor(() => expect(window.open).toHaveBeenCalled())
+  })
+
+  it("shows a fallback link to open the PDF when window.open is blocked by the browser popup blocker", async () => {
+    vi.mocked(window.open).mockReturnValueOnce(null)
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ results: [{ orderSn: "S1", success: true }] }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => null },
+        blob: async () => new Blob(["pdf"], { type: "application/pdf" }),
+      })
+
+    render(<PengirimanPage />)
+    fireEvent.click(screen.getByLabelText("Pilih order S1"))
+    fireEvent.click(screen.getByRole("button", { name: /pickup/i }))
+    fireEvent.click(screen.getByRole("button", { name: /atur pengiriman/i }))
+    await waitFor(() => screen.getByRole("button", { name: /generate.*cetak resi/i }))
+
+    fireEvent.click(screen.getByRole("button", { name: /generate.*cetak resi/i }))
+
+    await waitFor(() => expect(screen.getByRole("link", { name: /buka pdf resi/i })).toBeInTheDocument())
+  })
+
+  it("shows a supplementary message and still opens the PDF for successful orders when some orders failed document generation (X-Failed-Orders header)", async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ results: [{ orderSn: "S1", success: true }] }) })
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: (name: string) => (name === "X-Failed-Orders" ? "S2" : null) },
+        blob: async () => new Blob(["pdf"], { type: "application/pdf" }),
+      })
+
+    render(<PengirimanPage />)
+    fireEvent.click(screen.getByLabelText("Pilih order S1"))
+    fireEvent.click(screen.getByRole("button", { name: /pickup/i }))
+    fireEvent.click(screen.getByRole("button", { name: /atur pengiriman/i }))
+    await waitFor(() => screen.getByRole("button", { name: /generate.*cetak resi/i }))
+
+    fireEvent.click(screen.getByRole("button", { name: /generate.*cetak resi/i }))
+
+    await waitFor(() => expect(window.open).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getByText(/gagal: S2/i)).toBeInTheDocument())
   })
 
   it("shows an error message when the ship endpoint responds with a non-ok status", async () => {

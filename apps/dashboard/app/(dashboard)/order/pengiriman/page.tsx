@@ -11,13 +11,15 @@ type ShipResult = { orderSn: string; success: boolean; error?: string }
 type Branch = { branchId: number; address: string }
 
 export default function PengirimanPage() {
-  const { data, isLoading } = useOrders()
+  const { data, isLoading, refetch } = useOrders()
   const [selectedSns, setSelectedSns] = useState<Set<string>>(new Set())
   const [method, setMethod] = useState<Method | null>(null)
   const [shipResults, setShipResults] = useState<ShipResult[] | null>(null)
   const [isShipping, setIsShipping] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
+  const [generateInfo, setGenerateInfo] = useState<string | null>(null)
+  const [pdfFallbackUrl, setPdfFallbackUrl] = useState<string | null>(null)
   const [shipError, setShipError] = useState<string | null>(null)
   const [branches, setBranches] = useState<Branch[] | null>(null)
   const [isLoadingBranches, setIsLoadingBranches] = useState(false)
@@ -106,6 +108,10 @@ export default function PengirimanPage() {
       }
       const json = await res.json()
       setShipResults(json.results)
+      // Refresh the Ready-to-Ship list so successfully-shipped orders drop
+      // out naturally — otherwise a user could accidentally re-arrange
+      // shipment for orders that already shipped.
+      void refetch()
     } catch {
       setShipError("Gagal mengatur pengiriman — periksa koneksi Anda")
     } finally {
@@ -118,6 +124,8 @@ export default function PengirimanPage() {
     if (successfulSns.length === 0) return
     setIsGenerating(true)
     setGenerateError(null)
+    setGenerateInfo(null)
+    setPdfFallbackUrl(null)
     try {
       const res = await fetch("/api/shopee/logistics/document", {
         method: "POST",
@@ -129,9 +137,21 @@ export default function PengirimanPage() {
         setGenerateError(json?.error ?? "Gagal generate resi")
         return
       }
+      const failedOrders = res.headers.get("X-Failed-Orders")
+      if (failedOrders) {
+        const failedList = failedOrders.split(",")
+        setGenerateInfo(
+          `${successfulSns.length - failedList.length} order berhasil dicetak; ${failedList.length} order gagal: ${failedList.join(", ")}`,
+        )
+      }
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
-      window.open(url, "_blank")
+      const popup = window.open(url, "_blank")
+      if (!popup) {
+        // Popup blocked (common since this runs after two awaits, outside
+        // the click's user-gesture stack) — fall back to a visible link.
+        setPdfFallbackUrl(url)
+      }
     } catch {
       setGenerateError("Gagal generate resi — periksa koneksi Anda")
     } finally {
@@ -232,6 +252,15 @@ export default function PengirimanPage() {
                 </button>
               )}
               {generateError && <div className="text-xs text-red-400 mt-2">{generateError}</div>}
+              {generateInfo && <div className="text-xs text-amber-400 mt-2">{generateInfo}</div>}
+              {pdfFallbackUrl && (
+                <div className="text-xs mt-2">
+                  Popup diblokir browser —{" "}
+                  <a href={pdfFallbackUrl} target="_blank" rel="noopener noreferrer" className="underline">
+                    Buka PDF Resi
+                  </a>
+                </div>
+              )}
             </div>
           )}
         </>

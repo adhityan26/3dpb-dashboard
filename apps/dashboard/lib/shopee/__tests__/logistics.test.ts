@@ -96,13 +96,18 @@ describe("shipOrder", () => {
 describe("createShippingDocument", () => {
   beforeEach(() => { vi.clearAllMocks() })
 
-  it("kicks off document generation for a batch of orders", async () => {
+  it("kicks off document generation for a batch of orders, with the shared document type", async () => {
     mockRequestPost.mockResolvedValue({ response: {} })
     await createShippingDocument(["S1", "S2"])
     expect(mockRequestPost).toHaveBeenCalledWith(
       "/api/v2/logistics/create_shipping_document",
       {},
-      { order_list: [{ order_sn: "S1" }, { order_sn: "S2" }] },
+      {
+        order_list: [
+          { order_sn: "S1", shipping_document_type: "THERMAL_AIR_WAYBILL" },
+          { order_sn: "S2", shipping_document_type: "THERMAL_AIR_WAYBILL" },
+        ],
+      },
     )
   })
 })
@@ -110,11 +115,21 @@ describe("createShippingDocument", () => {
 describe("getShippingDocumentResult", () => {
   beforeEach(() => { vi.clearAllMocks() })
 
-  it("maps per-order status", async () => {
-    mockRequest.mockResolvedValue({
+  it("maps per-order status, sending the shared document type via POST (Shopee 404s this endpoint on GET)", async () => {
+    mockRequestPost.mockResolvedValue({
       response: { result_list: [{ order_sn: "S1", status: "READY" }, { order_sn: "S2", status: "PROCESSING" }] },
     })
     const result = await getShippingDocumentResult(["S1", "S2"])
+    expect(mockRequestPost).toHaveBeenCalledWith(
+      "/api/v2/logistics/get_shipping_document_result",
+      {},
+      {
+        order_list: [
+          { order_sn: "S1", shipping_document_type: "THERMAL_AIR_WAYBILL" },
+          { order_sn: "S2", shipping_document_type: "THERMAL_AIR_WAYBILL" },
+        ],
+      },
+    )
     expect(result).toEqual([
       { orderSn: "S1", status: "READY" },
       { orderSn: "S2", status: "PROCESSING" },
@@ -142,31 +157,70 @@ describe("generateShippingDocument", () => {
   beforeEach(() => { vi.clearAllMocks() })
 
   it("creates, polls until ready, then downloads", async () => {
-    mockRequestPost.mockResolvedValue({ response: {} }) // create_shipping_document
-    mockRequest
-      .mockResolvedValueOnce({ response: { result_list: [{ order_sn: "S1", status: "PROCESSING" }] } })
-      .mockResolvedValueOnce({ response: { result_list: [{ order_sn: "S1", status: "READY" }] } })
+    let pollCall = 0
+    mockRequestPost.mockImplementation((path: string) => {
+      if (path === "/api/v2/logistics/create_shipping_document") return Promise.resolve({ response: {} })
+      if (path === "/api/v2/logistics/get_shipping_document_result") {
+        pollCall += 1
+        return pollCall === 1
+          ? Promise.resolve({ response: { result_list: [{ order_sn: "S1", status: "PROCESSING" }] } })
+          : Promise.resolve({ response: { result_list: [{ order_sn: "S1", status: "READY" }] } })
+      }
+      throw new Error(`unexpected path ${path}`)
+    })
     const fakeBuffer = Buffer.from("fake-pdf")
     mockDownloadDocument.mockResolvedValue(fakeBuffer)
 
     const result = await generateShippingDocument(["S1"])
 
-    expect(result).toBe(fakeBuffer)
-    expect(mockRequest).toHaveBeenCalledTimes(2) // polled once, then ready
+    expect(result).toEqual({ pdf: fakeBuffer, failedOrderSns: [] })
+    expect(pollCall).toBe(2) // polled once, then ready
   })
 
-  it("throws if a document generation fails", async () => {
-    mockRequestPost.mockResolvedValue({ response: {} })
-    mockRequest.mockResolvedValue({ response: { result_list: [{ order_sn: "S1", status: "FAILED" }] } })
+  it("throws if ALL orders fail document generation", async () => {
+    mockRequestPost.mockImplementation((path: string) => {
+      if (path === "/api/v2/logistics/create_shipping_document") return Promise.resolve({ response: {} })
+      return Promise.resolve({ response: { result_list: [{ order_sn: "S1", status: "FAILED" }] } })
+    })
 
     await expect(generateShippingDocument(["S1"])).rejects.toThrow(/gagal/i)
+    expect(mockDownloadDocument).not.toHaveBeenCalled()
   })
 
-  it("throws if polling never reaches READY within the retry budget", async () => {
-    mockRequestPost.mockResolvedValue({ response: {} })
-    mockRequest.mockResolvedValue({ response: { result_list: [{ order_sn: "S1", status: "PROCESSING" }] } })
+  it("downloads the PDF for READY orders and reports failedOrderSns when some (not all) orders fail — partial failure must never become all-or-nothing", async () => {
+    mockRequestPost.mockImplementation((path: string) => {
+      if (path === "/api/v2/logistics/create_shipping_document") return Promise.resolve({ response: {} })
+      return Promise.resolve({
+        response: {
+          result_list: [
+            { order_sn: "S1", status: "READY" },
+            { order_sn: "S2", status: "FAILED" },
+          ],
+        },
+      })
+    })
+    const fakeBuffer = Buffer.from("fake-pdf")
+    mockDownloadDocument.mockResolvedValue(fakeBuffer)
+
+    const result = await generateShippingDocument(["S1", "S2"])
+
+    expect(result).toEqual({ pdf: fakeBuffer, failedOrderSns: ["S2"] })
+    expect(mockDownloadDocument).toHaveBeenCalledWith(
+      "/api/v2/logistics/download_shipping_document",
+      {},
+      { order_list: [{ order_sn: "S1", shipping_document_type: "THERMAL_AIR_WAYBILL" }] },
+    )
+  })
+
+  it("throws if polling never reaches READY/FAILED within the retry budget", async () => {
+    let pollCalls = 0
+    mockRequestPost.mockImplementation((path: string) => {
+      if (path === "/api/v2/logistics/create_shipping_document") return Promise.resolve({ response: {} })
+      pollCalls += 1
+      return Promise.resolve({ response: { result_list: [{ order_sn: "S1", status: "PROCESSING" }] } })
+    })
 
     await expect(generateShippingDocument(["S1"], { pollIntervalMs: 0, maxPolls: 3 })).rejects.toThrow(/timeout|belum siap/i)
-    expect(mockRequest).toHaveBeenCalledTimes(3)
+    expect(pollCalls).toBe(3)
   })
 })

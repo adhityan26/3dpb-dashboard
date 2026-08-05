@@ -265,6 +265,10 @@ export async function shopeeDownloadDocument(
     signal: AbortSignal.timeout(15000),
   })
 
+  if (!res.ok) {
+    throw new Error(`Shopee download gagal (HTTP ${res.status})`)
+  }
+
   const contentType = res.headers.get("content-type") ?? ""
   if (contentType.includes("application/json")) {
     // Shopee returns JSON instead of a PDF when the document isn't ready or the call errored.

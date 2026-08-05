@@ -32,19 +32,33 @@ describe("POST /api/shopee/logistics/document", () => {
     expect(res.status).toBe(400)
   })
 
-  it("returns the PDF with an application/pdf content type", async () => {
+  it("returns the PDF with an application/pdf content type, no X-Failed-Orders header when all orders succeed", async () => {
     mockAuth.mockResolvedValue({ user: { id: "u1" } })
-    mockGenerate.mockResolvedValue(Buffer.from("fake-pdf"))
+    mockGenerate.mockResolvedValue({ pdf: Buffer.from("fake-pdf"), failedOrderSns: [] })
 
     const res = await POST(makeRequest({ orderSnList: ["S1", "S2"] }))
 
     expect(res.status).toBe(200)
     expect(res.headers.get("content-type")).toBe("application/pdf")
+    expect(res.headers.get("X-Failed-Orders")).toBeNull()
     const bytes = Buffer.from(await res.arrayBuffer())
     expect(bytes.toString()).toBe("fake-pdf")
   })
 
-  it("returns 502 with Shopee's error message when generation fails", async () => {
+  it("returns the PDF plus X-Failed-Orders header when some (not all) orders fail", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "u1" } })
+    mockGenerate.mockResolvedValue({ pdf: Buffer.from("fake-pdf"), failedOrderSns: ["S2"] })
+
+    const res = await POST(makeRequest({ orderSnList: ["S1", "S2"] }))
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get("content-type")).toBe("application/pdf")
+    expect(res.headers.get("X-Failed-Orders")).toBe("S2")
+    const bytes = Buffer.from(await res.arrayBuffer())
+    expect(bytes.toString()).toBe("fake-pdf")
+  })
+
+  it("returns 502 with Shopee's error message when generation fails for ALL orders", async () => {
     mockAuth.mockResolvedValue({ user: { id: "u1" } })
     mockGenerate.mockRejectedValue(new Error("Dokumen resi belum siap (timeout)"))
 
@@ -53,5 +67,19 @@ describe("POST /api/shopee/logistics/document", () => {
     expect(res.status).toBe(502)
     const json = await res.json()
     expect(json).toEqual({ error: "Dokumen resi belum siap (timeout)" })
+  })
+
+  it("returns 400 on malformed JSON body", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "u1" } })
+    const badReq = new Request("http://localhost/api/shopee/logistics/document", {
+      method: "POST",
+      body: "not json",
+    }) as any
+
+    const res = await POST(badReq)
+
+    expect(res.status).toBe(400)
+    const json = await res.json()
+    expect(json).toEqual({ error: "Invalid JSON body" })
   })
 })
