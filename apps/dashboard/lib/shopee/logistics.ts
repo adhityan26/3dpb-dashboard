@@ -1,4 +1,4 @@
-import { shopeeRequest } from "./client"
+import { shopeeRequest, shopeeRequestPost } from "./client"
 
 interface ShippingParameterResponse {
   response: {
@@ -33,4 +33,30 @@ export async function getShippingParameter(orderSn: string): Promise<ShippingPar
     : null
 
   return { pickup, dropoff }
+}
+
+export type ShipMethod =
+  | { kind: "pickup"; addressId: number; timeSlotId: string }
+  | { kind: "dropoff"; branchId: number }
+
+/**
+ * Arrange shipment for one order. Never throws — bulk callers need per-order
+ * success/failure, not an exception that aborts the whole batch (see the
+ * design spec's partial-failure requirement).
+ */
+export async function shipOrder(
+  orderSn: string,
+  method: ShipMethod,
+): Promise<{ success: true } | { success: false; error: string }> {
+  const body =
+    method.kind === "pickup"
+      ? { pickup: { address_id: method.addressId, pickup_time_id: method.timeSlotId } }
+      : { dropoff: { branch_id: method.branchId } }
+
+  try {
+    await shopeeRequestPost("/api/v2/logistics/ship_order", { order_sn: orderSn }, body)
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) }
+  }
 }
