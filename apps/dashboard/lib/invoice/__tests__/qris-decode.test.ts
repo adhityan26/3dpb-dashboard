@@ -12,6 +12,14 @@ describe('decodeQrisImage', () => {
     expect(result).toBe(payload)
   })
 
+  it('returns null when the QR code decodes to a non-EMVCo payload (e.g. a plain URL)', async () => {
+    const dataUrl = await QRCode.toDataURL('https://example.com/pay/abc', { type: 'image/png' })
+
+    const result = await decodeQrisImage(dataUrl)
+
+    expect(result).toBeNull()
+  })
+
   it('returns null for an image that has no QR code in it', async () => {
     // 1x1 transparent PNG data URL — a valid image, no QR code
     const blankPng =

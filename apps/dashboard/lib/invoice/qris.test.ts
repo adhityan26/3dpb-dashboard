@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { crc16ccitt, buildDynamicQris } from './qris'
+import { crc16ccitt, buildDynamicQris, parseTlv } from './qris'
 
 describe('crc16ccitt', () => {
   it('matches the standard CRC-16/CCITT-FALSE conformance test vector', () => {
@@ -55,13 +55,32 @@ describe('buildDynamicQris', () => {
 
   it('keeps fields in ascending tag order (00, 01, 52, 53, 54, 58, 59, 60, 63)', () => {
     const result = buildDynamicQris(staticPayload, 50000)
-    const tagOrder = ['00', '01', '52', '53', '54', '58', '59', '60', '63']
-    let searchFrom = 0
-    for (const tag of tagOrder) {
-      const idx = result.indexOf(tag, searchFrom)
-      expect(idx).toBeGreaterThanOrEqual(searchFrom)
-      searchFrom = idx + 2
-    }
+    const fields = parseTlv(result)
+    expect(fields.map((f) => f.tag)).toEqual(['00', '01', '52', '53', '54', '58', '59', '60', '63'])
+  })
+
+  it('throws on a non-EMVCo payload (e.g. a plain URL from a mis-scanned QR)', () => {
+    expect(() => buildDynamicQris('https://example.com/pay/abc', 50000)).toThrow()
+  })
+
+  it('throws when the amount is too large / not a valid EMVCo amount format', () => {
+    expect(() => buildDynamicQris(staticPayload, 1e21)).toThrow()
+  })
+
+  it('round-trips a merchant name containing non-ASCII characters without corrupting the payload', () => {
+    const nonAsciiPayload =
+      '000201' +
+      '010211' +
+      '52040411' +
+      '5303360' +
+      '5802ID' +
+      '5905CAFÉ' +
+      '6007JAKARTA' +
+      '6304ABCD'
+    const result = buildDynamicQris(nonAsciiPayload, 50000)
+    const fields = parseTlv(result)
+    const merchantName = fields.find((f) => f.tag === '59')
+    expect(merchantName?.value).toBe('CAFÉ')
   })
 
   it('recomputes the CRC over the new payload rather than reusing the stale one', () => {
