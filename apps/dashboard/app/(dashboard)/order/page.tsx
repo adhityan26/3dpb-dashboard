@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState, Suspense } from "react"
+import Link from "next/link"
 import { useRouter, useSearchParams } from "next/navigation"
 import { OrderKpiBar } from "@/components/order/OrderKpiBar"
 import {
@@ -381,7 +382,18 @@ function OrderPageInner() {
       </SidebarDrawerShell>
 
       <div className="flex-1 overflow-auto p-4 md:p-6">
-        <PageShell title="Order" description="Kelola pesanan dari berbagai channel">
+        <PageShell
+          title="Order"
+          description="Kelola pesanan dari berbagai channel"
+          actions={
+            <Link
+              href="/order/pengiriman"
+              className="inline-flex items-center justify-center h-7 px-2.5 rounded-lg border border-border bg-background hover:bg-muted hover:text-foreground text-sm font-medium transition-all text-[0.8rem]"
+            >
+              🖨️ Pengiriman Massal
+            </Link>
+          }
+        >
           {channel === "shopee" && <ShopeeOrderView />}
           {channel === "tokopedia" && <TokopediaOrderView />}
           {channel === "light-generator" && <LightGeneratorOrderView />}
