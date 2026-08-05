@@ -17,6 +17,7 @@ export default function PengirimanPage() {
   const [isShipping, setIsShipping] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
+  const [shipError, setShipError] = useState<string | null>(null)
 
   const readyOrders = useMemo<OrderSummary[]>(
     () => (data?.orders ?? []).filter((o: OrderSummary) => o.shopeeStatus === "READY_TO_SHIP"),
@@ -43,6 +44,7 @@ export default function PengirimanPage() {
     if (!method || selectedSns.size === 0) return
     setIsShipping(true)
     setShipResults(null)
+    setShipError(null)
     try {
       // v1: pickup auto-picks the first available address/time slot per order via
       // getShippingParameter server-side — the ship route resolves that itself, so
@@ -55,8 +57,15 @@ export default function PengirimanPage() {
           orders: Array.from(selectedSns).map((orderSn) => ({ orderSn, method: { kind: method } })),
         }),
       })
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        setShipError(json?.error ?? "Gagal mengatur pengiriman")
+        return
+      }
       const json = await res.json()
       setShipResults(json.results)
+    } catch {
+      setShipError("Gagal mengatur pengiriman — periksa koneksi Anda")
     } finally {
       setIsShipping(false)
     }
@@ -74,13 +83,15 @@ export default function PengirimanPage() {
         body: JSON.stringify({ orderSnList: successfulSns }),
       })
       if (!res.ok) {
-        const json = await res.json()
-        setGenerateError(json.error ?? "Gagal generate resi")
+        const json = await res.json().catch(() => null)
+        setGenerateError(json?.error ?? "Gagal generate resi")
         return
       }
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       window.open(url, "_blank")
+    } catch {
+      setGenerateError("Gagal generate resi — periksa koneksi Anda")
     } finally {
       setIsGenerating(false)
     }
@@ -130,6 +141,7 @@ export default function PengirimanPage() {
             >
               {isShipping ? "Mengatur..." : `Atur Pengiriman (${selectedSns.size} order)`}
             </button>
+            {shipError && <div className="text-xs text-red-400 mt-2">{shipError}</div>}
           </div>
 
           {shipResults && (

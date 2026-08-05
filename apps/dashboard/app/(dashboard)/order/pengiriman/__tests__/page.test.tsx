@@ -82,4 +82,30 @@ describe("Pengiriman Massal page", () => {
     ))
     await waitFor(() => expect(window.open).toHaveBeenCalled())
   })
+
+  it("shows an error message when the ship endpoint responds with a non-ok status", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ error: "Sesi Shopee kadaluarsa" }),
+    })
+
+    render(<PengirimanPage />)
+    fireEvent.click(screen.getByLabelText("Pilih order S1"))
+    fireEvent.click(screen.getByRole("button", { name: /pickup/i }))
+    fireEvent.click(screen.getByRole("button", { name: /atur pengiriman/i }))
+
+    await waitFor(() => expect(screen.getByText(/sesi shopee kadaluarsa/i)).toBeInTheDocument())
+    expect(screen.queryByText(/langkah 2/i)).not.toBeInTheDocument()
+  })
+
+  it("shows an error message when the ship fetch rejects with a network error", async () => {
+    mockFetch.mockRejectedValueOnce(new Error("network down"))
+
+    render(<PengirimanPage />)
+    fireEvent.click(screen.getByLabelText("Pilih order S1"))
+    fireEvent.click(screen.getByRole("button", { name: /pickup/i }))
+    fireEvent.click(screen.getByRole("button", { name: /atur pengiriman/i }))
+
+    await waitFor(() => expect(screen.getByText(/gagal mengatur pengiriman/i)).toBeInTheDocument())
+  })
 })
