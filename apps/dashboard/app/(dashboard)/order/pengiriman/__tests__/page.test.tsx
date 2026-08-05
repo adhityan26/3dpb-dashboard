@@ -108,4 +108,69 @@ describe("Pengiriman Massal page", () => {
 
     await waitFor(() => expect(screen.getByText(/gagal mengatur pengiriman/i)).toBeInTheDocument())
   })
+
+  it("fetches and shows branch options when drop-off is selected, and keeps arrange-shipment disabled until a branch is chosen", async () => {
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        pickup: null,
+        dropoff: { branchList: [{ branchId: 1, address: "Cabang A" }, { branchId: 2, address: "Cabang B" }] },
+      }),
+    })
+
+    render(<PengirimanPage />)
+    fireEvent.click(screen.getByLabelText("Pilih order S1"))
+    fireEvent.click(screen.getByRole("button", { name: /drop-off/i }))
+
+    await waitFor(() => expect(mockFetch).toHaveBeenCalledWith("/api/shopee/logistics/parameter?orderSn=S1"))
+    await waitFor(() => expect(screen.getByLabelText("Pilih cabang drop-off")).toBeInTheDocument())
+
+    const shipButton = screen.getByRole("button", { name: /atur pengiriman/i })
+    expect(shipButton).toBeDisabled()
+
+    fireEvent.change(screen.getByLabelText("Pilih cabang drop-off"), { target: { value: "2" } })
+    expect(shipButton).not.toBeDisabled()
+  })
+
+  it("sends the chosen branchId in the ship request body for dropoff orders", async () => {
+    mockFetch
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          pickup: null,
+          dropoff: { branchList: [{ branchId: 1, address: "Cabang A" }] },
+        }),
+      })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({ results: [{ orderSn: "S1", success: true }] }) })
+
+    render(<PengirimanPage />)
+    fireEvent.click(screen.getByLabelText("Pilih order S1"))
+    fireEvent.click(screen.getByRole("button", { name: /drop-off/i }))
+    await waitFor(() => expect(screen.getByLabelText("Pilih cabang drop-off")).toBeInTheDocument())
+    fireEvent.change(screen.getByLabelText("Pilih cabang drop-off"), { target: { value: "1" } })
+
+    fireEvent.click(screen.getByRole("button", { name: /atur pengiriman/i }))
+
+    await waitFor(() =>
+      expect(mockFetch).toHaveBeenCalledWith(
+        "/api/shopee/logistics/ship",
+        expect.objectContaining({
+          body: JSON.stringify({
+            orders: [{ orderSn: "S1", method: { kind: "dropoff", branchId: 1 } }],
+          }),
+        }),
+      ),
+    )
+  })
+
+  it("shows a clear error when fetching branches fails", async () => {
+    mockFetch.mockResolvedValueOnce({ ok: false, json: async () => ({ error: "Sesi Shopee kadaluarsa" }) })
+
+    render(<PengirimanPage />)
+    fireEvent.click(screen.getByLabelText("Pilih order S1"))
+    fireEvent.click(screen.getByRole("button", { name: /drop-off/i }))
+
+    await waitFor(() => expect(screen.getByText(/sesi shopee kadaluarsa/i)).toBeInTheDocument())
+    expect(screen.getByRole("button", { name: /atur pengiriman/i })).toBeDisabled()
+  })
 })

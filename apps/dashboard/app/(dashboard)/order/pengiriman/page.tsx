@@ -8,6 +8,7 @@ import type { OrderSummary } from "@/lib/orders/types"
 
 type Method = "pickup" | "dropoff"
 type ShipResult = { orderSn: string; success: boolean; error?: string }
+type Branch = { branchId: number; address: string }
 
 export default function PengirimanPage() {
   const { data, isLoading } = useOrders()
@@ -18,6 +19,10 @@ export default function PengirimanPage() {
   const [isGenerating, setIsGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
   const [shipError, setShipError] = useState<string | null>(null)
+  const [branches, setBranches] = useState<Branch[] | null>(null)
+  const [isLoadingBranches, setIsLoadingBranches] = useState(false)
+  const [branchError, setBranchError] = useState<string | null>(null)
+  const [selectedBranchId, setSelectedBranchId] = useState<number | null>(null)
 
   const readyOrders = useMemo<OrderSummary[]>(
     () => (data?.orders ?? []).filter((o: OrderSummary) => o.shopeeStatus === "READY_TO_SHIP"),
@@ -40,8 +45,43 @@ export default function PengirimanPage() {
     setShipResults(null)
   }
 
+  async function handleSelectMethod(next: Method) {
+    setMethod(next)
+    if (next !== "dropoff") return
+
+    setSelectedBranchId(null)
+    setBranches(null)
+    setBranchError(null)
+    setIsLoadingBranches(true)
+    try {
+      const firstSn = Array.from(selectedSns)[0]
+      if (!firstSn) {
+        setBranchError("Pilih minimal satu order dulu untuk memuat daftar cabang")
+        return
+      }
+      const res = await fetch(`/api/shopee/logistics/parameter?orderSn=${encodeURIComponent(firstSn)}`)
+      if (!res.ok) {
+        const json = await res.json().catch(() => null)
+        setBranchError(json?.error ?? "Gagal memuat daftar cabang drop-off")
+        return
+      }
+      const json = await res.json()
+      const branchList: Branch[] = json?.dropoff?.branchList ?? []
+      if (branchList.length === 0) {
+        setBranchError("Tidak ada cabang drop-off tersedia untuk order ini")
+        return
+      }
+      setBranches(branchList)
+    } catch {
+      setBranchError("Gagal memuat daftar cabang — periksa koneksi Anda")
+    } finally {
+      setIsLoadingBranches(false)
+    }
+  }
+
   async function handleArrangeShipment() {
     if (!method || selectedSns.size === 0) return
+    if (method === "dropoff" && selectedBranchId == null) return
     setIsShipping(true)
     setShipResults(null)
     setShipError(null)
@@ -49,12 +89,14 @@ export default function PengirimanPage() {
       // v1: pickup auto-picks the first available address/time slot per order via
       // getShippingParameter server-side — the ship route resolves that itself, so
       // the client just sends { kind: "pickup" } with no addressId/timeSlotId.
-      // Dropoff requires a branchId chosen up front (not yet wired in this v1 UI).
+      // Dropoff requires a branchId, chosen up front from the branch picker below.
+      const requestedMethod =
+        method === "dropoff" ? { kind: "dropoff" as const, branchId: selectedBranchId! } : { kind: "pickup" as const }
       const res = await fetch("/api/shopee/logistics/ship", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          orders: Array.from(selectedSns).map((orderSn) => ({ orderSn, method: { kind: method } })),
+          orders: Array.from(selectedSns).map((orderSn) => ({ orderSn, method: requestedMethod })),
         }),
       })
       if (!res.ok) {
@@ -120,23 +162,49 @@ export default function PengirimanPage() {
             <div className="flex gap-2 mt-2">
               <button
                 type="button"
-                onClick={() => setMethod("pickup")}
+                onClick={() => handleSelectMethod("pickup")}
                 className={method === "pickup" ? "font-bold" : ""}
               >
                 📦 Pickup (dijemput kurir)
               </button>
               <button
                 type="button"
-                onClick={() => setMethod("dropoff")}
+                onClick={() => handleSelectMethod("dropoff")}
                 className={method === "dropoff" ? "font-bold" : ""}
               >
                 🏬 Drop-off ke Counter
               </button>
             </div>
+            {method === "dropoff" && (
+              <div className="mt-2">
+                {isLoadingBranches && <div className="text-xs text-gray-400">Memuat daftar cabang...</div>}
+                {branchError && <div className="text-xs text-red-400">{branchError}</div>}
+                {branches && branches.length > 0 && (
+                  <select
+                    aria-label="Pilih cabang drop-off"
+                    value={selectedBranchId ?? ""}
+                    onChange={(e) => setSelectedBranchId(e.target.value ? Number(e.target.value) : null)}
+                    className="w-full mt-1"
+                  >
+                    <option value="">Pilih cabang...</option>
+                    {branches.map((b) => (
+                      <option key={b.branchId} value={b.branchId}>
+                        {b.address}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
             <button
               type="button"
               onClick={handleArrangeShipment}
-              disabled={!method || selectedSns.size === 0 || isShipping}
+              disabled={
+                !method ||
+                selectedSns.size === 0 ||
+                isShipping ||
+                (method === "dropoff" && selectedBranchId == null)
+              }
               className="mt-3 w-full"
             >
               {isShipping ? "Mengatur..." : `Atur Pengiriman (${selectedSns.size} order)`}
