@@ -60,9 +60,9 @@ describe("POST /api/shopee/logistics/ship", () => {
   it("ships a dropoff order directly (no slot resolution needed) and reports partial failure without aborting the batch", async () => {
     mockAuth.mockResolvedValue({ user: { id: "u1" } })
     mockGetShippingParameter.mockResolvedValue({ pickup: { addressId: 111, timeSlotId: "slot-1" }, dropoff: null })
-    mockShipOrder
-      .mockResolvedValueOnce({ success: true }) // S1 pickup
-      .mockResolvedValueOnce({ success: false, error: "stock changed" }) // S2 dropoff
+    mockShipOrder.mockImplementation((orderSn: string) =>
+      orderSn === "S2" ? { success: false, error: "stock changed" } : { success: true },
+    )
 
     const res = await POST(
       makeRequest({
