@@ -12,13 +12,15 @@ export function InvoiceMethodsCard() {
   const updateMut = useUpdatePaymentMethods()
   const { data: bankAccount } = useInvoiceBankAccount()
   const updateBankMut = useUpdateInvoiceBankAccount()
-  const { data: qris } = useInvoiceQris()
+  const { data: qrisData } = useInvoiceQris()
+  const qris = qrisData?.qris
   const updateQrisMut = useUpdateInvoiceQris()
   const [newMethod, setNewMethod] = useState("")
   const [bankDraft, setBankDraft] = useState("")
   const [bankSaved, setBankSaved] = useState(false)
   const [qrisSaved, setQrisSaved] = useState(false)
   const [qrisErr, setQrisErr] = useState<string | null>(null)
+  const [qrisWarn, setQrisWarn] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
@@ -33,6 +35,7 @@ export function InvoiceMethodsCard() {
 
   async function handleQrisFile(file: File) {
     setQrisErr(null)
+    setQrisWarn(null)
     if (!file.type.startsWith("image/")) { setQrisErr("File harus berupa gambar"); return }
     if (file.size > 1_500_000) { setQrisErr("Gambar terlalu besar (maks 1.5MB)"); return }
     const dataUrl = await new Promise<string>((resolve, reject) => {
@@ -42,9 +45,10 @@ export function InvoiceMethodsCard() {
       reader.readAsDataURL(file)
     })
     try {
-      await updateQrisMut.mutateAsync(dataUrl)
+      const result = await updateQrisMut.mutateAsync(dataUrl)
       setQrisSaved(true)
       setTimeout(() => setQrisSaved(false), 1500)
+      if (result.decodeWarning) setQrisWarn(result.decodeWarning)
     } catch (e) {
       setQrisErr(e instanceof Error ? e.message : "Gagal menyimpan QRIS")
     }
@@ -192,6 +196,7 @@ export function InvoiceMethodsCard() {
           </label>
         )}
         {qrisErr && <div className="text-xs mt-2" style={{ color: "#f87171" }}>{qrisErr}</div>}
+        {qrisWarn && <div className="text-xs mt-2" style={{ color: "#fbbf24" }}>⚠️ {qrisWarn}</div>}
       </div>
     </div>
   )
