@@ -5,6 +5,11 @@ RUN corepack enable
 # better-sqlite3 (dep Prisma) fallback compile dari source kalau fetch prebuilt binary
 # gagal — alpine tidak punya toolchain ini secara default.
 RUN apk add --no-cache python3 make g++
+# node-gyp defaultnya coba download header Node dari unofficial-builds.nodejs.org
+# saat compile from source — sering timeout di jaringan homelab. node:22-alpine
+# sudah menyertakan header itu secara lokal di /usr/local/include/node, jadi arahkan
+# node-gyp ke situ supaya skip fetch jaringan sama sekali.
+ENV npm_config_nodedir=/usr/local
 WORKDIR /repo
 
 # Layer caching: download dependensi hanya dari lockfile, sebelum COPY . .
