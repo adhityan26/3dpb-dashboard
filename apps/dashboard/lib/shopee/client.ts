@@ -247,6 +247,35 @@ export async function shopeeRequestPost<T = unknown>(
   return json as T
 }
 
+/**
+ * Call a Shopee Shop-scoped API that returns a raw binary body (e.g. the
+ * combined shipping-document PDF) instead of JSON. Cannot reuse
+ * shopeeRequestPost, which always parses the response as JSON.
+ */
+export async function shopeeDownloadDocument(
+  path: string,
+  params: Record<string, string | number>,
+  body: Record<string, unknown>,
+): Promise<Buffer> {
+  const { url } = await buildSignedUrl(path, params)
+  const res = await fetch(url.toString(), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15000),
+  })
+
+  const contentType = res.headers.get("content-type") ?? ""
+  if (contentType.includes("application/json")) {
+    // Shopee returns JSON instead of a PDF when the document isn't ready or the call errored.
+    const json = await res.json()
+    throw new Error(`Shopee API error (${json.error ?? "unknown"}): ${json.message ?? "document not ready"}`)
+  }
+
+  const arrayBuffer = await res.arrayBuffer()
+  return Buffer.from(arrayBuffer)
+}
+
 async function refreshShopeeToken(
   refreshToken: string,
   shopId: string,

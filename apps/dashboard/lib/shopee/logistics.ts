@@ -1,4 +1,4 @@
-import { shopeeRequest, shopeeRequestPost } from "./client"
+import { shopeeRequest, shopeeRequestPost, shopeeDownloadDocument } from "./client"
 
 interface ShippingParameterResponse {
   response: {
@@ -59,4 +59,71 @@ export async function shipOrder(
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) }
   }
+}
+
+export async function createShippingDocument(orderSnList: string[]): Promise<void> {
+  await shopeeRequestPost(
+    "/api/v2/logistics/create_shipping_document",
+    {},
+    { order_list: orderSnList.map((orderSn) => ({ order_sn: orderSn })) },
+  )
+}
+
+interface ShippingDocumentResultResponse {
+  response: { result_list: { order_sn: string; status: "PROCESSING" | "READY" | "FAILED" }[] }
+}
+
+export async function getShippingDocumentResult(
+  orderSnList: string[],
+): Promise<{ orderSn: string; status: "PROCESSING" | "READY" | "FAILED" }[]> {
+  const json = await shopeeRequest<ShippingDocumentResultResponse>(
+    "/api/v2/logistics/get_shipping_document_result",
+    { order_sn_list: orderSnList.join(",") },
+  )
+  return json.response.result_list.map((r) => ({ orderSn: r.order_sn, status: r.status }))
+}
+
+export async function downloadShippingDocument(orderSnList: string[]): Promise<Buffer> {
+  return shopeeDownloadDocument(
+    "/api/v2/logistics/download_shipping_document",
+    {},
+    {
+      order_list: orderSnList.map((orderSn) => ({
+        order_sn: orderSn,
+        shipping_document_type: "THERMAL_AIR_WAYBILL",
+      })),
+    },
+  )
+}
+
+/**
+ * Orchestrates the full flow: kick off generation, poll until every order's
+ * document is READY (or fail fast on FAILED / timeout), then download the
+ * combined PDF. Default poll: every 1500ms, up to 10 attempts (~15s) —
+ * override via options for tests.
+ */
+export async function generateShippingDocument(
+  orderSnList: string[],
+  options: { pollIntervalMs?: number; maxPolls?: number } = {},
+): Promise<Buffer> {
+  const pollIntervalMs = options.pollIntervalMs ?? 1500
+  const maxPolls = options.maxPolls ?? 10
+
+  await createShippingDocument(orderSnList)
+
+  for (let attempt = 0; attempt < maxPolls; attempt++) {
+    const results = await getShippingDocumentResult(orderSnList)
+
+    const failed = results.find((r) => r.status === "FAILED")
+    if (failed) throw new Error(`Pembuatan dokumen resi gagal untuk order ${failed.orderSn}`)
+
+    const allReady = results.every((r) => r.status === "READY")
+    if (allReady) return downloadShippingDocument(orderSnList)
+
+    if (attempt < maxPolls - 1 && pollIntervalMs > 0) {
+      await new Promise((resolve) => setTimeout(resolve, pollIntervalMs))
+    }
+  }
+
+  throw new Error("Dokumen resi belum siap (timeout) — coba generate ulang beberapa saat lagi")
 }
