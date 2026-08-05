@@ -27,6 +27,37 @@ function defaultConfig(): LayoutConfigOut {
   };
 }
 
+function utf8Length(value: string): number {
+  return new TextEncoder().encode(value).length;
+}
+
+/** Input teks header dengan state lokal supaya counter/peringatan muncul saat mengetik (pola sama LabelTextField di CellSettingsPanel). */
+function HeaderTextField({ value, onCommit }: { value: string; onCommit: (text: string) => void }) {
+  const [text, setText] = useState(value);
+
+  useEffect(() => {
+    setText(value);
+  }, [value]);
+
+  const byteLen = utf8Length(text);
+  const tooLong = byteLen > LAYOUT_LIMITS.headerTextMaxLength;
+  return (
+    <label className="g-t2 block text-xs">
+      Teks header (opsional)
+      <input
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+        onBlur={() => onCommit(text)}
+        placeholder='mis. "Semangat pagi! Cetak lancar hari ini"'
+        className="glass-input mt-1 w-full rounded-[5px] px-2 py-1.5 text-xs"
+      />
+      <span className={`mt-1 block text-[10px] leading-relaxed ${tooLong ? "text-red-500" : "g-t4"}`}>
+        {byteLen}/{LAYOUT_LIMITS.headerTextMaxLength} byte{tooLong ? " — simpan akan ditolak." : ""}
+      </span>
+    </label>
+  );
+}
+
 function isLayoutConfig(value: unknown): value is LayoutConfigOut {
   if (typeof value !== "object" || value === null) return false;
   const cfg = value as { pages?: unknown };
@@ -49,6 +80,9 @@ function findFieldLabelProblem(rows: FieldRow[] | undefined): string | null {
  * cuma supaya user dapat pesan yang jelas alih-alih 400 mentah.
  */
 export function findLayoutProblem(config: LayoutConfigOut): string | null {
+  if (config.headerText !== undefined && utf8Length(config.headerText) > LAYOUT_LIMITS.headerTextMaxLength) {
+    return `Teks header lebih dari ${LAYOUT_LIMITS.headerTextMaxLength} byte.`;
+  }
   if (config.pages.length > LAYOUT_LIMITS.maxPages) return `Maksimal ${LAYOUT_LIMITS.maxPages} halaman.`;
   for (const page of config.pages) {
     const pageLabelErr = findFieldLabelProblem(page.fields);
@@ -283,6 +317,13 @@ export function LayoutEditor({ devices }: { devices: PaletteDevice[] }) {
 
       {status === "saved" && !message && <p className="mb-2 text-[12px] text-emerald-600 dark:text-emerald-400">Layout tersimpan. CYD ambil versi baru saat sinkron berikutnya.</p>}
       {message && <p className={`mb-2 text-[12px] ${status === "error" ? "text-red-500" : "g-t4"}`}>{message}</p>}
+
+      <div className="mb-3">
+        <HeaderTextField
+          value={config.headerText ?? ""}
+          onCommit={(text) => setConfig((cfg) => ({ ...cfg, headerText: text }))}
+        />
+      </div>
 
       <div className="mb-3">
         <PageTabs
