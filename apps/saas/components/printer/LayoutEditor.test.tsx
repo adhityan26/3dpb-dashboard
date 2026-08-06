@@ -19,6 +19,12 @@ describe("LayoutEditor", () => {
     await waitFor(() => expect(screen.getByText(/printer a/i)).toBeTruthy());
   });
 
+  it("halaman default (tak ada layout tersimpan) pakai id 'hal-1', bukan 'page-1'", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) });
+    render(<LayoutEditor devices={[]} />);
+    await waitFor(() => expect(screen.getByText("hal-1")).toBeTruthy());
+  });
+
   it("tombol simpan panggil PUT /api/cyd-layout dengan config saat ini", async () => {
     fetchMock
       .mockResolvedValueOnce({ ok: true, json: async () => ({ schemaVersion: 1, pages: [{ id: "page-1", grid: { cols: 2, rows: 2 }, fields: [], durationSec: 5, cells: [] }] }) })

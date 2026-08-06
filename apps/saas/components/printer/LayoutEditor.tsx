@@ -23,7 +23,7 @@ import { CellSettingsPanel } from "./layout-editor/CellSettingsPanel";
 function defaultConfig(): LayoutConfigOut {
   return {
     schemaVersion: 1,
-    pages: [{ id: "page-1", grid: { cols: 2, rows: 2 }, fields: [], durationSec: 5, cells: [] }],
+    pages: [{ id: "hal-1", grid: { cols: 2, rows: 2 }, fields: [], durationSec: 5, cells: [] }],
   };
 }
 
