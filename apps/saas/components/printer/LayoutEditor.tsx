@@ -263,6 +263,10 @@ export function LayoutEditor({ devices }: { devices: PaletteDevice[] }) {
     setActivePageIndex((i) => Math.max(0, i - (index <= i ? 1 : 0)));
   }
 
+  function renamePage(index: number, newId: string) {
+    setConfig((cfg) => ({ ...cfg, pages: cfg.pages.map((p, i) => (i === index ? { ...p, id: newId } : p)) }));
+  }
+
   async function handleSave() {
     const problem = findLayoutProblem(config);
     if (problem) {
@@ -336,6 +340,7 @@ export function LayoutEditor({ devices }: { devices: PaletteDevice[] }) {
           onAdd={addPage}
           onRemove={removePage}
           onReorder={(newPages) => setConfig((cfg) => ({ ...cfg, pages: newPages }))}
+          onRename={renamePage}
         />
       </div>
 

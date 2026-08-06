@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, horizontalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
@@ -12,12 +13,26 @@ function SortableTab({
   onSelect,
   onRemove,
   canRemove,
+  isEditing,
+  draftId,
+  renameError,
+  onStartRename,
+  onDraftChange,
+  onCommitRename,
+  onCancelRename,
 }: {
   page: LayoutPageOut;
   isActive: boolean;
   onSelect: () => void;
   onRemove: () => void;
   canRemove: boolean;
+  isEditing: boolean;
+  draftId: string;
+  renameError: string | null;
+  onStartRename: () => void;
+  onDraftChange: (value: string) => void;
+  onCommitRename: (viaBlur: boolean) => void;
+  onCancelRename: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: page.id });
   // `touch-none` WAJIB di elemen ber-ref useSortable/useDraggable: tanpa `touch-action: none`,
@@ -30,12 +45,12 @@ function SortableTab({
       {...attributes}
       {...listeners}
       style={{ transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.85 : 1, zIndex: isDragging ? 30 : undefined }}
-      onClick={onSelect}
+      onClick={isEditing ? undefined : onSelect}
       className={`relative flex touch-none cursor-pointer select-none items-center gap-1.5 rounded-full px-3.5 py-1.5 text-sm transition-colors ${
         isActive ? "text-white" : "text-gray-600 hover:text-gray-900 dark:text-slate-300 dark:hover:text-white"
       }`}
     >
-      {isActive && (
+      {isActive && !isEditing && (
         <motion.div
           layoutId="cyd-page-tab-blob"
           className="absolute inset-0 rounded-full"
@@ -46,8 +61,40 @@ function SortableTab({
           transition={{ type: "spring", stiffness: 500, damping: 35 }}
         />
       )}
-      <span className="relative z-10 font-medium">{page.id}</span>
-      {canRemove && (
+      {isEditing ? (
+        <input
+          aria-label={`Nama halaman ${page.id}`}
+          autoFocus
+          value={draftId}
+          onChange={(e) => onDraftChange(e.target.value)}
+          onClick={(e) => e.stopPropagation()}
+          onBlur={() => onCommitRename(true)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") onCommitRename(false);
+            if (e.key === "Escape") onCancelRename();
+          }}
+          className="relative z-10 w-24 rounded-md bg-white/90 px-1.5 py-0.5 text-[13px] text-gray-900 outline-none dark:bg-slate-800 dark:text-white"
+        />
+      ) : (
+        <span className="relative z-10 font-medium">{page.id}</span>
+      )}
+      {!isEditing && (
+        <motion.span
+          whileHover={{ scale: 1.25 }}
+          whileTap={{ scale: 0.85 }}
+          onClick={(e) => {
+            e.stopPropagation();
+            onStartRename();
+          }}
+          title={`Ganti nama halaman ${page.id}`}
+          className={`relative z-10 flex h-4 w-4 items-center justify-center rounded-full text-[10px] leading-none opacity-60 transition-colors hover:opacity-100 ${
+            isActive ? "hover:bg-white/25" : "hover:bg-indigo-500/15 hover:text-indigo-500"
+          }`}
+        >
+          ✎
+        </motion.span>
+      )}
+      {canRemove && !isEditing && (
         <motion.span
           whileHover={{ scale: 1.25 }}
           whileTap={{ scale: 0.85 }}
@@ -63,6 +110,11 @@ function SortableTab({
           ✕
         </motion.span>
       )}
+      {isEditing && renameError && (
+        <span className="absolute left-0 top-full z-20 mt-1 whitespace-nowrap rounded-md bg-red-500/90 px-2 py-0.5 text-[10px] text-white">
+          {renameError}
+        </span>
+      )}
     </div>
   );
 }
@@ -74,6 +126,7 @@ export function PageTabs({
   onAdd,
   onRemove,
   onReorder,
+  onRename,
 }: {
   pages: LayoutPageOut[];
   activeIndex: number;
@@ -81,6 +134,7 @@ export function PageTabs({
   onAdd: () => void;
   onRemove: (i: number) => void;
   onReorder: (newPages: LayoutPageOut[]) => void;
+  onRename: (index: number, newId: string) => void;
 }) {
   // distance:4 supaya klik-biasa tetap bisa dibedakan dari drag -- tanpa ini PointerSensor mulai
   // drag pada gerakan sekecil apa pun dan menelan onClick (pola sama LayoutEditor.tsx:95, lupa
@@ -92,6 +146,51 @@ export function PageTabs({
   // Batas firmware (LAYOUT_LIMITS.maxPages) — tombol "+" mati kalau sudah mentok, biar user tak
   // menabrak 400 dari server.
   const canAdd = pages.length < LAYOUT_LIMITS.maxPages;
+
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [draftId, setDraftId] = useState("");
+  const [renameError, setRenameError] = useState<string | null>(null);
+
+  function startRename(index: number) {
+    setEditingIndex(index);
+    setDraftId(pages[index].id);
+    setRenameError(null);
+  }
+
+  function cancelRename() {
+    setEditingIndex(null);
+    setRenameError(null);
+  }
+
+  // Batas panjang id (LAYOUT_LIMITS.maxPageIdLength) SUDAH tercek di findLayoutProblem() saat
+  // Simpan -- tak diduplikasi di sini. Hanya 2 pemeriksaan breaking-langsung: kosong & duplikat
+  // (keunikan page.id dulu dijamin struktural oleh nextPageNumberRef di LayoutEditor.tsx, tapi
+  // begitu rename bebas diizinkan jaminan itu hilang -- id dobel akan merusak SortableContext
+  // items={pages.map(p=>p.id)} dan React key={p.id}).
+  function commitRename(index: number, viaBlur: boolean) {
+    const trimmed = draftId.trim();
+    const currentId = pages[index].id;
+    if (trimmed === currentId || !trimmed) {
+      setEditingIndex(null);
+      setRenameError(null);
+      return;
+    }
+    const isDuplicate = pages.some((p, i) => i !== index && p.id === trimmed);
+    if (isDuplicate) {
+      if (viaBlur) {
+        // Blur (klik di luar) -- jangan maksa fokus balik, revert diam-diam.
+        setEditingIndex(null);
+        setRenameError(null);
+        return;
+      }
+      // Enter -- tetap di mode edit, biar user coba nama lain.
+      setRenameError("Nama halaman sudah dipakai");
+      return;
+    }
+    onRename(index, trimmed);
+    setEditingIndex(null);
+    setRenameError(null);
+  }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -114,6 +213,13 @@ export function PageTabs({
                 onSelect={() => onSelect(i)}
                 onRemove={() => onRemove(i)}
                 canRemove={pages.length > 1}
+                isEditing={editingIndex === i}
+                draftId={draftId}
+                renameError={editingIndex === i ? renameError : null}
+                onStartRename={() => startRename(i)}
+                onDraftChange={setDraftId}
+                onCommitRename={(viaBlur) => commitRename(i, viaBlur)}
+                onCancelRename={cancelRename}
               />
             ))}
           </SortableContext>
