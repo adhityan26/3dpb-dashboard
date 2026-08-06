@@ -68,8 +68,15 @@ function SortableTab({
           value={draftId}
           onChange={(e) => onDraftChange(e.target.value)}
           onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
           onBlur={() => onCommitRename(true)}
           onKeyDown={(e) => {
+            // WAJIB baris pertama, sebelum cek key apa pun: div pembungkus punya {...listeners}
+            // dnd-kit (termasuk KeyboardSensor -- Space/panah/Enter jadi tombol drag-nya). Tanpa
+            // stopPropagation ini, event bubble ke listeners dan: Space saat mengetik di-preventDefault
+            // duluan oleh KeyboardSensor (spasi tak pernah masuk value input), dan Enter/panah bisa
+            // memicu sesi drag keyboard yang nyangkut/membajak input setelahnya.
+            e.stopPropagation();
             if (e.key === "Enter") onCommitRename(false);
             if (e.key === "Escape") onCancelRename();
           }}
@@ -147,18 +154,21 @@ export function PageTabs({
   // menabrak 400 dari server.
   const canAdd = pages.length < LAYOUT_LIMITS.maxPages;
 
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  // Dikunci ke page.id, BUKAN index array: kalau pages reorder (drag) atau berubah jumlah selagi
+  // sebuah rename sedang berlangsung (input masih fokus, belum commit), index yang sama bisa
+  // menunjuk halaman yang beda sama sekali di saat commit -- rename bisa "nyasar" ke halaman lain.
+  const [editingPageId, setEditingPageId] = useState<string | null>(null);
   const [draftId, setDraftId] = useState("");
   const [renameError, setRenameError] = useState<string | null>(null);
 
-  function startRename(index: number) {
-    setEditingIndex(index);
-    setDraftId(pages[index].id);
+  function startRename(id: string) {
+    setEditingPageId(id);
+    setDraftId(id);
     setRenameError(null);
   }
 
   function cancelRename() {
-    setEditingIndex(null);
+    setEditingPageId(null);
     setRenameError(null);
   }
 
@@ -167,19 +177,27 @@ export function PageTabs({
   // (keunikan page.id dulu dijamin struktural oleh nextPageNumberRef di LayoutEditor.tsx, tapi
   // begitu rename bebas diizinkan jaminan itu hilang -- id dobel akan merusak SortableContext
   // items={pages.map(p=>p.id)} dan React key={p.id}).
-  function commitRename(index: number, viaBlur: boolean) {
+  function commitRename(pageId: string, viaBlur: boolean) {
     const trimmed = draftId.trim();
-    const currentId = pages[index].id;
-    if (trimmed === currentId || !trimmed) {
-      setEditingIndex(null);
+    // Resolve index SAAT commit, bukan dari closure lama -- pages bisa sudah berubah (reorder,
+    // hapus) sejak rename dimulai.
+    const index = pages.findIndex((p) => p.id === pageId);
+    if (index === -1) {
+      // Halaman yang sedang diedit sudah tak ada lagi (mis. dihapus selagi edit) -- batalkan diam-diam.
+      setEditingPageId(null);
       setRenameError(null);
       return;
     }
-    const isDuplicate = pages.some((p, i) => i !== index && p.id === trimmed);
+    if (trimmed === pageId || !trimmed) {
+      setEditingPageId(null);
+      setRenameError(null);
+      return;
+    }
+    const isDuplicate = pages.some((p) => p.id !== pageId && p.id === trimmed);
     if (isDuplicate) {
       if (viaBlur) {
         // Blur (klik di luar) -- jangan maksa fokus balik, revert diam-diam.
-        setEditingIndex(null);
+        setEditingPageId(null);
         setRenameError(null);
         return;
       }
@@ -188,7 +206,7 @@ export function PageTabs({
       return;
     }
     onRename(index, trimmed);
-    setEditingIndex(null);
+    setEditingPageId(null);
     setRenameError(null);
   }
 
@@ -213,12 +231,12 @@ export function PageTabs({
                 onSelect={() => onSelect(i)}
                 onRemove={() => onRemove(i)}
                 canRemove={pages.length > 1}
-                isEditing={editingIndex === i}
+                isEditing={editingPageId === p.id}
                 draftId={draftId}
-                renameError={editingIndex === i ? renameError : null}
-                onStartRename={() => startRename(i)}
+                renameError={editingPageId === p.id ? renameError : null}
+                onStartRename={() => startRename(p.id)}
                 onDraftChange={setDraftId}
-                onCommitRename={(viaBlur) => commitRename(i, viaBlur)}
+                onCommitRename={(viaBlur) => commitRename(p.id, viaBlur)}
                 onCancelRename={cancelRename}
               />
             ))}

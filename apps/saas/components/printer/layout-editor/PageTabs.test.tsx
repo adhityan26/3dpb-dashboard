@@ -57,6 +57,33 @@ describe("PageTabs", () => {
     expect(onRename).toHaveBeenCalledWith(0, "rak-kiri");
   });
 
+  it("mengetik nama berisi spasi di input rename tidak terpotong oleh dnd-kit KeyboardSensor", async () => {
+    const onRename = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <PageTabs
+        pages={twoPages}
+        activeIndex={0}
+        onSelect={() => {}}
+        onAdd={() => {}}
+        onRemove={() => {}}
+        onReorder={() => {}}
+        onRename={onRename}
+      />
+    );
+    await user.click(screen.getByTitle("Ganti nama halaman hal-1"));
+    const input = screen.getByDisplayValue("hal-1") as HTMLInputElement;
+    // userEvent.type() mensimulasikan keydown/keypress/input/keyup per karakter (termasuk tombol
+    // Space) melalui path event asli -- beda dari fireEvent.change() yang langsung set value tanpa
+    // lewat handler keyboard sama sekali, sehingga TIDAK akan pernah menangkap regresi dnd-kit
+    // KeyboardSensor (terpasang via {...listeners} di div pembungkus) mencegat tombol Space sebelum
+    // sempat masuk ke value input.
+    await user.clear(input);
+    await user.type(input, "Rak Kiri");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onRename).toHaveBeenCalledWith(0, "Rak Kiri");
+  });
+
   it("commit id kosong -> tidak memanggil onRename, kembali ke tampilan normal", async () => {
     const onRename = vi.fn();
     const user = userEvent.setup();

@@ -243,8 +243,18 @@ export function LayoutEditor({ devices }: { devices: PaletteDevice[] }) {
 
   function addPage() {
     if (config.pages.length >= LAYOUT_LIMITS.maxPages) return;
+    // Counter monoton saja tak lagi cukup jaminan unik: rename bebas (PageTabs) bisa membuat
+    // page.id user pas bentrok dengan nilai counter berikutnya (mis. user rename manual jadi
+    // "hal-2" tepat saat counter mau menghasilkan "hal-2" juga). Verifikasi dulu terhadap
+    // config.pages saat ini, majukan counter sampai benar-benar tak bentrok.
+    let candidateId = `hal-${nextPageNumberRef.current}`;
+    while (config.pages.some((p) => p.id === candidateId)) {
+      nextPageNumberRef.current++;
+      candidateId = `hal-${nextPageNumberRef.current}`;
+    }
+    nextPageNumberRef.current++;
     const newPage: LayoutPageOut = {
-      id: `hal-${nextPageNumberRef.current++}`,
+      id: candidateId,
       grid: { cols: 2, rows: 2 },
       fields: activePage.fields,
       durationSec: 5,
