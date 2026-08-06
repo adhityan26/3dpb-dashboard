@@ -82,7 +82,13 @@ export function PageTabs({
   onRemove: (i: number) => void;
   onReorder: (newPages: LayoutPageOut[]) => void;
 }) {
-  const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
+  // distance:4 supaya klik-biasa tetap bisa dibedakan dari drag -- tanpa ini PointerSensor mulai
+  // drag pada gerakan sekecil apa pun dan menelan onClick (pola sama LayoutEditor.tsx:95, lupa
+  // diterapkan juga di sensor PageTabs.tsx sendiri -- 2 DndContext terpisah, 2 sensor terpisah).
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
   // Batas firmware (LAYOUT_LIMITS.maxPages) — tombol "+" mati kalau sudah mentok, biar user tak
   // menabrak 400 dari server.
   const canAdd = pages.length < LAYOUT_LIMITS.maxPages;
