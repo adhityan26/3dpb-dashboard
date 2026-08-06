@@ -33,8 +33,9 @@ describe("PageTabs", () => {
     expect(onSelect).toHaveBeenCalledWith(1);
   });
 
-  it("klik ikon pensil masuk mode edit, Enter commit rename via onRename", () => {
+  it("klik ikon pensil masuk mode edit, Enter commit rename via onRename", async () => {
     const onRename = vi.fn();
+    const user = userEvent.setup();
     render(
       <PageTabs
         pages={twoPages}
@@ -46,15 +47,19 @@ describe("PageTabs", () => {
         onRename={onRename}
       />
     );
-    fireEvent.click(screen.getByTitle("Ganti nama halaman hal-1"));
+    // Ikon pensil ada di dalam div draggable yang sama dengan {...listeners} dnd-kit --
+    // userEvent.click() (bukan fireEvent.click()) wajib supaya test ini sensitif terhadap
+    // regresi PointerSensor, sama seperti test klik tab di atas.
+    await user.click(screen.getByTitle("Ganti nama halaman hal-1"));
     const input = screen.getByDisplayValue("hal-1") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "rak-kiri" } });
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onRename).toHaveBeenCalledWith(0, "rak-kiri");
   });
 
-  it("commit id kosong -> tidak memanggil onRename, kembali ke tampilan normal", () => {
+  it("commit id kosong -> tidak memanggil onRename, kembali ke tampilan normal", async () => {
     const onRename = vi.fn();
+    const user = userEvent.setup();
     render(
       <PageTabs
         pages={twoPages}
@@ -66,7 +71,7 @@ describe("PageTabs", () => {
         onRename={onRename}
       />
     );
-    fireEvent.click(screen.getByTitle("Ganti nama halaman hal-1"));
+    await user.click(screen.getByTitle("Ganti nama halaman hal-1"));
     const input = screen.getByDisplayValue("hal-1") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "   " } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -74,8 +79,9 @@ describe("PageTabs", () => {
     expect(screen.getByText("hal-1")).toBeTruthy(); // balik ke tampilan normal, id lama tetap
   });
 
-  it("commit id duplikat via Enter -> tidak memanggil onRename, pesan error muncul, tetap mode edit", () => {
+  it("commit id duplikat via Enter -> tidak memanggil onRename, pesan error muncul, tetap mode edit", async () => {
     const onRename = vi.fn();
+    const user = userEvent.setup();
     render(
       <PageTabs
         pages={twoPages}
@@ -87,7 +93,7 @@ describe("PageTabs", () => {
         onRename={onRename}
       />
     );
-    fireEvent.click(screen.getByTitle("Ganti nama halaman hal-1"));
+    await user.click(screen.getByTitle("Ganti nama halaman hal-1"));
     const input = screen.getByDisplayValue("hal-1") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "hal-2" } });
     fireEvent.keyDown(input, { key: "Enter" });
@@ -96,8 +102,9 @@ describe("PageTabs", () => {
     expect(screen.getByDisplayValue("hal-2")).toBeTruthy(); // masih di mode edit, input tetap ada
   });
 
-  it("Escape membatalkan edit tanpa memanggil onRename", () => {
+  it("commit id duplikat via blur -> tidak memanggil onRename, revert diam-diam ke id lama, tanpa error", async () => {
     const onRename = vi.fn();
+    const user = userEvent.setup();
     render(
       <PageTabs
         pages={twoPages}
@@ -109,7 +116,32 @@ describe("PageTabs", () => {
         onRename={onRename}
       />
     );
-    fireEvent.click(screen.getByTitle("Ganti nama halaman hal-1"));
+    await user.click(screen.getByTitle("Ganti nama halaman hal-1"));
+    const input = screen.getByDisplayValue("hal-1") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "hal-2" } });
+    // Blur adalah focus event, bukan pointer event -- tidak lewat PointerSensor dnd-kit sama
+    // sekali, jadi fireEvent.blur() langsung di elemen input aman dipakai di sini.
+    fireEvent.blur(input);
+    expect(onRename).not.toHaveBeenCalled();
+    expect(screen.queryByText("Nama halaman sudah dipakai")).toBeNull();
+    expect(screen.getByText("hal-1")).toBeTruthy(); // revert ke id asli, bukan draft duplikat
+  });
+
+  it("Escape membatalkan edit tanpa memanggil onRename", async () => {
+    const onRename = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <PageTabs
+        pages={twoPages}
+        activeIndex={0}
+        onSelect={() => {}}
+        onAdd={() => {}}
+        onRemove={() => {}}
+        onReorder={() => {}}
+        onRename={onRename}
+      />
+    );
+    await user.click(screen.getByTitle("Ganti nama halaman hal-1"));
     const input = screen.getByDisplayValue("hal-1") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "berubah-tapi-batal" } });
     fireEvent.keyDown(input, { key: "Escape" });
