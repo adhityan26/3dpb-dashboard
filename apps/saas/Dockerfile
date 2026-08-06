@@ -2,6 +2,15 @@
 FROM node:22-alpine AS builder
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 RUN corepack enable
+# better-sqlite3 (dep Prisma, dipakai apps/dashboard tapi ikut ter-install krn lockfile
+# monorepo bersama) fallback compile dari source kalau fetch prebuilt binary gagal --
+# alpine tidak punya toolchain ini secara default. Pola sama persis apps/dashboard/Dockerfile.
+RUN apk add --no-cache python3 make g++
+# node-gyp defaultnya coba download header Node dari unofficial-builds.nodejs.org saat
+# compile from source -- sering timeout di jaringan homelab. node:22-alpine sudah
+# menyertakan header itu secara lokal di /usr/local/include/node, jadi arahkan node-gyp
+# ke situ supaya skip fetch jaringan sama sekali.
+ENV npm_config_nodedir=/usr/local
 WORKDIR /repo
 
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
