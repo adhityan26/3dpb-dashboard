@@ -19,6 +19,12 @@ describe("LayoutEditor", () => {
     await waitFor(() => expect(screen.getByText(/printer a/i)).toBeTruthy());
   });
 
+  it("halaman default (tak ada layout tersimpan) pakai id 'hal-1', bukan 'page-1'", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) });
+    render(<LayoutEditor devices={[]} />);
+    await waitFor(() => expect(screen.getByText("hal-1")).toBeTruthy());
+  });
+
   it("tombol simpan panggil PUT /api/cyd-layout dengan config saat ini", async () => {
     fetchMock
       .mockResolvedValueOnce({ ok: true, json: async () => ({ schemaVersion: 1, pages: [{ id: "page-1", grid: { cols: 2, rows: 2 }, fields: [], durationSec: 5, cells: [] }] }) })
@@ -70,6 +76,32 @@ describe("LayoutEditor", () => {
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/cyd-layout", expect.objectContaining({ method: "PUT" })));
     const body = JSON.parse((fetchMock.mock.calls.at(-1)![1] as { body: string }).body);
     expect(body.pages.map((p: { id: string }) => p.id)).toEqual(["page-1", "hal-2", "hal-3"]);
+  });
+
+  it("rename halaman jadi id yang sama dengan next auto-id, lalu + Halaman -> id tak dobel", async () => {
+    fetchMock
+      .mockResolvedValueOnce({ ok: false, status: 404, json: async () => ({}) })
+      .mockResolvedValueOnce({ ok: true, json: async () => ({}) });
+    render(<LayoutEditor devices={[]} />);
+    await waitFor(() => expect(screen.getByText("hal-1")).toBeTruthy());
+
+    // nextPageNumberRef mulai di 2 (default, GET 404 jadi tak pernah di-override) -- "+ Halaman"
+    // berikutnya akan MENCOBA "hal-2" duluan. Rename satu-satunya halaman jadi "hal-2" supaya
+    // bentrok persis dengan id yang counter akan hasilkan.
+    fireEvent.click(screen.getByTitle("Ganti nama halaman hal-1"));
+    const input = screen.getByDisplayValue("hal-1") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "hal-2" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(screen.getByText("hal-2")).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /\+ halaman/i }));
+
+    fireEvent.click(screen.getByRole("button", { name: /^simpan$/i }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith("/api/cyd-layout", expect.objectContaining({ method: "PUT" })));
+    const body = JSON.parse((fetchMock.mock.calls.at(-1)![1] as { body: string }).body);
+    const ids = body.pages.map((p: { id: string }) => p.id);
+    expect(new Set(ids).size).toBe(ids.length); // tak ada id dobel
+    expect(ids).toEqual(["hal-2", "hal-3"]); // counter maju lagi begitu deteksi bentrok
   });
 
   it("teks header: ter-render dari GET, bisa diedit, ikut terkirim di PUT", async () => {

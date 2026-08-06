@@ -23,7 +23,7 @@ import { CellSettingsPanel } from "./layout-editor/CellSettingsPanel";
 function defaultConfig(): LayoutConfigOut {
   return {
     schemaVersion: 1,
-    pages: [{ id: "page-1", grid: { cols: 2, rows: 2 }, fields: [], durationSec: 5, cells: [] }],
+    pages: [{ id: "hal-1", grid: { cols: 2, rows: 2 }, fields: [], durationSec: 5, cells: [] }],
   };
 }
 
@@ -243,8 +243,18 @@ export function LayoutEditor({ devices }: { devices: PaletteDevice[] }) {
 
   function addPage() {
     if (config.pages.length >= LAYOUT_LIMITS.maxPages) return;
+    // Counter monoton saja tak lagi cukup jaminan unik: rename bebas (PageTabs) bisa membuat
+    // page.id user pas bentrok dengan nilai counter berikutnya (mis. user rename manual jadi
+    // "hal-2" tepat saat counter mau menghasilkan "hal-2" juga). Verifikasi dulu terhadap
+    // config.pages saat ini, majukan counter sampai benar-benar tak bentrok.
+    let candidateId = `hal-${nextPageNumberRef.current}`;
+    while (config.pages.some((p) => p.id === candidateId)) {
+      nextPageNumberRef.current++;
+      candidateId = `hal-${nextPageNumberRef.current}`;
+    }
+    nextPageNumberRef.current++;
     const newPage: LayoutPageOut = {
-      id: `hal-${nextPageNumberRef.current++}`,
+      id: candidateId,
       grid: { cols: 2, rows: 2 },
       fields: activePage.fields,
       durationSec: 5,
@@ -261,6 +271,10 @@ export function LayoutEditor({ devices }: { devices: PaletteDevice[] }) {
     if (index === activePageIndex) setSelectedCellIndex(null);
     setConfig((cfg) => ({ ...cfg, pages: cfg.pages.filter((_, i) => i !== index) }));
     setActivePageIndex((i) => Math.max(0, i - (index <= i ? 1 : 0)));
+  }
+
+  function renamePage(index: number, newId: string) {
+    setConfig((cfg) => ({ ...cfg, pages: cfg.pages.map((p, i) => (i === index ? { ...p, id: newId } : p)) }));
   }
 
   async function handleSave() {
@@ -336,6 +350,7 @@ export function LayoutEditor({ devices }: { devices: PaletteDevice[] }) {
           onAdd={addPage}
           onRemove={removePage}
           onReorder={(newPages) => setConfig((cfg) => ({ ...cfg, pages: newPages }))}
+          onRename={renamePage}
         />
       </div>
 
