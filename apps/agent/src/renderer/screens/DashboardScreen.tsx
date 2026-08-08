@@ -3,6 +3,14 @@ import type { PrintersPayload } from "@3pb/printer-monitor-core";
 import type { SyncResult } from "../../main/ipc";
 import { AgentShell } from "../AgentShell";
 import { GlassButton, GlassCard } from "@3pb/ui";
+import { getPrinterImage } from "../lib/printer-images";
+
+/** Thumbnail asli kalau model (`p.type`) dikenal, fallback emoji generik kalau tidak. */
+function PrinterThumb({ model }: { model: string }) {
+  const src = getPrinterImage(model);
+  if (!src) return <span aria-hidden="true" className="text-2xl leading-none">🖨️</span>;
+  return <img src={src} alt="" className="w-10 h-10 rounded-md object-cover flex-shrink-0" />;
+}
 
 type SyncStatus =
   | { kind: "idle" }
@@ -151,11 +159,22 @@ export function DashboardScreen({
           </p>
         </GlassCard>
       )}
-      <div className="space-y-2">
+      <div className="space-y-3">
         {snapshot.payload.map((p) => (
-          <GlassCard key={p.id} className="p-3 flex items-center justify-between">
-            <span className="g-t1 text-sm">{p.name}</span>
+          <GlassCard key={p.id} className="p-4">
             <div className="flex items-center gap-3">
+              <PrinterThumb model={p.type} />
+              <div className="min-w-0 flex-1">
+                <div className="g-t1 text-sm font-medium truncate">{p.name}</div>
+                {/* Nama file yang lagi dicetak -- kosong kalau idle/tak ada job aktif, jangan
+                    tampil baris kosong. */}
+                {p.filename && <div className="g-t3 text-xs truncate">{p.filename}</div>}
+              </div>
+              <span className={`flex-shrink-0 text-sm ${statusColorClass(p.state)}`}>
+                {p.state} — {p.progress}%
+              </span>
+            </div>
+            <div className="mt-2 flex items-center justify-between">
               {/* Suhu terakhir diketahui tetap ditampilkan walau printer OFFLINE (sama
                   seperti progress/filename -- payload.ts sengaja mempertahankan data
                   terakhir, bukan me-reset ke 0, kecuali memang belum pernah ada data sama
@@ -163,10 +182,16 @@ export function DashboardScreen({
               <span className="g-t3 text-xs">
                 Nozzle {p.nozzle_temp}°C · Bed {p.bed_temp}°C
               </span>
-              <span className={`text-sm ${statusColorClass(p.state)}`}>
-                {p.state} — {p.progress}%
-              </span>
             </div>
+            {/* error_message HANYA ditampilkan kalau state SEKARANG "error" -- field itu bisa
+                menyimpan pesan BASI dari error sebelumnya (payload.ts tak mengosongkannya saat
+                printer pulih), jadi state adalah penjaga kebenarannya, bukan sekadar
+                error_message non-kosong. */}
+            {p.state.toLowerCase() === "error" && p.error_message && (
+              <p role="alert" className="g-error mt-2 text-xs">
+                {p.error_message}
+              </p>
+            )}
           </GlassCard>
         ))}
       </div>

@@ -18,6 +18,58 @@ describe("DashboardScreen", () => {
     expect(screen.getByText(/45/)).toBeTruthy();
   });
 
+  it("tampilkan nama file yang sedang dicetak (filename dari payload)", async () => {
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText("box.gcode")).toBeTruthy());
+  });
+
+  it("filename kosong (tak ada job) -> tak ada baris nama file yang nyangkut", async () => {
+    (window as any).agentApi.getSnapshot.mockResolvedValue({
+      payload: [{ id: "abc1234567", name: "Printer A", type: "P1S", state: "idle", progress: 0, remaining_min: 0, filename: "", error_msg: "", error_message: "", last_seen: null, nozzle_temp: 25, bed_temp: 25 }],
+    });
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText("Printer A")).toBeTruthy());
+    expect(screen.queryByText("box.gcode")).toBeNull();
+  });
+
+  it("state error -> tampilkan pesan error human-readable (error_message)", async () => {
+    (window as any).agentApi.getSnapshot.mockResolvedValue({
+      payload: [{ id: "abc1234567", name: "Printer A", type: "P1S", state: "error", progress: 0, remaining_min: 0, filename: "box.gcode", error_msg: "hms=... ", error_message: "Nozzle macet -- filament tak terdeteksi", last_seen: null, nozzle_temp: 25, bed_temp: 25 }],
+    });
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    expect(screen.getByRole("alert").textContent).toMatch(/nozzle macet/i);
+  });
+
+  it("state BUKAN error -> tak ada pesan error yang tampil walau error_message ada isinya (data basi dari error sebelumnya)", async () => {
+    (window as any).agentApi.getSnapshot.mockResolvedValue({
+      payload: [{ id: "abc1234567", name: "Printer A", type: "P1S", state: "running", progress: 50, remaining_min: 10, filename: "box.gcode", error_msg: "", error_message: "Nozzle macet -- filament tak terdeteksi", last_seen: null, nozzle_temp: 219, bed_temp: 60 }],
+    });
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText("Printer A")).toBeTruthy());
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("model dikenal (mis. P1S) -> render thumbnail printer asli, bukan icon generik", async () => {
+    (window as any).agentApi.getSnapshot.mockResolvedValue({
+      payload: [{ id: "abc1234567", name: "Printer A", type: "P1S", state: "idle", progress: 0, remaining_min: 0, filename: "", error_msg: "", error_message: "", last_seen: null, nozzle_temp: 25, bed_temp: 25 }],
+    });
+    const { container } = render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText("Printer A")).toBeTruthy());
+    const img = container.querySelector("img[alt='']");
+    expect(img?.getAttribute("src")).toBe("./printers/bambu-p1s.jpg");
+  });
+
+  it("model tak dikenal/kosong -> fallback icon generik, BUKAN <img>", async () => {
+    (window as any).agentApi.getSnapshot.mockResolvedValue({
+      payload: [{ id: "abc1234567", name: "Printer A", type: "", state: "idle", progress: 0, remaining_min: 0, filename: "", error_msg: "", error_message: "", last_seen: null, nozzle_temp: 25, bed_temp: 25 }],
+    });
+    const { container } = render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText("Printer A")).toBeTruthy());
+    expect(container.querySelector("img[alt='']")).toBeNull();
+    expect(screen.getByText("🖨️")).toBeTruthy();
+  });
+
   it("tampilkan suhu nozzle dan bed per printer", async () => {
     render(<DashboardScreen />);
     await waitFor(() => expect(screen.getByText(/nozzle 219°c/i)).toBeTruthy());
