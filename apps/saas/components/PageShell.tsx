@@ -1,9 +1,7 @@
 import type { ReactNode } from "react";
-import { MobileBottomNav } from "@3pb/ui";
 import { AppHeader } from "./AppHeader";
+import { MobileNav } from "./MobileNav";
 import { TABS, type NavKey } from "./nav-tabs";
-import { ThemeToggle } from "./ThemeToggle";
-import { performLogout } from "@/lib/logout-client";
 
 /** Tab desktop (nav-tabs.ts, SATU sumber dgn AppHeader) yang sudah jadi (bukan "soon") + lolos
  * filter owner — mobile & desktop tak pernah drift. Impor LANGSUNG dari nav-tabs.ts (BUKAN
@@ -66,9 +64,9 @@ export function PageShell({
           {children}
         </div>
       </main>
-      {authenticated && (
-        <MobileBottomNav tabs={mobileTabs(owner)} userName={userLabel} onLogout={performLogout} extra={<ThemeToggle />} />
-      )}
+      {/* MobileNav ("use client") -- onLogout butuh referensi fungsi client-side, tak bisa
+          lewat langsung dari server component ini (lihat komentar MobileNav.tsx). */}
+      {authenticated && <MobileNav tabs={mobileTabs(owner)} userLabel={userLabel} />}
     </>
   );
 }
