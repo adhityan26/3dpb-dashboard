@@ -25,3 +25,16 @@ describe('LgConfigEditor cover type', () => {
     expect(html).not.toContain('Cable channel radius')
   })
 })
+
+describe('LgConfigEditor bottom frame', () => {
+  it('off by default: renders the toggle but hides the height control', () => {
+    const html = render({})
+    expect(html).toContain('Bottom frame')
+    expect(html).not.toContain('Bottom frame height')
+  })
+
+  it('enabled: renders the height control', () => {
+    const html = render({ bottom_frame: true })
+    expect(html).toContain('Bottom frame height')
+  })
+})

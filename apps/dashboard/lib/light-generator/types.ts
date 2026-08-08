@@ -85,6 +85,8 @@ export const DEFAULT_LG_CONFIG = {
   stem_width: 2,
   min_bridge_mm: 1.2,
   cover_type: "bottom",
+  bottom_frame: false,
+  bottom_frame_height: 5,
   invert_mask: false,
   pillar_outer_r: 4,
   pillar_inner_r: 2.5,

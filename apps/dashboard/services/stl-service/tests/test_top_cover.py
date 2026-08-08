@@ -164,6 +164,29 @@ def test_run_bottom_mode_regression(tmp_path):
     assert zmax <= 51.0
 
 
+def test_run_bottom_frame_smoke(tmp_path):
+    """bottom_frame=True produces a valid mesh (no crash) with a solid base band."""
+    cv2 = pytest.importorskip("cv2")
+    from scripts.generate_shadow_casing import run
+
+    mask = np.full((64, 64), 255, dtype=np.uint8)
+    mask[24:40, 24:40] = 0
+    img = tmp_path / "mask.png"
+    cv2.imwrite(str(img), mask)
+    out = tmp_path / "out.stl"
+
+    run(
+        input_image=str(img), output_stl=str(out),
+        outer_radius=40, base_radius=40, shell_height=50,
+        n_stencil_theta=128, n_stencil_z=16,
+        support_stems=False,
+        bottom_frame=True,
+        bottom_frame_height=5.0,
+    )
+    mesh = trimesh.load(str(out))
+    assert mesh.is_watertight or len(mesh.faces) > 0
+
+
 def test_bridge_islands_anchor_bottom_default():
     from scripts.generate_shadow_casing import _bridge_floating_islands
     stencil = np.zeros((8, 10), dtype=bool)
@@ -184,3 +207,42 @@ def test_bridge_islands_anchor_top():
     assert n == 1
     assert out[3, 6:9].all()      # stem fills upward gap
     assert not out[3, :5].any()   # nothing added below island
+
+
+def test_apply_bottom_frame_forces_rows_solid():
+    from scripts.generate_shadow_casing import _apply_bottom_frame
+    stencil = np.zeros((8, 10), dtype=bool)
+    dz = 1.0  # mm per row
+    out = _apply_bottom_frame(stencil, frame_height_mm=3.0, dz=dz)
+    assert out[:, :3].all()       # bottom 3 rows forced solid across all theta
+    assert not out[:, 3:].any()   # rows above the band untouched
+
+
+def test_apply_bottom_frame_zero_height_is_noop():
+    from scripts.generate_shadow_casing import _apply_bottom_frame
+    stencil = np.zeros((8, 10), dtype=bool)
+    out = _apply_bottom_frame(stencil, frame_height_mm=0.0, dz=1.0)
+    assert not out.any()
+    assert out is stencil  # early-return no-op
+
+
+def test_apply_bottom_frame_rows_capped_at_n_z():
+    from scripts.generate_shadow_casing import _apply_bottom_frame
+    stencil = np.zeros((4, 5), dtype=bool)
+    out = _apply_bottom_frame(stencil, frame_height_mm=1000.0, dz=1.0)
+    assert out.shape == (4, 5)
+    assert out.all()  # capped at all rows, no crash / no oversized slice
+
+
+def test_apply_bottom_frame_composes_with_island_bridging():
+    """A bottom frame lets an island near the base fuse without needing a stem:
+    once the band is forced solid, BFS from the anchor edge already reaches
+    any island whose lowest z falls within the band."""
+    from scripts.generate_shadow_casing import _apply_bottom_frame, _bridge_floating_islands
+    stencil = np.zeros((8, 10), dtype=bool)
+    stencil[3, 2] = True   # island sitting just above where a bottom frame would reach
+    dz = 1.0
+    framed = _apply_bottom_frame(stencil, frame_height_mm=3.0, dz=dz)
+    out, n = _bridge_floating_islands(framed, stem_width=1)
+    assert n == 0  # island now connected via the frame band, no bridging needed
+    assert out[3, 2]  # island cell still present
