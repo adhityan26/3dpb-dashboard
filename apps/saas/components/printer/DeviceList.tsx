@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { PRINTER_TYPES, PRINTER_TYPE_LABELS, PRINTER_MODEL_SUGGESTIONS, type PrinterType } from "@/lib/devices/printer-types";
+import { getPrinterBrand } from "@/lib/devices/printer-brand";
 import { LAYOUT_LIMITS } from "@3pb/cyd-layout-schema";
 
 type Device = { id: string; label: string; printerType: string; model: string | null };
@@ -166,7 +167,7 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
             ) : (
               <span className="flex-1 min-w-0 truncate">{d.label}</span>
             )}
-            <span className="g-t4 text-[11px]">{d.printerType}</span>
+            <span className="g-t4 text-[11px]">{getPrinterBrand(d.printerType, d.model)}</span>
             {editingModelId === d.id ? (
               <div className="flex flex-col">
                 <input

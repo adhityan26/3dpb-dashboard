@@ -15,9 +15,13 @@ const BAMBU_IMAGES: Record<string, string> = {
   X1E: "/printers/bambu-x1.jpg",
   P1S: "/printers/bambu-p1s.jpg",
   P1P: "/printers/bambu-p1s.jpg",
+  P2S: "/printers/bambu-p2s.jpg",
+  X2D: "/printers/bambu-x2d.jpg",
+  H2D: "/printers/bambu-h2d.jpg",
+  H2C: "/printers/bambu-h2c.jpg",
   A1: "/printers/bambu-a1.jpg",
   A1MINI: "/printers/bambu-a1-mini.jpg",
-  H2D: "/printers/bambu-h2d.jpg",
+  A2L: "/printers/bambu-a2l.jpg",
 };
 
 // Moonraker/Klipper mencakup banyak merek generik (Voron, Ender3, dst) tanpa 1 foto yang

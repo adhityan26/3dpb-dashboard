@@ -18,6 +18,13 @@ describe("getPrinterImage", () => {
     expect(getPrinterImage("bambu", "P1P")).toBe("/printers/bambu-p1s.jpg");
   });
 
+  it("lini 2026 (P2S/X2D/H2C/A2L) dikenal, masing-masing punya foto sendiri", () => {
+    expect(getPrinterImage("bambu", "P2S")).toBe("/printers/bambu-p2s.jpg");
+    expect(getPrinterImage("bambu", "X2D")).toBe("/printers/bambu-x2d.jpg");
+    expect(getPrinterImage("bambu", "H2C")).toBe("/printers/bambu-h2c.jpg");
+    expect(getPrinterImage("bambu", "A2L")).toBe("/printers/bambu-a2l.jpg");
+  });
+
   it("moonraker U1 (Snapmaker) dikenal, Voron/Ender3 tidak", () => {
     expect(getPrinterImage("moonraker", "U1")).toBe("/printers/snapmaker-u1.jpg");
     expect(getPrinterImage("moonraker", "Voron")).toBeNull();

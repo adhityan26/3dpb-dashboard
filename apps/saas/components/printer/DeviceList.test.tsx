@@ -29,6 +29,16 @@ describe("DeviceList", () => {
     await waitFor(() => expect(screen.getByText("Printer A")).toBeTruthy());
   });
 
+  it("tampilkan MEREK printer (mis. 'Bambu Lab', 'Snapmaker'), BUKAN nama connector/engine mentah", async () => {
+    mockList([DEVICE_A, { id: "d2", label: "Ganymede", printerType: "moonraker", model: "U1" }]);
+    render(<DeviceList paidCore={true} />);
+    await waitFor(() => expect(screen.getByText("Printer A")).toBeTruthy());
+    expect(screen.getByText("Bambu Lab")).toBeTruthy();
+    expect(screen.getByText("Snapmaker")).toBeTruthy();
+    expect(screen.queryByText("bambu")).toBeNull();
+    expect(screen.queryByText("moonraker")).toBeNull();
+  });
+
   it("tampilkan 'X/Y slot terpakai' dari limit yang dikirim GET", async () => {
     mockList([DEVICE_A], 2);
     render(<DeviceList paidCore={true} />);
