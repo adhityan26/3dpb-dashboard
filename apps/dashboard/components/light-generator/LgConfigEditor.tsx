@@ -48,6 +48,18 @@ const SHAPE_OPTIONS = [
   { value: "oval",     label: "Oval" },
 ]
 
+const COVER_OPTIONS = [
+  { value: "bottom", label: "Bottom cover (pillar)" },
+  { value: "top",    label: "Top cover (recess)" },
+]
+
+// Same underlying keys as the LED Pillar section — relabeled for top-cover
+// mode where they define the puck recess instead of the pillar.
+const RECESS_PARAMS: ParamDef[] = [
+  { key: "pillar_outer_r",    label: "Recess radius (mm)", help: "Radius of the LED puck recess under the top cover", type: "number", min: 1, max: 30, step: 0.5 },
+  { key: "led_socket_height", label: "Recess depth (mm)",  help: "Depth of the recess; capped so the roof stays closed", type: "number", min: 0, max: 50, step: 0.5 },
+]
+
 const SECTIONS: { title: string; params: ParamDef[] }[] = [
   {
     title: "Size / Geometry",
@@ -141,6 +153,8 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
 
   const needsRatio = shapeBase === "rect" || shapeBase === "oval"
 
+  const coverType = values.cover_type === "top" ? "top" : "bottom"
+
   function notifyChange(nextValues: Record<string, unknown>, nextBase: string, nextW: string, nextH: string) {
     if (!onConfigChange) return
     const config: Record<string, unknown> = {}
@@ -152,6 +166,8 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
         }
       }
     }
+    config.cover_type = nextValues.cover_type === "top" ? "top" : "bottom"
+    config.invert_mask = !!nextValues.invert_mask
     const needsR = nextBase === "rect" || nextBase === "oval"
     config.flooring_shape = !nextBase || nextBase === "circle"
       ? "circle"
@@ -184,6 +200,8 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
         }
       }
     }
+    config.cover_type = values.cover_type === "top" ? "top" : "bottom"
+    config.invert_mask = !!values.invert_mask
     const needsR = shapeBase === "rect" || shapeBase === "oval"
     config.flooring_shape = !shapeBase || shapeBase === "circle"
       ? "circle"
@@ -296,8 +314,41 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
           </div>
         </div>
 
+        {/* Cover section */}
+        <div className="space-y-4">
+          <h4 className="text-sm font-semibold border-b pb-2">Cover</h4>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Cover type</Label>
+              <Select
+                value={coverType}
+                onValueChange={(v) => { if (v) setValue("cover_type", v) }}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {COVER_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-[11px]">
+                Bottom: floor plate + LED pillar, open top. Top: closed cover with LED recess, open bottom.
+              </p>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label className="text-sm">Invert shadow</Label>
+                <p className="text-muted-foreground text-[11px]">Swap solid/hole regions of the silhouette</p>
+              </div>
+              <Switch checked={getBool("invert_mask")} onCheckedChange={(c) => setValue("invert_mask", c)} />
+            </div>
+          </div>
+        </div>
+
         {/* Parameter sections */}
-        {SECTIONS.map((section) => (
+        {SECTIONS
+          .filter((section) => !(coverType === "top" && section.title === "LED Pillar"))
+          .map((section) => (
           <div key={section.title} className="space-y-4">
             <h4 className="text-sm font-semibold border-b pb-2">{section.title}</h4>
             <div className="grid gap-5 sm:grid-cols-2">
@@ -365,6 +416,37 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
             </div>
           </div>
         ))}
+
+        {coverType === "top" && (
+          <div className="space-y-4">
+            <h4 className="text-sm font-semibold border-b pb-2">LED Recess</h4>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {RECESS_PARAMS.map((p) => (
+                <div key={p.key} className="space-y-2">
+                  <div className="flex items-baseline justify-between">
+                    <Label className="text-sm">{p.label}</Label>
+                    <span className="text-muted-foreground text-xs tabular-nums">{getNum(p.key)}</span>
+                  </div>
+                  <Slider
+                    value={[getNum(p.key)]}
+                    min={p.min} max={p.max} step={p.step}
+                    onValueChange={(val) => { const v = Array.isArray(val) ? val[0] : (val as number); if (v !== undefined) setValue(p.key, v) }}
+                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      value={getNum(p.key)}
+                      min={p.min} max={p.max} step={p.step}
+                      onChange={(e) => setValue(p.key, e.currentTarget.value)}
+                      className="h-8 w-24 text-sm"
+                    />
+                    <p className="text-muted-foreground text-[11px] flex-1">{p.help}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {feedback && <p className="text-sm">{feedback}</p>}
 
