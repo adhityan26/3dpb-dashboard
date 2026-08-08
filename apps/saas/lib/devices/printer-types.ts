@@ -7,10 +7,16 @@
 export const PRINTER_TYPES = ["bambu", "moonraker"] as const;
 export type PrinterType = (typeof PRINTER_TYPES)[number];
 
-/** Label tampilan untuk dropdown — nilai yang dikirim ke API tetap string mentah di PRINTER_TYPES. */
+/**
+ * Label tampilan untuk dropdown "Tipe printer" -- nilai yang dikirim ke API tetap string mentah
+ * di PRINTER_TYPES. "moonraker" leading dengan nama MEREK yang dikenal user awam (bukan istilah
+ * protokol/engine mentah), TAPI tetap disebut generik "printer Klipper" karena satu opsi ini
+ * genuinely mencakup banyak merek + build custom/DIY -- bukan daftar tertutup, jadi tak boleh
+ * jadi dropdown per-merek (nanti kesannya cuma merek yang disebut yang didukung).
+ */
 export const PRINTER_TYPE_LABELS: Record<PrinterType, string> = {
   bambu: "Bambu Lab",
-  moonraker: "Moonraker (Klipper)",
+  moonraker: "Klipper (Snapmaker, Voron, Creality K-series, dll.)",
 };
 
 /** Saran (bukan pembatas) untuk datalist input model di DeviceList -- ejaan kanonik sama
