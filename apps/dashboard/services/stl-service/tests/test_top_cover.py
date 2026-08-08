@@ -162,3 +162,25 @@ def test_run_bottom_mode_regression(tmp_path):
     # to reach up to ~50, but nothing should extend past +1mm from that)
     zmax = mesh.bounds[1][2]
     assert zmax <= 51.0
+
+
+def test_bridge_islands_anchor_bottom_default():
+    from scripts.generate_shadow_casing import _bridge_floating_islands
+    stencil = np.zeros((8, 10), dtype=bool)
+    stencil[:, 0] = True          # solid base row
+    stencil[3, 5] = True          # floating island
+    out, n = _bridge_floating_islands(stencil, stem_width=1)
+    assert n == 1
+    assert out[3, 1:5].all()      # stem fills downward gap
+    assert not out[3, 6:].any()   # nothing added above island
+
+
+def test_bridge_islands_anchor_top():
+    from scripts.generate_shadow_casing import _bridge_floating_islands
+    stencil = np.zeros((8, 10), dtype=bool)
+    stencil[:, 9] = True          # solid top row (adjoins cover)
+    stencil[3, 5] = True          # floating island
+    out, n = _bridge_floating_islands(stencil, stem_width=1, anchor='top')
+    assert n == 1
+    assert out[3, 6:9].all()      # stem fills upward gap
+    assert not out[3, :5].any()   # nothing added below island
