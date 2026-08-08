@@ -2671,6 +2671,7 @@ def run(
     merged_builder       = False,  # v2: column merging + correct normals, small files
     min_wall_mm          = 0.0,    # disabled: 3mm was too aggressive, removed fine features
     skip_led_pillar      = False,
+    cover_type           = 'bottom',  # 'bottom' = floor plate + pillar (default), 'top' = closed top cover with LED recess, open bottom
     add_watermark        = False,
     decimate_ratio       = 0.0,    # 0=off, 0.8=keep 20% of faces (quadric decimation)
     led_socket_height    = 10.0,    # mm — height of LED mount above pillar top
@@ -2930,50 +2931,60 @@ def run(
         )
         print(f'  [A] after Taubin — faces: {len(wall_mesh.faces)}')
 
-    # ── 4. Raised floor plate with cable hole ────────────────────────
-    # Punch a hole of pillar_inner_r through the base plate centre so the
-    # LED cable can pass from the electronics chamber up into the pillar.
-    from shapely.geometry import Polygon as _ShapelyPoly
+    # ── 4/5. Mount geometry — bottom (floor plate + pillar) or top cover ──
+    base       = None
+    led_holder = None
+    top_cover  = None
 
-    _hole_a    = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
-    _hole_poly = _ShapelyPoly(list(zip(pillar_inner_r * np.cos(_hole_a),
-                                        pillar_inner_r * np.sin(_hole_a))))
-
-    if casing_poly is not None:
-        _base_poly = casing_poly.difference(_hole_poly)
-        base_desc  = 'custom shape'
+    if cover_type == 'top':
+        # Open bottom, closed top: LED puck hangs from a recess in the cover.
+        if not preview_mode:
+            top_cover = build_top_cover(
+                wall_top        = wall_top,
+                cover_thickness = base_thickness,
+                recess_r        = pillar_outer_r,
+                recess_depth    = led_socket_height,
+                light_x         = light_x,
+                light_y         = light_y,
+                casing_poly     = casing_poly,
+                base_radius     = base_radius,
+                n_circ          = n_circ,
+            )
     else:
-        _outer_a    = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
-        _outer_poly = _ShapelyPoly(list(zip(base_radius * np.cos(_outer_a),
-                                             base_radius * np.sin(_outer_a))))
-        _base_poly  = _outer_poly.difference(_hole_poly)
-        base_desc   = f'circle r={base_radius:.1f}mm'
+        # Punch a hole of pillar_inner_r through the base plate centre so the
+        # LED cable can pass from the electronics chamber up into the pillar.
+        from shapely.geometry import Polygon as _ShapelyPoly
+        _hole_a    = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
+        _hole_poly = _ShapelyPoly(list(zip(pillar_inner_r * np.cos(_hole_a),
+                                            pillar_inner_r * np.sin(_hole_a))))
+        if casing_poly is not None:
+            _base_poly = casing_poly.difference(_hole_poly)
+            base_desc  = 'custom shape'
+        else:
+            _outer_a    = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
+            _outer_poly = _ShapelyPoly(list(zip(base_radius * np.cos(_outer_a),
+                                                 base_radius * np.sin(_outer_a))))
+            _base_poly  = _outer_poly.difference(_hole_poly)
+            base_desc   = f'circle r={base_radius:.1f}mm'
+        if not _base_poly.is_valid:
+            _base_poly = _base_poly.buffer(0)
+        base = trimesh.creation.extrude_polygon(_base_poly, base_thickness)
+        base.apply_translation([0.0, 0.0, floor_z])
+        trimesh.repair.fix_normals(base)
+        print(f'  [B] floor plate  — {base_desc} + cable hole ∅{pillar_inner_r*2:.1f}mm'
+              f'  z={floor_z:.1f}→{base_z:.1f}mm  faces={len(base.faces)}')
 
-    if not _base_poly.is_valid:
-        _base_poly = _base_poly.buffer(0)
-
-    base = trimesh.creation.extrude_polygon(_base_poly, base_thickness)
-    base.apply_translation([0.0, 0.0, floor_z])
-    trimesh.repair.fix_normals(base)
-    print(f'  [B] floor plate  — {base_desc} + cable hole ∅{pillar_inner_r*2:.1f}mm'
-          f'  z={floor_z:.1f}→{base_z:.1f}mm  faces={len(base.faces)}')
-
-    # ── 5. LED holder pillar ──────────────────────────────────────────
-    if skip_led_pillar:
-        led_holder = None
-    else:
-        led_holder = build_led_holder(
-            start_z        = max(base_z - 0.5, 0.0),  # interpenetrate base for manifold join
-            z_light        = z_light - led_socket_height,
-            pillar_outer_r = pillar_outer_r,
-            pillar_inner_r = pillar_inner_r,
-            n_circ         = n_circ,
-        )
+        if not skip_led_pillar:
+            led_holder = build_led_holder(
+                start_z        = max(base_z - 0.5, 0.0),  # interpenetrate base for manifold join
+                z_light        = z_light - led_socket_height,
+                pillar_outer_r = pillar_outer_r,
+                pillar_inner_r = pillar_inner_r,
+                n_circ         = n_circ,
+            )
 
     # ── 6. Combine ────────────────────────────────────────────────────
-    parts = [wall_mesh, base]
-    if led_holder is not None:
-        parts.append(led_holder)
+    parts = [wall_mesh] + [m for m in (base, led_holder, top_cover) if m is not None]
     combined = trimesh.util.concatenate(parts)
     print('\n[generator] combined mesh:')
     validate_mesh(combined)
@@ -3092,6 +3103,13 @@ if __name__ == '__main__':
                    help='Outer radius of LED holder pillar (mm)')
     p.add_argument('--pillar-inner-r', type=float, default=PILLAR_INNER_R,
                    help='Inner radius of pillar = cable channel (mm)')
+    p.add_argument('--led-socket-height', type=float, default=10.0,
+                   help='LED socket height above pillar top (bottom mode) / recess depth (top mode) (mm)')
+    p.add_argument('--cover-type', choices=['bottom', 'top'], default='bottom',
+                   help='bottom = floor plate + LED pillar (default); '
+                        'top = closed top cover with LED recess, open bottom')
+    p.add_argument('--invert-shadow', action='store_true', default=False,
+                   help='Invert the silhouette mask (swap solid/hole regions)')
 
     # Casing lift (compensation for external electronics chamber)
     p.add_argument('--casing-lift', type=float, default=CASING_LIFT,
@@ -3140,4 +3158,7 @@ if __name__ == '__main__':
         taubin_iterations    = a.taubin_iter,
         taubin_lambda        = a.taubin_lambda,
         taubin_nu            = a.taubin_nu,
+        led_socket_height    = a.led_socket_height,
+        cover_type           = a.cover_type,
+        invert_mask          = a.invert_shadow,
     )

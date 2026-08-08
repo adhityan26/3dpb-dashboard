@@ -91,3 +91,32 @@ def test_custom_casing_poly_shape():
     b = cover.bounds
     assert b[0][0] == pytest.approx(-30, abs=1e-6)
     assert b[1][0] == pytest.approx(30, abs=1e-6)
+
+
+def test_run_top_mode_smoke(tmp_path):
+    """End-to-end smoke: top mode produces STL with cover slab, no floor plate."""
+    cv2 = pytest.importorskip("cv2")
+    from scripts.generate_shadow_casing import run
+
+    # tiny silhouette mask: white bg, black square in the middle
+    mask = np.full((64, 64), 255, dtype=np.uint8)
+    mask[24:40, 24:40] = 0
+    img = tmp_path / "mask.png"
+    cv2.imwrite(str(img), mask)
+    out = tmp_path / "out.stl"
+
+    run(
+        input_image=str(img), output_stl=str(out),
+        outer_radius=40, base_radius=40, shell_height=50,
+        n_stencil_theta=128, n_stencil_z=16,
+        support_stems=False,
+        cover_type='top',
+    )
+    mesh = trimesh.load(str(out))
+    zmax = mesh.bounds[1][2]
+    # cover slab present above the wall (wall_top ≈ 50 + base_thickness 2)
+    assert zmax > 50.0
+    # no floor plate: no vertices near z=0 inside r < 20 (wall sits at r≈40)
+    v = mesh.vertices
+    low_centre = v[(v[:, 2] < 1.0) & (np.hypot(v[:, 0], v[:, 1]) < 20.0)]
+    assert len(low_centre) == 0
