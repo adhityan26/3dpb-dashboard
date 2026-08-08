@@ -1,5 +1,5 @@
 import { app, BrowserWindow } from 'electron'
-import { createWindow } from './window'
+import { createWindow, disableApplicationMenu } from './window'
 import { createTray } from './tray'
 import { attachHideOnClose } from './window-lifecycle'
 import { startBroker } from './broker'
@@ -104,6 +104,7 @@ if (!gotLock) {
       // gagal muncul — window HARUS selalu dibuat.
       console.error('[agent] bootstrap gagal total', err)
     } finally {
+      disableApplicationMenu()
       mainWindow = createWindow()
       attachHideOnClose(mainWindow, () => isQuitting)
       createTray(
