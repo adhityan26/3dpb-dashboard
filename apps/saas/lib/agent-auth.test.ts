@@ -51,4 +51,23 @@ describe("requireAgentToken", () => {
     const result = await requireAgentToken(req("Bearer slz_valid"));
     expect(result).toEqual({ userId: "u1" });
   });
+
+  it("header X-Agent-Version diteruskan ke resolveToken (dicatat server buat diagnosa versi user)", async () => {
+    (resolveToken as any).mockResolvedValue({ userId: "u1" });
+    (getEntitlement as any).mockResolvedValue({});
+    (capabilities as any).mockReturnValue({ paidCore: true, cloud: false });
+    const headers = new Headers();
+    headers.set("Authorization", "Bearer slz_valid");
+    headers.set("X-Agent-Version", "0.3.1");
+    await requireAgentToken(new Request("http://x/api/agent/devices", { headers }));
+    expect(resolveToken).toHaveBeenCalledWith("slz_valid", "0.3.1");
+  });
+
+  it("header X-Agent-Version absen -> resolveToken tetap dipanggil dgn null (bukan undefined nyangkut aneh)", async () => {
+    (resolveToken as any).mockResolvedValue({ userId: "u1" });
+    (getEntitlement as any).mockResolvedValue({});
+    (capabilities as any).mockReturnValue({ paidCore: true, cloud: false });
+    await requireAgentToken(req("Bearer slz_valid"));
+    expect(resolveToken).toHaveBeenCalledWith("slz_valid", null);
+  });
 });

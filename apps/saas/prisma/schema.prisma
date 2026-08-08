@@ -131,13 +131,17 @@ model CydLayout {
 }
 
 model AgentToken {
-  id         String    @id @default(cuid())
-  userId     String
-  tokenHash  String    @unique
-  createdAt  DateTime  @default(now())
-  revokedAt  DateTime?
-  lastUsedAt DateTime?
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id           String    @id @default(cuid())
+  userId       String
+  tokenHash    String    @unique
+  createdAt    DateTime  @default(now())
+  revokedAt    DateTime?
+  lastUsedAt   DateTime?
+  // Versi apps/agent (package.json) yang terakhir konek pakai token ini -- dikirim lewat
+  // header X-Agent-Version di tiap request /api/agent/*, dicatat bareng lastUsedAt. Dipakai
+  // admin (UserList) buat tahu user yang komplain pakai versi lama atau tidak.
+  agentVersion String?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
 }

@@ -34,3 +34,20 @@ export async function getProof(key: string): Promise<{ body: ArrayBuffer; conten
   if (!res.ok) throw new Error(`r2_get_failed_${res.status}`);
   return { body: await res.arrayBuffer(), contentType: res.headers.get("content-type") ?? "application/octet-stream" };
 }
+
+// Bucket/kredensial SAMA dengan proof (satu bucket R2 per app) -- cuma prefix key beda
+// ("agent/latest/..."). putBinary dipakai admin upload manual (skrip lokal), BUKAN dari
+// endpoint publik mana pun.
+export async function putBinary(key: string, body: ArrayBuffer | Uint8Array, contentType: string): Promise<void> {
+  const { client, url } = clientAndUrl(key);
+  const res = await client.fetch(url, { method: "PUT", body: body as BodyInit, headers: { "Content-Type": contentType } });
+  if (!res.ok) throw new Error(`r2_put_failed_${res.status}`);
+}
+
+export async function getBinary(key: string): Promise<{ body: ArrayBuffer; contentType: string } | null> {
+  const { client, url } = clientAndUrl(key);
+  const res = await client.fetch(url, { method: "GET" });
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`r2_get_failed_${res.status}`);
+  return { body: await res.arrayBuffer(), contentType: res.headers.get("content-type") ?? "application/octet-stream" };
+}

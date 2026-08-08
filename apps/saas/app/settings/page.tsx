@@ -5,6 +5,7 @@ import { isOwner } from "@/lib/owner";
 import { SettingsPanel } from "@/components/SettingsPanel";
 import { PageShell } from "@/components/PageShell";
 import { AgentTokenSection } from "@/components/settings/AgentTokenSection";
+import { DownloadAgentSection } from "@/components/settings/DownloadAgentSection";
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +19,12 @@ export default async function SettingsPage() {
     <PageShell title="Setting kalkulator" current="setting" owner={isOwner(session?.user?.email)} userLabel={session?.user?.email ?? undefined}>
       {!paidCore && <p className="text-[12px] g-t4 mb-4">Ini nilai default (read-only). Ambil Pro untuk mengubah &amp; memakainya di kalkulatormu.</p>}
       <SettingsPanel editable={paidCore} userId={userId} />
-      {paidCore && <div className="mt-4"><AgentTokenSection /></div>}
+      {paidCore && (
+        <div className="mt-4 flex flex-col gap-4">
+          <AgentTokenSection />
+          <DownloadAgentSection />
+        </div>
+      )}
     </PageShell>
   );
 }
