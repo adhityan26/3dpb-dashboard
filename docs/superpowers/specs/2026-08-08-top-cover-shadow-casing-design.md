@@ -81,3 +81,7 @@ Service call (`lib/light-generator/service.ts`) meneruskan field baru ke stl-ser
 - Perubahan rumus ray-tracing / posisi `z_light`.
 - Mode "flat mount radial" (LED di lantai nembak ke segala arah) — dibatalkan setelah klarifikasi.
 - Ventilasi panas LED di top cover.
+
+## Addendum 2026-08-09: Bottom frame
+
+Band stencil solid setinggi `bottom_frame_height` mm di dasar dinding, mengikuti bentuk footprint apa pun (diterapkan di ruang stencil (θ,z), dirender via `r_wall_arr`). Tujuan: menangkap island dekat dasar supaya nyatu ke dinding utama. Parameter: `bottom_frame: bool` (default false), `bottom_frame_height: float` mm (default 5). Diterapkan SEBELUM `_bridge_floating_islands` supaya BFS memperhitungkan frame. Berlaku kedua cover type. UI: switch + slider tinggi di section Cover. Trade-off terdokumentasi: memblokir cahaya zona bawah dinding (siluet terjauh terpotong).
