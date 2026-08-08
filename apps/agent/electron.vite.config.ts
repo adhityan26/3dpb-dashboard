@@ -2,6 +2,13 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'path'
+import fs from 'fs'
+import { fileURLToPath } from 'url'
+
+// `package.json` ini punya `"type": "module"` -- `__dirname` bukan global di konteks ESM
+// murni (beda dari config CJS lama), jadi diturunkan manual dari `import.meta.url` (pola
+// sama dengan src/main/window.ts).
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // Paket workspace internal (`workspace:*`) TIDAK punya build step — package.json-nya
 // mengekspor `./src/index.ts` MENTAH. Kalau ikut di-externalize seperti dependency npm
@@ -22,11 +29,17 @@ const WORKSPACE_TS_PACKAGES = ['@3pb/printer-monitor-core', '@3pb/cyd-layout-sch
 const DEFAULT_SAAS_BASE_URL = 'https://app.slizebiz.com'
 const saasBaseUrl = process.env.SAAS_BASE_URL ?? DEFAULT_SAAS_BASE_URL
 
+// Versi app (package.json) di-inject saat build sama seperti SAAS_BASE_URL -- dikirim lewat
+// header X-Agent-Version di tiap request ke SaaS (saas-client.ts), dicatat server-side
+// (AgentToken.agentVersion) supaya admin bisa lihat user komplain pakai versi berapa.
+const agentVersion = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8')).version
+
 export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin({ exclude: WORKSPACE_TS_PACKAGES })],
     define: {
-      __SAAS_BASE_URL__: JSON.stringify(saasBaseUrl)
+      __SAAS_BASE_URL__: JSON.stringify(saasBaseUrl),
+      __AGENT_VERSION__: JSON.stringify(agentVersion)
     }
   },
   preload: {

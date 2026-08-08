@@ -38,8 +38,17 @@ describe("fetchDevices", () => {
     expect(result).toEqual({ ok: true, data: [{ id: "d1", shortCode: "abc1234567", userId: "u1", label: "A", printerType: "bambu", createdAt: "x", updatedAt: "y" }] });
     expect(fetchMock).toHaveBeenCalledWith(
       "http://192.168.88.113:3300/api/agent/devices",
-      expect.objectContaining({ headers: { Authorization: "Bearer slz_valid" }, signal: expect.any(AbortSignal) })
+      expect.objectContaining({ headers: { Authorization: "Bearer slz_valid", "X-Agent-Version": "0.0.0" }, signal: expect.any(AbortSignal) })
     );
+  });
+
+  it("kirim header X-Agent-Version -- server catat versi apps/agent yang lagi konek (diagnosa komplain user)", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => [] });
+    await fetchDevices("slz_valid");
+    const [, options] = fetchMock.mock.calls[0];
+    // "0.0.0" di test = __AGENT_VERSION__ tak ter-define (cuma di-inject saat build sungguhan
+    // via electron.vite.config.ts, sama pola dgn __SAAS_BASE_URL__/saasBaseUrl di atas).
+    expect(options.headers["X-Agent-Version"]).toBe("0.0.0");
   });
 
   it("pakai AbortSignal buat timeout — cegah TCP connect hang (captive portal/DNS blackhole)", async () => {

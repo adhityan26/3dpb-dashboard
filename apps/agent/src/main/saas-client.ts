@@ -28,8 +28,12 @@ export type PatchDeviceModelResult =
 // identifier-nya memang tak ada — makanya dibaca lewat `typeof` yang aman untuk identifier
 // yang tak terdeklarasi sama sekali.
 declare const __SAAS_BASE_URL__: string | undefined;
+declare const __AGENT_VERSION__: string | undefined;
 
 const BUILD_TIME_BASE_URL = typeof __SAAS_BASE_URL__ === "string" ? __SAAS_BASE_URL__ : "";
+// "0.0.0" di luar build (vitest/tsx) -- sama alasannya dengan BUILD_TIME_BASE_URL, identifier
+// __AGENT_VERSION__ diganti Vite `define` cuma saat build sungguhan.
+const AGENT_VERSION = typeof __AGENT_VERSION__ === "string" ? __AGENT_VERSION__ : "0.0.0";
 
 /**
  * Env var runtime menang (buat test + debugging/self-host), fallback ke nilai build-time.
@@ -50,7 +54,7 @@ const FETCH_TIMEOUT_MS = 5_000;
 export async function fetchDevices(token: string): Promise<FetchResult<SaasDevice[]>> {
   try {
     const res = await fetch(`${saasBaseUrl()}/api/agent/devices`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: { Authorization: `Bearer ${token}`, "X-Agent-Version": AGENT_VERSION },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (res.status === 401) return { ok: false, kind: "invalid_token" };
