@@ -441,30 +441,48 @@ def resolve_flooring_shape(flooring_shape, outer_radius: float,
 # ─── STENCIL WALL ────────────────────────────────────────────────────────────
 
 def _bridge_floating_islands(stencil: np.ndarray,
-                              stem_width: int = 2) -> tuple[np.ndarray, int]:
+                              stem_width: int = 2,
+                              anchor: str = 'bottom') -> tuple[np.ndarray, int]:
     """
-    Find solid cells that are NOT reachable from z=0 via 4-connected BFS
-    (θ wraps around), label them as connected components, and add one narrow
-    vertical stem (stem_width columns wide) from z=0 to each island's bottom.
+    Find solid cells that are NOT reachable from the structural anchor edge
+    via 4-connected BFS (θ wraps around), label them as connected components,
+    and add one narrow vertical stem (stem_width columns wide) bridging each
+    island to that edge.
+
+    anchor='bottom' (default): the structural edge is z=0 (the base) — BFS is
+      seeded from all solid cells at j=0, and stems fill from z=0 up to each
+      island's lowest z. This matches cover_type='bottom'/'none' where the
+      wall's bottom sits on the base.
+
+    anchor='top': the structural edge is z=n_z-1 (the wall top, which adjoins
+      the closed cover) — BFS is seeded from all solid cells at j=n_z-1, and
+      stems fill from each island's highest z up to the top edge. This
+      matches cover_type='top', where the base is open and only the top is
+      structural.
 
     Why BFS instead of a per-column check:
-      A column can be solid at z=0 (background) yet have a disconnected island
-      higher up (e.g. the counter of 'O' inside a white letter stroke).
-      Per-column checks miss those; BFS from z=0 finds all unreachable cells.
+      A column can be solid at the anchor edge (background) yet have a
+      disconnected island elsewhere (e.g. the counter of 'O' inside a white
+      letter stroke). Per-column checks miss those; BFS from the anchor edge
+      finds all unreachable cells.
 
     Returns (modified_stencil, n_islands).
     """
     from collections import deque
 
-    n_theta, n_z = stencil.shape
+    if anchor not in ('bottom', 'top'):
+        raise ValueError(f"anchor must be 'bottom' or 'top', got {anchor!r}")
 
-    # ── Step 1: BFS from every solid z=0 cell ────────────────────────────
+    n_theta, n_z = stencil.shape
+    seed_j = 0 if anchor == 'bottom' else n_z - 1
+
+    # ── Step 1: BFS from every solid cell on the anchor edge ─────────────
     connected = np.zeros_like(stencil, dtype=bool)
     q: deque = deque()
     for i in range(n_theta):
-        if stencil[i, 0]:
-            connected[i, 0] = True
-            q.append((i, 0))
+        if stencil[i, seed_j]:
+            connected[i, seed_j] = True
+            q.append((i, seed_j))
     while q:
         i, j = q.popleft()
         for di, dj in ((-1, 0), (1, 0), (0, -1), (0, 1)):
@@ -502,13 +520,19 @@ def _bridge_floating_islands(stencil: np.ndarray,
     modified = stencil.copy()
     for c in range(1, n_island + 1):
         mask  = labeled == c
-        j_min = int(np.where(mask.any(axis=0))[0][0])   # lowest z of island
         # pick the θ column with the most island cells (thickest = best anchor)
         best_i = int(mask.sum(axis=1).argmax())
         half   = stem_width // 2
-        for k in range(stem_width):
-            bi = (best_i - half + k) % n_theta
-            modified[bi, :j_min] = True   # fill gap from z=0 up to island
+        if anchor == 'bottom':
+            j_min = int(np.where(mask.any(axis=0))[0][0])   # lowest z of island
+            for k in range(stem_width):
+                bi = (best_i - half + k) % n_theta
+                modified[bi, :j_min] = True   # fill gap from z=0 up to island
+        else:  # anchor == 'top'
+            j_max = int(np.where(mask.any(axis=0))[0][-1])  # highest z of island
+            for k in range(stem_width):
+                bi = (best_i - half + k) % n_theta
+                modified[bi, j_max + 1:] = True   # fill gap from island up to top edge
 
     return modified, n_island
 
@@ -535,6 +559,7 @@ def build_stencil_wall(smooth_mask: np.ndarray,
                         shadow_offset_y: float = 0.0,
                         support_stems: bool = True,
                         stem_width: int = 2,
+                        stem_anchor: str = 'bottom',
                         ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Build a perforated wall from the smooth SDF mask.
@@ -626,7 +651,7 @@ def build_stencil_wall(smooth_mask: np.ndarray,
     # (not just columns that happen to lack a z=0 cell), then adds the
     # minimum number of stems needed — one narrow stem per island.
     if support_stems:
-        stencil, n_islands = _bridge_floating_islands(stencil, stem_width)
+        stencil, n_islands = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
         if n_islands:
             print(f"  [stencil] bridged {n_islands} floating island(s) "
                   f"with {stem_width}-column stems")
@@ -717,6 +742,7 @@ def build_stencil_wall_marching_cubes(
         transition_width: float = 3.0,
         support_stems: bool = True,
         stem_width: int = 2,
+        stem_anchor: str = 'bottom',
 ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Build stencil wall using marching cubes on a 3D volume field.
@@ -815,7 +841,7 @@ def build_stencil_wall_marching_cubes(
     stencil = (smooth_mask[PY_i, PX_i] > 0)
     stencil[R_fl > floor_half * 1.02] = False
     if support_stems:
-        stencil, n_isl = _bridge_floating_islands(stencil, stem_width)
+        stencil, n_isl = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
         if n_isl:
             print(f"  [stencil] bridged {n_isl} floating island(s)")
         stem_cells = stencil & (thickness_frac < 0.5)
@@ -942,6 +968,7 @@ def build_stencil_wall_sdf_surface(
         min_bridge_mm: float = 0.0,     # 0=off. Dilate solid regions to ensure thin bridges survive printing.
         support_stems: bool = True,
         stem_width: int = 2,
+        stem_anchor: str = 'bottom',
 ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Build stencil wall as a continuous surface with SDF-based thickness.
@@ -1073,7 +1100,7 @@ def build_stencil_wall_sdf_surface(
     stencil[R_fl > floor_half * 1.02] = False
 
     if support_stems:
-        stencil, n_islands = _bridge_floating_islands(stencil, stem_width)
+        stencil, n_islands = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
         if n_islands:
             print(f"  [stencil] bridged {n_islands} floating island(s)")
         stem_cells = stencil & (thickness_frac < 0.5)
@@ -1222,6 +1249,7 @@ def build_stencil_wall_merged(
         n_z: int,
         support_stems: bool = True,
         stem_width: int = 2,
+        stem_anchor: str = 'bottom',
 ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Best-of-both-worlds stencil wall builder: column merging (small file)
@@ -1249,7 +1277,7 @@ def build_stencil_wall_merged(
 
     # Bridge floating islands
     if support_stems:
-        stencil, n_islands = _bridge_floating_islands(stencil, stem_width)
+        stencil, n_islands = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
         if n_islands:
             print(f"  [stencil] bridged {n_islands} floating island(s)")
 
@@ -1363,6 +1391,7 @@ def build_stencil_wall_smooth(
         shadow_offset_y: float = 0.0,
         support_stems: bool = True,
         stem_width: int = 2,
+        stem_anchor: str = 'bottom',
 ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Drop-in replacement for build_stencil_wall() that generates a smooth surface.
@@ -1429,7 +1458,7 @@ def build_stencil_wall_smooth(
         raise RuntimeError("Stencil is empty — check mask or parameters")
 
     if support_stems:
-        stencil, n_islands = _bridge_floating_islands(stencil, stem_width)
+        stencil, n_islands = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
         if n_islands:
             print(f"  [stencil] bridged {n_islands} floating island(s) "
                   f"with {stem_width}-column stems")
@@ -2855,6 +2884,11 @@ def run(
                     else 'legacy')
     print(f'[generator] building stencil wall ({_builder_lbl}) …')
 
+    # For a closed top cover (open bottom), the wall's structural anchor is
+    # its top edge (adjoins the cover), not the base — so floating-island
+    # support stems must bridge upward instead of down to z=0.
+    stem_anchor = 'top' if cover_type == 'top' else 'bottom'
+
     if contour_builder:
         # Compute the raw stencil binary from the smooth mask
         lx, ly, lz = light_pos
@@ -2905,7 +2939,7 @@ def run(
         # Bridge floating islands if requested
         if support_stems:
             stencil_cleaned, n_islands = _bridge_floating_islands(
-                stencil_cleaned, stem_width=stem_width
+                stencil_cleaned, stem_width=stem_width, anchor=stem_anchor
             )
             if n_islands:
                 print(f"  [stencil] bridged {n_islands} floating island(s)")
@@ -2939,6 +2973,7 @@ def run(
             edge_blur_sigma=edge_blur_sigma,
             support_stems=support_stems,
             stem_width=stem_width,
+            stem_anchor=stem_anchor,
         )
     elif smooth_builder:
         # ── SMOOTH BUILDER (v5) — per-cell, large files, reliable ──
@@ -2950,6 +2985,7 @@ def run(
             shadow_offset_y=shadow_offset_y,
             support_stems=support_stems,
             stem_width=stem_width,
+            stem_anchor=stem_anchor,
         )
     else:
         wall_mesh, stencil, z_cents = build_stencil_wall(
@@ -2960,6 +2996,7 @@ def run(
             shadow_offset_y=shadow_offset_y,
             support_stems=support_stems,
             stem_width=stem_width,
+            stem_anchor=stem_anchor,
         )
     print(f'  [A] stencil wall — faces: {len(wall_mesh.faces)}')
 
