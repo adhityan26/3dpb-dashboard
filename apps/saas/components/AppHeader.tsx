@@ -81,7 +81,11 @@ export function AppHeader({
 
       {authenticated && (
         <>
-          <div className="flex-1 flex justify-center overflow-x-auto">
+          {/* hidden di mobile (<768px) -- MobileBottomNav (PageShell) sudah jadi nav di sana,
+              dulu nav-island ini malah ikut tampil (scroll horizontal) di atas MobileBottomNav
+              = tab nav dobel. md:flex = breakpoint SAMA persis dgn MobileBottomNav (md:hidden
+              di sisinya), jadi persis satu nav yang tampil di tiap ukuran layar. */}
+          <div className="hidden md:flex flex-1 justify-center overflow-x-auto">
             <div className="relative rounded-[48px] flex flex-shrink-0" style={{ ...islandStyle, padding: "8px 10px" }}>
               {visible.map((t) => {
                 const active = t.key === current;
@@ -124,7 +128,10 @@ export function AppHeader({
             </div>
           </div>
 
-          <div className="flex items-center gap-1 flex-shrink-0 rounded-[28px] p-[5px]" style={controlStyle}>
+          {/* ml-auto: dorong ke kanan sendiri di mobile (nav-island di atas hidden -> tak ada
+              flex-1 lain yang mendorongnya). Tak berpengaruh di desktop (nav-island yang flex-1
+              sudah mendorong duluan). */}
+          <div className="flex items-center gap-1 flex-shrink-0 rounded-[28px] p-[5px] ml-auto md:ml-0" style={controlStyle}>
             <ThemeToggle />
             <div className="w-px h-[18px] mx-[2px]" style={{ background: dividerColor }} />
             {initials && (
