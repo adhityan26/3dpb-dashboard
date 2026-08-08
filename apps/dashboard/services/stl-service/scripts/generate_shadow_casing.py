@@ -440,6 +440,21 @@ def resolve_flooring_shape(flooring_shape, outer_radius: float,
 
 # ─── STENCIL WALL ────────────────────────────────────────────────────────────
 
+def _apply_bottom_frame(stencil: np.ndarray, frame_height_mm: float, dz: float) -> np.ndarray:
+    """
+    Force the bottom rows of the stencil solid, forming a continuous band of
+    ~frame_height_mm at the base of the wall. Follows any footprint shape
+    since it operates in (theta, z) stencil space. Applied BEFORE island
+    bridging so the BFS connectivity accounts for the band.
+    """
+    if frame_height_mm <= 0 or dz <= 0:
+        return stencil
+    n_rows = min(int(np.ceil(frame_height_mm / dz)), stencil.shape[1])
+    out = stencil.copy()
+    out[:, :n_rows] = True
+    return out
+
+
 def _bridge_floating_islands(stencil: np.ndarray,
                               stem_width: int = 2,
                               anchor: str = 'bottom') -> tuple[np.ndarray, int]:
@@ -560,6 +575,7 @@ def build_stencil_wall(smooth_mask: np.ndarray,
                         support_stems: bool = True,
                         stem_width: int = 2,
                         stem_anchor: str = 'bottom',
+                        bottom_frame_height: float = 0.0,
                         ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Build a perforated wall from the smooth SDF mask.
@@ -645,6 +661,14 @@ def build_stencil_wall(smooth_mask: np.ndarray,
           f"({100*n_solid/(n_theta*n_z):.0f}%)")
     if n_solid == 0:
         raise RuntimeError("Stencil is empty — check mask or parameters")
+
+    # ── Bottom frame: force a solid band at the wall base ────────────
+    if bottom_frame_height > 0:
+        dz_bf = float(z_cents[1] - z_cents[0]) if n_z > 1 else 0.0
+        n_frame_rows = min(int(np.ceil(bottom_frame_height / dz_bf)), n_z) if dz_bf > 0 else 0
+        stencil = _apply_bottom_frame(stencil, bottom_frame_height, dz_bf)
+        if n_frame_rows:
+            print(f"  [stencil] bottom frame: {n_frame_rows} rows (~{bottom_frame_height:.1f}mm)")
 
     # ── Support stems: bridge floating islands to the base ───────────
     # Uses BFS from z=0 to find solid cells that are truly unreachable
@@ -743,6 +767,7 @@ def build_stencil_wall_marching_cubes(
         support_stems: bool = True,
         stem_width: int = 2,
         stem_anchor: str = 'bottom',
+        bottom_frame_height: float = 0.0,
 ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Build stencil wall using marching cubes on a 3D volume field.
@@ -840,6 +865,15 @@ def build_stencil_wall_marching_cubes(
     PY_i = PY_c.astype(np.int32)
     stencil = (smooth_mask[PY_i, PX_i] > 0)
     stencil[R_fl > floor_half * 1.02] = False
+    if bottom_frame_height > 0:
+        dz_bf = float(z_cents[1] - z_cents[0]) if n_z > 1 else 0.0
+        n_frame_rows = min(int(np.ceil(bottom_frame_height / dz_bf)), n_z) if dz_bf > 0 else 0
+        stencil_pre = stencil
+        stencil = _apply_bottom_frame(stencil, bottom_frame_height, dz_bf)
+        frame_cells = stencil & ~stencil_pre
+        thickness_frac[frame_cells] = 1.0
+        if n_frame_rows:
+            print(f"  [stencil] bottom frame: {n_frame_rows} rows (~{bottom_frame_height:.1f}mm)")
     if support_stems:
         stencil, n_isl = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
         if n_isl:
@@ -969,6 +1003,7 @@ def build_stencil_wall_sdf_surface(
         support_stems: bool = True,
         stem_width: int = 2,
         stem_anchor: str = 'bottom',
+        bottom_frame_height: float = 0.0,
 ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Build stencil wall as a continuous surface with SDF-based thickness.
@@ -1098,6 +1133,16 @@ def build_stencil_wall_sdf_surface(
     PY_i = PY_c.astype(np.int32)
     stencil = (smooth_mask[PY_i, PX_i] > 0)
     stencil[R_fl > floor_half * 1.02] = False
+
+    if bottom_frame_height > 0:
+        dz_bf = float(z_cents[1] - z_cents[0]) if n_z > 1 else 0.0
+        n_frame_rows = min(int(np.ceil(bottom_frame_height / dz_bf)), n_z) if dz_bf > 0 else 0
+        stencil_pre = stencil
+        stencil = _apply_bottom_frame(stencil, bottom_frame_height, dz_bf)
+        frame_cells = stencil & ~stencil_pre
+        thickness_frac[frame_cells] = 1.0
+        if n_frame_rows:
+            print(f"  [stencil] bottom frame: {n_frame_rows} rows (~{bottom_frame_height:.1f}mm)")
 
     if support_stems:
         stencil, n_islands = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
@@ -1250,6 +1295,7 @@ def build_stencil_wall_merged(
         support_stems: bool = True,
         stem_width: int = 2,
         stem_anchor: str = 'bottom',
+        bottom_frame_height: float = 0.0,
 ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Best-of-both-worlds stencil wall builder: column merging (small file)
@@ -1274,6 +1320,12 @@ def build_stencil_wall_merged(
           f"({100*n_solid/(n_theta*n_z):.0f}%)")
     if n_solid == 0:
         raise RuntimeError("Stencil is empty — check mask or parameters")
+
+    if bottom_frame_height > 0:
+        n_frame_rows = min(int(np.ceil(bottom_frame_height / dz)), n_z) if dz > 0 else 0
+        stencil = _apply_bottom_frame(stencil, bottom_frame_height, dz)
+        if n_frame_rows:
+            print(f"  [stencil] bottom frame: {n_frame_rows} rows (~{bottom_frame_height:.1f}mm)")
 
     # Bridge floating islands
     if support_stems:
@@ -1392,6 +1444,7 @@ def build_stencil_wall_smooth(
         support_stems: bool = True,
         stem_width: int = 2,
         stem_anchor: str = 'bottom',
+        bottom_frame_height: float = 0.0,
 ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Drop-in replacement for build_stencil_wall() that generates a smooth surface.
@@ -1456,6 +1509,12 @@ def build_stencil_wall_smooth(
           f"({100*n_solid/(n_theta*n_z):.0f}%)")
     if n_solid == 0:
         raise RuntimeError("Stencil is empty — check mask or parameters")
+
+    if bottom_frame_height > 0:
+        n_frame_rows = min(int(np.ceil(bottom_frame_height / dz)), n_z) if dz > 0 else 0
+        stencil = _apply_bottom_frame(stencil, bottom_frame_height, dz)
+        if n_frame_rows:
+            print(f"  [stencil] bottom frame: {n_frame_rows} rows (~{bottom_frame_height:.1f}mm)")
 
     if support_stems:
         stencil, n_islands = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
@@ -2728,6 +2787,8 @@ def run(
     min_wall_mm          = 0.0,    # disabled: 3mm was too aggressive, removed fine features
     skip_led_pillar      = False,
     cover_type           = 'bottom',  # 'bottom' = floor plate + pillar (default), 'top' = closed top cover with LED recess, open bottom
+    bottom_frame         = False,  # solid stencil band at the wall base that catches nearby islands so they fuse with the wall
+    bottom_frame_height  = 5.0,    # mm — height of the bottom frame band, when bottom_frame=True
     add_watermark        = False,
     decimate_ratio       = 0.0,    # 0=off, 0.8=keep 20% of faces (quadric decimation)
     led_socket_height    = 10.0,    # mm — height of LED mount above pillar top
@@ -2889,6 +2950,10 @@ def run(
     # support stems must bridge upward instead of down to z=0.
     stem_anchor = 'top' if cover_type == 'top' else 'bottom'
 
+    # Effective bottom-frame height passed to builders — 0 (off) unless the
+    # bottom_frame toggle is enabled.
+    effective_bottom_frame_height = bottom_frame_height if bottom_frame else 0.0
+
     if contour_builder:
         # Compute the raw stencil binary from the smooth mask
         lx, ly, lz = light_pos
@@ -2936,6 +3001,15 @@ def run(
             min_wall_mm=min_wall_mm,
         )
 
+        # Bottom frame: force a solid band at the wall base (before bridging,
+        # so BFS connectivity accounts for it)
+        if effective_bottom_frame_height > 0:
+            dz_s = float(z_cents_s[1] - z_cents_s[0]) if n_stencil_z > 1 else 0.0
+            n_frame_rows = min(int(np.ceil(effective_bottom_frame_height / dz_s)), n_stencil_z) if dz_s > 0 else 0
+            stencil_cleaned = _apply_bottom_frame(stencil_cleaned, effective_bottom_frame_height, dz_s)
+            if n_frame_rows:
+                print(f"  [stencil] bottom frame: {n_frame_rows} rows (~{effective_bottom_frame_height:.1f}mm)")
+
         # Bridge floating islands if requested
         if support_stems:
             stencil_cleaned, n_islands = _bridge_floating_islands(
@@ -2974,6 +3048,7 @@ def run(
             support_stems=support_stems,
             stem_width=stem_width,
             stem_anchor=stem_anchor,
+            bottom_frame_height=effective_bottom_frame_height,
         )
     elif smooth_builder:
         # ── SMOOTH BUILDER (v5) — per-cell, large files, reliable ──
@@ -2986,6 +3061,7 @@ def run(
             support_stems=support_stems,
             stem_width=stem_width,
             stem_anchor=stem_anchor,
+            bottom_frame_height=effective_bottom_frame_height,
         )
     else:
         wall_mesh, stencil, z_cents = build_stencil_wall(
@@ -2997,6 +3073,7 @@ def run(
             support_stems=support_stems,
             stem_width=stem_width,
             stem_anchor=stem_anchor,
+            bottom_frame_height=effective_bottom_frame_height,
         )
     print(f'  [A] stencil wall — faces: {len(wall_mesh.faces)}')
 
@@ -3167,6 +3244,10 @@ if __name__ == '__main__':
                    help='Disable automatic support stems for floating wall islands')
     p.add_argument('--stem-width',       type=int,   default=2,
                    help='Number of angular columns per support stem (default 2 ≈ 1 mm at r=40mm)')
+    p.add_argument('--bottom-frame',     action='store_true', default=False,
+                   help='Solid stencil band at the wall base that catches nearby islands so they fuse with the wall')
+    p.add_argument('--bottom-frame-height', type=float, default=5.0,
+                   help='Height of the bottom frame band in mm (default 5.0; used when --bottom-frame is set)')
 
     # Smoothness — SDF
     p.add_argument('--smooth-sigma',   type=float, default=EDGE_SMOOTH_SIGMA,
@@ -3238,6 +3319,8 @@ if __name__ == '__main__':
         shadow_offset_y      = a.shadow_y,
         support_stems        = not a.no_support_stems,
         stem_width           = a.stem_width,
+        bottom_frame         = a.bottom_frame,
+        bottom_frame_height  = a.bottom_frame_height,
         edge_smooth_sigma    = a.smooth_sigma,
         shadow_threshold     = a.threshold,
         n_stencil_theta      = a.n_theta,

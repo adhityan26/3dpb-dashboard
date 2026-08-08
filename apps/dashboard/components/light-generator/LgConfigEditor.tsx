@@ -168,6 +168,8 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
     }
     config.cover_type = nextValues.cover_type === "top" ? "top" : "bottom"
     config.invert_mask = !!nextValues.invert_mask
+    config.bottom_frame = !!nextValues.bottom_frame
+    config.bottom_frame_height = Number(nextValues.bottom_frame_height) || 5
     const needsR = nextBase === "rect" || nextBase === "oval"
     config.flooring_shape = !nextBase || nextBase === "circle"
       ? "circle"
@@ -202,6 +204,8 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
     }
     config.cover_type = values.cover_type === "top" ? "top" : "bottom"
     config.invert_mask = !!values.invert_mask
+    config.bottom_frame = !!values.bottom_frame
+    config.bottom_frame_height = Number(values.bottom_frame_height) || 5
     const needsR = shapeBase === "rect" || shapeBase === "oval"
     config.flooring_shape = !shapeBase || shapeBase === "circle"
       ? "circle"
@@ -342,6 +346,36 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
               </div>
               <Switch checked={getBool("invert_mask")} onCheckedChange={(c) => setValue("invert_mask", c)} />
             </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label className="text-sm">Bottom frame</Label>
+                <p className="text-muted-foreground text-[11px]">Solid band at the wall base that catches islands near the bottom — follows the footprint shape; blocks the outermost shadow zone</p>
+              </div>
+              <Switch checked={getBool("bottom_frame")} onCheckedChange={(c) => setValue("bottom_frame", c)} />
+            </div>
+            {getBool("bottom_frame") && (
+              <div className="space-y-2">
+                <div className="flex items-baseline justify-between">
+                  <Label className="text-sm">Bottom frame height (mm)</Label>
+                  <span className="text-muted-foreground text-xs tabular-nums">{getNum("bottom_frame_height") || 5}</span>
+                </div>
+                <Slider
+                  value={[getNum("bottom_frame_height") || 5]}
+                  min={1} max={30} step={0.5}
+                  onValueChange={(val) => { const v = Array.isArray(val) ? val[0] : (val as number); if (v !== undefined) setValue("bottom_frame_height", v) }}
+                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    value={getNum("bottom_frame_height") || 5}
+                    min={1} max={30} step={0.5}
+                    onChange={(e) => setValue("bottom_frame_height", e.currentTarget.value)}
+                    className="h-8 w-24 text-sm"
+                  />
+                  <p className="text-muted-foreground text-[11px] flex-1">Height of the solid band at the wall base</p>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
