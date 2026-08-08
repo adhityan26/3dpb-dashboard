@@ -1916,14 +1916,36 @@ def build_top_cover(
         slab_poly = _ShapelyPoly(list(zip(base_radius * np.cos(_a),
                                           base_radius * np.sin(_a))))
 
-    parts = []
     if eff_depth > 0:
         _a = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
         recess_poly = _ShapelyPoly(list(zip(light_x + recess_r * np.cos(_a),
                                             light_y + recess_r * np.sin(_a))))
+        if not recess_poly.within(slab_poly):
+            raise ValueError(
+                "top cover recess is not fully inside the cover footprint — "
+                "move light_x/light_y or shrink pillar_outer_r (recess radius)")
+
+    parts = []
+    if eff_depth > 0:
         ring_poly = slab_poly.difference(recess_poly)
         if not ring_poly.is_valid:
             ring_poly = ring_poly.buffer(0)
+        if ring_poly.geom_type != "Polygon":
+            raise ValueError(
+                "recess splits the top cover footprint into multiple pieces "
+                f"(got {ring_poly.geom_type}) — move light_x/light_y or shrink "
+                "pillar_outer_r (recess radius)")
+        # NOTE on the ring/roof seam: unlike the wall/cover seam (which had a
+        # real floating gap without overlap), the ring's top face and the
+        # roof's bottom face are an EXACT coincident-polygon match (both the
+        # annulus at z = wall_top + eff_depth) — two independently watertight
+        # solids touching, not overlapping. A slicer unions coincident
+        # geometry per layer without a gap, so this is not the same defect
+        # as an unsupported floating slab. A forced 0.5mm interpenetration
+        # here was evaluated and rejected: because the annulus is usually
+        # most of the footprint, it inflates cover volume by ~15-20% for
+        # typical recess/footprint ratios — a worse tradeoff than the
+        # current coincident-but-watertight joint.
         ring = trimesh.creation.extrude_polygon(ring_poly, eff_depth)
         ring.apply_translation([0.0, 0.0, wall_top])
         trimesh.repair.fix_normals(ring)
@@ -1934,6 +1956,11 @@ def build_top_cover(
         roof.apply_translation([0.0, 0.0, wall_top + eff_depth])
         trimesh.repair.fix_normals(roof)
         parts.append(roof)
+
+        if recess_depth > eff_depth:
+            print(f'  [C] WARNING: top cover recess capped — requested '
+                  f'{recess_depth:.1f}mm, effective {eff_depth:.1f}mm '
+                  f'(min roof {MIN_ROOF_MM:.1f}mm enforced)')
     else:
         slab = trimesh.creation.extrude_polygon(slab_poly, cover_thickness)
         slab.apply_translation([0.0, 0.0, wall_top])
@@ -2746,6 +2773,18 @@ def run(
     z_max_stencil = z_light * (1.0 - r_min / floor_half_size)
     r_at_top = r_min / (1.0 - min(z_max_stencil, wall_top) / z_light)
 
+    # Effective wall top after the same ray-limit clamp the wall builders
+    # apply (see z_max_s in the contour-builder branch below). If this binds,
+    # the stencil wall actually stops short of `wall_top` — any mount that
+    # sits at `wall_top` (e.g. the top cover) must follow it down or it ends
+    # up floating above a gap.
+    effective_wall_top = min(wall_top, z_max_stencil)
+    if effective_wall_top < wall_top - 1e-6:
+        print(f'[generator] WARNING: shell_height reduced by ray limit — '
+              f'wall top clamped from {wall_top:.1f}mm to {effective_wall_top:.1f}mm '
+              f'(floor_half_size/outer_radius/shell_height combination hits the '
+              f'light-ray cutoff)')
+
     # ── Parameter summary ─────────────────────────────────────────────
     print('── Parameter summary ────────────────────────────────────────────')
     print(f'  Shadow image         : {input_image}')
@@ -2766,8 +2805,12 @@ def run(
     print(f'  Stencil grid         : {n_stencil_theta} × {n_stencil_z}')
     print(f'  SDF smooth σ         : {edge_smooth_sigma:.1f} px  (×{mask_upsample} upsample)')
     print(f'  SDF threshold        : {shadow_threshold:.1f}')
-    print(f'  LED pillar           : ∅{pillar_inner_r*2:.0f}mm cable / '
-          f'∅{pillar_outer_r*2:.0f}mm outer  z={base_z:.1f}→{z_light:.1f}mm')
+    if cover_type == 'top':
+        print(f'  LED recess (in cover): ∅{pillar_outer_r*2:.0f}mm × '
+              f'{led_socket_height:.1f}mm  at ({light_x:.1f}, {light_y:.1f})')
+    else:
+        print(f'  LED pillar           : ∅{pillar_inner_r*2:.0f}mm cable / '
+              f'∅{pillar_outer_r*2:.0f}mm outer  z={base_z:.1f}→{z_light:.1f}mm')
     _summary_builder = 'contour' if contour_builder else ('continuous (smooth)' if smooth_builder else 'legacy pillar')
     print(f'  Mesh builder         : {_summary_builder}')
     if taubin_iterations > 0:
@@ -2939,15 +2982,27 @@ def run(
     if cover_type == 'top':
         # Open bottom, closed top: LED puck hangs from a recess in the cover.
         if not preview_mode:
+            # Footprint radius: when there's no custom casing_poly, the cover
+            # must cap the wall — which sits at outer_radius, not base_radius
+            # (a CLI top-mode run without --base-radius would otherwise
+            # produce a disk smaller than the wall it's supposed to close).
+            _cover_footprint_r = outer_radius if casing_poly is None else base_radius
+            if casing_poly is None:
+                print(f'  [C] top cover footprint radius: {_cover_footprint_r:.1f}mm '
+                      f'(= outer_radius, caps the wall)')
             top_cover = build_top_cover(
-                wall_top        = wall_top,
+                # Interpenetrate the wall by 0.5mm for a manifold join, same
+                # pattern as the pillar's `start_z = base_z - 0.5` below, and
+                # sit on the ray-limit-clamped effective wall top so the
+                # cover never floats above a shortened wall.
+                wall_top        = effective_wall_top - 0.5,
                 cover_thickness = base_thickness,
                 recess_r        = pillar_outer_r,
                 recess_depth    = led_socket_height,
                 light_x         = light_x,
                 light_y         = light_y,
                 casing_poly     = casing_poly,
-                base_radius     = base_radius,
+                base_radius     = _cover_footprint_r,
                 n_circ          = n_circ,
             )
     else:

@@ -99,11 +99,20 @@ function computeObjectInfo(config: Record<string, unknown>) {
     casingDimDesc = `⌀ ${(outerRadius * 2).toFixed(0)} mm`
   }
 
+  const coverType = String(config.cover_type ?? "bottom")
+  const isTopCover = coverType === "top"
+
   const sf = shapeFactors(flooring)
+  // baseVolMm3 estimates a solid disk of baseThickness — in 'bottom' mode
+  // that's the floor plate, in 'top' mode it doubles as the top cover slab
+  // (same rough slab volume estimate either way, so no separate formula
+  // needed for the cover itself).
   const baseVolMm3  = Math.PI * baseRadius * baseRadius * baseThickness * sf.area
   const wallPerimMm = 2 * Math.PI * outerRadius * sf.perim
   const wallVolMm3  = wallPerimMm * shellThickness * shellHeight * STENCIL_SOLID_FRACTION
-  const pillarVolMm3 = skipPillar ? 0 : Math.PI * (pillarOuterR ** 2 - pillarInnerR ** 2) * (shellHeight + ledSocketH)
+  // The LED pillar only exists in 'bottom' mode — 'top' mode mounts the LED
+  // in a recess machined into the cover slab, already covered by baseVolMm3.
+  const pillarVolMm3 = (skipPillar || isTopCover) ? 0 : Math.PI * (pillarOuterR ** 2 - pillarInnerR ** 2) * (shellHeight + ledSocketH)
   const filamentG   = Math.round((baseVolMm3 + wallVolMm3 + pillarVolMm3) / 1000 * PLA_PLUS_DENSITY)
 
   return {

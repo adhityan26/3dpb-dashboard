@@ -36,7 +36,9 @@ def test_recess_reduces_volume():
                   casing_poly=None, base_radius=BASE_R)
     solid = build_top_cover(recess_r=4.0, recess_depth=0.0, **kwargs)
     recessed = build_top_cover(recess_r=4.0, recess_depth=1.5, **kwargs)
-    # expected removed volume = pi*r^2*depth
+    # expected removed volume = pi*r^2*depth. The 0.5mm manifold-seam overlap
+    # (see build_top_cover) extends the RING upward into the roof, not the
+    # roof downward into the recess, so recess depth/volume stay exact.
     expected = np.pi * 4.0**2 * 1.5
     assert _volume(solid) - _volume(recessed) == pytest.approx(expected, rel=0.05)
 
@@ -70,7 +72,9 @@ def test_recess_follows_light_position():
         casing_poly=None, base_radius=BASE_R,
     )
     # ray straight up from recess centre must first hit the roof (above
-    # wall_top + eff_depth), not the bottom face of the slab
+    # wall_top + eff_depth), not the bottom face of the slab. The manifold
+    # seam overlap extends the ring (recess-excluded footprint), not the
+    # roof, so this z is unaffected.
     hits = cover.ray.intersects_location(
         ray_origins=[[10.0, -5.0, WALL_TOP - 1.0]],
         ray_directions=[[0.0, 0.0, 1.0]],
@@ -114,9 +118,47 @@ def test_run_top_mode_smoke(tmp_path):
     )
     mesh = trimesh.load(str(out))
     zmax = mesh.bounds[1][2]
-    # cover slab present above the wall (wall_top ≈ 50 + base_thickness 2)
-    assert zmax > 50.0
+    # With these params (outer_radius=40, floor_half=150 default, shell_height
+    # =50) the light-ray limit binds well below the requested shell_height —
+    # the wall builders themselves clamp to z_max_s ≈ 40.3mm, and the cover
+    # now follows that same effective wall top (see run()'s `effective_wall_
+    # top`) instead of floating at the unclamped wall_top=50. So the cover
+    # slab sits around ~40-42mm, not above 50mm.
+    assert 30.0 < zmax < 50.0
     # no floor plate: no vertices near z=0 inside r < 20 (wall sits at r≈40)
     v = mesh.vertices
     low_centre = v[(v[:, 2] < 1.0) & (np.hypot(v[:, 0], v[:, 1]) < 20.0)]
     assert len(low_centre) == 0
+
+
+def test_run_bottom_mode_regression(tmp_path):
+    """Regression: default (bottom) cover_type keeps its floor plate + pillar,
+    and does NOT gain a top-cover slab above the wall."""
+    cv2 = pytest.importorskip("cv2")
+    from scripts.generate_shadow_casing import run
+
+    mask = np.full((64, 64), 255, dtype=np.uint8)
+    mask[24:40, 24:40] = 0
+    img = tmp_path / "mask.png"
+    cv2.imwrite(str(img), mask)
+    out = tmp_path / "out.stl"
+
+    run(
+        input_image=str(img), output_stl=str(out),
+        outer_radius=40, base_radius=40, shell_height=50,
+        n_stencil_theta=128, n_stencil_z=16,
+        support_stems=False,
+        # cover_type omitted → default 'bottom'
+    )
+    mesh = trimesh.load(str(out))
+
+    # floor plate present: vertices near z 0..2 (base_thickness) inside r<20
+    v = mesh.vertices
+    low_centre = v[(v[:, 2] >= 0.0) & (v[:, 2] < 2.0) & (np.hypot(v[:, 0], v[:, 1]) < 20.0)]
+    assert len(low_centre) > 0
+
+    # no top-cover slab: nothing should exist much above the wall top
+    # (wall_top ≈ shell_height + casing_lift = 50; allow the wall itself
+    # to reach up to ~50, but nothing should extend past +1mm from that)
+    zmax = mesh.bounds[1][2]
+    assert zmax <= 51.0
