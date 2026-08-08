@@ -1,5 +1,18 @@
 import type { ReactNode } from "react";
-import { AppHeader, type NavKey } from "./AppHeader";
+import { MobileBottomNav } from "@3pb/ui";
+import { AppHeader, TABS, type NavKey } from "./AppHeader";
+import { ThemeToggle } from "./ThemeToggle";
+import { performLogout } from "@/lib/logout-client";
+
+/** Tab desktop (AppHeader.TABS) yang sudah jadi (bukan "soon") + lolos filter owner — sumber
+ * SAMA dengan nav desktop, jadi mobile & desktop tak pernah drift. */
+function mobileTabs(owner: boolean) {
+  return TABS.filter((t) => t.href && !t.soon && (!t.ownerOnly || owner)).map((t) => ({
+    href: t.href!,
+    label: t.label,
+    icon: t.icon,
+  }));
+}
 
 /**
  * Kerangka SEMUA halaman ber-auth. Pedoman lengkap: `docs/ui-page-layout.md`.
@@ -36,7 +49,8 @@ export function PageShell({
   return (
     <>
       <AppHeader authenticated={authenticated} owner={owner} current={current} userLabel={userLabel} />
-      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-16 relative z-10 page-enter">
+      {/* pb-24 (mobile, clear MobileBottomNav 68px) -> md:pb-16 (nav itu md:hidden, jadi hilang). */}
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-6 pb-24 md:pb-16 relative z-10 page-enter">
         <div className={narrow ? "max-w-md mx-auto" : ""}>
           <div className="flex items-start justify-between gap-4 mb-5">
             <div className="min-w-0">
@@ -50,6 +64,9 @@ export function PageShell({
           {children}
         </div>
       </main>
+      {authenticated && (
+        <MobileBottomNav tabs={mobileTabs(owner)} userName={userLabel} onLogout={performLogout} extra={<ThemeToggle />} />
+      )}
     </>
   );
 }

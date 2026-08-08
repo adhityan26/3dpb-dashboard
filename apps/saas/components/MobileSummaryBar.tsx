@@ -3,7 +3,9 @@ import { rupiah } from "@/lib/kalkulator/format";
 
 export function MobileSummaryBar({ modal, harga, onOpen }: { modal: number; harga: number; onOpen: () => void }) {
   return (
-    <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 px-4 py-3 flex items-center gap-3"
+    // bottom-[68px]: geser ke atas MobileBottomNav (PageShell, tinggi 68px, md:hidden) di layar
+    // <768px -- di 768-1024px nav itu sudah hilang jadi kembali nempel bottom-0.
+    <div className="lg:hidden fixed bottom-[68px] md:bottom-0 left-0 right-0 z-40 px-4 py-3 flex items-center gap-3"
       style={{ background: "color-mix(in srgb, var(--g-card) 92%, black)", borderTop: "1px solid var(--g-card-border)", backdropFilter: "blur(12px)" }}>
       <div className="flex-1 min-w-0">
         <div className="text-[10px] g-t4">Modal</div>
