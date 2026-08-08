@@ -4,23 +4,9 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import { ThemeToggle } from "./ThemeToggle";
 import { LogoutButton } from "./LogoutButton";
+import { TABS, type NavKey } from "./nav-tabs";
 
-export type NavKey = "kalkulator" | "setting" | "admin" | "beli" | "printer";
-
-type Tab = { key: string; href?: string; icon: string; label: string; soon?: boolean; ownerOnly?: boolean };
-
-/** Peta modul. Yang belum dibangun TIDAK dilinkkan (badge "soon") — tak ada nav buntu.
- *  Tambahkan `href` + hapus `soon` saat modulnya benar-benar jadi. Diekspor supaya
- *  `MobileBottomNav` (dipasang di PageShell) pakai SATU sumber daftar tab yang sama. */
-export const TABS: Tab[] = [
-  { key: "kalkulator", href: "/", icon: "🧮", label: "Kalkulator" },
-  { key: "invoice", icon: "🧾", label: "Invoice", soon: true },
-  { key: "po", icon: "📦", label: "PO", soon: true },
-  { key: "filamen", icon: "🧵", label: "Filamen", soon: true },
-  { key: "printer", href: "/printer", icon: "🖨️", label: "Printer" },
-  { key: "setting", href: "/settings", icon: "⚙️", label: "Setting" },
-  { key: "admin", href: "/admin", icon: "🛠️", label: "Admin", ownerOnly: true },
-];
+export type { NavKey };
 
 export function AppHeader({
   authenticated = true,

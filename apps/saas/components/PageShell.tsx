@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
 import { MobileBottomNav } from "@3pb/ui";
-import { AppHeader, TABS, type NavKey } from "./AppHeader";
+import { AppHeader } from "./AppHeader";
+import { TABS, type NavKey } from "./nav-tabs";
 import { ThemeToggle } from "./ThemeToggle";
 import { performLogout } from "@/lib/logout-client";
 
-/** Tab desktop (AppHeader.TABS) yang sudah jadi (bukan "soon") + lolos filter owner — sumber
- * SAMA dengan nav desktop, jadi mobile & desktop tak pernah drift. */
+/** Tab desktop (nav-tabs.ts, SATU sumber dgn AppHeader) yang sudah jadi (bukan "soon") + lolos
+ * filter owner — mobile & desktop tak pernah drift. Impor LANGSUNG dari nav-tabs.ts (BUKAN
+ * lewat AppHeader.tsx yang "use client") -- lihat komentar nav-tabs.ts kenapa. */
 function mobileTabs(owner: boolean) {
   return TABS.filter((t) => t.href && !t.soon && (!t.ownerOnly || owner)).map((t) => ({
     href: t.href!,
