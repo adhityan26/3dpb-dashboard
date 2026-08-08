@@ -493,7 +493,7 @@ export function GridCanvas({ page, deviceLabels, selectedCellIndex, onSelectCell
       </div>
 
       <div className="mt-1.5 flex items-center justify-between px-1.5">
-        <span className="g-t4 font-mono text-[10px] uppercase tracking-widest">Preview CYD (data contoh, bukan live)</span>
+        <span className="g-t4 font-mono text-[10px] uppercase tracking-widest">Preview Mini Display (data contoh, bukan live)</span>
         <span className="g-t4 font-mono text-[10px]">
           320×240 • grid {page.grid.cols}×{page.grid.rows}
         </span>

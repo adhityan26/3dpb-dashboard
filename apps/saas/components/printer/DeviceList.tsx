@@ -37,7 +37,7 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
   if (!paidCore) {
     return (
       <div className="g-card p-6 text-center">
-        <p className="text-[13px] g-t4">🔒 Fitur monitoring printer perlu Pro. Buka dengan Pro untuk daftarkan printer & atur layout CYD.</p>
+        <p className="text-[13px] g-t4">🔒 Fitur monitoring printer perlu Pro. Buka dengan Pro untuk daftarkan printer & atur layout Mini Display.</p>
       </div>
     );
   }
@@ -110,7 +110,7 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
   async function handleDelete(device: Device) {
     // Konfirmasi ringan (pola yang sama dipakai RiwayatList) — hapus device juga membuang cell
     // layout CYD yang mereferensikannya dan tak bisa dibatalkan.
-    if (!window.confirm(`Hapus "${device.label}"? Cell layout CYD yang memakainya ikut hilang dan tak bisa dibatalkan.`)) return;
+    if (!window.confirm(`Hapus "${device.label}"? Cell layout Mini Display yang memakainya ikut hilang dan tak bisa dibatalkan.`)) return;
     setError(null);
     // DELETE balas 204 tanpa body — jangan panggil res.json() di jalur sukses.
     const res = await fetch(`/api/devices/${device.id}`, { method: "DELETE" });
