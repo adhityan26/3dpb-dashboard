@@ -183,11 +183,13 @@ export function DashboardScreen({
                 Nozzle {p.nozzle_temp}°C · Bed {p.bed_temp}°C
               </span>
             </div>
-            {/* error_message HANYA ditampilkan kalau state SEKARANG "error" -- field itu bisa
-                menyimpan pesan BASI dari error sebelumnya (payload.ts tak mengosongkannya saat
-                printer pulih), jadi state adalah penjaga kebenarannya, bukan sekadar
-                error_message non-kosong. */}
-            {p.state.toLowerCase() === "error" && p.error_message && (
+            {/* Percaya error_message non-kosong SAJA (bukan p.state === "error") -- backend
+                (state-store.ts) sekarang isi error_message juga utk kasus state="pause" dgn
+                print_error non-zero (Bambu genuinely error tapi lapor state PAUSE, bukan
+                ERROR -- kasus nyata "Uranus" P1S). upsertFromStatus BANGUN ULANG row tiap
+                status masuk (bukan merge), jadi error_message otomatis kosong lagi begitu
+                printer pulih -- tak ada kekhawatiran pesan basi nyangkut. */}
+            {p.error_message && (
               <p role="alert" className="g-error mt-2 text-xs">
                 {p.error_message}
               </p>

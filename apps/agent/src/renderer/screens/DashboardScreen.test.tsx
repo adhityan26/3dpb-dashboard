@@ -41,13 +41,26 @@ describe("DashboardScreen", () => {
     expect(screen.getByRole("alert").textContent).toMatch(/nozzle macet/i);
   });
 
-  it("state BUKAN error -> tak ada pesan error yang tampil walau error_message ada isinya (data basi dari error sebelumnya)", async () => {
+  it("error_message kosong -> tak ada pesan error yang tampil (backend yg jamin field ini kosong kalau memang tak error)", async () => {
     (window as any).agentApi.getSnapshot.mockResolvedValue({
-      payload: [{ id: "abc1234567", name: "Printer A", type: "P1S", state: "running", progress: 50, remaining_min: 10, filename: "box.gcode", error_msg: "", error_message: "Nozzle macet -- filament tak terdeteksi", last_seen: null, nozzle_temp: 219, bed_temp: 60 }],
+      payload: [{ id: "abc1234567", name: "Printer A", type: "P1S", state: "running", progress: 50, remaining_min: 10, filename: "box.gcode", error_msg: "", error_message: "", last_seen: null, nozzle_temp: 219, bed_temp: 60 }],
     });
     render(<DashboardScreen />);
     await waitFor(() => expect(screen.getByText("Printer A")).toBeTruthy());
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  // Kasus nyata (relay dari sesi firmware CYD, printer "Uranus" P1S, 2026-08-09): Bambu kadang
+  // lapor state=pause walau genuinely error (print_error non-zero) -- backend (state-store.ts)
+  // sekarang tetap isi error_message di kasus ini, jadi Dashboard HARUS tetap tampilkan
+  // pesannya walau state literalnya bukan "error".
+  it("state PAUSE tapi error_message terisi (Bambu genuinely error, bukan pause manual) -> pesan error TETAP tampil", async () => {
+    (window as any).agentApi.getSnapshot.mockResolvedValue({
+      payload: [{ id: "abc1234567", name: "Printer A", type: "P1S", state: "pause", progress: 30, remaining_min: 10, filename: "box.gcode", error_msg: "print_error=117473297", error_message: "Print error (kode 117473297)", last_seen: null, nozzle_temp: 219, bed_temp: 60 }],
+    });
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByRole("alert")).toBeTruthy());
+    expect(screen.getByRole("alert").textContent).toMatch(/117473297/);
   });
 
   it("model dikenal (mis. P1S) -> render thumbnail printer asli, bukan icon generik", async () => {

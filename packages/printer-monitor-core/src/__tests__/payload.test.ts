@@ -101,4 +101,26 @@ describe('StateStore + buildPrintersPayload', () => {
     const p = buildPrintersPayload([mars], store, T0)
     expect(p.payload[0].error_message).toBe('')
   })
+
+  // Kasus nyata (relay dari sesi firmware CYD, printer "Uranus" P1S, 2026-08-09): Bambu
+  // kadang lapor gcode_state=PAUSE walau print_error-nya non-zero (genuinely error, bukan
+  // pause manual biasa) -- state==='error' literal saja TIDAK menangkap ini, error_message
+  // jadi kosong padahal firmware CYD sudah siap tampilkan pesannya kalau field-nya terisi.
+  it('state PAUSE tapi print_error non-zero -> tetap dianggap error, error_message terisi', () => {
+    const store = new StateStore(new HmsLookup({}))
+    const s = normalizeBambu('mars', { print: {
+      gcode_state: 'PAUSE', print_error: 117473297, mc_print_error_code: '0', hms: [] } })
+    store.upsertFromStatus(mars, s, null)
+    const p = buildPrintersPayload([mars], store, T0)
+    expect(p.payload[0].state).toBe('pause') // state APA ADANYA dari Bambu, tak diubah paksa
+    expect(p.payload[0].error_message).toBe('Print error (kode 117473297)')
+  })
+
+  it('state PAUSE dgn print_error=0 (pause manual biasa) -> error_message TETAP kosong (bukan regresi)', () => {
+    const store = new StateStore()
+    const s = normalizeBambu('mars', { print: { gcode_state: 'PAUSE', print_error: 0 } })
+    store.upsertFromStatus(mars, s, null)
+    const p = buildPrintersPayload([mars], store, T0)
+    expect(p.payload[0].error_message).toBe('')
+  })
 })
