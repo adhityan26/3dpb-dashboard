@@ -16,6 +16,11 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
   const [draftModel, setDraftModel] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(paidCore);
+  // Form tipe+model sekarang di dalam popup, dipicu tombol "+ Tambah" -- sebelumnya field-nya
+  // selalu tampil inline di toolbar (isi form dulu baru ketemu tombol Tambah, kebalik urutan
+  // yang wajar). Dialog dibuka lewat state ini, field-nya sendiri tetap dari state yang sama
+  // (printerType/model) supaya handleAdd() tak perlu berubah logikanya.
+  const [showAddDialog, setShowAddDialog] = useState(false);
 
   useEffect(() => {
     if (!paidCore) return;
@@ -37,7 +42,10 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
     );
   }
 
-  async function handleAdd() {
+  // Balikin boolean sukses -- pemanggil (dialog) cuma menutup diri sendiri kalau sukses;
+  // kalau gagal (mis. slot_limit_exceeded), dialog TETAP terbuka menampilkan pesan error-nya
+  // biar user bisa lihat kenapa gagal, bukan ke-dismiss diam-diam.
+  async function handleAdd(): Promise<boolean> {
     setError(null);
     const label = `Printer ${devices.length + 1}`;
     const res = await fetch("/api/devices", {
@@ -51,11 +59,12 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
       } else {
         setError("Gagal menambah printer.");
       }
-      return;
+      return false;
     }
     const created = await res.json();
     setDevices((prev) => [...prev, created]);
     setModel(""); // reset input model form-tambah -- tanpa ini nilai lama nyangkut buat device berikutnya (final-review Fix 4)
+    return true;
   }
 
   function startRename(device: Device) {
@@ -125,45 +134,19 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <select
-            aria-label="Tipe printer"
-            value={printerType}
-            onChange={(e) => setPrinterType(e.target.value as PrinterType)}
-            className="g-inner text-[12px] px-2 py-1.5 rounded-md"
-          >
-            {PRINTER_TYPES.map((t) => (
-              <option key={t} value={t}>
-                {PRINTER_TYPE_LABELS[t]}
-              </option>
-            ))}
-          </select>
-          <div className="flex flex-col">
-            <input
-              aria-label="Model printer"
-              list="model-suggestions"
-              value={model}
-              onChange={(e) => setModel(e.target.value)}
-              placeholder="Model (opsional)"
-              className="g-inner text-[12px] px-2 py-1.5 rounded-md w-28"
-            />
-            {model.length > LAYOUT_LIMITS.maxPrinterModelLength && (
-              <span className="mt-1 block text-[10px] leading-relaxed text-red-500">
-                Maks {LAYOUT_LIMITS.maxPrinterModelLength} karakter (sekarang {model.length}) — simpan akan ditolak.
-              </span>
-            )}
-          </div>
-          <datalist id="model-suggestions">
-            {PRINTER_MODEL_SUGGESTIONS[printerType].map((m) => (
-              <option key={m} value={m} />
-            ))}
-          </datalist>
-          <button type="button" onClick={handleAdd} className="text-[12px] px-3 py-1.5 rounded-md" style={{ background: "var(--g-accent)", color: "#fff" }}>
-            + Tambah
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => setShowAddDialog(true)}
+          className="text-[12px] px-3 py-1.5 rounded-md"
+          style={{ background: "var(--g-accent)", color: "#fff" }}
+        >
+          + Tambah
+        </button>
       </div>
-      {error && <p className="text-[12px] text-red-500 mb-2">{error}</p>}
+      {/* Error dari rename/edit-model/hapus (dialog tambah punya tampilan error sendiri di
+          dalam dirinya sendiri, lihat AddPrinterDialog -- kalau ditampilkan di sini juga,
+          ketutup backdrop dialog dan tak kelihatan user). */}
+      {error && !showAddDialog && <p className="text-[12px] text-red-500 mb-2">{error}</p>}
       <ul className="space-y-2">
         {devices.map((d) => (
           <li key={d.id} className="text-[13px] flex items-center justify-between gap-2">
@@ -223,6 +206,109 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
           </li>
         ))}
       </ul>
+      {showAddDialog && (
+        <AddPrinterDialog
+          printerType={printerType}
+          onPrinterTypeChange={setPrinterType}
+          model={model}
+          onModelChange={setModel}
+          error={error}
+          onCancel={() => {
+            setShowAddDialog(false);
+            setError(null);
+            setModel("");
+          }}
+          onSave={async () => {
+            const ok = await handleAdd();
+            if (ok) setShowAddDialog(false);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function AddPrinterDialog({
+  printerType,
+  onPrinterTypeChange,
+  model,
+  onModelChange,
+  error,
+  onCancel,
+  onSave,
+}: {
+  printerType: PrinterType;
+  onPrinterTypeChange: (t: PrinterType) => void;
+  model: string;
+  onModelChange: (m: string) => void;
+  error: string | null;
+  onCancel: () => void;
+  onSave: () => void;
+}) {
+  const modelTooLong = model.length > LAYOUT_LIMITS.maxPrinterModelLength;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true">
+      <button type="button" aria-label="Tutup" className="absolute inset-0 bg-black/50" onClick={onCancel} />
+      <div
+        className="relative w-full max-w-sm rounded-[5px] p-4 modal-surface flex flex-col gap-3"
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onCancel();
+        }}
+      >
+        <div className="text-sm font-semibold g-t1">Tambah Printer</div>
+        <label className="text-[11px] g-t3 flex flex-col gap-1">
+          <span>Tipe printer</span>
+          <select
+            aria-label="Tipe printer"
+            value={printerType}
+            onChange={(e) => onPrinterTypeChange(e.target.value as PrinterType)}
+            className="g-inner text-[12px] px-2 py-1.5 rounded-md"
+            autoFocus
+          >
+            {PRINTER_TYPES.map((t) => (
+              <option key={t} value={t}>
+                {PRINTER_TYPE_LABELS[t]}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-[11px] g-t3 flex flex-col gap-1">
+          <span>Model (opsional)</span>
+          <input
+            aria-label="Model printer"
+            list="model-suggestions"
+            value={model}
+            onChange={(e) => onModelChange(e.target.value)}
+            placeholder="mis. P1S"
+            className="g-inner text-[12px] px-2 py-1.5 rounded-md"
+          />
+          <datalist id="model-suggestions">
+            {PRINTER_MODEL_SUGGESTIONS[printerType].map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
+          {modelTooLong && (
+            <span className="text-[10px] leading-relaxed text-red-500">
+              Maks {LAYOUT_LIMITS.maxPrinterModelLength} karakter (sekarang {model.length}) — simpan akan ditolak.
+            </span>
+          )}
+        </label>
+        {error && <p className="text-[12px] text-red-500">{error}</p>}
+        <div className="flex gap-2 justify-end">
+          <button type="button" onClick={onCancel} className="g-btn-ghost rounded-[5px] h-9 px-3 text-[12px]">
+            Batal
+          </button>
+          <button
+            type="button"
+            onClick={onSave}
+            disabled={modelTooLong}
+            className="rounded-[5px] h-9 px-3 text-[12px] font-medium text-white disabled:opacity-40"
+            style={{ background: "var(--g-accent)" }}
+          >
+            Tambah Printer
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

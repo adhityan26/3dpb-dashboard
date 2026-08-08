@@ -16,6 +16,12 @@ function mockList(devices: Array<{ id: string; label: string; printerType: strin
 
 const DEVICE_A = { id: "d1", label: "Printer A", printerType: "bambu", model: "P1S" };
 
+/** Buka dialog "Tambah Printer" -- tombol "+ Tambah" di toolbar sekarang trigger popup,
+ * bukan langsung submit (form tipe+model ada DI DALAM dialog). */
+function openAddDialog() {
+  fireEvent.click(screen.getByRole("button", { name: /^\+ tambah$/i }));
+}
+
 describe("DeviceList", () => {
   it("tampilkan daftar device dari GET /api/devices", async () => {
     mockList([DEVICE_A]);
@@ -34,8 +40,11 @@ describe("DeviceList", () => {
     fetchMock.mockResolvedValueOnce({ ok: false, status: 409, json: async () => ({ error: "slot_limit_exceeded", limit: 1 }) });
     render(<DeviceList paidCore={true} />);
     await waitFor(() => screen.getByText("Printer A"));
-    fireEvent.click(screen.getByRole("button", { name: /tambah/i }));
+    openAddDialog();
+    fireEvent.click(screen.getByRole("button", { name: /tambah printer/i }));
     await waitFor(() => expect(screen.getByText(/batas.*tercapai/i)).toBeTruthy());
+    // Gagal -> dialog TETAP terbuka menampilkan error, bukan ke-dismiss diam-diam.
+    expect(screen.getByRole("dialog")).toBeTruthy();
   });
 
   it("locked view (upsell) kalau paidCore false, tak panggil fetch sama sekali", () => {
@@ -49,10 +58,11 @@ describe("DeviceList", () => {
     mockList([], 3);
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ id: "d2", label: "Printer 1", printerType: "moonraker" }) });
     render(<DeviceList paidCore={true} />);
-    await waitFor(() => screen.getByRole("button", { name: /tambah/i }));
+    await waitFor(() => screen.getByRole("button", { name: /^\+ tambah$/i }));
+    openAddDialog();
 
     fireEvent.change(screen.getByLabelText("Tipe printer"), { target: { value: "moonraker" } });
-    fireEvent.click(screen.getByRole("button", { name: /tambah/i }));
+    fireEvent.click(screen.getByRole("button", { name: /tambah printer/i }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     const [url, init] = fetchMock.mock.calls[1];
@@ -66,10 +76,11 @@ describe("DeviceList", () => {
     mockList([], 3);
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ id: "d2", label: "Printer 1", printerType: "bambu", model: "A1Mini" }) });
     render(<DeviceList paidCore={true} />);
-    await waitFor(() => screen.getByRole("button", { name: /tambah/i }));
+    await waitFor(() => screen.getByRole("button", { name: /^\+ tambah$/i }));
+    openAddDialog();
 
     fireEvent.change(screen.getByLabelText("Model printer"), { target: { value: "A1Mini" } });
-    fireEvent.click(screen.getByRole("button", { name: /tambah/i }));
+    fireEvent.click(screen.getByRole("button", { name: /tambah printer/i }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     const [, init] = fetchMock.mock.calls[1];
@@ -79,32 +90,55 @@ describe("DeviceList", () => {
   it("model form-tambah > 11 karakter -> tampilkan hint batas firmware", async () => {
     mockList([], 3);
     render(<DeviceList paidCore={true} />);
-    await waitFor(() => screen.getByRole("button", { name: /tambah/i }));
+    await waitFor(() => screen.getByRole("button", { name: /^\+ tambah$/i }));
+    openAddDialog();
 
     fireEvent.change(screen.getByLabelText("Model printer"), { target: { value: "TerlaluPanjangUntukFirmware" } });
     expect(screen.getByText(/maks 11 karakter/i)).toBeTruthy();
+    // Model kelewat panjang -> tombol submit di dalam dialog ikut ke-disable.
+    expect((screen.getByRole("button", { name: /tambah printer/i }) as HTMLButtonElement).disabled).toBe(true);
   });
 
   it("model form-tambah <= 11 karakter -> tak tampilkan hint", async () => {
     mockList([], 3);
     render(<DeviceList paidCore={true} />);
-    await waitFor(() => screen.getByRole("button", { name: /tambah/i }));
+    await waitFor(() => screen.getByRole("button", { name: /^\+ tambah$/i }));
+    openAddDialog();
 
     fireEvent.change(screen.getByLabelText("Model printer"), { target: { value: "P1S" } });
     expect(screen.queryByText(/maks 11 karakter/i)).toBeNull();
   });
 
-  it("tambah sukses -> input model form-tambah direset (tak nyangkut buat device berikutnya)", async () => {
+  it("tambah sukses -> dialog tertutup, dan input model direset (tak nyangkut buat device berikutnya kalau dialog dibuka lagi)", async () => {
     mockList([], 3);
     fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ id: "d2", label: "Printer 1", printerType: "bambu", model: "A1Mini" }) });
     render(<DeviceList paidCore={true} />);
-    await waitFor(() => screen.getByRole("button", { name: /tambah/i }));
+    await waitFor(() => screen.getByRole("button", { name: /^\+ tambah$/i }));
+    openAddDialog();
 
     const input = screen.getByLabelText("Model printer") as HTMLInputElement;
     fireEvent.change(input, { target: { value: "A1Mini" } });
-    fireEvent.click(screen.getByRole("button", { name: /tambah/i }));
+    fireEvent.click(screen.getByRole("button", { name: /tambah printer/i }));
 
     await waitFor(() => expect(screen.getByText("Printer 1")).toBeTruthy());
+    expect(screen.queryByRole("dialog")).toBeNull();
+
+    openAddDialog();
+    expect((screen.getByLabelText("Model printer") as HTMLInputElement).value).toBe("");
+  });
+
+  it("dialog tambah: klik Batal -> tertutup, tak kirim request, input model direset", async () => {
+    mockList([], 3);
+    render(<DeviceList paidCore={true} />);
+    await waitFor(() => screen.getByRole("button", { name: /^\+ tambah$/i }));
+    openAddDialog();
+
+    fireEvent.change(screen.getByLabelText("Model printer"), { target: { value: "A1Mini" } });
+    fireEvent.click(screen.getByRole("button", { name: /^batal$/i }));
+
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1); // cuma GET awal, tak ada POST
+    openAddDialog();
     expect((screen.getByLabelText("Model printer") as HTMLInputElement).value).toBe("");
   });
 
