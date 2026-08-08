@@ -56,6 +56,7 @@ class GeneratorConfig(BaseModel):
     pillar_inner_r:    Optional[float] = Field(default=None, gt=0, le=30)
     skip_led_pillar:   Optional[bool]  = None
     led_socket_height: Optional[float] = Field(default=None, ge=0, le=50)
+    cover_type:        Optional[Literal["bottom", "top"]] = None
 
     # ── Flooring (casing footprint) shape ────────────────────────────────
     # None / "circle" / "square" / "triangle" / "rect[:W:H]" / "oval[:W:H]" / file path

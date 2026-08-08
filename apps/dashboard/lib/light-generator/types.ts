@@ -84,4 +84,9 @@ export const DEFAULT_LG_CONFIG = {
   support_stems: true,
   stem_width: 2,
   min_bridge_mm: 1.2,
+  cover_type: "bottom",
+  invert_mask: false,
+  pillar_outer_r: 4,
+  pillar_inner_r: 2.5,
+  led_socket_height: 10,
 } as const

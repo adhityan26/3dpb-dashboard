@@ -1882,6 +1882,98 @@ def build_led_holder(start_z: float,
     return pillar
 
 
+# ────────────────────────────────────────────────────────────────────────────
+def build_top_cover(
+    wall_top: float,
+    cover_thickness: float,
+    recess_r: float,
+    recess_depth: float,
+    light_x: float,
+    light_y: float,
+    casing_poly,
+    base_radius: float,
+    n_circ: int = 96,
+) -> trimesh.Trimesh:
+    """
+    Solid cover plate closing the TOP of the stencil wall ('top' cover mode).
+
+    The LED puck sits in a circular blind recess on the underside, centred on
+    the light position, so the light hangs from the cover shining down — same
+    optics as the pillar variant, different mechanical mount. Built from two
+    stacked 2D extrusions (ring layer + roof layer) so no 3D boolean engine
+    is needed; the coplanar interface is handled by concatenate, same pattern
+    as the floor-plate + pillar join.
+    """
+    from shapely.geometry import Polygon as _ShapelyPoly
+
+    MIN_ROOF_MM = 0.8   # never let the recess punch through the roof
+    eff_depth = max(0.0, min(recess_depth, cover_thickness - MIN_ROOF_MM))
+
+    if casing_poly is not None:
+        slab_poly = casing_poly
+    else:
+        _a = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
+        slab_poly = _ShapelyPoly(list(zip(base_radius * np.cos(_a),
+                                          base_radius * np.sin(_a))))
+
+    if eff_depth > 0:
+        _a = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
+        recess_poly = _ShapelyPoly(list(zip(light_x + recess_r * np.cos(_a),
+                                            light_y + recess_r * np.sin(_a))))
+        if not recess_poly.within(slab_poly):
+            raise ValueError(
+                "top cover recess is not fully inside the cover footprint — "
+                "move light_x/light_y or shrink pillar_outer_r (recess radius)")
+
+    parts = []
+    if eff_depth > 0:
+        ring_poly = slab_poly.difference(recess_poly)
+        if not ring_poly.is_valid:
+            ring_poly = ring_poly.buffer(0)
+        if ring_poly.geom_type != "Polygon":
+            raise ValueError(
+                "recess splits the top cover footprint into multiple pieces "
+                f"(got {ring_poly.geom_type}) — move light_x/light_y or shrink "
+                "pillar_outer_r (recess radius)")
+        # NOTE on the ring/roof seam: unlike the wall/cover seam (which had a
+        # real floating gap without overlap), the ring's top face and the
+        # roof's bottom face are an EXACT coincident-polygon match (both the
+        # annulus at z = wall_top + eff_depth) — two independently watertight
+        # solids touching, not overlapping. A slicer unions coincident
+        # geometry per layer without a gap, so this is not the same defect
+        # as an unsupported floating slab. A forced 0.5mm interpenetration
+        # here was evaluated and rejected: because the annulus is usually
+        # most of the footprint, it inflates cover volume by ~15-20% for
+        # typical recess/footprint ratios — a worse tradeoff than the
+        # current coincident-but-watertight joint.
+        ring = trimesh.creation.extrude_polygon(ring_poly, eff_depth)
+        ring.apply_translation([0.0, 0.0, wall_top])
+        trimesh.repair.fix_normals(ring)
+        parts.append(ring)
+
+        roof = trimesh.creation.extrude_polygon(slab_poly,
+                                                cover_thickness - eff_depth)
+        roof.apply_translation([0.0, 0.0, wall_top + eff_depth])
+        trimesh.repair.fix_normals(roof)
+        parts.append(roof)
+
+        if recess_depth > eff_depth:
+            print(f'  [C] WARNING: top cover recess capped — requested '
+                  f'{recess_depth:.1f}mm, effective {eff_depth:.1f}mm '
+                  f'(min roof {MIN_ROOF_MM:.1f}mm enforced)')
+    else:
+        slab = trimesh.creation.extrude_polygon(slab_poly, cover_thickness)
+        slab.apply_translation([0.0, 0.0, wall_top])
+        trimesh.repair.fix_normals(slab)
+        parts.append(slab)
+
+    cover = trimesh.util.concatenate(parts) if len(parts) > 1 else parts[0]
+    print(f'  [C] top cover    — recess ∅{recess_r*2:.1f}mm × {eff_depth:.1f}mm '
+          f'at ({light_x:.1f},{light_y:.1f})  z={wall_top:.1f}→'
+          f'{wall_top + cover_thickness:.1f}mm  faces={len(cover.faces)}')
+    return cover
+
+
 def enforce_min_wall_thickness(
     stencil: np.ndarray,
     r_mean: float,
@@ -2606,6 +2698,7 @@ def run(
     merged_builder       = False,  # v2: column merging + correct normals, small files
     min_wall_mm          = 0.0,    # disabled: 3mm was too aggressive, removed fine features
     skip_led_pillar      = False,
+    cover_type           = 'bottom',  # 'bottom' = floor plate + pillar (default), 'top' = closed top cover with LED recess, open bottom
     add_watermark        = False,
     decimate_ratio       = 0.0,    # 0=off, 0.8=keep 20% of faces (quadric decimation)
     led_socket_height    = 10.0,    # mm — height of LED mount above pillar top
@@ -2680,6 +2773,18 @@ def run(
     z_max_stencil = z_light * (1.0 - r_min / floor_half_size)
     r_at_top = r_min / (1.0 - min(z_max_stencil, wall_top) / z_light)
 
+    # Effective wall top after the same ray-limit clamp the wall builders
+    # apply (see z_max_s in the contour-builder branch below). If this binds,
+    # the stencil wall actually stops short of `wall_top` — any mount that
+    # sits at `wall_top` (e.g. the top cover) must follow it down or it ends
+    # up floating above a gap.
+    effective_wall_top = min(wall_top, z_max_stencil)
+    if effective_wall_top < wall_top - 1e-6:
+        print(f'[generator] WARNING: shell_height reduced by ray limit — '
+              f'wall top clamped from {wall_top:.1f}mm to {effective_wall_top:.1f}mm '
+              f'(floor_half_size/outer_radius/shell_height combination hits the '
+              f'light-ray cutoff)')
+
     # ── Parameter summary ─────────────────────────────────────────────
     print('── Parameter summary ────────────────────────────────────────────')
     print(f'  Shadow image         : {input_image}')
@@ -2700,8 +2805,12 @@ def run(
     print(f'  Stencil grid         : {n_stencil_theta} × {n_stencil_z}')
     print(f'  SDF smooth σ         : {edge_smooth_sigma:.1f} px  (×{mask_upsample} upsample)')
     print(f'  SDF threshold        : {shadow_threshold:.1f}')
-    print(f'  LED pillar           : ∅{pillar_inner_r*2:.0f}mm cable / '
-          f'∅{pillar_outer_r*2:.0f}mm outer  z={base_z:.1f}→{z_light:.1f}mm')
+    if cover_type == 'top':
+        print(f'  LED recess (in cover): ∅{pillar_outer_r*2:.0f}mm × '
+              f'{led_socket_height:.1f}mm  at ({light_x:.1f}, {light_y:.1f})')
+    else:
+        print(f'  LED pillar           : ∅{pillar_inner_r*2:.0f}mm cable / '
+              f'∅{pillar_outer_r*2:.0f}mm outer  z={base_z:.1f}→{z_light:.1f}mm')
     _summary_builder = 'contour' if contour_builder else ('continuous (smooth)' if smooth_builder else 'legacy pillar')
     print(f'  Mesh builder         : {_summary_builder}')
     if taubin_iterations > 0:
@@ -2865,50 +2974,72 @@ def run(
         )
         print(f'  [A] after Taubin — faces: {len(wall_mesh.faces)}')
 
-    # ── 4. Raised floor plate with cable hole ────────────────────────
-    # Punch a hole of pillar_inner_r through the base plate centre so the
-    # LED cable can pass from the electronics chamber up into the pillar.
-    from shapely.geometry import Polygon as _ShapelyPoly
+    # ── 4/5. Mount geometry — bottom (floor plate + pillar) or top cover ──
+    base       = None
+    led_holder = None
+    top_cover  = None
 
-    _hole_a    = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
-    _hole_poly = _ShapelyPoly(list(zip(pillar_inner_r * np.cos(_hole_a),
-                                        pillar_inner_r * np.sin(_hole_a))))
-
-    if casing_poly is not None:
-        _base_poly = casing_poly.difference(_hole_poly)
-        base_desc  = 'custom shape'
+    if cover_type == 'top':
+        # Open bottom, closed top: LED puck hangs from a recess in the cover.
+        if not preview_mode:
+            # Footprint radius: when there's no custom casing_poly, the cover
+            # must cap the wall — which sits at outer_radius, not base_radius
+            # (a CLI top-mode run without --base-radius would otherwise
+            # produce a disk smaller than the wall it's supposed to close).
+            _cover_footprint_r = outer_radius if casing_poly is None else base_radius
+            if casing_poly is None:
+                print(f'  [C] top cover footprint radius: {_cover_footprint_r:.1f}mm '
+                      f'(= outer_radius, caps the wall)')
+            top_cover = build_top_cover(
+                # Interpenetrate the wall by 0.5mm for a manifold join, same
+                # pattern as the pillar's `start_z = base_z - 0.5` below, and
+                # sit on the ray-limit-clamped effective wall top so the
+                # cover never floats above a shortened wall.
+                wall_top        = effective_wall_top - 0.5,
+                cover_thickness = base_thickness,
+                recess_r        = pillar_outer_r,
+                recess_depth    = led_socket_height,
+                light_x         = light_x,
+                light_y         = light_y,
+                casing_poly     = casing_poly,
+                base_radius     = _cover_footprint_r,
+                n_circ          = n_circ,
+            )
     else:
-        _outer_a    = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
-        _outer_poly = _ShapelyPoly(list(zip(base_radius * np.cos(_outer_a),
-                                             base_radius * np.sin(_outer_a))))
-        _base_poly  = _outer_poly.difference(_hole_poly)
-        base_desc   = f'circle r={base_radius:.1f}mm'
+        # Punch a hole of pillar_inner_r through the base plate centre so the
+        # LED cable can pass from the electronics chamber up into the pillar.
+        from shapely.geometry import Polygon as _ShapelyPoly
+        _hole_a    = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
+        _hole_poly = _ShapelyPoly(list(zip(pillar_inner_r * np.cos(_hole_a),
+                                            pillar_inner_r * np.sin(_hole_a))))
+        if casing_poly is not None:
+            _base_poly = casing_poly.difference(_hole_poly)
+            base_desc  = 'custom shape'
+        else:
+            _outer_a    = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
+            _outer_poly = _ShapelyPoly(list(zip(base_radius * np.cos(_outer_a),
+                                                 base_radius * np.sin(_outer_a))))
+            _base_poly  = _outer_poly.difference(_hole_poly)
+            base_desc   = f'circle r={base_radius:.1f}mm'
+        if not _base_poly.is_valid:
+            _base_poly = _base_poly.buffer(0)
+        base = trimesh.creation.extrude_polygon(_base_poly, base_thickness)
+        base.apply_translation([0.0, 0.0, floor_z])
+        trimesh.repair.fix_normals(base)
+        print(f'  [B] floor plate  — {base_desc} + cable hole ∅{pillar_inner_r*2:.1f}mm'
+              f'  z={floor_z:.1f}→{base_z:.1f}mm  faces={len(base.faces)}')
 
-    if not _base_poly.is_valid:
-        _base_poly = _base_poly.buffer(0)
-
-    base = trimesh.creation.extrude_polygon(_base_poly, base_thickness)
-    base.apply_translation([0.0, 0.0, floor_z])
-    trimesh.repair.fix_normals(base)
-    print(f'  [B] floor plate  — {base_desc} + cable hole ∅{pillar_inner_r*2:.1f}mm'
-          f'  z={floor_z:.1f}→{base_z:.1f}mm  faces={len(base.faces)}')
-
-    # ── 5. LED holder pillar ──────────────────────────────────────────
-    if skip_led_pillar:
-        led_holder = None
-    else:
-        led_holder = build_led_holder(
-            start_z        = max(base_z - 0.5, 0.0),  # interpenetrate base for manifold join
-            z_light        = z_light - led_socket_height,
-            pillar_outer_r = pillar_outer_r,
-            pillar_inner_r = pillar_inner_r,
-            n_circ         = n_circ,
-        )
+        if not skip_led_pillar:
+            led_holder = build_led_holder(
+                start_z        = max(base_z - 0.5, 0.0),  # interpenetrate base for manifold join
+                z_light        = z_light - led_socket_height,
+                pillar_outer_r = pillar_outer_r,
+                pillar_inner_r = pillar_inner_r,
+                n_circ         = n_circ,
+            )
 
     # ── 6. Combine ────────────────────────────────────────────────────
-    parts = [wall_mesh, base]
-    if led_holder is not None:
-        parts.append(led_holder)
+    parts = [wall_mesh] + [m for m in (base, led_holder, top_cover) if m is not None]
     combined = trimesh.util.concatenate(parts)
     print('\n[generator] combined mesh:')
     validate_mesh(combined)
@@ -3027,6 +3158,13 @@ if __name__ == '__main__':
                    help='Outer radius of LED holder pillar (mm)')
     p.add_argument('--pillar-inner-r', type=float, default=PILLAR_INNER_R,
                    help='Inner radius of pillar = cable channel (mm)')
+    p.add_argument('--led-socket-height', type=float, default=10.0,
+                   help='LED socket height above pillar top (bottom mode) / recess depth (top mode) (mm)')
+    p.add_argument('--cover-type', choices=['bottom', 'top'], default='bottom',
+                   help='bottom = floor plate + LED pillar (default); '
+                        'top = closed top cover with LED recess, open bottom')
+    p.add_argument('--invert-shadow', action='store_true', default=False,
+                   help='Invert the silhouette mask (swap solid/hole regions)')
 
     # Casing lift (compensation for external electronics chamber)
     p.add_argument('--casing-lift', type=float, default=CASING_LIFT,
@@ -3075,4 +3213,7 @@ if __name__ == '__main__':
         taubin_iterations    = a.taubin_iter,
         taubin_lambda        = a.taubin_lambda,
         taubin_nu            = a.taubin_nu,
+        led_socket_height    = a.led_socket_height,
+        cover_type           = a.cover_type,
+        invert_mask          = a.invert_shadow,
     )
