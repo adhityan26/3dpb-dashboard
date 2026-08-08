@@ -1882,6 +1882,71 @@ def build_led_holder(start_z: float,
     return pillar
 
 
+# ────────────────────────────────────────────────────────────────────────────
+def build_top_cover(
+    wall_top: float,
+    cover_thickness: float,
+    recess_r: float,
+    recess_depth: float,
+    light_x: float,
+    light_y: float,
+    casing_poly,
+    base_radius: float,
+    n_circ: int = 96,
+) -> trimesh.Trimesh:
+    """
+    Solid cover plate closing the TOP of the stencil wall ('top' cover mode).
+
+    The LED puck sits in a circular blind recess on the underside, centred on
+    the light position, so the light hangs from the cover shining down — same
+    optics as the pillar variant, different mechanical mount. Built from two
+    stacked 2D extrusions (ring layer + roof layer) so no 3D boolean engine
+    is needed; the coplanar interface is handled by concatenate, same pattern
+    as the floor-plate + pillar join.
+    """
+    from shapely.geometry import Polygon as _ShapelyPoly
+
+    MIN_ROOF_MM = 0.8   # never let the recess punch through the roof
+    eff_depth = max(0.0, min(recess_depth, cover_thickness - MIN_ROOF_MM))
+
+    if casing_poly is not None:
+        slab_poly = casing_poly
+    else:
+        _a = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
+        slab_poly = _ShapelyPoly(list(zip(base_radius * np.cos(_a),
+                                          base_radius * np.sin(_a))))
+
+    parts = []
+    if eff_depth > 0:
+        _a = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
+        recess_poly = _ShapelyPoly(list(zip(light_x + recess_r * np.cos(_a),
+                                            light_y + recess_r * np.sin(_a))))
+        ring_poly = slab_poly.difference(recess_poly)
+        if not ring_poly.is_valid:
+            ring_poly = ring_poly.buffer(0)
+        ring = trimesh.creation.extrude_polygon(ring_poly, eff_depth)
+        ring.apply_translation([0.0, 0.0, wall_top])
+        trimesh.repair.fix_normals(ring)
+        parts.append(ring)
+
+        roof = trimesh.creation.extrude_polygon(slab_poly,
+                                                cover_thickness - eff_depth)
+        roof.apply_translation([0.0, 0.0, wall_top + eff_depth])
+        trimesh.repair.fix_normals(roof)
+        parts.append(roof)
+    else:
+        slab = trimesh.creation.extrude_polygon(slab_poly, cover_thickness)
+        slab.apply_translation([0.0, 0.0, wall_top])
+        trimesh.repair.fix_normals(slab)
+        parts.append(slab)
+
+    cover = trimesh.util.concatenate(parts) if len(parts) > 1 else parts[0]
+    print(f'  [C] top cover    — recess ∅{recess_r*2:.1f}mm × {eff_depth:.1f}mm '
+          f'at ({light_x:.1f},{light_y:.1f})  z={wall_top:.1f}→'
+          f'{wall_top + cover_thickness:.1f}mm  faces={len(cover.faces)}')
+    return cover
+
+
 def enforce_min_wall_thickness(
     stencil: np.ndarray,
     r_mean: float,
