@@ -196,6 +196,7 @@ export default function LgOrderDetailPage({ params }: { params: Promise<{ id: st
             operatorConfig={operatorConfig}
             onConfigChange={setCurrentConfig}
             onReset={() => setCurrentConfig(null)}
+            hasFlooringImage={!!order.additionalImagePath}
           />
         </div>
         <div className="lg:col-span-2 space-y-6">

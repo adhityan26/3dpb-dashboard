@@ -45,3 +45,42 @@ describe('LgConfigEditor raw JSON editor', () => {
     expect(html).toContain('Edit raw JSON')
   })
 })
+
+describe('LgConfigEditor custom flooring shape', () => {
+  // Note: Radix Select's option labels and current-value text are not present
+  // in renderToStaticMarkup output (SelectContent is portal-based and
+  // SelectValue resolves at runtime), so shape-selection coverage below goes
+  // through the config-driven side effects (hint text, upload control)
+  // instead of asserting on SHAPE_OPTIONS label text directly.
+
+  it('non-custom shape: hides the flooring image upload control', () => {
+    const html = render({ flooring_shape: 'circle' })
+    expect(html).not.toContain('Hitam = footprint casing')
+  })
+
+  it('custom shape: shows the upload control and hint, hides ratio inputs', () => {
+    const html = render({ flooring_shape: 'custom' })
+    expect(html).toContain('Hitam = footprint casing')
+    expect(html).toContain('Order customer dengan floor insert image sudah otomatis terisi')
+    expect(html).not.toContain('W ratio')
+    expect(html).not.toContain('H ratio')
+  })
+
+  it('custom shape without hasFlooringImage: shows the missing-image hint', () => {
+    const html = render({ flooring_shape: 'custom' })
+    expect(html).toContain('Belum ada gambar flooring untuk order ini')
+    expect(html).not.toContain('gambar flooring tersedia')
+  })
+
+  it('custom shape with hasFlooringImage: shows the available checkmark', () => {
+    const html = renderToStaticMarkup(
+      <LgConfigEditor
+        orderId="test"
+        customerConfig={{ flooring_shape: 'custom' }}
+        operatorConfig={null}
+        hasFlooringImage
+      />
+    )
+    expect(html).toContain('✓ gambar flooring tersedia')
+  })
+})
