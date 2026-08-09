@@ -62,6 +62,20 @@ _PREVIEW_DEFAULTS: dict = {
 }
 
 
+def _to_physical_polarity(shadow_gray: np.ndarray) -> np.ndarray:
+    """Remap simulate_shadow's semantic values to physical brightness.
+
+    simulate_shadow returns 255 = shadow (blocked), 128 = casing footprint,
+    0 = lit floor. Rendering that raw shows the shadow as WHITE, which reads
+    backwards next to the printed result. Remap so the preview looks like the
+    real lamp: lit floor bright, shadow dark, footprint mid-gray.
+    """
+    out = np.full_like(shadow_gray, 235)   # lit floor → bright
+    out[shadow_gray == 128] = 90           # casing footprint → mid-gray
+    out[shadow_gray == 255] = 20           # shadow → dark
+    return out
+
+
 def _draw_casing_outline(
     shadow_gray: np.ndarray,
     r_wall_arr: np.ndarray,
@@ -206,7 +220,9 @@ def render_shadow_preview(image_path: str, config: dict | None = None) -> bytes:
         stencil, z_cents, light_pos, r_wall_arr, floor_half, res=int(p["shadow_res"])
     )
 
-    bgr = _draw_casing_outline(shadow_gray, r_wall_arr, floor_half)
+    display_gray = _to_physical_polarity(shadow_gray)
+
+    bgr = _draw_casing_outline(display_gray, r_wall_arr, floor_half)
 
     ok, buf = cv2.imencode(".png", bgr)
     if not ok:
