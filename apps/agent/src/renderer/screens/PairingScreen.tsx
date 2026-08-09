@@ -370,7 +370,13 @@ export function PairingScreen({
           </div>
         </div>
         <div className="flex-1">
-          <h3 className="g-t2 text-xs font-semibold uppercase tracking-wide mb-2">Hasil Scan Moonraker</h3>
+          {/* "Klipper" (bukan "Moonraker" mentah) -- pola sama dengan apps/saas
+              (lib/devices/printer-types.ts PRINTER_TYPE_LABELS.moonraker): "moonraker" itu nama
+              API server-nya Klipper, bukan istilah yang dikenal user awam. Tak bisa dipersempit
+              ke satu merek (mis. "Snapmaker") karena scan mDNS ini genuinely nemu banyak merek +
+              build custom/DIY sekaligus -- beda dari kolom Bambu yang connector-nya memang cuma
+              satu merek. */}
+          <h3 className="g-t2 text-xs font-semibold uppercase tracking-wide mb-2">Hasil Scan Klipper (Snapmaker, Voron, Creality, dll.)</h3>
           <div className="space-y-2">
             {moonrakerPrinters.map((p) => {
               const target = effectiveTarget(p.ip, null);
