@@ -60,14 +60,23 @@ export async function putBinary(
   if (!res.ok) throw new Error(`r2_put_failed_${res.status}`);
 }
 
-export async function getBinary(key: string): Promise<({ body: ArrayBuffer; contentType: string } & BinaryMeta) | null> {
+// `body` diteruskan sbg STREAM (bukan `await res.arrayBuffer()`) -- binary installer Agent
+// ~100-120MB, buffer-penuh-dulu bikin route penunggu diam berdetik-detik (narik seluruh file
+// dari R2 ke memori server) SEBELUM byte pertama nyampe browser: progress bar download browser
+// gak muncul sampai transfer server<->R2 kelar semua, kelihatan kayak "nggak kejadian apa-apa".
+// Streaming: route pipe body ini langsung ke NextResponse, byte pertama nyampe browser begitu
+// R2 mulai kirim. Cuma dipakai satu-satunya konsumen (binary download route) -- tak ada
+// konsumen lain yang butuh varian buffered.
+export async function getBinary(key: string): Promise<({ body: ReadableStream<Uint8Array>; contentType: string; contentLength: number | null } & BinaryMeta) | null> {
   const { client, url } = clientAndUrl(key);
   const res = await client.fetch(url, { method: "GET" });
   if (res.status === 404) return null;
   if (!res.ok) throw new Error(`r2_get_failed_${res.status}`);
+  const contentLengthHeader = res.headers.get("content-length");
   return {
-    body: await res.arrayBuffer(),
+    body: res.body as ReadableStream<Uint8Array>,
     contentType: res.headers.get("content-type") ?? "application/octet-stream",
+    contentLength: contentLengthHeader ? Number(contentLengthHeader) : null,
     version: res.headers.get("x-amz-meta-version") ?? undefined,
     commitHash: res.headers.get("x-amz-meta-commit") ?? undefined,
   };

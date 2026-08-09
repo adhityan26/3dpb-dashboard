@@ -44,6 +44,9 @@ export async function GET(_req: Request, ctx: { params: Promise<{ platform: stri
       "Content-Disposition": `attachment; filename="${filename}"`,
       "Cache-Control": "private, max-age=60",
       "X-Content-Type-Options": "nosniff",
+      // Tanpa ini browser tak tahu ukuran total di muka -- progress bar download jadi
+      // indeterminate (cuma spinner) walau stream-nya sendiri sudah lancar dari awal.
+      ...(obj.contentLength !== null ? { "Content-Length": String(obj.contentLength) } : {}),
     },
   });
 }

@@ -69,15 +69,34 @@ describe("putBinary/getBinary (aset installer Agent, bucket sama-prefix beda)", 
     expect(init.headers["Content-Type"]).toBe("application/x-msdownload");
   });
 
-  it("getBinary kembalikan body + contentType", async () => {
+  it("getBinary kembalikan body sbg STREAM (bukan buffer penuh) + contentType + contentLength -- biar route bisa pipe langsung ke browser tanpa nunggu seluruh file (~100MB+) selesai ditarik dari R2 dulu (progress bar browser muncul dari awal)", async () => {
+    const fakeStream = { locked: false }; // stand-in ReadableStream, cuma dicek diteruskan apa adanya
     fetchMock.mockResolvedValue({
       ok: true, status: 200,
-      arrayBuffer: async () => new ArrayBuffer(5),
-      headers: { get: (h: string) => (h.toLowerCase() === "content-type" ? "application/x-msdownload" : null) },
+      body: fakeStream,
+      headers: {
+        get: (h: string) => {
+          const k = h.toLowerCase();
+          if (k === "content-type") return "application/x-msdownload";
+          if (k === "content-length") return "5242880";
+          return null;
+        },
+      },
     });
     const out = await getBinary("agent/latest/win.exe");
     expect(out?.contentType).toBe("application/x-msdownload");
-    expect(out?.body.byteLength).toBe(5);
+    expect(out?.body).toBe(fakeStream);
+    expect(out?.contentLength).toBe(5242880);
+  });
+
+  it("getBinary contentLength null kalau header content-length tak ada", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true, status: 200,
+      body: {},
+      headers: { get: () => null },
+    });
+    const out = await getBinary("agent/latest/win.exe");
+    expect(out?.contentLength).toBeNull();
   });
 
   it("getBinary null bila 404 (belum pernah di-upload admin)", async () => {

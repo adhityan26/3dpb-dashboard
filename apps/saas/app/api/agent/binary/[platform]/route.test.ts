@@ -75,6 +75,20 @@ describe("GET /api/agent/binary/[platform]", () => {
     expect(res.headers.get("Content-Disposition")).toBe('attachment; filename="Slizebiz-Agent-0.0.1-a3f9c21.dmg"');
   });
 
+  it("kirim header Content-Length kalau R2 kasih contentLength -- browser bisa tampilkan progress bar bukan cuma spinner indeterminate", async () => {
+    loginAs(true);
+    (getBinary as any).mockResolvedValue({ body: new ArrayBuffer(4), contentType: "application/x-msdownload", contentLength: 5242880 });
+    const res = await GET(req(), { params: Promise.resolve({ platform: "win" }) });
+    expect(res.headers.get("Content-Length")).toBe("5242880");
+  });
+
+  it("contentLength null (R2 gak kasih header) -- Content-Length dilewatkan, bukan dikirim '0'/'null' yang salah", async () => {
+    loginAs(true);
+    (getBinary as any).mockResolvedValue({ body: new ArrayBuffer(4), contentType: "application/x-msdownload", contentLength: null });
+    const res = await GET(req(), { params: Promise.resolve({ platform: "win" }) });
+    expect(res.headers.get("Content-Length")).toBeNull();
+  });
+
   it("404 binary_not_uploaded kalau admin belum pernah upload (getBinary null)", async () => {
     loginAs(true);
     (getBinary as any).mockResolvedValue(null);
