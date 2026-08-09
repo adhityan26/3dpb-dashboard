@@ -43,16 +43,27 @@ function buildAuthHeaders(): Record<string, string> {
   return token ? { Authorization: `Bearer ${token}` } : {}
 }
 
+/** Optional B&W footprint image (black = casing footprint) — overrides config.flooring_shape server-side. */
+export interface FlooringImage {
+  buffer: Buffer
+  filename: string
+}
+
 /** Build a multipart FormData with an image buffer + JSON config blob. */
 function buildFormData(
   imageBuffer: Buffer,
   imageFilename: string,
   configJson: object,
+  flooringImage?: FlooringImage,
 ): FormData {
   const form = new FormData()
   const blob = new Blob([new Uint8Array(imageBuffer)])
   form.append("image", blob, imageFilename)
   form.append("config_json", JSON.stringify(stripForStlService(configJson)))
+  if (flooringImage) {
+    const flooringBlob = new Blob([new Uint8Array(flooringImage.buffer)])
+    form.append("flooring_image", flooringBlob, flooringImage.filename)
+  }
   return form
 }
 
@@ -61,8 +72,9 @@ export async function stlGenerate(
   imageBuffer: Buffer,
   imageFilename: string,
   config: object,
+  flooringImage?: FlooringImage,
 ): Promise<Buffer> {
-  const form = buildFormData(imageBuffer, imageFilename, config)
+  const form = buildFormData(imageBuffer, imageFilename, config, flooringImage)
   const res = await fetch(`${getServiceUrl()}/generate`, {
     method: "POST",
     headers: buildAuthHeaders(),
@@ -80,8 +92,9 @@ export async function stlPreview(
   imageBuffer: Buffer,
   imageFilename: string,
   config: object,
+  flooringImage?: FlooringImage,
 ): Promise<Buffer> {
-  const form = buildFormData(imageBuffer, imageFilename, config)
+  const form = buildFormData(imageBuffer, imageFilename, config, flooringImage)
   const res = await fetch(`${getServiceUrl()}/preview`, {
     method: "POST",
     headers: buildAuthHeaders(),
@@ -99,8 +112,9 @@ export async function stlCheckIslands(
   imageBuffer: Buffer,
   imageFilename: string,
   config: object = {},
+  flooringImage?: FlooringImage,
 ): Promise<{ has_floating_islands: boolean }> {
-  const form = buildFormData(imageBuffer, imageFilename, config)
+  const form = buildFormData(imageBuffer, imageFilename, config, flooringImage)
   const res = await fetch(`${getServiceUrl()}/check-islands`, {
     method: "POST",
     headers: buildAuthHeaders(),

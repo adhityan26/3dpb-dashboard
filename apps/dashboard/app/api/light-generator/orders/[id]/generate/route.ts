@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { downloadFromMinio, uploadToMinio } from "@/lib/lg-storage"
 import { stlGenerate } from "@/lib/stl-service"
+import { MissingFlooringImageError, resolveFlooringImage } from "@/lib/light-generator/flooring-image"
 import { NextRequest, NextResponse } from "next/server"
 
 export async function POST(
@@ -26,8 +27,16 @@ export async function POST(
     // 2. Parse effective config (operator override if set, else customer config)
     const configJson = JSON.parse(order.configJsonOperator ?? order.configJson) as object
 
+    // 2b. Custom flooring shape → fetch the order's floor-insert image and let
+    // the STL service override flooring_shape with it. Strip the literal
+    // "custom" string — the generator doesn't understand it.
+    const { config: effectiveConfig, flooringImage } = await resolveFlooringImage(
+      configJson,
+      order.additionalImagePath,
+    )
+
     // 3. Call STL service
-    const stlBytes = await stlGenerate(imageBuffer, filename, configJson)
+    const stlBytes = await stlGenerate(imageBuffer, filename, effectiveConfig, flooringImage)
 
     // 4. Upload STL to MinIO
     const stlKey = `orders/${id}/casing.stl`
@@ -43,6 +52,9 @@ export async function POST(
   } catch (err) {
     // Reset status on failure
     await prisma.lightGeneratorOrder.update({ where: { id }, data: { status: "paid" } })
+    if (err instanceof MissingFlooringImageError) {
+      return NextResponse.json({ error: err.message }, { status: 400 })
+    }
     const msg = err instanceof Error ? err.message : "Generation failed"
     return NextResponse.json({ error: msg }, { status: 500 })
   }
