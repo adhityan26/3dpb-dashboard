@@ -148,6 +148,8 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
   const [ratioH, setRatioH] = useState(shapeParsed.h)
 
   const [showJson, setShowJson] = useState(false)
+  const [jsonDraft, setJsonDraft] = useState("")
+  const [jsonError, setJsonError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<string | null>(null)
 
@@ -211,6 +213,31 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
       ? "circle"
       : needsR ? `${shapeBase}:${ratioW}:${ratioH}` : shapeBase
     return config
+  }
+
+  function applyJsonDraft() {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(jsonDraft)
+    } catch (err) {
+      setJsonError(`JSON tidak valid: ${err instanceof Error ? err.message : String(err)}`)
+      return
+    }
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      setJsonError("JSON harus berupa object { … }")
+      return
+    }
+    const incoming = parsed as Record<string, unknown>
+    // Merge over current values so a partial paste only overrides given keys
+    const next = { ...values, ...incoming }
+    setValues(next)
+    const sp = parseShape(next.flooring_shape)
+    setShapeBase(sp.base)
+    setRatioW(sp.w)
+    setRatioH(sp.h)
+    notifyChange(next, sp.base, sp.w, sp.h)
+    setJsonError(null)
+    setFeedback("✅ JSON applied — review lalu Save untuk menyimpan")
   }
 
   async function saveConfig(): Promise<boolean> {
@@ -491,15 +518,39 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
           <Button variant="outline" size="sm" onClick={handleReset} disabled={isPending}>
             Reset to customer defaults
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setShowJson(!showJson)}>
-            {showJson ? "Hide JSON" : "Show raw JSON"}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (!showJson) setJsonDraft(JSON.stringify(buildCurrentConfig(), null, 2))
+              setJsonError(null)
+              setShowJson(!showJson)
+            }}
+          >
+            {showJson ? "Hide JSON" : "Edit raw JSON"}
           </Button>
         </div>
 
         {showJson && (
-          <pre className="bg-muted overflow-auto rounded-lg p-3 text-xs">
-            {JSON.stringify(buildCurrentConfig(), null, 2)}
-          </pre>
+          <div className="space-y-2">
+            <textarea
+              value={jsonDraft}
+              onChange={(e) => { setJsonDraft(e.currentTarget.value); setJsonError(null) }}
+              spellCheck={false}
+              rows={Math.min(24, jsonDraft.split("\n").length + 1)}
+              className="bg-muted w-full resize-y overflow-auto rounded-lg p-3 font-mono text-xs"
+              aria-label="Raw config JSON"
+            />
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={applyJsonDraft}>
+                Apply JSON
+              </Button>
+              <p className="text-muted-foreground text-[11px]">
+                Paste a full or partial config — known parameter keys override the form values above.
+              </p>
+            </div>
+            {jsonError && <p className="text-sm text-red-500">❌ {jsonError}</p>}
+          </div>
         )}
       </CardContent>
     </Card>

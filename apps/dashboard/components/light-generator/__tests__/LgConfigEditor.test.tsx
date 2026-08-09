@@ -38,3 +38,10 @@ describe('LgConfigEditor bottom frame', () => {
     expect(html).toContain('Bottom frame height')
   })
 })
+
+describe('LgConfigEditor raw JSON editor', () => {
+  it('renders the Edit raw JSON toggle', () => {
+    const html = render({})
+    expect(html).toContain('Edit raw JSON')
+  })
+})
