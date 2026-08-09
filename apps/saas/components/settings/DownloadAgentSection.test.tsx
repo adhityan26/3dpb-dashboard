@@ -14,6 +14,19 @@ afterEach(() => {
   setUserAgent(WIN_UA);
 });
 
+describe("DownloadAgentSection build id (versi+commit hash yang lagi ke-host di R2)", () => {
+  it("buildId diisi -> tampilkan teks build tersedia", async () => {
+    render(<DownloadAgentSection buildId="0.0.1+a3f9c21" />);
+    await waitFor(() => expect(screen.getByText(/0\.0\.1\+a3f9c21/)).toBeTruthy());
+  });
+
+  it("buildId null/tak diisi -> tak ada teks build yang tampil (mis. admin belum pernah upload)", async () => {
+    render(<DownloadAgentSection />);
+    await waitFor(() => expect(screen.getByText(/download untuk/i)).toBeTruthy());
+    expect(screen.queryByText(/build tersedia/i)).toBeNull();
+  });
+});
+
 describe("DownloadAgentSection deteksi OS", () => {
   it("UA Mac -> tombol utama 'Download untuk macOS', toggle nawarin Windows", async () => {
     setUserAgent(MAC_UA);

@@ -61,6 +61,20 @@ describe("GET /api/agent/binary/[platform]", () => {
     expect(res.headers.get("Content-Disposition")).toBe('attachment; filename="Slizebiz-Agent.dmg"');
   });
 
+  it("200 + metadata version/commit ada -- nama file dinamis bawa versi+hash (bukan nama generik)", async () => {
+    loginAs(true);
+    (getBinary as any).mockResolvedValue({ body: new ArrayBuffer(4), contentType: "application/x-msdownload", version: "0.0.1", commitHash: "a3f9c21" });
+    const res = await GET(req(), { params: Promise.resolve({ platform: "win" }) });
+    expect(res.headers.get("Content-Disposition")).toBe('attachment; filename="Slizebiz-Agent-Setup-0.0.1-a3f9c21.exe"');
+  });
+
+  it("mac + metadata -- nama file dinamis pakai pola mac juga", async () => {
+    loginAs(true);
+    (getBinary as any).mockResolvedValue({ body: new ArrayBuffer(4), contentType: "application/x-apple-diskimage", version: "0.0.1", commitHash: "a3f9c21" });
+    const res = await GET(new Request("http://x/api/agent/binary/mac"), { params: Promise.resolve({ platform: "mac" }) });
+    expect(res.headers.get("Content-Disposition")).toBe('attachment; filename="Slizebiz-Agent-0.0.1-a3f9c21.dmg"');
+  });
+
   it("404 binary_not_uploaded kalau admin belum pernah upload (getBinary null)", async () => {
     loginAs(true);
     (getBinary as any).mockResolvedValue(null);

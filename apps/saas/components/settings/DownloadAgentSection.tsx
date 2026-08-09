@@ -43,8 +43,14 @@ const OS_META: Record<Os, { label: string; href: string; icon: React.ReactNode }
  *
  * Sengaja "latest only", tak ada histori versi/pilihan admin (lihat percakapan brainstorm) --
  * admin overwrite manual key R2 tiap ada build baru.
+ *
+ * `buildId` (mis. "0.0.1+a3f9c21") = versi+commit hash dari binary yang LAGI ke-host di R2
+ * saat ini (dibaca server-side dari metadata R2 via headBinary, app/settings/page.tsx) --
+ * selama staging versi tak pernah naik tiap rebuild, jadi ini yang bikin user tahu SEBELUM
+ * download build mana yang bakal didapat. `undefined`/`null` (belum pernah admin upload,
+ * atau upload lama sebelum fitur ini ada) -> baris ini disembunyikan sama sekali.
  */
-export function DownloadAgentSection() {
+export function DownloadAgentSection({ buildId }: { buildId?: string | null } = {}) {
   const [mounted, setMounted] = useState(false);
   const [detected, setDetected] = useState<Os>("win");
   const [showOther, setShowOther] = useState(false);
@@ -64,6 +70,12 @@ export function DownloadAgentSection() {
       <p className="text-[12px] g-t4 mb-3">
         Aplikasi desktop buat pasangkan &amp; monitor printer -- perlu token di atas buat aktivasi.
       </p>
+
+      {buildId && (
+        <p className="text-[11px] g-t4 mb-2">
+          Build tersedia saat ini: <span className="font-mono">{buildId}</span>
+        </p>
+      )}
 
       <a
         href={primary.href}

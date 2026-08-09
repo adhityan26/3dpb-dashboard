@@ -29,11 +29,22 @@ export type PatchDeviceModelResult =
 // yang tak terdeklarasi sama sekali.
 declare const __SAAS_BASE_URL__: string | undefined;
 declare const __AGENT_VERSION__: string | undefined;
+declare const __AGENT_COMMIT_HASH__: string | undefined;
 
 const BUILD_TIME_BASE_URL = typeof __SAAS_BASE_URL__ === "string" ? __SAAS_BASE_URL__ : "";
 // "0.0.0" di luar build (vitest/tsx) -- sama alasannya dengan BUILD_TIME_BASE_URL, identifier
 // __AGENT_VERSION__ diganti Vite `define` cuma saat build sungguhan.
 const AGENT_VERSION = typeof __AGENT_VERSION__ === "string" ? __AGENT_VERSION__ : "0.0.0";
+// "nogit" = fallback yang sama alasannya (di luar build sungguhan, atau git tak tersedia
+// saat build -- lihat electron.vite.config.ts).
+const AGENT_COMMIT_HASH = typeof __AGENT_COMMIT_HASH__ === "string" ? __AGENT_COMMIT_HASH__ : "nogit";
+
+// Gaya semver build-metadata ("+hash"). Dikirim lewat header X-Agent-Version YANG SUDAH ADA
+// (bukan header baru) -- backend (AgentToken.agentVersion) otomatis simpan versi+commit tanpa
+// migrasi schema. Selama fase staging versi package.json tak pernah naik tiap rebuild (butuh
+// konfirmasi eksplisit user), jadi commit hash-lah yang bedain "build yang saya test barusan"
+// dari build sebelumnya.
+const AGENT_BUILD_ID = `${AGENT_VERSION}+${AGENT_COMMIT_HASH}`;
 
 /**
  * Env var runtime menang (buat test + debugging/self-host), fallback ke nilai build-time.
@@ -54,7 +65,7 @@ const FETCH_TIMEOUT_MS = 5_000;
 export async function fetchDevices(token: string): Promise<FetchResult<SaasDevice[]>> {
   try {
     const res = await fetch(`${saasBaseUrl()}/api/agent/devices`, {
-      headers: { Authorization: `Bearer ${token}`, "X-Agent-Version": AGENT_VERSION },
+      headers: { Authorization: `Bearer ${token}`, "X-Agent-Version": AGENT_BUILD_ID },
       signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
     });
     if (res.status === 401) return { ok: false, kind: "invalid_token" };

@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { GlassCard } from "@3pb/ui";
+import { AGENT_BUILD_ID } from "./lib/build-info";
 
 export function AgentShell({
   children,
@@ -21,6 +22,9 @@ export function AgentShell({
           Finding 2). */}
       <img src="./logo.svg" alt="Slizebiz" className="h-8 mb-6" />
       <GlassCard className={`w-full ${maxWidth} p-6`}>{children}</GlassCard>
+      {/* Selama staging versi package.json tak pernah naik tiap rebuild -- ini satu-satunya
+          cara user tahu persis build mana yang lagi ke-install (lihat build-info.ts). */}
+      <p className="mt-3 text-[10px] g-t4 opacity-60">v{AGENT_BUILD_ID}</p>
     </div>
   );
 }

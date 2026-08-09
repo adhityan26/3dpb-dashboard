@@ -6,10 +6,13 @@ import { getBinary } from "@/lib/storage/r2";
  * "Latest only" (spec: tak ada histori versi/panel admin pilih versi -- lihat percakapan) --
  * admin overwrite key ini manual tiap ada build baru. Key/Content-Type/filename dipetakan di
  * sini (bukan diterima dari URL) supaya user tak bisa minta path R2 sembarangan.
+ * `filenameBase`/`ext` dipakai buat susun nama file dinamis "Nama-versi-hash.ext" kalau R2
+ * object punya metadata version+commitHash (lihat putBinary); `fallbackFilename` dipakai
+ * kalau binary di-upload SEBELUM fitur commit-hash ada (belum punya metadata sama sekali).
  */
-const BINARIES: Record<string, { key: string; contentType: string; filename: string }> = {
-  win: { key: "agent/latest/win.exe", contentType: "application/x-msdownload", filename: "Slizebiz-Agent-Setup.exe" },
-  mac: { key: "agent/latest/mac.dmg", contentType: "application/x-apple-diskimage", filename: "Slizebiz-Agent.dmg" },
+const BINARIES: Record<string, { key: string; contentType: string; filenameBase: string; ext: string; fallbackFilename: string }> = {
+  win: { key: "agent/latest/win.exe", contentType: "application/x-msdownload", filenameBase: "Slizebiz-Agent-Setup", ext: "exe", fallbackFilename: "Slizebiz-Agent-Setup.exe" },
+  mac: { key: "agent/latest/mac.dmg", contentType: "application/x-apple-diskimage", filenameBase: "Slizebiz-Agent", ext: "dmg", fallbackFilename: "Slizebiz-Agent.dmg" },
 };
 
 export async function GET(_req: Request, ctx: { params: Promise<{ platform: string }> }) {
@@ -30,11 +33,15 @@ export async function GET(_req: Request, ctx: { params: Promise<{ platform: stri
   }
   if (!obj) return NextResponse.json({ error: "binary_not_uploaded" }, { status: 404 });
 
+  const filename = obj.version && obj.commitHash
+    ? `${meta.filenameBase}-${obj.version}-${obj.commitHash}.${meta.ext}`
+    : meta.fallbackFilename;
+
   return new NextResponse(obj.body, {
     status: 200,
     headers: {
       "Content-Type": meta.contentType,
-      "Content-Disposition": `attachment; filename="${meta.filename}"`,
+      "Content-Disposition": `attachment; filename="${filename}"`,
       "Cache-Control": "private, max-age=60",
       "X-Content-Type-Options": "nosniff",
     },

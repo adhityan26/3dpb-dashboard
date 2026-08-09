@@ -5,7 +5,7 @@ vi.mock("aws4fetch", () => ({
   AwsClient: class { fetch = (...a: unknown[]) => fetchMock(...a); },
 }));
 
-import { r2Config, putProof, getProof, putBinary, getBinary, R2NotConfigured } from "./r2";
+import { r2Config, putProof, getProof, putBinary, getBinary, headBinary, R2NotConfigured } from "./r2";
 
 const ENV = { ...process.env };
 beforeEach(() => {
@@ -83,5 +83,76 @@ describe("putBinary/getBinary (aset installer Agent, bucket sama-prefix beda)", 
   it("getBinary null bila 404 (belum pernah di-upload admin)", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 404 });
     expect(await getBinary("agent/latest/mac.dmg")).toBeNull();
+  });
+
+  it("putBinary kirim metadata version+commitHash sbg header x-amz-meta-*", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200 });
+    await putBinary("agent/latest/win.exe", new Uint8Array([1]), "application/x-msdownload", { version: "0.0.1", commitHash: "a3f9c21" });
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers["x-amz-meta-version"]).toBe("0.0.1");
+    expect(init.headers["x-amz-meta-commit"]).toBe("a3f9c21");
+  });
+
+  it("putBinary tanpa metadata -- tak kirim header x-amz-meta-* sama sekali", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200 });
+    await putBinary("agent/latest/win.exe", new Uint8Array([1]), "application/x-msdownload");
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.headers["x-amz-meta-version"]).toBeUndefined();
+    expect(init.headers["x-amz-meta-commit"]).toBeUndefined();
+  });
+
+  it("getBinary ikut baca metadata version+commitHash dari response header (buat nama file dinamis di route)", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true, status: 200,
+      arrayBuffer: async () => new ArrayBuffer(5),
+      headers: {
+        get: (h: string) => {
+          const k = h.toLowerCase();
+          if (k === "content-type") return "application/x-msdownload";
+          if (k === "x-amz-meta-version") return "0.0.1";
+          if (k === "x-amz-meta-commit") return "a3f9c21";
+          return null;
+        },
+      },
+    });
+    const out = await getBinary("agent/latest/win.exe");
+    expect(out?.version).toBe("0.0.1");
+    expect(out?.commitHash).toBe("a3f9c21");
+  });
+});
+
+describe("headBinary (metadata-only, tanpa download body -- dipakai halaman Settings)", () => {
+  it("kembalikan version+commitHash dari header x-amz-meta-* via HEAD request", async () => {
+    fetchMock.mockResolvedValue({
+      ok: true, status: 200,
+      headers: {
+        get: (h: string) => {
+          const k = h.toLowerCase();
+          if (k === "x-amz-meta-version") return "0.0.1";
+          if (k === "x-amz-meta-commit") return "a3f9c21";
+          return null;
+        },
+      },
+    });
+    const out = await headBinary("agent/latest/win.exe");
+    expect(out).toEqual({ version: "0.0.1", commitHash: "a3f9c21" });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://acc123.r2.cloudflarestorage.com/slizebiz-proofs/agent/latest/win.exe");
+    expect(init.method).toBe("HEAD");
+  });
+
+  it("null bila 404 (belum pernah di-upload)", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 404 });
+    expect(await headBinary("agent/latest/mac.dmg")).toBeNull();
+  });
+
+  it("throw bila respons error selain 404 (mis. R2 down)", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 500 });
+    await expect(headBinary("agent/latest/win.exe")).rejects.toThrow();
+  });
+
+  it("binary lama (upload sebelum fitur commit-hash ada) -- tak ada metadata header sama sekali", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, headers: { get: () => null } });
+    expect(await headBinary("agent/latest/win.exe")).toEqual({});
   });
 });

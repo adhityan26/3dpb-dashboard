@@ -42,6 +42,12 @@ function run(cmd, opts = {}) {
   execSync(cmd, { stdio: "inherit", cwd: agentRoot, ...opts });
 }
 
+// Commit hash git buat penamaan installer (electron-builder.yml's artifactName) & footer
+// dalam-app (via electron.vite.config.ts) -- selama fase staging versi package.json tak
+// pernah naik tiap rebuild (butuh konfirmasi eksplisit user), jadi ini satu-satunya cara
+// bedain "build yang saya test barusan" dari build sebelumnya.
+const commitHash = execSync("git rev-parse --short HEAD", { cwd: repoRoot }).toString().trim();
+
 // 1. Build renderer/main/preload as usual (SAAS_BASE_URL override, if set,
 //    flows through electron.vite.config.ts's existing `define` as before).
 run("electron-vite build");
@@ -75,8 +81,11 @@ appendFileSync(deployConfigPath, `electronVersion: ${electronPkg.version}\n`);
 
 // 5. Package. electron-builder resolves its own binary from `agentRoot`'s
 //    devDependencies (run with agentRoot as cwd), but packages the app
-//    found at --projectDir.
-run(`npx electron-builder ${platformFlag} --projectDir "${deployDir}"`);
+//    found at --projectDir. COMMIT_HASH env var feeds electron-builder.yml's
+//    artifactName template (${env.COMMIT_HASH}).
+run(`npx electron-builder ${platformFlag} --projectDir "${deployDir}"`, {
+  env: { ...process.env, COMMIT_HASH: commitHash },
+});
 
 // 6. Copy the finished installer(s) back to apps/agent/release/, the
 //    conventional/expected output location (matches `pack`/`dist` scripts).
@@ -116,4 +125,4 @@ if (existsSync(NAS_DIR)) {
 //    lingering copy in the first place).
 rmSync(deployDir, { recursive: true, force: true });
 
-console.log(`\nInstaller ready: ${releaseOut}`);
+console.log(`\nInstaller ready: ${releaseOut} (commit ${commitHash})`);
