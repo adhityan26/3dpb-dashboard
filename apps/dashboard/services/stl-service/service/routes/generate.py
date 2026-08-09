@@ -14,7 +14,7 @@ from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from service.auth import require_bearer_token
-from service.schemas import GeneratorConfig
+from service.schemas import GeneratorConfig, assert_flooring_shape_has_upload
 
 # scripts/ is not a package — add it to sys.path before import
 _SCRIPTS_DIR = Path(__file__).resolve().parent.parent.parent / "scripts"
@@ -49,6 +49,10 @@ _generate_lock = asyncio.Lock()
 async def generate(
     image: UploadFile = File(..., description="Silhouette image (PNG/JPG)"),
     config_json: str = Form("{}", description="GeneratorConfig fields as JSON"),
+    flooring_image: UploadFile | None = File(
+        default=None,
+        description="Optional B&W footprint image (black = casing footprint)",
+    ),
 ) -> Response:
     """Run the full mesh build and return the STL bytes.
 
@@ -79,7 +83,22 @@ async def generate(
             detail=f"Unsupported image type: {suffix}",
         )
 
+    flooring_suffix = None
+    if flooring_image is not None:
+        flooring_suffix = Path(flooring_image.filename or "flooring.png").suffix.lower() or ".png"
+        if flooring_suffix not in {".png", ".jpg", ".jpeg", ".webp", ".bmp"}:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported flooring_image type: {flooring_suffix}",
+            )
+
+    try:
+        assert_flooring_shape_has_upload(validated.flooring_shape, flooring_image is not None)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
     image_bytes = await image.read()
+    flooring_bytes = await flooring_image.read() if flooring_image is not None else None
 
     # ── Run the generator inside a temp dir, capture stdout ─────────────
     log_buf = io.StringIO()
@@ -87,6 +106,11 @@ async def generate(
         tmp = Path(tmpdir)
         input_path = tmp / f"input{suffix}"
         input_path.write_bytes(image_bytes)
+
+        flooring_path = None
+        if flooring_bytes is not None:
+            flooring_path = tmp / f"flooring{flooring_suffix}"
+            flooring_path.write_bytes(flooring_bytes)
 
         out_stl = tmp / "casing.stl"
         out_debug = tmp / "debug.png"
@@ -100,6 +124,8 @@ async def generate(
             'merged_builder': True,
             **validated.model_dump(exclude_none=True),
         }
+        if flooring_path is not None:
+            gen_kwargs['flooring_shape'] = str(flooring_path)
 
         def _run_generator():
             with contextlib.redirect_stdout(log_buf):

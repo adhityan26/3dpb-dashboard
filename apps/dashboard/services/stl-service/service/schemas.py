@@ -90,3 +90,32 @@ class HealthResponse(BaseModel):
     status: Literal["ok"]
     service: Literal["stl-service"]
     version: str
+
+
+# Parametric shape keywords accepted by resolve_flooring_shape() in
+# scripts/generate_shadow_casing.py (base name before any ":ratio" suffix).
+_BASIC_FLOORING_SHAPES = {"circle", "square", "triangle", "rect", "oval"}
+
+
+def is_basic_flooring_shape(flooring_shape: Optional[str]) -> bool:
+    """True if flooring_shape is empty/None or one of the parametric keywords
+    (optionally with a ":W:H" ratio suffix), i.e. it does NOT look like a file path."""
+    if not flooring_shape or not flooring_shape.strip():
+        return True
+    base = flooring_shape.strip().lower().split(":")[0]
+    return base in _BASIC_FLOORING_SHAPES
+
+
+def assert_flooring_shape_has_upload(
+    flooring_shape: Optional[str], has_flooring_image: bool
+) -> None:
+    """Guard against path injection / dangling paths: a non-basic flooring_shape
+    (i.e. something that looks like a file path) is only valid when the caller
+    also uploaded a flooring_image file — the route overrides flooring_shape
+    with the path to that upload. Raises ValueError if the guard is violated."""
+    if not is_basic_flooring_shape(flooring_shape) and not has_flooring_image:
+        raise ValueError(
+            "config.flooring_shape is not a basic shape "
+            "(circle/square/triangle/rect[:W:H]/oval[:W:H]) and no flooring_image "
+            "file was uploaded — refusing to use it as a path"
+        )
