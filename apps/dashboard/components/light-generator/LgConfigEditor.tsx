@@ -27,6 +27,8 @@ interface LgConfigEditorProps {
   operatorConfig: Record<string, unknown> | null
   onConfigChange?: (config: Record<string, unknown>) => void
   onReset?: () => void
+  /** Whether the order already has a floor-insert image (order.additionalImagePath). */
+  hasFlooringImage?: boolean
 }
 
 interface ParamDef {
@@ -46,6 +48,7 @@ const SHAPE_OPTIONS = [
   { value: "triangle", label: "Triangle" },
   { value: "rect",     label: "Rectangle" },
   { value: "oval",     label: "Oval" },
+  { value: "custom",   label: "Custom (silhouette image)" },
 ]
 
 const COVER_OPTIONS = [
@@ -138,7 +141,7 @@ function parseShape(raw: unknown): { base: string; w: string; h: string } {
   return { base: s || "circle", w: "3", h: "4" }
 }
 
-export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConfigChange, onReset }: LgConfigEditorProps) {
+export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConfigChange, onReset, hasFlooringImage = false }: LgConfigEditorProps) {
   const merged = { ...customerConfig, ...(operatorConfig ?? {}) }
   const [values, setValues] = useState<Record<string, unknown>>(merged)
 
@@ -152,8 +155,35 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
   const [jsonError, setJsonError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [flooringUploaded, setFlooringUploaded] = useState(hasFlooringImage)
+  const [flooringUploadPending, setFlooringUploadPending] = useState(false)
+  const [flooringUploadError, setFlooringUploadError] = useState<string | null>(null)
 
   const needsRatio = shapeBase === "rect" || shapeBase === "oval"
+  const isCustomShape = shapeBase === "custom"
+
+  async function handleFlooringImageUpload(file: File) {
+    setFlooringUploadError(null)
+    setFlooringUploadPending(true)
+    try {
+      const form = new FormData()
+      form.append("file", file)
+      const res = await fetch(`/api/light-generator/orders/${orderId}/additional`, {
+        method: "PUT",
+        body: form,
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setFlooringUploadError(body.error ?? res.statusText)
+        return
+      }
+      setFlooringUploaded(true)
+    } catch (err) {
+      setFlooringUploadError(String(err))
+    } finally {
+      setFlooringUploadPending(false)
+    }
+  }
 
   const coverType = values.cover_type === "top" ? "top" : "bottom"
 
@@ -339,6 +369,32 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
                       onChange={(e) => { setRatioH(e.currentTarget.value); notifyChange(values, shapeBase, ratioW, e.currentTarget.value) }}
                       className="h-8" />
                   </div>
+                </div>
+              )}
+              {isCustomShape && (
+                <div className="space-y-2 pt-1">
+                  <p className="text-muted-foreground text-[11px]">
+                    Hitam = footprint casing. Order customer dengan floor insert image sudah otomatis terisi.
+                  </p>
+                  {flooringUploaded ? (
+                    <p className="text-xs text-green-600">✓ gambar flooring tersedia</p>
+                  ) : (
+                    <p className="text-xs text-amber-600">Belum ada gambar flooring untuk order ini</p>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept="image/png,image/jpeg"
+                      className="h-8 text-xs"
+                      disabled={flooringUploadPending}
+                      onChange={(e) => {
+                        const file = e.currentTarget.files?.[0]
+                        if (file) void handleFlooringImageUpload(file)
+                      }}
+                    />
+                  </div>
+                  {flooringUploadPending && <p className="text-muted-foreground text-[11px]">Mengupload...</p>}
+                  {flooringUploadError && <p className="text-xs text-red-500">❌ {flooringUploadError}</p>}
                 </div>
               )}
             </div>
