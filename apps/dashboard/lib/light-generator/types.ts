@@ -88,6 +88,7 @@ export const DEFAULT_LG_CONFIG = {
   bottom_frame: false,
   bottom_frame_height: 5,
   invert_mask: false,
+  auto_fit_mask: false,
   pillar_outer_r: 4,
   pillar_inner_r: 2.5,
   led_socket_height: 10,

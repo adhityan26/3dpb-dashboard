@@ -81,6 +81,7 @@ const SECTIONS: { title: string; params: ParamDef[] }[] = [
       { key: "floor_half_size",  label: "Floor half-size (mm)", help: "Half-width of the shadow projection area",          type: "number", min: 50,   max: 2000, step: 5 },
       { key: "shadow_offset_x",  label: "Shadow X offset (mm)", help: "Shift shadow on floor without distortion",          type: "number", min: -500, max: 500,  step: 1 },
       { key: "shadow_offset_y",  label: "Shadow Y offset (mm)", help: "Shift shadow on floor without distortion",          type: "number", min: -500, max: 500,  step: 1 },
+      { key: "auto_fit_mask",    label: "Auto-fit silhouette",  help: "Pad & center the image so nothing falls outside the circular projection area", type: "boolean" },
     ],
   },
   {
