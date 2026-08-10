@@ -4,6 +4,7 @@ import type { SyncResult } from "../../main/ipc";
 import { AgentShell } from "../AgentShell";
 import { GlassButton, GlassCard } from "@3pb/ui";
 import { getPrinterImage } from "../lib/printer-images";
+import { PrinterControls } from "../components/PrinterControls";
 
 /** Thumbnail asli kalau model (`p.type`) dikenal, fallback emoji generik kalau tidak. */
 function PrinterThumb({ model }: { model: string }) {
@@ -170,7 +171,7 @@ export function DashboardScreen({
                     tampil baris kosong. */}
                 {p.filename && <div className="g-t3 text-xs truncate">{p.filename}</div>}
               </div>
-              <span className={`flex-shrink-0 text-sm ${statusColorClass(p.state)}`}>
+              <span className={`flex-shrink-0 text-sm ${statusColorClass(p.error_message ? "error" : p.state)}`}>
                 {p.state} — {p.progress}%
               </span>
             </div>
@@ -183,6 +184,7 @@ export function DashboardScreen({
                 Nozzle {p.nozzle_temp}°C · Bed {p.bed_temp}°C
               </span>
             </div>
+            <PrinterControls deviceId={p.id} state={p.state} connector={p.connector} />
             {/* Percaya error_message non-kosong SAJA (bukan p.state === "error") -- backend
                 (state-store.ts) sekarang isi error_message juga utk kasus state="pause" dgn
                 print_error non-zero (Bambu genuinely error tapi lapor state PAUSE, bukan

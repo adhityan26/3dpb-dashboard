@@ -5,7 +5,7 @@ import { DashboardScreen } from "./DashboardScreen";
 
 beforeEach(() => {
   (globalThis as any).window.agentApi = {
-    getSnapshot: vi.fn().mockResolvedValue({ payload: [{ id: "abc1234567", name: "Printer A", type: "bambu", state: "running", progress: 45, remaining_min: 30, filename: "box.gcode", error_msg: "", last_seen: "2026-07-29T10:00:00Z", nozzle_temp: 219, bed_temp: 60 }] }),
+    getSnapshot: vi.fn().mockResolvedValue({ payload: [{ id: "abc1234567", name: "Printer A", type: "bambu", connector: "bambu", state: "running", progress: 45, remaining_min: 30, filename: "box.gcode", error_msg: "", last_seen: "2026-07-29T10:00:00Z", nozzle_temp: 219, bed_temp: 60 }] }),
     getBrokerInfo: vi.fn().mockResolvedValue({ ip: "192.168.1.100", port: 1883 }),
     sync: vi.fn().mockResolvedValue({ ok: true, deviceCount: 1 }),
   };
@@ -164,6 +164,34 @@ describe("DashboardScreen", () => {
     (window as any).agentApi.getBrokerInfo.mockRejectedValue(new Error("broker boom"));
     render(<DashboardScreen />);
     await waitFor(() => expect(screen.getByRole("button", { name: /^sync$/i })).toBeTruthy());
+  });
+
+  it("kartu printer render PrinterControls -- deviceId/state/connector dari payload dioper ke bawah", async () => {
+    (window as any).agentApi.getSnapshot.mockResolvedValue({
+      payload: [{ id: "abc1234567", name: "Printer A", type: "P1S", connector: "bambu", state: "running", progress: 45, remaining_min: 30, filename: "box.gcode", error_msg: "", error_message: "", last_seen: null, nozzle_temp: 219, bed_temp: 60 }],
+    });
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /^stop$/i })).toBeTruthy());
+    expect(screen.getByRole("button", { name: /pause/i })).toBeTruthy();
+    expect(screen.getByLabelText(/kecepatan print/i).tagName).toBe("SELECT");
+  });
+
+  it("state pause TAPI error_message ada -> badge status warna error, bukan info netral (kasus AMS habis/Uranus)", async () => {
+    (window as any).agentApi.getSnapshot.mockResolvedValue({
+      payload: [{ id: "abc1234567", name: "Printer A", type: "P1S", connector: "bambu", state: "pause", progress: 30, remaining_min: 10, filename: "box.gcode", error_msg: "x", error_message: "AMS filament ran out.", last_seen: null, nozzle_temp: 219, bed_temp: 60 }],
+    });
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText(/pause — 30%/i)).toBeTruthy());
+    expect(screen.getByText(/pause — 30%/i).className).toContain("g-error");
+  });
+
+  it("state pause TANPA error_message -> badge status tetap warna info netral (pause manual biasa, bukan regresi)", async () => {
+    (window as any).agentApi.getSnapshot.mockResolvedValue({
+      payload: [{ id: "abc1234567", name: "Printer A", type: "P1S", connector: "bambu", state: "pause", progress: 30, remaining_min: 10, filename: "box.gcode", error_msg: "", error_message: "", last_seen: null, nozzle_temp: 219, bed_temp: 60 }],
+    });
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText(/pause — 30%/i)).toBeTruthy());
+    expect(screen.getByText(/pause — 30%/i).className).toContain("g-info");
   });
 });
 
