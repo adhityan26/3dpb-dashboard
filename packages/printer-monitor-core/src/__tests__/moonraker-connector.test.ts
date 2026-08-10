@@ -72,3 +72,45 @@ describe('MoonrakerConnector', () => {
     expect(got[0]).toMatchObject({ state: 'running', progress: 50, nozzleTemp: 0, bedTemp: 0 })
   })
 })
+
+describe('MoonrakerConnector.sendCommand', () => {
+  it('pause -> POST /printer/print/pause', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 }))
+    const c = new MoonrakerConnector(gany, { fetchImpl: fetchImpl as unknown as typeof fetch })
+    const result = await c.sendCommand({ kind: 'pause' })
+    expect(result).toEqual({ ok: true })
+    expect(fetchImpl).toHaveBeenCalledWith('http://192.168.88.40/printer/print/pause', { method: 'POST' })
+  })
+
+  it('setSpeedPercent -> POST /printer/gcode/script dengan M220 S<persen>', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 200 }))
+    const c = new MoonrakerConnector(gany, { fetchImpl: fetchImpl as unknown as typeof fetch })
+    const result = await c.sendCommand({ kind: 'setSpeedPercent', percent: 120 })
+    expect(result).toEqual({ ok: true })
+    expect(fetchImpl).toHaveBeenCalledWith('http://192.168.88.40/printer/gcode/script', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: 'M220 S120' }),
+    })
+  })
+
+  it('respons non-2xx -> {ok:false, message berisi status code}', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 500 }))
+    const c = new MoonrakerConnector(gany, { fetchImpl: fetchImpl as unknown as typeof fetch })
+    const result = await c.sendCommand({ kind: 'stop' })
+    expect(result).toEqual({ ok: false, message: 'moonraker_500' })
+  })
+
+  it('fetch throw (network error) -> {ok:false, message dari error}', async () => {
+    const fetchImpl = vi.fn(async () => { throw new Error('ECONNREFUSED') })
+    const c = new MoonrakerConnector(gany, { fetchImpl: fetchImpl as unknown as typeof fetch })
+    const result = await c.sendCommand({ kind: 'resume' })
+    expect(result).toEqual({ ok: false, message: 'ECONNREFUSED' })
+  })
+
+  it('command kind yang tak didukung Moonraker (mis. setSpeedLevel, punya Bambu) -> unsupported_command', async () => {
+    const fetchImpl = vi.fn()
+    const c = new MoonrakerConnector(gany, { fetchImpl: fetchImpl as unknown as typeof fetch })
+    const result = await c.sendCommand({ kind: 'setSpeedLevel', level: 2 })
+    expect(result).toEqual({ ok: false, message: 'unsupported_command' })
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+})

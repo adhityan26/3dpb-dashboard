@@ -1,5 +1,5 @@
 import type { Connector } from '../engine'
-import type { DeviceConfig, NormalizedStatus } from '../types'
+import type { CommandResult, DeviceConfig, NormalizedStatus, PrinterCommand } from '../types'
 import { normalizeMoonraker } from '../normalize-moonraker'
 
 export interface MoonrakerConnectorOpts { pollIntervalMs?: number; fetchImpl?: typeof fetch }
@@ -41,6 +41,39 @@ export class MoonrakerConnector implements Connector {
     await tick()
     this.timer = setInterval(() => void tick(), this.opts.pollIntervalMs ?? 60_000)
   }
+  async sendCommand(cmd: PrinterCommand): Promise<CommandResult> {
+    const f = this.opts.fetchImpl ?? fetch
+    let url: string
+    let init: RequestInit
+    switch (cmd.kind) {
+      case 'pause':
+        url = `http://${this.device.ip}/printer/print/pause`
+        init = { method: 'POST' }
+        break
+      case 'resume':
+        url = `http://${this.device.ip}/printer/print/resume`
+        init = { method: 'POST' }
+        break
+      case 'stop':
+        url = `http://${this.device.ip}/printer/print/cancel`
+        init = { method: 'POST' }
+        break
+      case 'setSpeedPercent':
+        url = `http://${this.device.ip}/printer/gcode/script`
+        init = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: `M220 S${cmd.percent}` }) }
+        break
+      default:
+        return { ok: false, message: 'unsupported_command' }
+    }
+    try {
+      const res = await f(url, init)
+      if (!res.ok) return { ok: false, message: `moonraker_${res.status}` }
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : 'network_error' }
+    }
+  }
+
   async stop(): Promise<void> {
     if (this.timer) clearInterval(this.timer)
     this.timer = null

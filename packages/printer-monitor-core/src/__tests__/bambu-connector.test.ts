@@ -61,3 +61,65 @@ describe('BambuMqttConnector', () => {
     await c.stop()
   })
 })
+
+describe('BambuMqttConnector.sendCommand', () => {
+  it('pause -> publish command pause ke topic request', async () => {
+    const received: string[] = []
+    const sub = mqtt.connect(`mqtt://127.0.0.1:${port}`)
+    await new Promise<void>((res) => sub.on('connect', () => res()))
+    await sub.subscribeAsync('device/SER1/request')
+    sub.on('message', (_t, msg) => received.push(msg.toString()))
+
+    const c = new BambuMqttConnector(mars, { urlOverride: `mqtt://127.0.0.1:${port}` })
+    await c.start(() => {})
+    await new Promise((r) => setTimeout(r, 100))
+
+    const result = await c.sendCommand({ kind: 'pause' })
+    await new Promise((r) => setTimeout(r, 100))
+
+    expect(result).toEqual({ ok: true })
+    const pauseMsg = received.find((m) => JSON.parse(m).print?.command === 'pause')
+    expect(pauseMsg).toBeTruthy()
+
+    await c.stop()
+    sub.end()
+  })
+
+  it('setSpeedLevel -> command print_speed dengan param level (string)', async () => {
+    const received: string[] = []
+    const sub = mqtt.connect(`mqtt://127.0.0.1:${port}`)
+    await new Promise<void>((res) => sub.on('connect', () => res()))
+    await sub.subscribeAsync('device/SER1/request')
+    sub.on('message', (_t, msg) => received.push(msg.toString()))
+
+    const c = new BambuMqttConnector(mars, { urlOverride: `mqtt://127.0.0.1:${port}` })
+    await c.start(() => {})
+    await new Promise((r) => setTimeout(r, 100))
+
+    await c.sendCommand({ kind: 'setSpeedLevel', level: 3 })
+    await new Promise((r) => setTimeout(r, 100))
+
+    const speedMsg = received.find((m) => JSON.parse(m).print?.command === 'print_speed')
+    expect(speedMsg).toBeTruthy()
+    expect(JSON.parse(speedMsg!).print.param).toBe('3')
+
+    await c.stop()
+    sub.end()
+  })
+
+  it('belum connect -> {ok:false, message:"printer_offline"}, tak publish apa pun', async () => {
+    const c = new BambuMqttConnector(mars, { urlOverride: 'mqtt://127.0.0.1:1' })
+    const result = await c.sendCommand({ kind: 'stop' })
+    expect(result).toEqual({ ok: false, message: 'printer_offline' })
+    await c.stop()
+  })
+
+  it('command kind yang tak didukung Bambu (mis. setSpeedPercent, punya Moonraker) -> unsupported_command', async () => {
+    const c = new BambuMqttConnector(mars, { urlOverride: `mqtt://127.0.0.1:${port}` })
+    await c.start(() => {})
+    await new Promise((r) => setTimeout(r, 100))
+    const result = await c.sendCommand({ kind: 'setSpeedPercent', percent: 100 })
+    expect(result).toEqual({ ok: false, message: 'unsupported_command' })
+    await c.stop()
+  })
+})

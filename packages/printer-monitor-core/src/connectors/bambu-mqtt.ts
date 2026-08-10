@@ -1,6 +1,6 @@
 import mqtt, { type MqttClient } from 'mqtt'
 import type { Connector } from '../engine'
-import type { DeviceConfig, NormalizedStatus } from '../types'
+import type { CommandResult, DeviceConfig, NormalizedStatus, PrinterCommand } from '../types'
 import { normalizeBambu } from '../normalize-bambu'
 
 const PUSHALL = JSON.stringify({
@@ -55,6 +55,34 @@ export class BambuMqttConnector implements Connector {
     }, this.opts.pushallIntervalMs ?? 300_000)
 
     return Promise.resolve()
+  }
+
+  async sendCommand(cmd: PrinterCommand): Promise<CommandResult> {
+    if (!this.client?.connected) return { ok: false, message: 'printer_offline' }
+    const requestTopic = `device/${this.device.serial}/request`
+    let payload: Record<string, unknown>
+    switch (cmd.kind) {
+      case 'pause':
+        payload = { print: { sequence_id: '0', command: 'pause' } }
+        break
+      case 'resume':
+        payload = { print: { sequence_id: '0', command: 'resume' } }
+        break
+      case 'stop':
+        payload = { print: { sequence_id: '0', command: 'stop' } }
+        break
+      case 'setSpeedLevel':
+        payload = { print: { sequence_id: '0', command: 'print_speed', param: String(cmd.level) } }
+        break
+      default:
+        return { ok: false, message: 'unsupported_command' }
+    }
+    try {
+      await this.client.publishAsync(requestTopic, JSON.stringify(payload))
+      return { ok: true }
+    } catch (err) {
+      return { ok: false, message: err instanceof Error ? err.message : 'publish_failed' }
+    }
   }
 
   async stop(): Promise<void> {
