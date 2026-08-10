@@ -84,3 +84,10 @@ describe('LgConfigEditor custom flooring shape', () => {
     expect(html).toContain('✓ gambar flooring tersedia')
   })
 })
+
+describe('LgConfigEditor auto-fit mask', () => {
+  it('renders the auto-fit silhouette toggle', () => {
+    const html = render({})
+    expect(html).toContain('Auto-fit silhouette')
+  })
+})

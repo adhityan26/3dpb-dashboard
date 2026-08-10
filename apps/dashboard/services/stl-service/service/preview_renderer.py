@@ -52,6 +52,7 @@ _PREVIEW_DEFAULTS: dict = {
     "shadow_threshold":  0.0,
     "mask_upsample":     4,
     "invert_mask":       False,
+    "auto_fit_mask":     False,
     "n_stencil_theta":   512,
     "n_stencil_z":       128,
     "flooring_shape":    None,
@@ -137,7 +138,9 @@ def render_shadow_preview(image_path: str, config: dict | None = None) -> bytes:
     if "shell_height" not in p or p["shell_height"] is None:
         p["shell_height"] = float(p["light_z_offset"]) * (float(p["floor_half_size"]) / float(p["outer_radius"]) - 1)
 
-    raw_mask = load_silhouette_mask(image_path, invert=bool(p["invert_mask"]))
+    raw_mask = load_silhouette_mask(
+        image_path, invert=bool(p["invert_mask"]), auto_fit=bool(p["auto_fit_mask"])
+    )
     if raw_mask is None or raw_mask.size == 0:
         raise ValueError(f"Could not load silhouette image: {image_path}")
 

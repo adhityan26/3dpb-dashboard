@@ -138,7 +138,76 @@ def apply_preview_mode_overrides(params: dict) -> dict:
 
 # ─── MASK PREPROCESSING (SDF-BASED) ──────────────────────────────────────────
 
-def load_silhouette_mask(image_path: str, invert: bool = False) -> np.ndarray:
+def auto_fit_canvas(raw: np.ndarray, margin: float = 0.95) -> np.ndarray:
+    """
+    Pad and recenter the input image so its CONTENT fits inside the inscribed
+    circle of a square canvas (content max radius = margin * inscribed radius).
+
+    Content detection happens BEFORE any invert/threshold so the drawn shape
+    is fitted regardless of invert_mask:
+      - RGBA: content = alpha > 127
+      - RGB/grey: content = dark pixels (Otsu on grayscale, dark side)
+    Padding uses transparent pixels for RGBA and white for RGB/grey, matching
+    each format's background convention. Returns the padded image (same dtype
+    and channel count; grey input is returned as grey).
+    No-op (returns input) when the image has no detectable content.
+    """
+    is_rgba = raw.ndim == 3 and raw.shape[2] == 4
+
+    if is_rgba:
+        content = raw[:, :, 3] > 127
+    else:
+        gray = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if raw.ndim == 3 else raw
+        _, dark_mask = cv2.threshold(
+            gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
+        )
+        content = dark_mask > 0
+
+    ys, xs = np.where(content)
+    if len(xs) == 0:
+        return raw
+
+    cx = (xs.min() + xs.max()) / 2.0
+    cy = (ys.min() + ys.max()) / 2.0
+    r_content = float(np.sqrt((xs - cx) ** 2 + (ys - cy) ** 2).max())
+    if r_content <= 0:
+        return raw
+
+    side = int(np.ceil((2.0 * r_content) / margin))
+    side = max(side, 1)
+
+    if is_rgba:
+        canvas = np.zeros((side, side, 4), dtype=raw.dtype)
+    elif raw.ndim == 3:
+        canvas = np.full((side, side, raw.shape[2]), 255, dtype=raw.dtype)
+    else:
+        canvas = np.full((side, side), 255, dtype=raw.dtype)
+
+    # Offset so (cx, cy) in source lands at canvas center.
+    dst_cx, dst_cy = side / 2.0, side / 2.0
+    off_x = int(round(dst_cx - cx))
+    off_y = int(round(dst_cy - cy))
+
+    h, w = raw.shape[0], raw.shape[1]
+
+    # Source region that stays within bounds after applying the offset.
+    src_x0 = max(0, -off_x)
+    src_y0 = max(0, -off_y)
+    src_x1 = min(w, side - off_x)
+    src_y1 = min(h, side - off_y)
+
+    dst_x0 = max(0, off_x)
+    dst_y0 = max(0, off_y)
+    dst_x1 = dst_x0 + (src_x1 - src_x0)
+    dst_y1 = dst_y0 + (src_y1 - src_y0)
+
+    if src_x1 > src_x0 and src_y1 > src_y0:
+        canvas[dst_y0:dst_y1, dst_x0:dst_x1] = raw[src_y0:src_y1, src_x0:src_x1]
+
+    return canvas
+
+
+def load_silhouette_mask(image_path: str, invert: bool = False, auto_fit: bool = False) -> np.ndarray:
     """Load image → raw binary mask (255 = solid wall / blocks light, 0 = hole).
 
     Handles two cases:
@@ -158,10 +227,17 @@ def load_silhouette_mask(image_path: str, invert: bool = False) -> np.ndarray:
         If True, flip the mask polarity so that LIGHT pixels become solid.
         Useful for standard white-silhouette-on-black-background inputs where
         the customer expects the white shape to cast the shadow.
+    auto_fit : bool, default False
+        If True, pad and recenter the image (see auto_fit_canvas) so the
+        content fits inside the projectable inscribed circle before the mask
+        is derived — avoids clipping near the square's corners.
     """
     raw = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
     if raw is None:
         raise FileNotFoundError(f"Cannot open: {image_path}")
+
+    if auto_fit:
+        raw = auto_fit_canvas(raw)
 
     if raw.ndim == 3 and raw.shape[2] == 4:
         # RGBA: use alpha channel as the mask
@@ -2781,6 +2857,7 @@ def run(
     taubin_nu            = TAUBIN_NU,
     # NEW parameters for refactored pipeline
     invert_mask          = False,
+    auto_fit_mask        = False,
     preview_mode         = False,
     contour_builder      = False,   # disabled: contour pipeline loses detail on complex silhouettes
     merged_builder       = False,  # v2: column merging + correct normals, small files
@@ -2909,7 +2986,7 @@ def run(
 
     # ── 2. Load + smooth shadow mask via SDF ─────────────────────────
     print('\n[generator] loading and smoothing silhouette mask …')
-    raw_mask = load_silhouette_mask(input_image, invert=invert_mask)
+    raw_mask = load_silhouette_mask(input_image, invert=invert_mask, auto_fit=auto_fit_mask)
     smooth_mask, sdf = prepare_sdf_mask(raw_mask, edge_smooth_sigma,
                                          shadow_threshold, mask_upsample)
     raw_pct    = 100 * (raw_mask    > 0).mean()
@@ -3283,6 +3360,9 @@ if __name__ == '__main__':
                         'top = closed top cover with LED recess, open bottom')
     p.add_argument('--invert-shadow', action='store_true', default=False,
                    help='Invert the silhouette mask (swap solid/hole regions)')
+    p.add_argument('--auto-fit-mask', action='store_true', default=False,
+                   help='Pad & recenter the silhouette so it fits the projectable '
+                        'inscribed circle (avoids corner clipping)')
 
     # Casing lift (compensation for external electronics chamber)
     p.add_argument('--casing-lift', type=float, default=CASING_LIFT,
@@ -3336,4 +3416,5 @@ if __name__ == '__main__':
         led_socket_height    = a.led_socket_height,
         cover_type           = a.cover_type,
         invert_mask          = a.invert_shadow,
+        auto_fit_mask        = a.auto_fit_mask,
     )
