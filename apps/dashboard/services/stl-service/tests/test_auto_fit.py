@@ -7,7 +7,11 @@ import numpy as np
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts.generate_shadow_casing import auto_fit_canvas, load_silhouette_mask  # noqa: E402
+from scripts.generate_shadow_casing import (  # noqa: E402
+    auto_fit_canvas,
+    load_silhouette_mask,
+    pad_canvas,
+)
 
 
 def _rgba_corner_content(size: int = 200, sq: int = 30) -> np.ndarray:
@@ -92,6 +96,77 @@ class TestAutoFitCanvasBlank:
         out = auto_fit_canvas(raw)
         assert out.shape == raw.shape
         np.testing.assert_array_equal(out, raw)
+
+
+class TestPadCanvas:
+    def test_no_op_at_zero_padding(self):
+        raw = _grey_corner_content(size=100, sq=10)
+        out = pad_canvas(raw, 0)
+        assert out.shape == raw.shape
+        np.testing.assert_array_equal(out, raw)
+
+    def test_no_op_at_negative_padding(self):
+        raw = _grey_corner_content(size=100, sq=10)
+        out = pad_canvas(raw, -5)
+        np.testing.assert_array_equal(out, raw)
+
+    def test_grey_padding_white_borders(self):
+        raw = np.full((100, 100), 0, dtype=np.uint8)  # all black content
+        out = pad_canvas(raw, 10)
+        assert out.shape == (120, 120)
+        # 10px border on each side should be white
+        assert out[0, 0] == 255
+        assert out[0, -1] == 255
+        assert out[-1, 0] == 255
+        # original content preserved in the center
+        assert out[60, 60] == 0
+
+    def test_rgba_padding_transparent_borders(self):
+        raw = np.zeros((100, 100, 4), dtype=np.uint8)
+        raw[:, :, 3] = 255  # fully opaque content
+        out = pad_canvas(raw, 10)
+        assert out.shape == (120, 120, 4)
+        assert out[0, 0, 3] == 0
+        assert out[60, 60, 3] == 255
+
+    def test_padding_amount_based_on_max_dimension(self):
+        # non-square image: pad = round(max(h, w) * pct / 100) on each side
+        raw = np.full((50, 100), 0, dtype=np.uint8)
+        out = pad_canvas(raw, 10)  # pad = round(100 * 0.10) = 10
+        assert out.shape == (70, 120)
+
+
+class TestLoadSilhouetteMaskManualPadding:
+    def test_padding_applied_alone(self, tmp_path):
+        img = np.full((100, 100), 0, dtype=np.uint8)
+        path = tmp_path / "solid.png"
+        cv2.imwrite(str(path), img)
+
+        mask = load_silhouette_mask(str(path), invert=False, padding_pct=10)
+        assert mask.shape[0] == mask.shape[1] == 120
+
+    def test_auto_fit_and_padding_combined_shrinks_content_further(self, tmp_path):
+        img = _grey_corner_content(size=200, sq=30)
+        path = tmp_path / "corner.png"
+        cv2.imwrite(str(path), img)
+
+        mask_auto_only = load_silhouette_mask(
+            str(path), invert=False, auto_fit=True, padding_pct=0
+        )
+        mask_both = load_silhouette_mask(
+            str(path), invert=False, auto_fit=True, padding_pct=20
+        )
+
+        def max_radius(mask):
+            side = mask.shape[0]
+            center = side / 2.0
+            ys, xs = np.where(mask > 0)
+            r = np.sqrt((xs - center) ** 2 + (ys - center) ** 2)
+            return r.max() / side  # normalize by canvas size
+
+        # Manual padding after auto-fit should shrink the content's relative
+        # radius further compared to auto-fit alone.
+        assert max_radius(mask_both) < max_radius(mask_auto_only)
 
 
 class TestLoadSilhouetteMaskAutoFit:

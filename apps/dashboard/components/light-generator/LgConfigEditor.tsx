@@ -82,6 +82,7 @@ const SECTIONS: { title: string; params: ParamDef[] }[] = [
       { key: "shadow_offset_x",  label: "Shadow X offset (mm)", help: "Shift shadow on floor without distortion",          type: "number", min: -500, max: 500,  step: 1 },
       { key: "shadow_offset_y",  label: "Shadow Y offset (mm)", help: "Shift shadow on floor without distortion",          type: "number", min: -500, max: 500,  step: 1 },
       { key: "auto_fit_mask",    label: "Auto-fit silhouette",  help: "Pad & center the image so nothing falls outside the circular projection area", type: "boolean" },
+      { key: "mask_padding_pct", label: "Mask padding (%)",     help: "Extra white/transparent margin around the silhouette — shrinks the shadow; use if edges get clipped", type: "number", min: 0, max: 100, step: 1 },
     ],
   },
   {
