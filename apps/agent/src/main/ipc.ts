@@ -7,6 +7,7 @@ import { getEngine, setEngine, getBrokerPort, getLocalIp, getReporters, setRepor
 import { reconcileDevices } from "./startup";
 import { startEngine } from "./engine-manager";
 import { publishLayout } from "./layout-publisher";
+import type { CommandResult, PrinterCommand } from "@3pb/printer-monitor-core";
 
 export interface ActivationState {
   hasToken: boolean;
@@ -147,5 +148,14 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle("agent:get-broker-info", async () => {
     return { ip: getLocalIp(), port: getBrokerPort() };
+  });
+
+  // Kirim command kontrol (pause/resume/stop/speed) ke printer tertentu -- device yang tak
+  // lagi dimonitor Engine balikin device_not_found lewat Engine.sendCommand sendiri; di sini
+  // cuma jaga kasus Engine belum pernah start sama sekali (mis. belum ada device dipasangkan).
+  ipcMain.handle("agent:printer-command", async (_event, deviceId: string, cmd: PrinterCommand): Promise<CommandResult> => {
+    const engine = getEngine();
+    if (!engine) return { ok: false, message: "engine_not_running" };
+    return engine.sendCommand(deviceId, cmd);
   });
 }

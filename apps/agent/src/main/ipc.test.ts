@@ -305,3 +305,22 @@ describe("agent:update-device-model", () => {
     expect(result).toEqual({ ok: false, kind: "invalid_model" });
   });
 });
+
+describe("agent:printer-command", () => {
+  it("engine belum jalan -> {ok:false, message:'engine_not_running'}", async () => {
+    registerIpcHandlers();
+    setEngine(null);
+    const result = await handlers["agent:printer-command"]({}, "mars", { kind: "pause" });
+    expect(result).toEqual({ ok: false, message: "engine_not_running" });
+  });
+
+  it("delegasikan ke Engine.sendCommand dengan deviceId+cmd yang dioper apa adanya", async () => {
+    registerIpcHandlers();
+    const sendCommand = vi.fn().mockResolvedValue({ ok: true });
+    setEngine({ snapshot: () => ({ payload: [] }), sendCommand } as any);
+    const result = await handlers["agent:printer-command"]({}, "mars", { kind: "setSpeedLevel", level: 3 });
+    expect(sendCommand).toHaveBeenCalledWith("mars", { kind: "setSpeedLevel", level: 3 });
+    expect(result).toEqual({ ok: true });
+    setEngine(null);
+  });
+});
