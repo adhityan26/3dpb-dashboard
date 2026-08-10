@@ -91,3 +91,10 @@ describe('LgConfigEditor auto-fit mask', () => {
     expect(html).toContain('Auto-fit silhouette')
   })
 })
+
+describe('LgConfigEditor manual mask padding', () => {
+  it('renders the mask padding field', () => {
+    const html = render({})
+    expect(html).toContain('Mask padding')
+  })
+})

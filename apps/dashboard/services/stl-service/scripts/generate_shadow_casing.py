@@ -207,7 +207,44 @@ def auto_fit_canvas(raw: np.ndarray, margin: float = 0.95) -> np.ndarray:
     return canvas
 
 
-def load_silhouette_mask(image_path: str, invert: bool = False, auto_fit: bool = False) -> np.ndarray:
+def pad_canvas(raw: np.ndarray, padding_pct: float) -> np.ndarray:
+    """
+    Uniformly pad the canvas on all sides by padding_pct% of max(h, w).
+
+    No-op (returns input) when padding_pct <= 0. Uses the same background
+    convention as auto_fit_canvas: transparent for RGBA, white for grey/BGR.
+    Unlike auto_fit_canvas, this does not detect or recenter content — it
+    just grows the canvas evenly around the existing image.
+    """
+    if padding_pct <= 0:
+        return raw
+
+    h, w = raw.shape[0], raw.shape[1]
+    pad = int(round(max(h, w) * padding_pct / 100.0))
+    if pad <= 0:
+        return raw
+
+    new_h, new_w = h + 2 * pad, w + 2 * pad
+    is_rgba = raw.ndim == 3 and raw.shape[2] == 4
+
+    # Same background-fill convention as auto_fit_canvas.
+    if is_rgba:
+        canvas = np.zeros((new_h, new_w, 4), dtype=raw.dtype)
+    elif raw.ndim == 3:
+        canvas = np.full((new_h, new_w, raw.shape[2]), 255, dtype=raw.dtype)
+    else:
+        canvas = np.full((new_h, new_w), 255, dtype=raw.dtype)
+
+    canvas[pad:pad + h, pad:pad + w] = raw
+    return canvas
+
+
+def load_silhouette_mask(
+    image_path: str,
+    invert: bool = False,
+    auto_fit: bool = False,
+    padding_pct: float = 0.0,
+) -> np.ndarray:
     """Load image → raw binary mask (255 = solid wall / blocks light, 0 = hole).
 
     Handles two cases:
@@ -231,6 +268,9 @@ def load_silhouette_mask(image_path: str, invert: bool = False, auto_fit: bool =
         If True, pad and recenter the image (see auto_fit_canvas) so the
         content fits inside the projectable inscribed circle before the mask
         is derived — avoids clipping near the square's corners.
+    padding_pct : float, default 0.0
+        Extra uniform padding (see pad_canvas), applied AFTER auto_fit when
+        both are set. Shrinks the content further within the canvas.
     """
     raw = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
     if raw is None:
@@ -238,6 +278,9 @@ def load_silhouette_mask(image_path: str, invert: bool = False, auto_fit: bool =
 
     if auto_fit:
         raw = auto_fit_canvas(raw)
+
+    if padding_pct > 0:
+        raw = pad_canvas(raw, padding_pct)
 
     if raw.ndim == 3 and raw.shape[2] == 4:
         # RGBA: use alpha channel as the mask
@@ -2858,6 +2901,7 @@ def run(
     # NEW parameters for refactored pipeline
     invert_mask          = False,
     auto_fit_mask        = False,
+    mask_padding_pct     = 0.0,
     preview_mode         = False,
     contour_builder      = False,   # disabled: contour pipeline loses detail on complex silhouettes
     merged_builder       = False,  # v2: column merging + correct normals, small files
@@ -2986,7 +3030,9 @@ def run(
 
     # ── 2. Load + smooth shadow mask via SDF ─────────────────────────
     print('\n[generator] loading and smoothing silhouette mask …')
-    raw_mask = load_silhouette_mask(input_image, invert=invert_mask, auto_fit=auto_fit_mask)
+    raw_mask = load_silhouette_mask(
+        input_image, invert=invert_mask, auto_fit=auto_fit_mask, padding_pct=mask_padding_pct
+    )
     smooth_mask, sdf = prepare_sdf_mask(raw_mask, edge_smooth_sigma,
                                          shadow_threshold, mask_upsample)
     raw_pct    = 100 * (raw_mask    > 0).mean()
@@ -3363,6 +3409,9 @@ if __name__ == '__main__':
     p.add_argument('--auto-fit-mask', action='store_true', default=False,
                    help='Pad & recenter the silhouette so it fits the projectable '
                         'inscribed circle (avoids corner clipping)')
+    p.add_argument('--mask-padding-pct', type=float, default=0.0,
+                   help='Extra uniform padding around the silhouette, as a percent '
+                        'of max(width, height) (default 0.0; applied after --auto-fit-mask)')
 
     # Casing lift (compensation for external electronics chamber)
     p.add_argument('--casing-lift', type=float, default=CASING_LIFT,
@@ -3417,4 +3466,5 @@ if __name__ == '__main__':
         cover_type           = a.cover_type,
         invert_mask          = a.invert_shadow,
         auto_fit_mask        = a.auto_fit_mask,
+        mask_padding_pct     = a.mask_padding_pct,
     )
