@@ -72,6 +72,7 @@ export class BambuMqttConnector implements Connector {
         payload = { print: { sequence_id: '0', command: 'stop' } }
         break
       case 'setSpeedLevel':
+        if (![1, 2, 3, 4].includes(cmd.level)) return { ok: false, message: 'unsupported_command' }
         payload = { print: { sequence_id: '0', command: 'print_speed', param: String(cmd.level) } }
         break
       default:

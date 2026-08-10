@@ -48,20 +48,28 @@ export class MoonrakerConnector implements Connector {
     switch (cmd.kind) {
       case 'pause':
         url = `http://${this.device.ip}/printer/print/pause`
-        init = { method: 'POST' }
+        init = { method: 'POST', signal: AbortSignal.timeout(10_000) }
         break
       case 'resume':
         url = `http://${this.device.ip}/printer/print/resume`
-        init = { method: 'POST' }
+        init = { method: 'POST', signal: AbortSignal.timeout(10_000) }
         break
       case 'stop':
         url = `http://${this.device.ip}/printer/print/cancel`
-        init = { method: 'POST' }
+        init = { method: 'POST', signal: AbortSignal.timeout(10_000) }
         break
-      case 'setSpeedPercent':
+      case 'setSpeedPercent': {
+        const pct = Math.round(Number(cmd.percent))
+        if (!Number.isFinite(pct) || pct < 20 || pct > 200) return { ok: false, message: 'unsupported_command' }
         url = `http://${this.device.ip}/printer/gcode/script`
-        init = { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: `M220 S${cmd.percent}` }) }
+        init = {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ script: `M220 S${pct}` }),
+          signal: AbortSignal.timeout(10_000),
+        }
         break
+      }
       default:
         return { ok: false, message: 'unsupported_command' }
     }
@@ -70,6 +78,16 @@ export class MoonrakerConnector implements Connector {
       if (!res.ok) return { ok: false, message: `moonraker_${res.status}` }
       return { ok: true }
     } catch (err) {
+      // Kegagalan network-class (fetch gak bisa connect sama sekali, atau timeout dari
+      // AbortSignal.timeout di atas) -- printer TIDAK terjangkau. Bedakan dari respons
+      // non-2xx (di atas, res.ok false): itu artinya printer NYALA & jawab, cuma nolak
+      // request. Map ke literal 'printer_offline' yang sama dgn BambuMqttConnector supaya
+      // commandErrorMessage() di UI kasih pesan presisi yang sama utk kondisi yang sama,
+      // bukan cuma utk Bambu.
+      if (err instanceof TypeError) return { ok: false, message: 'printer_offline' }
+      if (err instanceof Error && (err.name === 'TimeoutError' || err.name === 'AbortError')) {
+        return { ok: false, message: 'printer_offline' }
+      }
       return { ok: false, message: err instanceof Error ? err.message : 'network_error' }
     }
   }

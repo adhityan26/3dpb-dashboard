@@ -58,6 +58,14 @@ export function PrinterControls({
     }
   }
 
+  // Satu-satunya tempat yang membentuk & mengirim setSpeedPercent -- dipanggil dari
+  // mouseUp/touchEnd (drag selesai) DAN keyUp (arrow/Home/End di slider yang fokus).
+  // Sebelum ini keyUp tak ter-cover: label {speedPercent}% berubah tapi command tak
+  // pernah terkirim, jadi UI diam-diam nampilin speed yang printer-nya gak benar-benar jalankan.
+  function commitSpeed(percent: number) {
+    void send({ kind: "setSpeedPercent", percent });
+  }
+
   const showRunningControls = s === "running";
   const showPausedControls = s === "pause" || s === "paused" || s === "error";
   if (!showRunningControls && !showPausedControls) return null;
@@ -104,8 +112,9 @@ export function PrinterControls({
               value={speedPercent}
               disabled={busy}
               onChange={(e) => setSpeedPercent(Number(e.target.value))}
-              onMouseUp={(e) => void send({ kind: "setSpeedPercent", percent: Number((e.target as HTMLInputElement).value) })}
-              onTouchEnd={(e) => void send({ kind: "setSpeedPercent", percent: Number((e.target as HTMLInputElement).value) })}
+              onMouseUp={(e) => commitSpeed(Number((e.target as HTMLInputElement).value))}
+              onTouchEnd={(e) => commitSpeed(Number((e.target as HTMLInputElement).value))}
+              onKeyUp={(e) => commitSpeed(Number((e.target as HTMLInputElement).value))}
               className="flex-1"
             />
             <span className="g-t3 text-xs w-10 text-right">{speedPercent}%</span>

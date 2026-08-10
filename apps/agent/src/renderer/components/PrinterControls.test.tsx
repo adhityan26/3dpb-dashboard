@@ -76,6 +76,17 @@ describe("PrinterControls", () => {
     );
   });
 
+  it("geser slider Moonraker via keyboard (arrow key, focus+keyUp) -> kirim setSpeedPercent juga, bukan cuma mouseUp/touchEnd", async () => {
+    render(<PrinterControls deviceId="ganymede" state="running" connector="moonraker" />);
+    const slider = screen.getByLabelText(/kecepatan print/i);
+    fireEvent.change(slider, { target: { value: "130" } });
+    expect((window as any).agentApi.sendPrinterCommand).not.toHaveBeenCalled();
+    fireEvent.keyUp(slider, { key: "ArrowRight", target: { value: "130" } });
+    await waitFor(() =>
+      expect((window as any).agentApi.sendPrinterCommand).toHaveBeenCalledWith("ganymede", { kind: "setSpeedPercent", percent: 130 }),
+    );
+  });
+
   it("klik Stop -> muncul dialog konfirmasi, BELUM kirim command", () => {
     render(<PrinterControls deviceId="mars" state="running" connector="bambu" />);
     fireEvent.click(screen.getByRole("button", { name: /^stop$/i }));

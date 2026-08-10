@@ -79,7 +79,9 @@ describe('MoonrakerConnector.sendCommand', () => {
     const c = new MoonrakerConnector(gany, { fetchImpl: fetchImpl as unknown as typeof fetch })
     const result = await c.sendCommand({ kind: 'pause' })
     expect(result).toEqual({ ok: true })
-    expect(fetchImpl).toHaveBeenCalledWith('http://192.168.88.40/printer/print/pause', { method: 'POST' })
+    expect(fetchImpl).toHaveBeenCalledWith('http://192.168.88.40/printer/print/pause', {
+      method: 'POST', signal: expect.any(AbortSignal),
+    })
   })
 
   it('setSpeedPercent -> POST /printer/gcode/script dengan M220 S<persen>', async () => {
@@ -89,6 +91,7 @@ describe('MoonrakerConnector.sendCommand', () => {
     expect(result).toEqual({ ok: true })
     expect(fetchImpl).toHaveBeenCalledWith('http://192.168.88.40/printer/gcode/script', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ script: 'M220 S120' }),
+      signal: expect.any(AbortSignal),
     })
   })
 
@@ -99,11 +102,67 @@ describe('MoonrakerConnector.sendCommand', () => {
     expect(result).toEqual({ ok: false, message: 'moonraker_500' })
   })
 
-  it('fetch throw (network error) -> {ok:false, message dari error}', async () => {
-    const fetchImpl = vi.fn(async () => { throw new Error('ECONNREFUSED') })
+  it('stop -> POST /printer/print/cancel (URL destruktif ini sebelumnya tak pernah di-assert)', async () => {
+    const fetchImpl = vi.fn(async () => new Response('{}', { status: 500 }))
+    const c = new MoonrakerConnector(gany, { fetchImpl: fetchImpl as unknown as typeof fetch })
+    await c.sendCommand({ kind: 'stop' })
+    expect(fetchImpl).toHaveBeenCalledWith(
+      'http://192.168.88.40/printer/print/cancel',
+      expect.objectContaining({ method: 'POST' }),
+    )
+  })
+
+  it('fetch throw TypeError (koneksi gagal) -> {ok:false, message:"printer_offline"} (sama dgn Bambu utk kondisi sama)', async () => {
+    const fetchImpl = vi.fn(async () => { throw new TypeError('fetch failed') })
     const c = new MoonrakerConnector(gany, { fetchImpl: fetchImpl as unknown as typeof fetch })
     const result = await c.sendCommand({ kind: 'resume' })
-    expect(result).toEqual({ ok: false, message: 'ECONNREFUSED' })
+    expect(result).toEqual({ ok: false, message: 'printer_offline' })
+  })
+
+  it('request timeout (10s) -> {ok:false, message:"printer_offline"}', async () => {
+    // Node's AbortSignal.timeout() menjalankan timer internal yang TIDAK ter-hook oleh fake
+    // timers vitest/sinon (mereka cuma patch global setTimeout). Untuk menguji jalur
+    // 10-detik ini dgn fake timers (fetchImpl yang tak pernah resolve sendiri +
+    // vi.advanceTimersByTimeAsync, sesuai pola file ini), spy AbortSignal.timeout supaya
+    // pakai global setTimeout (yang KE-fake) -- tetap memverifikasi kode produksi memanggil
+    // AbortSignal.timeout(10_000) dan bahwa abort-nya dipetakan ke 'printer_offline'.
+    vi.useFakeTimers()
+    const timeoutSpy = vi.spyOn(AbortSignal, 'timeout').mockImplementation((ms: number) => {
+      const controller = new AbortController()
+      setTimeout(() => controller.abort(new DOMException('The operation timed out', 'TimeoutError')), ms)
+      return controller.signal
+    })
+    const fetchImpl = vi.fn((_url: string, init?: RequestInit) =>
+      new Promise<Response>((_resolve, reject) => {
+        const signal = init?.signal
+        signal?.addEventListener('abort', () => reject(signal.reason))
+      }))
+    const c = new MoonrakerConnector(gany, { fetchImpl: fetchImpl as unknown as typeof fetch })
+    const resultPromise = c.sendCommand({ kind: 'pause' })
+    await vi.advanceTimersByTimeAsync(10_000)
+    const result = await resultPromise
+    expect(timeoutSpy).toHaveBeenCalledWith(10_000) // assert SEBELUM mockRestore -- restore mereset call history
+    timeoutSpy.mockRestore()
+    vi.useRealTimers()
+    expect(result).toEqual({ ok: false, message: 'printer_offline' })
+  })
+
+  it('setSpeedPercent di luar rentang 20-200 -> {ok:false, message:"unsupported_command"}, tak fetch', async () => {
+    const fetchImpl = vi.fn()
+    const c = new MoonrakerConnector(gany, { fetchImpl: fetchImpl as unknown as typeof fetch })
+    const tooLow = await c.sendCommand({ kind: 'setSpeedPercent', percent: 10 })
+    const tooHigh = await c.sendCommand({ kind: 'setSpeedPercent', percent: 250 })
+    expect(tooLow).toEqual({ ok: false, message: 'unsupported_command' })
+    expect(tooHigh).toEqual({ ok: false, message: 'unsupported_command' })
+    expect(fetchImpl).not.toHaveBeenCalled()
+  })
+
+  it('setSpeedPercent non-numeric -> {ok:false, message:"unsupported_command"}, tak fetch', async () => {
+    const fetchImpl = vi.fn()
+    const c = new MoonrakerConnector(gany, { fetchImpl: fetchImpl as unknown as typeof fetch })
+    const result = await c.sendCommand({ kind: 'setSpeedPercent', percent: Number('bukan angka') })
+    expect(result).toEqual({ ok: false, message: 'unsupported_command' })
+    expect(fetchImpl).not.toHaveBeenCalled()
   })
 
   it('command kind yang tak didukung Moonraker (mis. setSpeedLevel, punya Bambu) -> unsupported_command', async () => {

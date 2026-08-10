@@ -122,4 +122,27 @@ describe('BambuMqttConnector.sendCommand', () => {
     expect(result).toEqual({ ok: false, message: 'unsupported_command' })
     await c.stop()
   })
+
+  it('setSpeedLevel invalid (bukan 1-4) -> unsupported_command, tak publish apa pun', async () => {
+    const received: string[] = []
+    const sub = mqtt.connect(`mqtt://127.0.0.1:${port}`)
+    await new Promise<void>((res) => sub.on('connect', () => res()))
+    await sub.subscribeAsync('device/SER1/request')
+    sub.on('message', (_t, msg) => received.push(msg.toString()))
+
+    const c = new BambuMqttConnector(mars, { urlOverride: `mqtt://127.0.0.1:${port}` })
+    await c.start(() => {})
+    await new Promise((r) => setTimeout(r, 100))
+
+    const zero = await c.sendCommand({ kind: 'setSpeedLevel', level: 0 as unknown as 1 | 2 | 3 | 4 })
+    const five = await c.sendCommand({ kind: 'setSpeedLevel', level: 5 as unknown as 1 | 2 | 3 | 4 })
+    await new Promise((r) => setTimeout(r, 100))
+
+    expect(zero).toEqual({ ok: false, message: 'unsupported_command' })
+    expect(five).toEqual({ ok: false, message: 'unsupported_command' })
+    expect(received.find((m) => JSON.parse(m).print?.command === 'print_speed')).toBeUndefined()
+
+    await c.stop()
+    sub.end()
+  })
 })
