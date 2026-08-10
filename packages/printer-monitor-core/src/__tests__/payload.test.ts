@@ -17,8 +17,13 @@ describe('StateStore + buildPrintersPayload', () => {
       id: 'mars',
       name: 'Mars', type: 'P1P', state: 'OFFLINE', progress: 0,
       remaining_min: 0, filename: '', error_msg: '', error_message: '', last_seen: null,
-      nozzle_temp: 0, bed_temp: 0,
+      nozzle_temp: 0, bed_temp: 0, connector: 'bambu',
     }])
+  })
+
+  it('connector mengalir dari DeviceConfig.connector -- moonraker device tampil connector:"moonraker"', () => {
+    const p = buildPrintersPayload([gany], new StateStore(), T0)
+    expect(p.payload[0].connector).toBe('moonraker')
   })
 
   it('fresh → state tersimpan; stale >10 menit → OFFLINE tapi field lain dipertahankan', () => {

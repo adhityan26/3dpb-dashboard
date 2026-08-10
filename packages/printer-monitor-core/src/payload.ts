@@ -14,7 +14,7 @@ export function buildPrintersPayload(
       const isStale = lastSeen === null || nowMs - lastSeen > staleAfterMs
       return {
         id: d.id,
-        name: d.name, type: d.type,
+        name: d.name, type: d.type, connector: d.connector,
         state: isStale ? 'OFFLINE' : (r!.last_state || 'idle'),
         progress: r?.last_progress ?? 0,
         remaining_min: r?.last_remaining_min ?? 0,
