@@ -189,9 +189,16 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
     onChange(removeStem(config, id))
   }
 
-  const allSectionValues = ["Casing Shape", "Cover", ...filteredSections.map((s) => s.title)]
-  if (coverType === "top") allSectionValues.push("LED Recess")
-  allSectionValues.push("Stems", "Raw JSON")
+  // Controlled accordion state: initialized ONCE from the full (unfiltered)
+  // section list so search filtering / conditional sections never mutate an
+  // uncontrolled defaultValue (Base UI warns loudly about that in dev).
+  const [openSections, setOpenSections] = useState<string[]>(() => [
+    "Casing Shape",
+    "Cover",
+    ...SECTIONS.map((s) => s.title),
+    "LED Recess",
+    "Stems",
+  ])
 
   function applyJsonDraft() {
     let parsed: unknown
@@ -240,7 +247,7 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
         aria-label="cari parameter"
       />
 
-      <Accordion multiple defaultValue={allSectionValues.filter((v) => v !== "Raw JSON")}>
+      <Accordion multiple value={openSections} onValueChange={(v) => setOpenSections(v as string[])}>
         <AccordionItem value="Casing Shape">
           <AccordionTrigger>Casing Shape</AccordionTrigger>
           <AccordionContent>
