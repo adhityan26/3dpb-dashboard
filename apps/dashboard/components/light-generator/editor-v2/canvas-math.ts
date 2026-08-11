@@ -143,3 +143,25 @@ export function applyPaddingDrag(
     auto_fit_mask: false,
   }
 }
+
+/**
+ * Build the live CSS `filter` string for the Canvas Editor's original-image
+ * backdrop, mirroring the img_brightness/img_contrast/img_saturation config
+ * keys consumed server-side by `adjust_image()` in generate_shadow_casing.py.
+ *
+ * This is only an APPROXIMATION for instant visual feedback in the browser —
+ * CSS filter math doesn't exactly match the server's mid-gray-anchored
+ * brightness/contrast adjustment. The server-rendered Shadow preview PNG
+ * remains the source of truth for what actually gets thresholded/printed.
+ *
+ * Defaults (0/0/100) produce the no-op string "brightness(1) contrast(1) saturate(100%)".
+ */
+export function buildImageFilter(config: Record<string, unknown>): string {
+  const brightness = Number(config.img_brightness) || 0
+  const contrast = Number(config.img_contrast) || 0
+  const saturation = config.img_saturation === undefined || config.img_saturation === null
+    ? 100
+    : Number(config.img_saturation)
+  const sat = Number.isFinite(saturation) ? saturation : 100
+  return `brightness(${1 + brightness / 100}) contrast(${1 + contrast / 100}) saturate(${sat}%)`
+}

@@ -6,7 +6,32 @@ import {
   applyPaddingDrag,
   paddingPctToRadiusFraction,
   overlayGeometry,
+  buildImageFilter,
 } from "../canvas-math"
+
+describe("buildImageFilter", () => {
+  it("defaults (0/0/100) produce a no-op filter string", () => {
+    expect(buildImageFilter({})).toBe("brightness(1) contrast(1) saturate(100%)")
+  })
+
+  it("explicit defaults produce the same no-op string", () => {
+    expect(buildImageFilter({ img_brightness: 0, img_contrast: 0, img_saturation: 100 })).toBe(
+      "brightness(1) contrast(1) saturate(100%)",
+    )
+  })
+
+  it("builds a custom filter string from config values", () => {
+    expect(
+      buildImageFilter({ img_brightness: 20, img_contrast: -10, img_saturation: 50 }),
+    ).toBe("brightness(1.2) contrast(0.9) saturate(50%)")
+  })
+
+  it("treats missing saturation as 100 while honoring other values", () => {
+    expect(buildImageFilter({ img_brightness: -50 })).toBe(
+      "brightness(0.5) contrast(1) saturate(100%)",
+    )
+  })
+})
 
 describe("overlayGeometry", () => {
   it("square container: size = side length, no offset", () => {

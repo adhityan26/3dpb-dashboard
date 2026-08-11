@@ -81,4 +81,44 @@ describe("LgCanvas2D", () => {
     )
     expect(html).toContain("opacity-80")
   })
+
+  it("renders the original image src instead of pngUrl when originalImageUrl is provided", () => {
+    const html = renderToStaticMarkup(
+      <LgCanvas2D
+        pngUrl="/preview.png"
+        originalImageUrl="/api/light-generator/orders/abc/silhouette"
+        loading={false}
+        config={{}}
+        onConfigChange={() => {}}
+      />,
+    )
+    expect(html).toContain('src="/api/light-generator/orders/abc/silhouette"')
+    expect(html).not.toContain('src="/preview.png"')
+  })
+
+  it("applies the CSS filter built from config when originalImageUrl is used", () => {
+    const html = renderToStaticMarkup(
+      <LgCanvas2D
+        pngUrl="/preview.png"
+        originalImageUrl="/silhouette.png"
+        loading={false}
+        config={{ img_brightness: 20, img_contrast: 0, img_saturation: 100 }}
+        onConfigChange={() => {}}
+      />,
+    )
+    expect(html).toContain("brightness(1.2)")
+  })
+
+  it("does not apply a CSS filter when using pngUrl (no originalImageUrl)", () => {
+    const html = renderToStaticMarkup(
+      <LgCanvas2D
+        pngUrl="/preview.png"
+        loading={false}
+        config={{ img_brightness: 20 }}
+        onConfigChange={() => {}}
+      />,
+    )
+    expect(html).not.toContain("filter:brightness")
+    expect(html).not.toContain("filter: brightness")
+  })
 })

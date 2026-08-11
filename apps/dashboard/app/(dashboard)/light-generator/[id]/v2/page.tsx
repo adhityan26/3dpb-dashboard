@@ -154,6 +154,7 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
                 <CardContent className="p-2">
                   <LgCanvas2D
                     pngUrl={preview.pngUrl}
+                    originalImageUrl={`/api/light-generator/orders/${order.id}/silhouette`}
                     loading={preview.status === "loading"}
                     config={effectiveConfig}
                     onConfigChange={handleConfigChange}

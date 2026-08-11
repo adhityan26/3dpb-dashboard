@@ -8,6 +8,7 @@ import {
   applyPaddingDrag,
   paddingPctToRadiusFraction,
   overlayGeometry,
+  buildImageFilter,
 } from "./canvas-math"
 
 interface LgCanvas2DProps {
@@ -15,6 +16,14 @@ interface LgCanvas2DProps {
   loading: boolean
   config?: Record<string, unknown>
   onConfigChange?: (next: Record<string, unknown>) => void
+  /** When provided, the backdrop shows the ORIGINAL uploaded silhouette
+   * (e.g. `/api/light-generator/orders/{id}/silhouette`) instead of the
+   * server-rendered preview PNG — used by the Canvas Editor card so image
+   * adjustment params (brightness/contrast/saturation) can be tuned against
+   * the source image with live CSS-filter feedback. The Shadow preview card
+   * omits this and keeps rendering `pngUrl` (the actual thresholded/masked
+   * output) untouched. */
+  originalImageUrl?: string | null
   /** Forces the overlay/handles off even when `onConfigChange` is provided —
    * used by the "Shadow preview" card, which shows the same image clean,
    * with no drag interactions. Default off (i.e. interactive whenever
@@ -71,6 +80,7 @@ export function LgCanvas2D({
   loading,
   config,
   onConfigChange,
+  originalImageUrl,
   readOnly = false,
   dimBackdrop = false,
   heightClass = DEFAULT_HEIGHT_CLASS,
@@ -204,6 +214,16 @@ export function LgCanvas2D({
     ? `translate(${drag.liveDxPx}px, ${drag.liveDyPx}px)`
     : undefined
 
+  // Editor backdrop prefers the ORIGINAL uploaded silhouette (colored inputs
+  // included) so brightness/contrast/saturation can be tuned visually; the
+  // Shadow preview card doesn't pass originalImageUrl and keeps showing
+  // pngUrl, the actual thresholded/masked render.
+  const imageSrc = originalImageUrl ?? pngUrl
+  // CSS filter is an approximation for instant feedback while dragging
+  // sliders; the server-rendered Shadow preview PNG is the ground truth for
+  // what actually gets thresholded/printed.
+  const imageFilter = originalImageUrl ? buildImageFilter(cfg) : undefined
+
   return (
     <div className="flex w-full flex-col gap-2">
       {/* Bounded height so the preview (incl. handles at its edge) fits
@@ -227,12 +247,12 @@ export function LgCanvas2D({
         onPointerUp={interactive ? handlePointerUp : undefined}
         onPointerCancel={interactive ? handlePointerUp : undefined}
       >
-      {pngUrl ? (
+      {imageSrc ? (
         <img
-          src={pngUrl}
+          src={imageSrc}
           alt="Shadow preview"
           className={`h-full w-full object-contain ${loading || dimBackdrop ? "opacity-80" : ""}`}
-          style={{ transform: bodyTransform, cursor: interactive ? "move" : undefined }}
+          style={{ transform: bodyTransform, filter: imageFilter, cursor: interactive ? "move" : undefined }}
           draggable={false}
           onPointerDown={interactive ? startBodyDrag : undefined}
         />
@@ -255,7 +275,7 @@ export function LgCanvas2D({
         <span className="absolute right-2 top-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white">updating…</span>
       )}
 
-      {interactive && pngUrl && (
+      {interactive && imageSrc && (
         <svg
           className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
           viewBox={`0 0 ${imgPx || 1} ${imgPx || 1}`}
@@ -322,7 +342,7 @@ export function LgCanvas2D({
         </svg>
       )}
 
-      {canConfig && pngUrl && (
+      {canConfig && imageSrc && (
         <div className="pointer-events-none absolute inset-0">
           {drag?.kind === "body" && (
             <span className="absolute left-2 bottom-2 pointer-events-none rounded bg-black/70 px-2 py-0.5 text-xs text-white">

@@ -99,4 +99,12 @@ export const SECTIONS: { title: string; params: ParamDef[] }[] = [
       { key: "decimate_ratio", label: "Decimation ratio", help: "0 = off. 0.7 = remove 70% of faces", type: "number", min: 0, max: 0.95, step: 0.05 },
     ],
   },
+  {
+    title: "Image Adjustment",
+    params: [
+      { key: "img_brightness", label: "Brightness",       help: "-100..100 — applied before thresholding", type: "number", min: -100, max: 100, step: 1 },
+      { key: "img_contrast",   label: "Contrast",         help: "-100..100 — applied before thresholding", type: "number", min: -100, max: 100, step: 1 },
+      { key: "img_saturation", label: "Saturation (%)",   help: "0 = grayscale; tunes colored inputs",      type: "number", min: 0,    max: 200, step: 1 },
+    ],
+  },
 ]
