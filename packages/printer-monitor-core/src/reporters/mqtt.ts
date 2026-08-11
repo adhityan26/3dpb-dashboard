@@ -2,7 +2,17 @@ import mqtt, { type MqttClient } from 'mqtt'
 import type { Reporter } from '../engine'
 import type { PrinterEvent, PrintersPayload } from '../types'
 
-export interface MqttReporterOpts { url: string; statusTopic?: string; eventsTopic?: string }
+export interface MqttReporterOpts {
+  url: string
+  statusTopic?: string
+  eventsTopic?: string
+  // Password CONNECT MQTT -- opsional (broker lain, mis. mosquitto homelab, tak butuh
+  // ini). Kalau diisi, dikirim bareng username placeholder tetap ("agent") karena MQTT
+  // 3.1.1 butuh username flag diset biar client library benar-benar mengirim password.
+  password?: string
+}
+
+const MQTT_AUTH_USERNAME_PLACEHOLDER = 'agent'
 
 export class MqttReporter implements Reporter {
   private client: MqttClient | null = null
@@ -14,7 +24,12 @@ export class MqttReporter implements Reporter {
   }
   connect(): Promise<void> {
     return new Promise((res, rej) => {
-      this.client = mqtt.connect(this.opts.url, { reconnectPeriod: 5000 })
+      this.client = mqtt.connect(this.opts.url, {
+        reconnectPeriod: 5000,
+        ...(this.opts.password !== undefined
+          ? { username: MQTT_AUTH_USERNAME_PLACEHOLDER, password: this.opts.password }
+          : {}),
+      })
       this.client.on('error', (err) => {
         console.error('[mqtt-reporter]', err.message)
         rej(err)
