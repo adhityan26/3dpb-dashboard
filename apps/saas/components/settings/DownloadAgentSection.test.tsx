@@ -27,6 +27,13 @@ describe("DownloadAgentSection build id (versi+commit hash yang lagi ke-host di 
   });
 });
 
+describe("DownloadAgentSection disclaimer installer belum ditandatangani", () => {
+  it("selalu tampilkan peringatan unsigned installer + cara lanjut install", async () => {
+    render(<DownloadAgentSection />);
+    await waitFor(() => expect(screen.getByText(/belum ditandatangani/i)).toBeTruthy());
+  });
+});
+
 describe("DownloadAgentSection deteksi OS", () => {
   it("UA Mac -> tombol utama 'Download untuk macOS', toggle nawarin Windows", async () => {
     setUserAgent(MAC_UA);

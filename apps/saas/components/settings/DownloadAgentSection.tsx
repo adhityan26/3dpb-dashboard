@@ -99,6 +99,17 @@ export function DownloadAgentSection({ buildId }: { buildId?: string | null } = 
           {secondary.label}
         </a>
       )}
+
+      {/* Installer belum ditandatangani (code signing Windows + Apple Developer Program Mac
+          keduanya berbayar, belum worth it di fase staging) -- tanpa penjelasan ini user awam
+          kemungkinan panik/berhenti pas lihat "Unknown Publisher"/Gatekeeper dan nganggap
+          aplikasinya rusak/virus, padahal cuma belum ditandatangani. */}
+      <p className="text-[11px] g-t4 mt-3 pt-3" style={{ borderTop: "1px solid var(--g-row-border)" }}>
+        Installer belum ditandatangani (code signing) -- Windows/macOS bisa nampilin peringatan
+        "Unknown Publisher" atau "tak bisa dibuka". Ini aman, cuma karena sertifikat resmi belum
+        dipasang. Windows: klik "More info" lalu "Run anyway". macOS: buka System Settings &gt;
+        Privacy &amp; Security, lalu "Open Anyway".
+      </p>
     </div>
   );
 }
