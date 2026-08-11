@@ -15,6 +15,7 @@ import {
   parseFlooringShape,
   resizeFromCursor,
 } from "./canvas-math"
+import { traceContour, contourToPath, type Point } from "./contour"
 
 interface LgCanvas2DProps {
   pngUrl: string | null
@@ -146,6 +147,10 @@ export function LgCanvas2D({
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const [wrapSize, setWrapSize] = useState(0)
   const [drag, setDrag] = useState<DragState | null>(null)
+  // Traced outline of the custom-flooring image (grid/pixel coords), null
+  // until extraction finishes (or on any failure — the caller falls back to
+  // the plain bounding-box border below).
+  const [contour, setContour] = useState<{ points: Point[]; w: number; h: number } | null>(null)
   // Guards a single gesture against applying more than once: pointerup can
   // fire after pointercancel in some browsers, or a stray move/up could race
   // a just-cleared drag state. Once a gesture has applied, it's done.
@@ -177,6 +182,68 @@ export function LgCanvas2D({
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
+
+  // Extracts a traced outline from the custom-flooring image so the casing
+  // overlay can hug its actual shape (e.g. a shield silhouette) instead of a
+  // plain bounding box. Runs client-side only (SSR has no Image/canvas);
+  // any failure (load error, tainted canvas, etc.) just leaves `contour`
+  // null and the render below falls back to the old bounding-box border.
+  useEffect(() => {
+    setContour(null)
+    if (!flooringImageUrl) return
+    let cancelled = false
+    const img = new Image()
+    img.onload = () => {
+      if (cancelled) return
+      try {
+        const MAX_SIDE = 96
+        const scale = Math.min(1, MAX_SIDE / Math.max(img.naturalWidth, img.naturalHeight))
+        const w = Math.max(1, Math.round(img.naturalWidth * scale))
+        const h = Math.max(1, Math.round(img.naturalHeight * scale))
+        const canvas = document.createElement("canvas")
+        canvas.width = w
+        canvas.height = h
+        const ctx = canvas.getContext("2d")
+        if (!ctx) return
+        ctx.drawImage(img, 0, 0, w, h)
+        const { data } = ctx.getImageData(0, 0, w, h)
+        // Decide the solid predicate: if the image carries meaningful alpha
+        // variance (a real cutout with transparency), solid = opaque
+        // pixels; otherwise (flat/opaque alpha, e.g. a JPEG) fall back to
+        // dark-pixel = solid, matching how the flooring silhouette is
+        // typically authored (dark shape on light background).
+        let minA = 255
+        let maxA = 0
+        for (let i = 3; i < data.length; i += 4) {
+          const a = data[i]
+          if (a < minA) minA = a
+          if (a > maxA) maxA = a
+        }
+        const useAlpha = maxA - minA > 32
+        const grid = new Uint8Array(w * h)
+        for (let p = 0; p < w * h; p++) {
+          const i = p * 4
+          if (useAlpha) {
+            grid[p] = data[i + 3] > 127 ? 1 : 0
+          } else {
+            const luma = 0.299 * data[i] + 0.587 * data[i + 1] + 0.114 * data[i + 2]
+            grid[p] = luma < 128 ? 1 : 0
+          }
+        }
+        const points = traceContour(grid, w, h)
+        if (!cancelled && points.length >= 3) setContour({ points, w, h })
+      } catch {
+        // Fallback to bounding box — see comment above.
+      }
+    }
+    img.onerror = () => {
+      // Fallback to bounding box — see comment above.
+    }
+    img.src = flooringImageUrl
+    return () => {
+      cancelled = true
+    }
+  }, [flooringImageUrl])
 
   // Esc cancels an in-progress drag without writing anything.
   useEffect(() => {
@@ -374,6 +441,38 @@ export function LgCanvas2D({
       const side = r * 2
       const x = casingCx - side / 2
       const y = casingCy - side / 2
+      // When the client-side extraction (see the flooringImageUrl effect
+      // above) has traced the image's actual silhouette, map that polygon's
+      // bounding box onto this same [x, y, side, side] box — the identical
+      // sizing rule the flooring <image> below uses (largest dimension =
+      // 2*outer_radius on screen) — so the outline sits exactly on the
+      // image contour and follows it live through drags/resizes. Any
+      // failure/pending state (contour === null) falls back to the plain
+      // bounding-box border, unchanged from before.
+      let outline: React.ReactNode = (
+        <>
+          <rect x={x} y={y} width={side} height={side} fill="none" stroke={CASING_STROKE_GLOW} strokeWidth={5} />
+          <rect x={x} y={y} width={side} height={side} rx={4} fill="none" stroke={stroke} strokeWidth={2} />
+        </>
+      )
+      if (contour) {
+        const { points, w: gridW, h: gridH } = contour
+        const longSide = Math.max(gridW, gridH)
+        const scale = longSide > 0 ? side / longSide : 0
+        // Center the traced grid within the square box (matches
+        // preserveAspectRatio="xMidYMid meet" on the <image> below).
+        const offsetX = x + (side - gridW * scale) / 2
+        const offsetY = y + (side - gridH * scale) / 2
+        const d = contourToPath(points, scale, offsetX, offsetY)
+        if (d) {
+          outline = (
+            <>
+              <path d={d} fill="none" stroke={CASING_STROKE_GLOW} strokeWidth={5} strokeLinejoin="round" />
+              <path d={d} fill={CASING_FILL} stroke={stroke} strokeWidth={2} strokeLinejoin="round" />
+            </>
+          )
+        }
+      }
       return {
         el: (
           <>
@@ -386,12 +485,7 @@ export function LgCanvas2D({
               opacity={0.55}
               preserveAspectRatio="xMidYMid meet"
             />
-            {/* Contour border for the custom-flooring image: a wider, low-
-                opacity outer stroke gives a subtle glow, and the inner 2px
-                solid cyan stroke traces the bounding box clearly against any
-                backdrop — the image alone had no edge to anchor on. */}
-            <rect x={x} y={y} width={side} height={side} fill="none" stroke={CASING_STROKE_GLOW} strokeWidth={5} />
-            <rect x={x} y={y} width={side} height={side} rx={4} fill="none" stroke={stroke} strokeWidth={2} />
+            {outline}
           </>
         ),
       }
