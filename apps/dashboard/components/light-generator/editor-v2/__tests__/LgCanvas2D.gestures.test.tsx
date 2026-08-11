@@ -87,8 +87,8 @@ describe("LgCanvas2D gesture commits", () => {
 
   it.each([
     ["image body", "img"],
-    ["image corner handle", "[data-testid=lg-image-handle]"],
-    ["casing handle", "[data-testid=lg-casing-handle]"],
+    ["image corner handle", "[data-testid=lg-image-handle-hit]"],
+    ["casing handle", "[data-testid=lg-casing-handle-hit]"],
   ])("a click on the %s writes nothing (zero travel)", (_label, selector) => {
     const { onConfigChange, container } = renderCanvas()
     gesture(container.querySelector(selector)!, container.querySelector("img")!.parentElement!, 0, 0)
@@ -97,8 +97,8 @@ describe("LgCanvas2D gesture commits", () => {
 
   it.each([
     ["image body", "img"],
-    ["image corner handle", "[data-testid=lg-image-handle]"],
-    ["casing handle", "[data-testid=lg-casing-handle]"],
+    ["image corner handle", "[data-testid=lg-image-handle-hit]"],
+    ["casing handle", "[data-testid=lg-casing-handle-hit]"],
   ])("a click on the %s with sub-threshold tremor writes nothing", (_label, selector) => {
     const { onConfigChange, container } = renderCanvas()
     gesture(container.querySelector(selector)!, container.querySelector("img")!.parentElement!, 2, -1)
@@ -116,7 +116,7 @@ describe("LgCanvas2D gesture commits", () => {
 
   it("a real drag on an image corner handle still commits the resize", () => {
     const { onConfigChange, container } = renderCanvas()
-    gesture(container.querySelector("[data-testid=lg-image-handle]")!, container.querySelector("img")!.parentElement!, 30, 30)
+    gesture(container.querySelector("[data-testid=lg-image-handle-hit]")!, container.querySelector("img")!.parentElement!, 30, 30)
     expect(onConfigChange).toHaveBeenCalledTimes(1)
     expect(onConfigChange.mock.calls[0][0].auto_fit_mask).toBe(false)
   })

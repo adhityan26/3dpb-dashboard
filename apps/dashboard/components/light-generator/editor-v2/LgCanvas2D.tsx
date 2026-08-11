@@ -59,6 +59,8 @@ const WRAP_INSET_PX = 16
 const DEFAULT_HEIGHT_CLASS = "h-[52vh] min-h-[380px]"
 
 const HANDLE_R = 6
+// Invisible enlarged hit target around each 6px handle so small handles are easy to grab.
+const HANDLE_HIT = 22
 const LAMP_R = 5
 
 /**
@@ -527,6 +529,24 @@ export function LgCanvas2D({
               fill="rgba(226,232,240,0.95)"
               stroke="black"
               strokeWidth={1}
+              style={{ cursor: c.cursor, pointerEvents: "none" }}
+            />
+          ))}
+          {[
+            { x: -1, y: -1, cursor: "nwse-resize" },
+            { x: 1, y: -1, cursor: "nesw-resize" },
+            { x: -1, y: 1, cursor: "nesw-resize" },
+            { x: 1, y: 1, cursor: "nwse-resize" },
+          ].map((c, i) => (
+            <rect
+              key={`img-hit-${i}`}
+              data-testid="lg-image-handle-hit"
+              className={hitClass}
+              x={imgHalf + imageOffsetPxX + imageBodyDx + c.x * imgResizeLiveHalfPx - HANDLE_HIT / 2}
+              y={imgHalf + imageOffsetPxY + imageBodyDy + c.y * imgResizeLiveHalfPx - HANDLE_HIT / 2}
+              width={HANDLE_HIT}
+              height={HANDLE_HIT}
+              fill="transparent"
               style={{ cursor: c.cursor }}
               onPointerDown={startDrag("image-resize", imgResizeLiveHalfPx)}
             />
@@ -557,6 +577,24 @@ export function LgCanvas2D({
               fill="rgba(103,232,249,0.95)"
               stroke="white"
               strokeWidth={1}
+              style={{ cursor: c.cursor, pointerEvents: "none" }}
+            />
+          ))}
+          {[
+            { x: -1, y: -1, cursor: "nwse-resize" },
+            { x: 1, y: -1, cursor: "nesw-resize" },
+            { x: -1, y: 1, cursor: "nesw-resize" },
+            { x: 1, y: 1, cursor: "nwse-resize" },
+          ].map((c, i) => (
+            <rect
+              key={`casing-hit-${i}`}
+              data-testid="lg-casing-handle-hit"
+              className={hitClass}
+              x={casingCx + c.x * casingLiveR - HANDLE_HIT / 2}
+              y={casingCy + c.y * casingLiveR - HANDLE_HIT / 2}
+              width={HANDLE_HIT}
+              height={HANDLE_HIT}
+              fill="transparent"
               style={{ cursor: c.cursor }}
               onPointerDown={startDrag("casing-resize", casingLiveR)}
             />
