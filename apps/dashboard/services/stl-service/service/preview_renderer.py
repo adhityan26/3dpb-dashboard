@@ -85,9 +85,13 @@ def _draw_casing_outline(
     shadow_gray: np.ndarray,
     r_wall_arr: np.ndarray,
     floor_half: float,
+    light_x: float = 0.0,
+    light_y: float = 0.0,
 ) -> np.ndarray:
     """Overlay a cyan polyline of the casing footprint on the shadow image.
 
+    The amber cross marks the LIGHT position (light_x, light_y) in mm —
+    screen y is inverted (down = -y), same convention as the projection.
     Returns a BGR image (3-channel uint8) ready for PNG encoding.
     """
     bgr = cv2.cvtColor(shadow_gray, cv2.COLOR_GRAY2BGR)
@@ -103,8 +107,10 @@ def _draw_casing_outline(
     pts = np.column_stack([out_x, out_y]).reshape((-1, 1, 2))
 
     cv2.polylines(bgr, [pts], isClosed=True, color=(255, 255, 0), thickness=2)
+    light_px = int(round(cx_img + light_x * pix_per_mm))
+    light_py = int(round(cx_img - light_y * pix_per_mm))
     cv2.drawMarker(
-        bgr, (cx_img, cx_img),
+        bgr, (light_px, light_py),
         color=(0, 200, 255),
         markerType=cv2.MARKER_CROSS,
         markerSize=10,
@@ -235,7 +241,10 @@ def render_shadow_preview(image_path: str, config: dict | None = None) -> bytes:
 
     display_gray = _to_physical_polarity(shadow_gray)
 
-    bgr = _draw_casing_outline(display_gray, r_wall_arr, floor_half)
+    bgr = _draw_casing_outline(
+        display_gray, r_wall_arr, floor_half,
+        light_x=float(p["light_x"]), light_y=float(p["light_y"]),
+    )
 
     ok, buf = cv2.imencode(".png", bgr)
     if not ok:
