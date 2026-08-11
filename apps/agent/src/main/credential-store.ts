@@ -48,40 +48,59 @@ function generatePin(): string {
   return String(randomInt(0, 10000)).padStart(4, "0");
 }
 
+type LoadOutcome = { ok: true; blob: CredentialBlob } | { ok: false };
+
+/**
+ * Sepupu loadCredentials() KHUSUS untuk ensureBrokerPin() -- beda dari loadCredentials(),
+ * fungsi ini MEMBEDAKAN "file belum ada" (aman augment) dari "file ada tapi gagal
+ * didekripsi" (data-loss risk, JANGAN pernah timpa). loadCredentials() sengaja melebur
+ * keduanya jadi EMPTY_BLOB untuk pemanggil lama (pairing flow) yang memang tak butuh
+ * bedanya -- TAPI ensureBrokerPin() butuh bedanya, karena kasus paling umum di dunia nyata
+ * (user upgrade dari versi sebelum fitur PIN ada) punya file yang decrypt-nya SUKSES, cuma
+ * belum ada field brokerPin -- itu 100% aman diaugment (data asli sudah di tangan), BUKAN
+ * kasus corrupt yang harus di-skip.
+ */
+function tryLoadCredentials(): LoadOutcome {
+  const filePath = credentialFilePath();
+  if (!safeStorage.isEncryptionAvailable()) return { ok: false };
+  if (!fs.existsSync(filePath)) return { ok: true, blob: EMPTY_BLOB }; // genuinely first run -- aman
+  try {
+    const encrypted = fs.readFileSync(filePath);
+    const decrypted = safeStorage.decryptString(encrypted);
+    return { ok: true, blob: JSON.parse(decrypted) as CredentialBlob };
+  } catch {
+    return { ok: false }; // decrypt GENUINELY gagal -- data agentToken/devices berisiko, jangan timpa
+  }
+}
+
 /**
  * Bootstrap PIN broker -- dipanggil SEKALI tiap startup (bootstrap() di index.ts), TANPA
  * user di loop, jadi harus lebih hati-hati dari loadCredentials() biasa: loadCredentials()
  * sengaja tak bisa bedakan "file belum ada" vs "file ada tapi gagal didekripsi" (keduanya
  * balik EMPTY_BLOB) -- aman untuk pemanggil lama (pairing, user-triggered) karena blob
- * kosong cuma berarti "minta user pairing ulang". TAPI kalau fungsi ini naif langsung
- * `if (!blob.brokerPin) { generate+save }`, satu file yang corrupt (bukan genuinely
- * kosong) bakal DITIMPA jadi blob isi PIN doang -- agentToken & SEMUA DeviceSecret hilang
- * permanen. Makanya cek fs.existsSync() SENDIRI di sini (sebelum loadCredentials meleburkan
- * bedanya) dan HANYA persist kalau file BENAR-BENAR belum ada DAN safeStorage tersedia
- * (saveCredentials() -> encryptString() throw kalau tidak).
+ * kosong cuma berarti "minta user pairing ulang". ensureBrokerPin() pakai tryLoadCredentials()
+ * di atas supaya BISA bedakan keduanya: kasus paling umum di dunia nyata -- user upgrade dari
+ * versi sebelum fitur PIN ada -- punya file yang decrypt-nya SUKSES tapi belum ada brokerPin,
+ * dan itu aman diaugment (data asli sudah di tangan). Yang TIDAK boleh ditimpa cuma kasus
+ * decrypt GENUINELY gagal (file corrupt / key beda) -- di situ agentToken & DeviceSecret lama
+ * berisiko hilang permanen kalau kita generate+save PIN begitu saja.
  */
 export async function ensureBrokerPin(): Promise<string> {
-  const fileExists = fs.existsSync(credentialFilePath());
-  // Dicek SEBELUM loadCredentials() -- loadCredentials() juga memanggil
-  // isEncryptionAvailable() secara internal, tapi nilai KEDUANYA harus konsisten dalam satu
-  // pemanggilan ensureBrokerPin(). Kalau dicek ulang belakangan (di canPersist), pemanggil
-  // yang mock isEncryptionAvailable() cuma sekali (mockReturnValueOnce) akan salah kena --
-  // konsumsi mock-once itu keburu diserap panggilan internal loadCredentials(), bukan
-  // panggilan eksplisit di sini.
-  const encryptionAvailable = safeStorage.isEncryptionAvailable();
-  const blob = await loadCredentials();
-  if (blob.brokerPin) return blob.brokerPin;
+  const outcome = tryLoadCredentials();
+  if (outcome.ok && outcome.blob.brokerPin) return outcome.blob.brokerPin;
 
   const pin = generatePin();
-  const canPersist = fileExists === false && encryptionAvailable;
-  if (!canPersist) {
+  if (!outcome.ok) {
     // Jangan pernah log nilai PIN -- cuma catat bahwa bootstrap jatuh ke mode session-only.
     console.error(
-      "[credential-store] tak bisa simpan PIN baru dengan aman (file ada tapi tak terbaca, atau enkripsi tak tersedia) -- pakai PIN session-only untuk run ini",
+      "[credential-store] tak bisa simpan PIN baru dengan aman (file ada tapi gagal didekripsi, atau enkripsi tak tersedia) -- pakai PIN session-only untuk run ini",
     );
     return pin;
   }
-  await saveCredentials({ ...blob, brokerPin: pin });
+  // outcome.ok -- baik genuinely-first-run (blob kosong) MAUPUN file lama yang decrypt-nya
+  // sukses tapi belum punya brokerPin (kasus upgrade) sama-sama aman diaugment di sini,
+  // karena kita PUNYA data aslinya (outcome.blob) -- bukan menimpa buta.
+  await saveCredentials({ ...outcome.blob, brokerPin: pin });
   return pin;
 }
 

@@ -158,7 +158,7 @@ export function DashboardScreen({
               ? `${brokerInfo.ip}:${brokerInfo.port}`
               : "broker belum jalan (port 1883 dipakai proses lain, atau diblokir sistem — cek log aplikasi)"}
           </p>
-          {brokerInfo.pin !== null && (
+          {brokerInfo.port !== null && brokerInfo.pin !== null && (
             <p className="g-t2 text-sm mt-1">
               PIN broker (ketik ini juga di setup WiFi CYD): <span className="font-semibold">{brokerInfo.pin}</span>
             </p>

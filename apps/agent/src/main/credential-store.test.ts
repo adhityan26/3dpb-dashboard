@@ -102,6 +102,19 @@ describe("ensureBrokerPin", () => {
     expect(pin).toMatch(/^\d{4}$/);
     expect(fs.writeFileSync).not.toHaveBeenCalled();
   });
+
+  it("upgrade case: file ADA, decrypt SUKSES, tapi belum ada brokerPin (blob pra-fitur ini) -> PIN di-generate DAN dipersist, agentToken/devices lama TETAP UTUH", async () => {
+    const existing = { agentToken: "slz_existing_user", devices: { abc1234567: { ip: "192.168.1.5", serial: "S1", accessCode: "1234" } } };
+    (fs.existsSync as any).mockReturnValue(true);
+    (fs.readFileSync as any).mockReturnValue(Buffer.from(`ENC(${JSON.stringify(existing)})`));
+    const pin = await ensureBrokerPin();
+    expect(pin).toMatch(/^\d{4}$/);
+    expect(fs.writeFileSync).toHaveBeenCalled();
+    const written = JSON.parse(
+      (safeStorage.decryptString as any)((fs.writeFileSync as any).mock.calls[0][1])
+    );
+    expect(written).toEqual({ ...existing, brokerPin: pin });
+  });
 });
 
 describe("clearBrokerPin", () => {

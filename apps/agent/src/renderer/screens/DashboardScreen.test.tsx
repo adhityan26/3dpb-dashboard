@@ -164,6 +164,13 @@ describe("DashboardScreen", () => {
     expect(screen.queryByText(/192\.168\.1\.100/)).toBeNull();
   });
 
+  it("getBrokerInfo balikin port:null MESKI pin masih ada di response -> JANGAN tampilkan PIN (broker belum jalan, PIN itu tak berguna/menyesatkan)", async () => {
+    (window as any).agentApi.getBrokerInfo.mockResolvedValue({ ip: "192.168.1.100", port: null, pin: "0042" });
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText(/broker belum jalan/i)).toBeTruthy());
+    expect(screen.queryByText(/PIN broker/i)).toBeNull();
+  });
+
   it("getSnapshot()/getBrokerInfo() reject -> tidak crash (UI tetap render, tak ada unhandled rejection)", async () => {
     (window as any).agentApi.getSnapshot.mockRejectedValue(new Error("snapshot boom"));
     (window as any).agentApi.getBrokerInfo.mockRejectedValue(new Error("broker boom"));
