@@ -243,7 +243,12 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
               </CardHeader>
               <CardContent className="p-2">
                 <Lg3DViewer
-                  stlUrl={order.stlPath ? `/api/light-generator/orders/${order.id}/stl` : null}
+                  stlUrl={order.stlPath
+                    // Cache-buster: the /stl URL is constant, so key it by the
+                    // generate-time config hash — a regenerate forces a fresh
+                    // download instead of the browser serving the stale model.
+                    ? `/api/light-generator/orders/${order.id}/stl?v=${order.generatedConfigHash ?? "0"}`
+                    : null}
                   config={effectiveConfig}
                   stale={isStale}
                 />
