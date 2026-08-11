@@ -1,6 +1,7 @@
 "use client"
 
 import { use, useEffect, useRef, useState } from "react"
+import dynamic from "next/dynamic"
 import { PageShell } from "@/components/layout/PageShell"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -20,6 +21,18 @@ import { LgCanvas2D } from "@/components/light-generator/editor-v2/LgCanvas2D"
 import { LgWallCanvas } from "@/components/light-generator/editor-v2/LgWallCanvas"
 import { LgEditorShell, type LgEditorTab } from "@/components/light-generator/editor-v2/LgEditorShell"
 import { LgImageSlot } from "@/components/light-generator/LgImageSlot"
+
+// r3f's Canvas depends on WebGL/browser APIs unavailable during SSR — load
+// it client-only, mirroring the pattern next/dynamic's docs recommend for
+// "External libraries [that] can be loaded on demand" relying on `window`.
+const Lg3DViewer = dynamic(() => import("@/components/light-generator/editor-v2/Lg3DViewer"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-[52vh] min-h-[380px] w-full items-center justify-center rounded-lg border bg-[#111827] text-sm text-slate-400">
+      Memuat 3D…
+    </div>
+  ),
+})
 
 const STATUS_FLOW = ["submitted", "paid", "generating", "ready", "shipped", "cancelled"] as const
 
@@ -225,9 +238,15 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
             </Card>
           ) : (
             <Card>
-              <CardHeader><CardTitle>3D</CardTitle></CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Segera — increment berikutnya
+              <CardHeader className="py-2">
+                <CardTitle className="text-sm">3D</CardTitle>
+              </CardHeader>
+              <CardContent className="p-2">
+                <Lg3DViewer
+                  stlUrl={order.stlPath ? `/api/light-generator/orders/${order.id}/stl` : null}
+                  config={effectiveConfig}
+                  stale={isStale}
+                />
               </CardContent>
             </Card>
           )
