@@ -31,6 +31,7 @@ export interface LgOrder {
   stlPath: string | null
   notesOperator: string | null
   additionalImagePath: string | null
+  generatedConfigHash: string | null
   createdAt: string
   updatedAt: string
 }

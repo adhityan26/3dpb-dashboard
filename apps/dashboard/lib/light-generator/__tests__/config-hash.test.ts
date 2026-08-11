@@ -12,4 +12,8 @@ describe('hashLgConfig', () => {
   it('stableStringify sorts keys recursively', () => {
     expect(stableStringify({ b: 1, a: { d: 2, c: 3 } })).toBe('{"a":{"c":3,"d":2},"b":1}')
   })
+  it('hash stable for realistic config', () => {
+    const cfg = { outer_radius: 100, cover_type: 'top', user: null, nested: { a: [1, 2] } }
+    expect(hashLgConfig(cfg)).toBe(hashLgConfig(JSON.parse(JSON.stringify(cfg))))
+  })
 })
