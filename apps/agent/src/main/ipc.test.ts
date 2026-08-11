@@ -19,7 +19,7 @@ import { loadCredentials, saveCredentials } from "./credential-store";
 import { reconcileDevices } from "./startup";
 import { startEngine } from "./engine-manager";
 import { publishLayout } from "./layout-publisher";
-import { getEngine, setEngine, setBrokerPort, getReporters, setReporters } from "./app-state";
+import { getEngine, setEngine, setBrokerPort, setBrokerPin, getReporters, setReporters } from "./app-state";
 
 describe("registerIpcHandlers", () => {
   it("daftarkan handler 'agent:activate'", () => {
@@ -68,15 +68,18 @@ describe("registerIpcHandlers", () => {
     setEngine(null);
   });
 
-  it("'agent:get-broker-info' baca getBrokerPort() TERKINI tiap dipanggil", async () => {
+  it("'agent:get-broker-info' baca getBrokerPort() dan getBrokerPin() TERKINI tiap dipanggil", async () => {
     registerIpcHandlers();
     setBrokerPort(1883);
-    expect((await handlers["agent:get-broker-info"]()).port).toBe(1883);
+    setBrokerPin("0042");
+    expect(await handlers["agent:get-broker-info"]()).toEqual({ ip: expect.any(String), port: 1883, pin: "0042" });
 
     setBrokerPort(9999);
-    expect((await handlers["agent:get-broker-info"]()).port).toBe(9999);
+    setBrokerPin(null);
+    expect(await handlers["agent:get-broker-info"]()).toEqual({ ip: expect.any(String), port: 9999, pin: null });
 
     setBrokerPort(null);
+    setBrokerPin(null);
   });
 });
 
@@ -109,19 +112,21 @@ describe("agent:sync", () => {
     const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S1", accessCode: "1234" } }];
     (reconcileDevices as any).mockResolvedValueOnce({ fetchResult: { ok: true, data: [] }, devices: [], paired });
     setBrokerPort(1883);
+    setBrokerPin("0042");
     const fakeEngine = { snapshot: () => ({ payload: [] }), stop: vi.fn() } as any;
     const fakeReporter = { close: vi.fn().mockResolvedValue(undefined) } as any;
     (startEngine as any).mockResolvedValueOnce({ engine: fakeEngine, reporters: [fakeReporter] });
 
     const result = await handlers["agent:sync"]();
 
-    expect(startEngine).toHaveBeenCalledWith(paired, 1883);
-    expect(publishLayout).toHaveBeenCalledWith("slz_ok", 1883);
+    expect(startEngine).toHaveBeenCalledWith(paired, 1883, "0042");
+    expect(publishLayout).toHaveBeenCalledWith("slz_ok", 1883, "default", "0042");
     expect(result).toEqual({ ok: true, deviceCount: 1 });
     expect(getEngine()).toBe(fakeEngine);
     expect(getReporters()).toEqual([fakeReporter]);
 
     setBrokerPort(null);
+    setBrokerPin(null);
     setEngine(null);
     setReporters([]);
   });
@@ -132,15 +137,17 @@ describe("agent:sync", () => {
     const paired = [{ shortCode: "abc1234567", label: "Printer A (cache)", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S1", accessCode: "1234" } }];
     (reconcileDevices as any).mockResolvedValueOnce({ fetchResult: { ok: false, kind: "network_error" }, devices: [], paired });
     setBrokerPort(1883);
+    setBrokerPin("0042");
     const fakeEngine = { snapshot: () => ({ payload: [] }), stop: vi.fn() } as any;
     (startEngine as any).mockResolvedValueOnce({ engine: fakeEngine, reporters: [] });
 
     const result = await handlers["agent:sync"]();
 
-    expect(startEngine).toHaveBeenCalledWith(paired, 1883);
+    expect(startEngine).toHaveBeenCalledWith(paired, 1883, "0042");
     expect(result).toEqual({ ok: false, kind: "network_error" });
 
     setBrokerPort(null);
+    setBrokerPin(null);
     setEngine(null);
     setReporters([]);
   });
@@ -151,6 +158,7 @@ describe("agent:sync", () => {
     const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S1", accessCode: "1234" } }];
     (reconcileDevices as any).mockResolvedValueOnce({ fetchResult: { ok: true, data: [] }, devices: [], paired });
     setBrokerPort(1883);
+    setBrokerPin("0042");
     (startEngine as any).mockRejectedValueOnce(new Error("boom"));
 
     const result = await handlers["agent:sync"]();
@@ -158,6 +166,7 @@ describe("agent:sync", () => {
     expect(result).toEqual({ ok: false, kind: "engine_error" });
 
     setBrokerPort(null);
+    setBrokerPin(null);
     setEngine(null);
   });
 
@@ -167,6 +176,7 @@ describe("agent:sync", () => {
     const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S1", accessCode: "1234" } }];
     (reconcileDevices as any).mockResolvedValueOnce({ fetchResult: { ok: true, data: [] }, devices: [], paired });
     setBrokerPort(1883);
+    setBrokerPin("0042");
 
     const callOrder: string[] = [];
     const oldEngine = { snapshot: () => ({ payload: [] }), stop: vi.fn().mockImplementation(async () => { callOrder.push("old-engine-stopped"); }) } as any;
@@ -184,6 +194,7 @@ describe("agent:sync", () => {
     expect(getEngine()).toBe(newEngine); // Engine lama BENAR-BENAR diganti, bukan cuma di-stop lalu dibiarkan
 
     setBrokerPort(null);
+    setBrokerPin(null);
     setEngine(null);
   });
 
@@ -193,6 +204,7 @@ describe("agent:sync", () => {
     const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S1", accessCode: "1234" } }];
     (reconcileDevices as any).mockResolvedValueOnce({ fetchResult: { ok: true, data: [] }, devices: [], paired });
     setBrokerPort(1883);
+    setBrokerPin("0042");
 
     const oldEngine = { snapshot: () => ({ payload: [] }), stop: vi.fn().mockResolvedValue(undefined) } as any;
     const oldReporter = { close: vi.fn().mockResolvedValue(undefined) } as any;
@@ -214,6 +226,7 @@ describe("agent:sync", () => {
     expect(getReporters()).toEqual([newReporter]);
 
     setBrokerPort(null);
+    setBrokerPin(null);
     setEngine(null);
     setReporters([]);
   });
@@ -224,6 +237,7 @@ describe("agent:sync", () => {
     const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S1", accessCode: "1234" } }];
     (reconcileDevices as any).mockResolvedValueOnce({ fetchResult: { ok: true, data: [] }, devices: [], paired });
     setBrokerPort(1883);
+    setBrokerPin("0042");
 
     setEngine(null);
     setReporters([{ close: vi.fn().mockRejectedValue(new Error("socket sudah putus")) } as any]);
@@ -235,6 +249,7 @@ describe("agent:sync", () => {
     expect(result).toEqual({ ok: true, deviceCount: 1 });
 
     setBrokerPort(null);
+    setBrokerPin(null);
     setEngine(null);
     setReporters([]);
   });
