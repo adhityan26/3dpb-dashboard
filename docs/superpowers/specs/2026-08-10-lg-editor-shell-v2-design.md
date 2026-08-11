@@ -100,3 +100,12 @@ Feedback user setelah mencoba inc 1-2: UI terasa pengap; preview harus jadi edit
    - **Ring padding** (lingkaran dalam + handle, desain inc-3 asli) → `mask_padding_pct`; auto-fit chip: drag handle memindah ke manual, tap chip balik ke auto.
    - Semua drag: update config on-release (atau throttle ringan saat drag) → autosave + preview debounce pipeline existing; input angka inspector tetap sebagai kontrol presisi.
 3. Hit-target dibedakan tanpa mode toggle: handle ring (lingkaran kecil) vs area tengah (offset). Kursor menyesuaikan (move/ns-resize).
+
+## Addendum 2026-08-12: Polish pass (kritik GPT + mockup user)
+
+1. **Top bar**: breadcrumb "Orders / <id>", customer, status dropdown berwarna, "✓ All changes saved", tombol [Preview 3D] (sekunder) — **Generate STL TIDAK di top bar** (single primary action di panel kanan bawah).
+2. **Rail kiri ramping**: hanya "Project assets" (2 thumbnail + ikon swap) + "Production summary" (4 stat berikon: footprint, tinggi print, estimasi gram, floor size). Customer pindah ke top bar.
+3. **Tab → workflow steps bernomor**: ① Shadow ② Wall & stems ③ Preview 3D.
+4. **Toolbar canvas**: ikon zoom in/out, fit, reset view.
+5. **Inspector kontekstual per step**; grup: Casing, Shadow behavior, Dimensions, Lighting, Advanced; buka 1–2 grup sekaligus; deskripsi panjang → ikon ⓘ (tooltip); baris = label + slider + input angka + unit chip; kartu validasi "Ready to generate / Perubahan belum digenerate" + tombol Generate STL di bawah inspector.
+6. **Bahasa konsisten Inggris** untuk label UI (istilah teknis tetap), status diterjemahkan jadi tindakan: stale → "Changes not generated yet", drop "Idle".
