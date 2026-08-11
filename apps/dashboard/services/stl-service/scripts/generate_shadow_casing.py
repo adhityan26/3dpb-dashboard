@@ -2299,8 +2299,16 @@ def build_top_cover(
     """
     from shapely.geometry import Polygon as _ShapelyPoly
 
-    MIN_ROOF_MM = 0.8   # never let the recess punch through the roof
-    eff_depth = max(0.0, min(recess_depth, cover_thickness - MIN_ROOF_MM))
+    # Recess depth rule:
+    #   depth <  cover_thickness → blind recess, capped so >= 0.8mm roof remains
+    #   depth >= cover_thickness → intentional THROUGH-HOLE (LED puck inserted
+    #                              from above / cable passage) — no roof layer.
+    MIN_ROOF_MM = 0.8
+    through_hole = recess_depth >= cover_thickness
+    if through_hole:
+        eff_depth = cover_thickness
+    else:
+        eff_depth = max(0.0, min(recess_depth, cover_thickness - MIN_ROOF_MM))
 
     if casing_poly is not None:
         slab_poly = casing_poly
@@ -2344,16 +2352,20 @@ def build_top_cover(
         trimesh.repair.fix_normals(ring)
         parts.append(ring)
 
-        roof = trimesh.creation.extrude_polygon(slab_poly,
-                                                cover_thickness - eff_depth)
-        roof.apply_translation([0.0, 0.0, wall_top + eff_depth])
-        trimesh.repair.fix_normals(roof)
-        parts.append(roof)
+        if through_hole:
+            print(f'  [C] top cover recess is a THROUGH-HOLE '
+                  f'(requested {recess_depth:.1f}mm >= cover {cover_thickness:.1f}mm)')
+        else:
+            roof = trimesh.creation.extrude_polygon(slab_poly,
+                                                    cover_thickness - eff_depth)
+            roof.apply_translation([0.0, 0.0, wall_top + eff_depth])
+            trimesh.repair.fix_normals(roof)
+            parts.append(roof)
 
-        if recess_depth > eff_depth:
-            print(f'  [C] WARNING: top cover recess capped — requested '
-                  f'{recess_depth:.1f}mm, effective {eff_depth:.1f}mm '
-                  f'(min roof {MIN_ROOF_MM:.1f}mm enforced)')
+            if recess_depth > eff_depth:
+                print(f'  [C] WARNING: top cover recess capped — requested '
+                      f'{recess_depth:.1f}mm, effective {eff_depth:.1f}mm '
+                      f'(min roof {MIN_ROOF_MM:.1f}mm enforced)')
     else:
         slab = trimesh.creation.extrude_polygon(slab_poly, cover_thickness)
         slab.apply_translation([0.0, 0.0, wall_top])

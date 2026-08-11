@@ -44,10 +44,11 @@ def test_recess_reduces_volume():
 
 
 def test_recess_depth_capped_leaves_roof():
-    # depth request exceeds thickness → capped at thickness - 0.8
+    # depth request below thickness but above the cap → capped at thickness - 0.8
+    # (>= thickness would be an intentional through-hole, tested separately)
     cover = build_top_cover(
         wall_top=WALL_TOP, cover_thickness=THICK,
-        recess_r=4.0, recess_depth=99.0,
+        recess_r=4.0, recess_depth=THICK - 0.3,
         light_x=0.0, light_y=0.0,
         casing_poly=None, base_radius=BASE_R,
     )
@@ -246,3 +247,21 @@ def test_apply_bottom_frame_composes_with_island_bridging():
     out, n = _bridge_floating_islands(framed, stem_width=1)
     assert n == 0  # island now connected via the frame band, no bridging needed
     assert out[3, 2]  # island cell still present
+
+
+def test_recess_through_hole_when_depth_geq_thickness():
+    # depth >= cover thickness → intentional through-hole: no roof layer,
+    # a vertical ray through the recess centre must NOT hit the cover.
+    cover = build_top_cover(
+        wall_top=WALL_TOP, cover_thickness=THICK,
+        recess_r=4.0, recess_depth=THICK,   # equal → through
+        light_x=0.0, light_y=0.0,
+        casing_poly=None, base_radius=BASE_R,
+    )
+    hits = cover.ray.intersects_location(
+        ray_origins=[[0.0, 0.0, WALL_TOP - 1.0]],
+        ray_directions=[[0.0, 0.0, 1.0]],
+    )[0]
+    assert len(hits) == 0
+    # ring still present at full thickness
+    assert cover.bounds[1][2] == pytest.approx(WALL_TOP + THICK, abs=1e-6)
