@@ -2,7 +2,6 @@
 
 import { use, useEffect, useRef, useState } from "react"
 import dynamic from "next/dynamic"
-import { Circle, Ruler, Package, Sun } from "lucide-react"
 import { PageShell } from "@/components/layout/PageShell"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useLgOrder, useUpdateLgOrder, useGenerateLgStl } from "@/lib/hooks/use-light-generator"
@@ -173,47 +172,38 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
               {/* Canvas Editor — dominant, always-on overlays/handles, no
                   Edit toggle (user feedback: "ada 2 canvas, editor dan
                   shadow preview" — one card per role instead of a mode
-                  switch on a single canvas). */}
-              <Card>
-                <CardHeader className="py-2">
-                  <CardTitle className="text-sm">Editor</CardTitle>
-                </CardHeader>
-                <CardContent className="p-2">
-                  <LgCanvas2D
-                    pngUrl={preview.pngUrl}
-                    originalImageUrl={`/api/light-generator/orders/${order.id}/silhouette`}
-                    flooringImageUrl={
-                      order.additionalImagePath
-                        ? `/api/light-generator/orders/${order.id}/additional`
-                        : undefined
-                    }
-                    loading={preview.status === "loading"}
-                    config={effectiveConfig}
-                    onConfigChange={handleConfigChange}
-                    dimBackdrop
-                    heightClass="h-[52vh] min-h-[380px]"
-                    error={previewError}
-                    onRetry={retryPreview}
-                  />
-                </CardContent>
-              </Card>
+                  switch on a single canvas). No Card/CardHeader chrome per
+                  the mockup — the canvas already has its own rounded border,
+                  and it sits directly in the (already-bordered) center
+                  panel. */}
+              <LgCanvas2D
+                pngUrl={preview.pngUrl}
+                originalImageUrl={`/api/light-generator/orders/${order.id}/silhouette`}
+                flooringImageUrl={
+                  order.additionalImagePath
+                    ? `/api/light-generator/orders/${order.id}/additional`
+                    : undefined
+                }
+                loading={preview.status === "loading"}
+                config={effectiveConfig}
+                onConfigChange={handleConfigChange}
+                dimBackdrop
+                heightClass="h-[52vh] min-h-[380px]"
+                error={previewError}
+                onRetry={retryPreview}
+              />
               {/* Shadow preview — clean render of the same pngUrl, no
-                  overlays, no pointer handlers. */}
-              <Card>
-                <CardHeader className="py-2">
-                  <CardTitle className="text-sm">Shadow preview</CardTitle>
-                </CardHeader>
-                <CardContent className="p-2">
-                  <LgCanvas2D
-                    pngUrl={preview.pngUrl}
-                    loading={preview.status === "loading"}
-                    readOnly
-                    heightClass="h-[34vh] min-h-[220px]"
-                    error={previewError}
-                    onRetry={retryPreview}
-                  />
-                </CardContent>
-              </Card>
+                  overlays, no pointer handlers. Plain muted caption instead
+                  of Card chrome, matching the mockup's simple label. */}
+              <p className="text-xs text-muted-foreground">Shadow preview</p>
+              <LgCanvas2D
+                pngUrl={preview.pngUrl}
+                loading={preview.status === "loading"}
+                readOnly
+                heightClass="h-[34vh] min-h-[220px]"
+                error={previewError}
+                onRetry={retryPreview}
+              />
             </div>
           ) : activeTab === "wall" ? (
             <Card>
@@ -263,50 +253,59 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
         }
         rail={
           <div className="space-y-4">
-            <Card>
-              <CardHeader><CardTitle className="text-sm">Project assets</CardTitle></CardHeader>
-              <CardContent>
+            {/* Rail already sits inside the bordered panel from
+                LgEditorShell — inner cards go borderless/transparent here so
+                the two don't double up. */}
+            <Card className="border-transparent bg-transparent shadow-none">
+              <CardHeader className="px-0"><CardTitle className="text-sm">Project assets</CardTitle></CardHeader>
+              <CardContent className="px-0">
                 <div className="grid grid-cols-2 gap-2">
                   <LgImageSlot orderId={id} label="Silhouette" type="silhouette" hasImage={!!order.imagePath} />
                   <LgImageSlot orderId={id} label="Floor Insert" type="additional" hasImage={!!order.additionalImagePath} />
                 </div>
               </CardContent>
             </Card>
-            {/* Production summary — same numbers v1's LgGeneratePanel shows,
+            {/* Production summary — all rows the old v1 Object card showed,
                 fed by the shared computeObjectInfo (live, updates with every
-                edit), condensed to the 4 headline stats per the polish
-                addendum. Full detail (light offsets, auto shell height) is
-                available via the ⓘ tooltip on each row. */}
+                edit). Plain label:value rows separated by thin dividers,
+                matching the mockup instead of a headline-stat layout. */}
             {estimateRaw && (
-              <Card>
-                <CardHeader><CardTitle className="text-sm">Production summary</CardTitle></CardHeader>
-                <CardContent className="space-y-2 text-xs">
-                  <div
-                    className="flex items-center gap-2"
-                    title={`Casing shape: ${estimateRaw.casingDimDesc}`}
-                  >
-                    <Circle className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-muted-foreground">Footprint:</span>
-                    <span className="ml-auto font-medium">{estimateRaw.casingDimDesc}</span>
+              <Card className="border-transparent bg-transparent shadow-none">
+                <CardHeader className="px-0"><CardTitle className="text-sm">Production summary</CardTitle></CardHeader>
+                <CardContent className="divide-y divide-border/50 px-0 text-xs">
+                  <div className="flex items-center justify-between gap-2 py-1.5">
+                    <span className="text-muted-foreground">Casing footprint</span>
+                    <span className="font-medium">{estimateRaw.casingDimDesc}</span>
                   </div>
-                  <div
-                    className="flex items-center gap-2"
-                    title={`Shell height ${estimateRaw.shellHeight} mm${estimateRaw.isAuto ? " (auto)" : ""} · light ${estimateRaw.lightZOffset} mm above wall (${estimateRaw.lightZAbsolute} mm from floor)`}
-                  >
-                    <Ruler className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-muted-foreground">Print height:</span>
-                    <span className="ml-auto font-medium">{estimateRaw.totalHeight} mm</span>
+                  <div className="flex items-center justify-between gap-2 py-1.5">
+                    <span className="text-muted-foreground">Shell height</span>
+                    <span className="font-medium">
+                      {estimateRaw.shellHeight} mm{estimateRaw.isAuto ? " (auto)" : ""}
+                    </span>
                   </div>
-                  <div className="flex items-center gap-2" title="50% wall fill assumed — actual varies by silhouette">
-                    <Package className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-muted-foreground">Material:</span>
-                    <span className="ml-auto font-medium">~{estimateRaw.filamentG} g</span>
+                  <div className="flex items-center justify-between gap-2 py-1.5">
+                    <span className="text-muted-foreground">Total print height</span>
+                    <span className="font-medium">{estimateRaw.totalHeight} mm</span>
                   </div>
-                  <div className="flex items-center gap-2" title="Shadow projection floor size">
-                    <Sun className="h-3.5 w-3.5 text-muted-foreground" />
-                    <span className="text-muted-foreground">Shadow floor:</span>
-                    <span className="ml-auto font-medium">{estimateRaw.shadowDesc}</span>
+                  <div className="flex items-center justify-between gap-2 py-1.5">
+                    <span className="text-muted-foreground">Light Z offset</span>
+                    <span className="font-medium">{estimateRaw.lightZOffset} mm above wall</span>
                   </div>
+                  <div className="flex items-center justify-between gap-2 py-1.5">
+                    <span className="text-muted-foreground">Light Z from floor</span>
+                    <span className="font-medium">{estimateRaw.lightZAbsolute} mm</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 py-1.5">
+                    <span className="text-muted-foreground">Shadow floor size</span>
+                    <span className="font-medium">{estimateRaw.shadowDesc}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-2 py-1.5">
+                    <span className="text-muted-foreground">PLA+ estimate</span>
+                    <span className="font-medium">~{estimateRaw.filamentG} g</span>
+                  </div>
+                  <p className="pt-1.5 text-[11px] text-muted-foreground/70">
+                    50% wall fill assumed — actual varies by silhouette
+                  </p>
                 </CardContent>
               </Card>
             )}
