@@ -2,15 +2,9 @@
 
 import { use, useEffect, useRef, useState } from "react"
 import dynamic from "next/dynamic"
+import { Circle, Ruler, Package, Sun } from "lucide-react"
 import { PageShell } from "@/components/layout/PageShell"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { useLgOrder, useUpdateLgOrder, useGenerateLgStl } from "@/lib/hooks/use-light-generator"
 import { useLgAutosave } from "@/lib/hooks/use-lg-autosave"
 import { useLgPreview } from "@/lib/hooks/use-lg-preview"
@@ -161,6 +155,8 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
         orderId={order.id}
         customerName={order.customerName}
         status={order.status}
+        statusOptions={STATUS_FLOW}
+        onStatusChange={handleStatusChange}
         saveStatus={autosave.status}
         savedAt={autosave.savedAt}
         isStale={isStale}
@@ -262,49 +258,58 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
             onChange={handleConfigChange}
             orderId={order.id}
             hasFlooringImage={!!order.additionalImagePath}
+            activeStep={activeTab}
           />
         }
         rail={
           <div className="space-y-4">
             <Card>
-              <CardHeader><CardTitle className="text-sm">Customer</CardTitle></CardHeader>
-              <CardContent className="space-y-1 text-xs">
-                <p><span className="text-muted-foreground">Name:</span> {order.customerName}</p>
-                <p><span className="text-muted-foreground">Contact:</span> {order.customerContact}</p>
+              <CardHeader><CardTitle className="text-sm">Project assets</CardTitle></CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-2">
+                  <LgImageSlot orderId={id} label="Silhouette" type="silhouette" hasImage={!!order.imagePath} />
+                  <LgImageSlot orderId={id} label="Floor Insert" type="additional" hasImage={!!order.additionalImagePath} />
+                </div>
               </CardContent>
             </Card>
-            {/* Object info — same numbers v1's LgGeneratePanel shows, fed by
-                the shared computeObjectInfo (live, updates with every edit). */}
+            {/* Production summary — same numbers v1's LgGeneratePanel shows,
+                fed by the shared computeObjectInfo (live, updates with every
+                edit), condensed to the 4 headline stats per the polish
+                addendum. Full detail (light offsets, auto shell height) is
+                available via the ⓘ tooltip on each row. */}
             {estimateRaw && (
               <Card>
-                <CardHeader><CardTitle className="text-sm">Object</CardTitle></CardHeader>
-                <CardContent className="space-y-1 text-xs">
-                  <p><span className="text-muted-foreground">Casing footprint:</span> {estimateRaw.casingDimDesc}</p>
-                  <p><span className="text-muted-foreground">Shell height:</span> {estimateRaw.shellHeight} mm{estimateRaw.isAuto ? " (auto)" : ""}</p>
-                  <p><span className="text-muted-foreground">Total print height:</span> {estimateRaw.totalHeight} mm</p>
-                  <p><span className="text-muted-foreground">Light Z offset:</span> {estimateRaw.lightZOffset} mm above wall</p>
-                  <p><span className="text-muted-foreground">Light Z from floor:</span> {estimateRaw.lightZAbsolute} mm</p>
-                  <p><span className="text-muted-foreground">Shadow floor size:</span> {estimateRaw.shadowDesc}</p>
-                  <p><span className="text-muted-foreground">PLA+ estimate:</span> ~{estimateRaw.filamentG} g</p>
-                  <p className="text-muted-foreground text-[10px]">50% wall fill assumed — actual varies by silhouette</p>
+                <CardHeader><CardTitle className="text-sm">Production summary</CardTitle></CardHeader>
+                <CardContent className="space-y-2 text-xs">
+                  <div
+                    className="flex items-center gap-2"
+                    title={`Casing shape: ${estimateRaw.casingDimDesc}`}
+                  >
+                    <Circle className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-muted-foreground">Footprint:</span>
+                    <span className="ml-auto font-medium">{estimateRaw.casingDimDesc}</span>
+                  </div>
+                  <div
+                    className="flex items-center gap-2"
+                    title={`Shell height ${estimateRaw.shellHeight} mm${estimateRaw.isAuto ? " (auto)" : ""} · light ${estimateRaw.lightZOffset} mm above wall (${estimateRaw.lightZAbsolute} mm from floor)`}
+                  >
+                    <Ruler className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-muted-foreground">Print height:</span>
+                    <span className="ml-auto font-medium">{estimateRaw.totalHeight} mm</span>
+                  </div>
+                  <div className="flex items-center gap-2" title="50% wall fill assumed — actual varies by silhouette">
+                    <Package className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-muted-foreground">Material:</span>
+                    <span className="ml-auto font-medium">~{estimateRaw.filamentG} g</span>
+                  </div>
+                  <div className="flex items-center gap-2" title="Shadow projection floor size">
+                    <Sun className="h-3.5 w-3.5 text-muted-foreground" />
+                    <span className="text-muted-foreground">Shadow floor:</span>
+                    <span className="ml-auto font-medium">{estimateRaw.shadowDesc}</span>
+                  </div>
                 </CardContent>
               </Card>
             )}
-            <div className="grid grid-cols-2 gap-2">
-              <LgImageSlot orderId={id} label="Silhouette" type="silhouette" hasImage={!!order.imagePath} />
-              <LgImageSlot orderId={id} label="Floor Insert" type="additional" hasImage={!!order.additionalImagePath} />
-            </div>
-            <div className="space-y-1">
-              <span className="text-xs text-muted-foreground">Status</span>
-              <Select value={order.status} onValueChange={(v) => { if (v) handleStatusChange(v) }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {STATUS_FLOW.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
           </div>
         }
       />

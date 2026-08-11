@@ -133,4 +133,27 @@ describe("LgCanvas2D", () => {
     )
     expect(html).toContain('href="/api/light-generator/orders/abc/additional"')
   })
+
+  it("renders the zoom toolbar (in/out/fit/reset) in interactive mode", () => {
+    const html = renderToStaticMarkup(
+      <LgCanvas2D
+        pngUrl="/preview.png"
+        loading={false}
+        config={{ floor_half_size: 600, outer_radius: 100 }}
+        onConfigChange={() => {}}
+      />,
+    )
+    expect(html).toContain('data-testid="lg-canvas-toolbar"')
+    expect(html).toContain('aria-label="Zoom in"')
+    expect(html).toContain('aria-label="Zoom out"')
+    expect(html).toContain('aria-label="Fit view"')
+    expect(html).toContain('aria-label="Reset view"')
+  })
+
+  it("omits the zoom toolbar in read-only mode", () => {
+    const html = renderToStaticMarkup(
+      <LgCanvas2D pngUrl="/preview.png" loading={false} config={{}} onConfigChange={() => {}} readOnly />,
+    )
+    expect(html).not.toContain('data-testid="lg-canvas-toolbar"')
+  })
 })

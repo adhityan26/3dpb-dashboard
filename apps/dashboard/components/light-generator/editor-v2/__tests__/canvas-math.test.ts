@@ -13,7 +13,33 @@ import {
   buildImageFilter,
   parseFlooringShape,
   resizeFromCursor,
+  adjustDeltaForZoom,
+  clampZoom,
 } from "../canvas-math"
+
+describe("adjustDeltaForZoom", () => {
+  it("passes deltas through unchanged at zoom 1", () => {
+    expect(adjustDeltaForZoom(20, -10, 1)).toEqual({ dx: 20, dy: -10 })
+  })
+  it("divides real screen-px deltas by the zoom factor to recover logical px", () => {
+    expect(adjustDeltaForZoom(20, -10, 2)).toEqual({ dx: 10, dy: -5 })
+  })
+  it("falls back to zoom 1 for a zero/invalid zoom to avoid dividing by zero", () => {
+    expect(adjustDeltaForZoom(20, -10, 0)).toEqual({ dx: 20, dy: -10 })
+  })
+})
+
+describe("clampZoom", () => {
+  it("clamps below the minimum", () => {
+    expect(clampZoom(0.1)).toBe(0.5)
+  })
+  it("clamps above the maximum", () => {
+    expect(clampZoom(10)).toBe(3)
+  })
+  it("passes through in-range values", () => {
+    expect(clampZoom(1.5)).toBe(1.5)
+  })
+})
 
 describe("buildImageFilter", () => {
   it("defaults (0/0/100) produce a no-op filter string", () => {

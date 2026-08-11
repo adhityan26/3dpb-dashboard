@@ -3,17 +3,36 @@ import { renderToStaticMarkup } from "react-dom/server"
 import { LgInspector } from "../LgInspector"
 
 describe("LgInspector", () => {
-  it("renders all section titles and the search input", () => {
+  it("renders the v2 group titles and the search input", () => {
     const html = renderToStaticMarkup(<LgInspector config={{}} onChange={() => {}} />)
-    expect(html).toContain("Size / Geometry")
-    expect(html).toContain("cari parameter")
+    expect(html).toContain("Casing")
+    expect(html).toContain("Shadow behavior")
+    expect(html).toContain("Dimensions")
+    expect(html).toContain("Lighting")
+    expect(html).toContain("Advanced")
+    expect(html).toContain("search parameter")
     expect(html).toContain("Raw JSON")
   })
-  it("cover top hides pillar section, shows recess", () => {
-    const html = renderToStaticMarkup(<LgInspector config={{ cover_type: "top" }} onChange={() => {}} />)
-    expect(html).toContain("Recess radius")
-    expect(html).not.toContain("Pillar outer radius")
+
+  it("renders a unit chip next to a mm-valued param", () => {
+    const html = renderToStaticMarkup(<LgInspector config={{}} onChange={() => {}} />)
+    expect(html).toContain(">mm<")
   })
+
+  it("shows help text via a native title tooltip instead of an inline paragraph", () => {
+    const html = renderToStaticMarkup(<LgInspector config={{}} onChange={() => {}} />)
+    expect(html).toContain("title=\"Radius of the casing wall\"")
+  })
+
+  it("cover top shows recess params, cover bottom shows pillar params, in the Casing group", () => {
+    const top = renderToStaticMarkup(<LgInspector config={{ cover_type: "top" }} onChange={() => {}} />)
+    expect(top).toContain("Recess radius")
+    expect(top).not.toContain("Pillar outer radius")
+
+    const bottom = renderToStaticMarkup(<LgInspector config={{ cover_type: "bottom" }} onChange={() => {}} />)
+    expect(bottom).toContain("Pillar outer radius")
+  })
+
   it("custom shape + hasFlooringImage shows the flooring upload control", () => {
     const html = renderToStaticMarkup(
       <LgInspector
@@ -23,19 +42,22 @@ describe("LgInspector", () => {
         hasFlooringImage={true}
       />,
     )
-    expect(html).toContain("gambar flooring tersedia")
+    expect(html).toContain("flooring image available")
     expect(html).toContain('type="file"')
   })
+
   it("custom shape without hasFlooringImage shows the missing-image warning, no orderId means no file input", () => {
     const html = renderToStaticMarkup(<LgInspector config={{ flooring_shape: "custom" }} onChange={() => {}} />)
-    expect(html).toContain("Belum ada gambar flooring")
+    expect(html).toContain("No flooring image for this order yet")
     expect(html).not.toContain('type="file"')
   })
+
   it("renders the Stems section with an empty-state hint when no user_stems", () => {
     const html = renderToStaticMarkup(<LgInspector config={{}} onChange={() => {}} />)
     expect(html).toContain("Stems")
-    expect(html).toContain("Belum ada stem manual")
+    expect(html).toContain("No manual stems yet")
   })
+
   it("renders a row per user_stems entry with theta/z and a trash button", () => {
     const html = renderToStaticMarkup(
       <LgInspector
@@ -47,5 +69,18 @@ describe("LgInspector", () => {
     expect(html).toContain("θ 200° · z 10mm")
     expect(html).toContain("Hapus stem a")
     expect(html).toContain("Hapus stem b")
+  })
+
+  it("with activeStep=shadow, defaults to Casing/Shadow behavior/Dimensions open (Lighting/Advanced closed)", () => {
+    const html = renderToStaticMarkup(<LgInspector config={{}} onChange={() => {}} activeStep="shadow" />)
+    expect(html).toContain("Invert shadow")
+    expect(html).toContain("Outer radius")
+    expect(html).not.toContain("Light X")
+  })
+
+  it("with activeStep=wall, defaults to Casing/Stems open", () => {
+    const html = renderToStaticMarkup(<LgInspector config={{}} onChange={() => {}} activeStep="wall" />)
+    expect(html).toContain("No manual stems yet")
+    expect(html).not.toContain("Light X")
   })
 })

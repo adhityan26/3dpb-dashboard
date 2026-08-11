@@ -218,6 +218,31 @@ export function resizeFromCursor(S0: number, r0: number, r: number): number {
   return S0 * (r / r0)
 }
 
+/** Zoom bounds for the canvas toolbar's client-side view scale. */
+export const CANVAS_ZOOM_MIN = 0.5
+export const CANVAS_ZOOM_MAX = 3
+
+export function clampZoom(z: number): number {
+  return clamp(z, CANVAS_ZOOM_MIN, CANVAS_ZOOM_MAX)
+}
+
+/**
+ * Toolbar zoom is applied as a CSS `scale()` transform on the square wrapper
+ * that all pointer math is scoped to. `getBoundingClientRect()` on a scaled
+ * element already reflects the visual (post-transform) size, so a client
+ * pointer delta measured against it is in REAL (zoomed) screen px — but the
+ * overlay SVG itself renders in LOGICAL (unzoomed) viewBox units, since it
+ * shares the same transformed parent and gets magnified along with it.
+ * Feeding a real px delta straight into the logical viewBox double-counts
+ * the zoom (visually the object appears to move `zoom`x further than the
+ * cursor did). Dividing the raw client delta by the current zoom converts it
+ * back to logical px, which is what every live-overlay computation expects.
+ */
+export function adjustDeltaForZoom(dxPx: number, dyPx: number, zoom: number): { dx: number; dy: number } {
+  const z = zoom > 0 ? zoom : 1
+  return { dx: dxPx / z, dy: dyPx / z }
+}
+
 /**
  * The overlay SVG + pointer math must operate on the actual rendered image
  * square, not the (possibly non-square) outer container — the container can

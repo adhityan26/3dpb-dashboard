@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { ZoomIn, ZoomOut, Scan, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
   applyOffsetDrag,
@@ -14,6 +15,8 @@ import {
   buildImageFilter,
   parseFlooringShape,
   resizeFromCursor,
+  adjustDeltaForZoom,
+  clampZoom,
 } from "./canvas-math"
 import { traceContour, contourToPath, type Point } from "./contour"
 
@@ -146,6 +149,11 @@ export function LgCanvas2D({
   // the container's aspect ratio isn't 1:1.
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const [wrapSize, setWrapSize] = useState(0)
+  // Client-side view zoom (0.5-3, 1 = fit/reset). Applied as a CSS transform
+  // on the wrapper square below — see adjustDeltaForZoom in canvas-math.ts
+  // for why pointer deltas must be divided by this before feeding the
+  // (logical, unzoomed) overlay math.
+  const [zoom, setZoom] = useState(1)
   const [drag, setDrag] = useState<DragState | null>(null)
   // Traced outline of the custom-flooring image (grid/pixel coords), null
   // until extraction finishes (or on any failure — the caller falls back to
@@ -258,10 +266,6 @@ export function LgCanvas2D({
     return () => window.removeEventListener("keydown", onKeyDown)
   }, [drag])
 
-  function getImgPx(): number {
-    return wrapRef.current?.getBoundingClientRect().width ?? 0
-  }
-
   function getCenter(): { cx: number; cy: number } {
     const rect = wrapRef.current?.getBoundingClientRect()
     if (!rect) return { cx: 0, cy: 0 }
@@ -279,7 +283,7 @@ export function LgCanvas2D({
       // size) so the first pointermove can scale RELATIVE to this gesture's
       // own start instead of jumping to the cursor's absolute distance.
       const { cx, cy } = getCenter()
-      const startCursorRadiusPx = Math.hypot(e.clientX - cx, e.clientY - cy)
+      const { dx: startCursorRadiusPx } = adjustDeltaForZoom(Math.hypot(e.clientX - cx, e.clientY - cy), 0, zoom)
       setDrag({
         kind,
         startX: e.clientX,
@@ -296,16 +300,18 @@ export function LgCanvas2D({
 
   function handlePointerMove(e: React.PointerEvent) {
     if (!drag) return
-    const dx = e.clientX - drag.startX
-    const dy = e.clientY - drag.startY
+    // Raw client deltas are in REAL (post-zoom) screen px; convert to
+    // LOGICAL px (what the overlay's viewBox and every applier expect)
+    // before using them anywhere — see adjustDeltaForZoom in canvas-math.ts.
+    const { dx, dy } = adjustDeltaForZoom(e.clientX - drag.startX, e.clientY - drag.startY, zoom)
     // Travel is measured from the press point for EVERY kind (including the
     // resizes, whose live value is a radius from the wrapper centre) so
     // "did the user actually drag?" has one definition.
     const moved = drag.moved || Math.hypot(dx, dy) >= DRAG_THRESHOLD_PX
     if (drag.kind === "image-resize" || drag.kind === "casing-resize") {
       const { cx, cy } = getCenter()
-      const r = Math.hypot(e.clientX - cx, e.clientY - cy)
-      const liveSizePx = resizeFromCursor(drag.startSizePx, drag.startCursorRadiusPx, r)
+      const { dx: rLogical } = adjustDeltaForZoom(Math.hypot(e.clientX - cx, e.clientY - cy), 0, zoom)
+      const liveSizePx = resizeFromCursor(drag.startSizePx, drag.startCursorRadiusPx, rLogical)
       setDrag({ ...drag, liveSizePx, moved })
     } else {
       setDrag({ ...drag, liveDxPx: dx, liveDyPx: dy, moved })
@@ -325,7 +331,10 @@ export function LgCanvas2D({
       return
     }
     appliedRef.current = true
-    const imgPx = getImgPx()
+    // Use the LOGICAL (unzoomed) wrapper size — matches drag.liveDxPx/liveSizePx,
+    // which are already zoom-adjusted in handlePointerMove above. Using the real
+    // (zoom-scaled) getImgPx() here would double-count the zoom factor.
+    const imgPx = wrapSize
     const imgHalf = imgPx / 2
     // Exactly one applier per gesture, writing only its own config keys —
     // this switch is the single source of truth for "which object is
@@ -519,18 +528,15 @@ export function LgCanvas2D({
       case "image-resize":
         return `padding ~${Math.round(paddingPct)}%`
       case "casing": {
-        const imgPxNow = getImgPx()
-        const next = applyCasingDrag(cfg, drag.liveDxPx, drag.liveDyPx, imgPxNow)
+        const next = applyCasingDrag(cfg, drag.liveDxPx, drag.liveDyPx, wrapSize)
         return `offset ${next.shadow_offset_x}, ${next.shadow_offset_y} mm`
       }
       case "casing-resize": {
-        const imgPxNow = getImgPx()
-        const next = applyCasingResize(cfg, drag.liveSizePx, imgPxNow)
+        const next = applyCasingResize(cfg, drag.liveSizePx, wrapSize)
         return `⌀ ${Math.round(Number(next.floor_half_size) * 2 / 10)} cm`
       }
       case "lamp": {
-        const imgPxNow = getImgPx()
-        const next = applyLampDrag(cfg, drag.liveDxPx, drag.liveDyPx, imgPxNow)
+        const next = applyLampDrag(cfg, drag.liveDxPx, drag.liveDyPx, wrapSize)
         return `light ${next.light_x}, ${next.light_y} mm`
       }
       default:
@@ -548,15 +554,71 @@ export function LgCanvas2D({
         ref={containerRef}
         className={`relative flex w-full items-center justify-center overflow-hidden rounded-lg border bg-[#16181d] select-none ${heightClass}`}
       >
+      {/* Canvas toolbar — zoom in/out/fit/reset, editor mode only. Zoom is a
+          client-side view scale (0.5-3) on the wrapper square below; it never
+          touches config, so it's purely a viewing aid. */}
+      {interactive && (
+        <div
+          data-testid="lg-canvas-toolbar"
+          className="pointer-events-auto absolute right-2 top-2 z-10 flex items-center gap-1 rounded-md border border-white/10 bg-black/60 p-1"
+        >
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-white hover:bg-white/10 hover:text-white"
+            aria-label="Zoom out"
+            onClick={() => setZoom((z) => clampZoom(z - 0.25))}
+          >
+            <ZoomOut className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-white hover:bg-white/10 hover:text-white"
+            aria-label="Zoom in"
+            onClick={() => setZoom((z) => clampZoom(z + 0.25))}
+          >
+            <ZoomIn className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-white hover:bg-white/10 hover:text-white"
+            aria-label="Fit view"
+            onClick={() => setZoom(1)}
+          >
+            <Scan className="h-4 w-4" />
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-white hover:bg-white/10 hover:text-white"
+            aria-label="Reset view"
+            onClick={() => setZoom(1)}
+          >
+            <RotateCcw className="h-4 w-4" />
+          </Button>
+        </div>
+      )}
       {/* Square wrapper — the actual rendered image box (object-contain can
           letterbox inside this container once it isn't square itself). The
           overlay SVG and all pointer handlers below are scoped to THIS box,
           not the outer container, so px<->mm math stays correct regardless
-          of the container's aspect ratio. */}
+          of the container's aspect ratio. Zoom is applied here via CSS
+          `scale()` — see adjustDeltaForZoom in canvas-math.ts for how
+          pointer math compensates. */}
       <div
         ref={wrapRef}
         className="relative"
-        style={wrapSize > 0 ? { width: wrapSize, height: wrapSize } : { width: "100%", height: "100%" }}
+        style={
+          wrapSize > 0
+            ? { width: wrapSize, height: wrapSize, transform: `scale(${zoom})`, transformOrigin: "center" }
+            : { width: "100%", height: "100%" }
+        }
         onPointerMove={interactive ? handlePointerMove : undefined}
         onPointerUp={interactive ? handlePointerUp : undefined}
         onPointerCancel={interactive ? handlePointerUp : undefined}
