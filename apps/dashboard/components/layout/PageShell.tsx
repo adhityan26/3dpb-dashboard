@@ -26,6 +26,7 @@ export function PageShell({
   description,
   actions,
   children,
+  wide,
 }: {
   /** Judul halaman (wajib) — tampil sebagai H1 gradient. */
   title: string
@@ -34,8 +35,12 @@ export function PageShell({
   /** Aksi di kanan judul (tombol/link). Opsional. */
   actions?: ReactNode
   children: ReactNode
+  /** Opt-in: lepas dari `max-w-6xl` layout dashboard, re-center ke 1700px
+   * (header + card sama-sama ikut, biar background card benar-benar
+   * membungkus semua konten). Default falsy = perilaku lama, byte-identik. */
+  wide?: boolean
 }) {
-  return (
+  const content = (
     <>
       <GlassPageHeader title={title} subtitle={description}>
         {actions}
@@ -53,5 +58,13 @@ export function PageShell({
         {children}
       </div>
     </>
+  )
+
+  if (!wide) return content
+
+  return (
+    <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen px-4">
+      <div className="w-full max-w-[1700px] mx-auto">{content}</div>
+    </div>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { use, useEffect, useState } from "react"
+import { use, useEffect, useRef, useState } from "react"
 import { PageShell } from "@/components/layout/PageShell"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -36,8 +36,27 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
 
   // Merge customer + operator config once the order loads, and fire the
   // first preview request so the canvas isn't empty on load.
+  //
+  // Root cause of the "initial preview never fires" bug: the previous guard
+  // was `config !== null`, i.e. state read from the render closure. React
+  // can invoke an effect body more than once for the same commit (dev
+  // StrictMode double-invoke) while the `setConfig` from the first
+  // invocation hasn't flowed through a re-render yet — both invocations see
+  // the same stale `config === null` closure, so a second, redundant
+  // request() call resets the runner's debounce timer. Worse, if the very
+  // first preview request happened to fail, nothing distinguished "still
+  // idle" from "already tried and errored" (see LgCanvas2D's error/onRetry
+  // props below), so a failed initial fetch looked identical to "never
+  // fired" from the user's point of view. Fixed by (a) guarding fire-once
+  // with a ref instead of state — refs are stable across StrictMode's
+  // double-invoke and updated synchronously, so the guard can't race a
+  // pending re-render — and (b) surfacing preview.status === "error"
+  // explicitly with a retry affordance instead of silently falling back to
+  // the generic empty-state text.
+  const firedInitialPreview = useRef(false)
   useEffect(() => {
-    if (!order || config !== null) return
+    if (!order || firedInitialPreview.current) return
+    firedInitialPreview.current = true
     const customerConfig = (() => { try { return JSON.parse(order.configJson) } catch { return {} } })()
     const operatorConfig = (() => {
       if (!order.configJsonOperator) return null
@@ -102,82 +121,111 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
     updateOrder.mutate({ status: newStatus })
   }
 
+  const previewError = preview.status === "error"
+  const retryPreview = () => preview.request(effectiveConfig)
+
   return (
-    <PageShell title={`${order.id} · editor v2`}>
-      {/* Break out of the dashboard layout's max-w-6xl <main> so the canvas
-          gets real room (user feedback: "pengap"). Re-center to a generous
-          but still bounded max-width so it doesn't sprawl on ultrawide
-          monitors. Scoped to this page only — PageShell/layout untouched. */}
-      <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen px-4">
-        <div className="w-full max-w-[1700px] mx-auto">
-          <LgEditorShell
+    <PageShell title={`${order.id} · editor v2`} wide>
+      <LgEditorShell
+        orderId={order.id}
+        customerName={order.customerName}
+        status={order.status}
+        saveStatus={autosave.status}
+        savedAt={autosave.savedAt}
+        isStale={isStale}
+        estimate={estimate}
+        preview={{ latencyMs: preview.latencyMs, islands: preview.islands }}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        onGenerate={handleGenerate}
+        generating={generateStl.isPending}
+        feedback={feedback}
+        canvas={
+          activeTab === "shadow" ? (
+            <div className="space-y-3">
+              {/* Canvas Editor — dominant, always-on overlays/handles, no
+                  Edit toggle (user feedback: "ada 2 canvas, editor dan
+                  shadow preview" — one card per role instead of a mode
+                  switch on a single canvas). */}
+              <Card>
+                <CardHeader className="py-2">
+                  <CardTitle className="text-sm">Editor</CardTitle>
+                </CardHeader>
+                <CardContent className="p-2">
+                  <LgCanvas2D
+                    pngUrl={preview.pngUrl}
+                    loading={preview.status === "loading"}
+                    config={effectiveConfig}
+                    onConfigChange={handleConfigChange}
+                    dimBackdrop
+                    heightClass="h-[52vh] min-h-[380px]"
+                    error={previewError}
+                    onRetry={retryPreview}
+                  />
+                </CardContent>
+              </Card>
+              {/* Shadow preview — clean render of the same pngUrl, no
+                  overlays, no pointer handlers. */}
+              <Card>
+                <CardHeader className="py-2">
+                  <CardTitle className="text-sm">Shadow preview</CardTitle>
+                </CardHeader>
+                <CardContent className="p-2">
+                  <LgCanvas2D
+                    pngUrl={preview.pngUrl}
+                    loading={preview.status === "loading"}
+                    readOnly
+                    heightClass="h-[34vh] min-h-[220px]"
+                    error={previewError}
+                    onRetry={retryPreview}
+                  />
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            <Card>
+              <CardHeader><CardTitle>{activeTab === "wall" ? "Wall (θ,z)" : "3D"}</CardTitle></CardHeader>
+              <CardContent className="text-sm text-muted-foreground">
+                Segera — increment berikutnya
+              </CardContent>
+            </Card>
+          )
+        }
+        inspector={
+          <LgInspector
+            config={effectiveConfig}
+            onChange={handleConfigChange}
             orderId={order.id}
-            customerName={order.customerName}
-            status={order.status}
-            saveStatus={autosave.status}
-            savedAt={autosave.savedAt}
-            isStale={isStale}
-            estimate={estimate}
-            preview={{ latencyMs: preview.latencyMs, islands: preview.islands }}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            onGenerate={handleGenerate}
-            generating={generateStl.isPending}
-            feedback={feedback}
-            canvas={
-              activeTab === "shadow" ? (
-                <LgCanvas2D
-                  pngUrl={preview.pngUrl}
-                  loading={preview.status === "loading"}
-                  config={effectiveConfig}
-                  onConfigChange={handleConfigChange}
-                />
-              ) : (
-                <Card>
-                  <CardHeader><CardTitle>{activeTab === "wall" ? "Wall (θ,z)" : "3D"}</CardTitle></CardHeader>
-                  <CardContent className="text-sm text-muted-foreground">
-                    Segera — increment berikutnya
-                  </CardContent>
-                </Card>
-              )
-            }
-            inspector={
-              <LgInspector
-                config={effectiveConfig}
-                onChange={handleConfigChange}
-                orderId={order.id}
-                hasFlooringImage={!!order.additionalImagePath}
-              />
-            }
-            rail={
-              <div className="space-y-4">
-                <Card>
-                  <CardHeader><CardTitle className="text-sm">Customer</CardTitle></CardHeader>
-                  <CardContent className="space-y-1 text-xs">
-                    <p><span className="text-muted-foreground">Name:</span> {order.customerName}</p>
-                    <p><span className="text-muted-foreground">Contact:</span> {order.customerContact}</p>
-                  </CardContent>
-                </Card>
-                <div className="grid grid-cols-2 gap-2">
-                  <LgImageSlot orderId={id} label="Silhouette" type="silhouette" hasImage={!!order.imagePath} />
-                  <LgImageSlot orderId={id} label="Floor Insert" type="additional" hasImage={!!order.additionalImagePath} />
-                </div>
-                <div className="space-y-1">
-                  <span className="text-xs text-muted-foreground">Status</span>
-                  <Select value={order.status} onValueChange={(v) => { if (v) handleStatusChange(v) }}>
-                    <SelectTrigger><SelectValue /></SelectTrigger>
-                    <SelectContent>
-                      {STATUS_FLOW.map((s) => (
-                        <SelectItem key={s} value={s}>{s}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            }
+            hasFlooringImage={!!order.additionalImagePath}
           />
-        </div>
-      </div>
+        }
+        rail={
+          <div className="space-y-4">
+            <Card>
+              <CardHeader><CardTitle className="text-sm">Customer</CardTitle></CardHeader>
+              <CardContent className="space-y-1 text-xs">
+                <p><span className="text-muted-foreground">Name:</span> {order.customerName}</p>
+                <p><span className="text-muted-foreground">Contact:</span> {order.customerContact}</p>
+              </CardContent>
+            </Card>
+            <div className="grid grid-cols-2 gap-2">
+              <LgImageSlot orderId={id} label="Silhouette" type="silhouette" hasImage={!!order.imagePath} />
+              <LgImageSlot orderId={id} label="Floor Insert" type="additional" hasImage={!!order.additionalImagePath} />
+            </div>
+            <div className="space-y-1">
+              <span className="text-xs text-muted-foreground">Status</span>
+              <Select value={order.status} onValueChange={(v) => { if (v) handleStatusChange(v) }}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {STATUS_FLOW.map((s) => (
+                    <SelectItem key={s} value={s}>{s}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        }
+      />
     </PageShell>
   )
 }

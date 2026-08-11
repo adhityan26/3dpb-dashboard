@@ -15,16 +15,32 @@ interface LgCanvas2DProps {
   loading: boolean
   config?: Record<string, unknown>
   onConfigChange?: (next: Record<string, unknown>) => void
-  /** Forces edit mode on regardless of local UI state — used by SSR markup
-   * tests to assert the ring/handle overlays render without simulating a
-   * click. Defaults to off (clean preview) like real first render. */
-  defaultEditMode?: boolean
+  /** Forces the overlay/handles off even when `onConfigChange` is provided —
+   * used by the "Shadow preview" card, which shows the same image clean,
+   * with no drag interactions. Default off (i.e. interactive whenever
+   * `onConfigChange` is passed) — used by the "Canvas Editor" card. */
+  readOnly?: boolean
+  /** Dims the backdrop image (opacity-80) so the ring/handle overlays read
+   * clearly on top of it — used by the "Canvas Editor" card. */
+  dimBackdrop?: boolean
+  /** Overrides the container height class. Defaults to a size tuned for the
+   * dominant "Canvas Editor" card; pass a smaller class for the "Shadow
+   * preview" card underneath it. */
+  heightClass?: string
+  /** True when the last preview request failed — swaps the empty state for
+   * a "Coba lagi" retry affordance instead of the generic idle text, so a
+   * failed initial request doesn't look identical to "nothing happened yet". */
+  error?: boolean
+  /** Retry handler for the error state. */
+  onRetry?: () => void
 }
 
 /** Inset (px) subtracted from the measured square so edge handles (whose
  * center sits exactly on the ring, radius 6-7px) never get clipped by the
  * container's overflow-hidden boundary. */
 const WRAP_INSET_PX = 16
+
+const DEFAULT_HEIGHT_CLASS = "h-[52vh] min-h-[380px]"
 
 type DragKind = "body" | "floor" | "padding" | null
 
@@ -39,8 +55,10 @@ interface DragState {
 }
 
 /**
- * Canvas Shadow tab — the PNG preview doubles as a direct-manipulation
- * editor. Three hit targets layered over the image, no mode toggle:
+ * Canvas Editor / Shadow preview — the PNG preview doubles as a
+ * direct-manipulation editor when interactive. Three hit targets layered
+ * over the image, no mode toggle (overlays are always on for the editor
+ * card, always off for the preview card via `readOnly`):
  *   - body drag (anywhere not on a handle) -> shadow_offset_x/y
  *   - floor ring handle (top, at the image edge) -> floor_half_size
  *   - padding ring handles (4 cardinal points, inner ring) -> mask_padding_pct
@@ -53,13 +71,12 @@ export function LgCanvas2D({
   loading,
   config,
   onConfigChange,
-  defaultEditMode = false,
+  readOnly = false,
+  dimBackdrop = false,
+  heightClass = DEFAULT_HEIGHT_CLASS,
+  error = false,
+  onRetry,
 }: LgCanvas2DProps) {
-  // View-only toggle: rings/handles/drag are opt-in so the preview (which
-  // already shows the casing outline + light position) isn't cluttered by
-  // default. Never touches config — purely local UI state.
-  const [editModeState, setEditModeState] = useState(defaultEditMode)
-  const editMode = defaultEditMode || editModeState
   const containerRef = useRef<HTMLDivElement | null>(null)
   // The wrapper is the actual rendered image square (object-contain can
   // letterbox inside a non-square container in the wide grid layout) — all
@@ -167,11 +184,11 @@ export function LgCanvas2D({
   }
 
   // canConfig gates the (always-visible) info chips + Auto button — those
-  // aren't drag overlays and stay usable regardless of edit mode. interactive
+  // aren't drag overlays and stay usable regardless of readOnly. interactive
   // additionally gates the ring/handle overlay + body drag, which only make
-  // sense once edit mode is on.
-  const canConfig = !!onConfigChange
-  const interactive = canConfig && editMode
+  // sense for the editor card (readOnly=false).
+  const canConfig = !!onConfigChange && !readOnly
+  const interactive = canConfig
   // viewBox uses the wrapper's real measured px so ring radii computed from
   // real pointer coordinates (getCenter/getImgPx above) map 1:1 onto the SVG
   // — no separate "logical" unit space to drift out of sync with the DOM.
@@ -189,26 +206,13 @@ export function LgCanvas2D({
 
   return (
     <div className="flex w-full flex-col gap-2">
-      {canConfig && (
-        <div className="flex items-center justify-end">
-          <Button
-            type="button"
-            size="sm"
-            variant={editModeState ? "default" : "outline"}
-            onClick={() => setEditModeState((v) => !v)}
-            disabled={defaultEditMode}
-          >
-            Edit
-          </Button>
-        </div>
-      )}
-      {/* Bounded height so the square preview (incl. handles at its edge)
-          always fits without pushing the page into scroll on a typical
-          1440x900 viewport — the inner square wrapper below is sized by
-          BOTH container dimensions (overlayGeometry), not width alone. */}
+      {/* Bounded height so the preview (incl. handles at its edge) fits
+          without pushing the page into scroll on a typical 1440x900
+          viewport — the inner square wrapper below is sized by BOTH
+          container dimensions (overlayGeometry), not width alone. */}
       <div
         ref={containerRef}
-        className="relative flex h-[calc(100vh-240px)] min-h-[420px] w-full items-center justify-center overflow-hidden rounded-lg border bg-[#16181d] select-none"
+        className={`relative flex w-full items-center justify-center overflow-hidden rounded-lg border bg-[#16181d] select-none ${heightClass}`}
       >
       {/* Square wrapper — the actual rendered image box (object-contain can
           letterbox inside this container once it isn't square itself). The
@@ -227,11 +231,20 @@ export function LgCanvas2D({
         <img
           src={pngUrl}
           alt="Shadow preview"
-          className={`h-full w-full object-contain ${loading ? "opacity-60" : ""}`}
+          className={`h-full w-full object-contain ${loading || dimBackdrop ? "opacity-80" : ""}`}
           style={{ transform: bodyTransform, cursor: interactive ? "move" : undefined }}
           draggable={false}
           onPointerDown={interactive ? startBodyDrag : undefined}
         />
+      ) : error ? (
+        <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
+          <span>Preview gagal dimuat</span>
+          {onRetry && (
+            <Button type="button" size="sm" variant="outline" onClick={onRetry}>
+              Coba lagi
+            </Button>
+          )}
+        </div>
       ) : (
         <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
           Belum ada preview — ubah parameter untuk memicu
