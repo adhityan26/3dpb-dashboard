@@ -2,11 +2,16 @@ import { describe, it, expect } from "vitest"
 import {
   pxToMm,
   applyOffsetDrag,
-  applyFloorResizeDrag,
-  applyPaddingDrag,
+  applyImageResize,
+  applyCasingResize,
+  applyCasingDrag,
+  applyLampDrag,
+  casingScreenRadius,
   paddingPctToRadiusFraction,
+  radiusFractionToPaddingPct,
   overlayGeometry,
   buildImageFilter,
+  parseFlooringShape,
 } from "../canvas-math"
 
 describe("buildImageFilter", () => {
@@ -74,7 +79,7 @@ describe("pxToMm", () => {
   })
 })
 
-describe("applyOffsetDrag", () => {
+describe("applyOffsetDrag (Object 1 — main image body drag)", () => {
   it("drag right increases shadow_offset_x", () => {
     const next = applyOffsetDrag({ floor_half_size: 600, shadow_offset_x: 0, shadow_offset_y: 0 }, 10, 0, 400)
     expect(next.shadow_offset_x).toBeCloseTo(30)
@@ -103,56 +108,141 @@ describe("applyOffsetDrag", () => {
   })
 })
 
-describe("applyFloorResizeDrag", () => {
-  it("dragging handle inward (r < imgHalf) grows floor_half_size", () => {
-    // floorHalf=600, imgHalf=200, r=100 -> newFloorHalf = 600 * 200/100 = 1200
-    const next = applyFloorResizeDrag({ floor_half_size: 600 }, 100, 400)
-    expect(next.floor_half_size).toBe(1200)
+describe("applyCasingDrag (Object 2 — casing body drag is the INVERSE of image drag)", () => {
+  it("drag right DECREASES shadow_offset_x (opposite of applyOffsetDrag)", () => {
+    const next = applyCasingDrag({ floor_half_size: 600, shadow_offset_x: 0, shadow_offset_y: 0 }, 10, 0, 400)
+    expect(next.shadow_offset_x).toBeCloseTo(-30)
   })
 
-  it("dragging handle outward (r > imgHalf) shrinks floor_half_size", () => {
-    // floorHalf=600, imgHalf=200, r=400 -> newFloorHalf = 600 * 200/400 = 300
-    const next = applyFloorResizeDrag({ floor_half_size: 600 }, 400, 400)
-    expect(next.floor_half_size).toBe(300)
+  it("drag down INCREASES shadow_offset_y (opposite of applyOffsetDrag)", () => {
+    const next = applyCasingDrag({ floor_half_size: 600, shadow_offset_x: 0, shadow_offset_y: 0 }, 0, 10, 400)
+    expect(next.shadow_offset_y).toBeCloseTo(30)
   })
 
-  it("handle at rest position (r = imgHalf) keeps floor_half_size unchanged", () => {
-    const next = applyFloorResizeDrag({ floor_half_size: 600 }, 200, 400)
-    expect(next.floor_half_size).toBe(600)
-  })
-
-  it("clamps to [50, 2000] and rounds to whole mm", () => {
-    const shrunk = applyFloorResizeDrag({ floor_half_size: 600 }, 10000, 400)
-    expect(shrunk.floor_half_size).toBe(50)
-    const grown = applyFloorResizeDrag({ floor_half_size: 600 }, 1, 400)
-    expect(grown.floor_half_size).toBe(2000)
-  })
-
-  it("no-ops (returns config copy) when radius or imgPx is non-positive", () => {
-    const next = applyFloorResizeDrag({ floor_half_size: 600 }, 0, 400)
-    expect(next.floor_half_size).toBe(600)
+  it("accumulates on top of existing offsets", () => {
+    const next = applyCasingDrag({ floor_half_size: 600, shadow_offset_x: 5, shadow_offset_y: -2 }, 1, 0, 400)
+    expect(next.shadow_offset_x).toBe(2) // 5 - 3
   })
 })
 
-describe("paddingPctToRadiusFraction / applyPaddingDrag roundtrip", () => {
+describe("paddingPctToRadiusFraction / applyImageResize roundtrip", () => {
   it.each([0, 10, 50, 100])("pct=%d roundtrips through fraction back to the same pct", (pct) => {
     const f = paddingPctToRadiusFraction(pct)
-    const imgPx = 400
-    const imgHalf = imgPx / 2
-    const handleRadiusPx = f * imgHalf
-    const roundtripped = applyPaddingDrag({}, handleRadiusPx, imgPx)
+    const roundtripped = applyImageResize({}, f)
     expect(roundtripped.mask_padding_pct).toBe(pct)
   })
 
-  it("sets auto_fit_mask=false on manual drag", () => {
-    const next = applyPaddingDrag({ auto_fit_mask: true }, 150, 400)
+  it("sets auto_fit_mask=false on manual resize", () => {
+    const next = applyImageResize({ auto_fit_mask: true }, 0.5)
     expect(next.auto_fit_mask).toBe(false)
   })
 
   it("clamps pct into [0, 100]", () => {
-    const wayOut = applyPaddingDrag({}, 10000, 400) // f > 1 -> pct negative -> clamp 0
-    expect(wayOut.mask_padding_pct).toBeGreaterThanOrEqual(0)
-    const tiny = applyPaddingDrag({}, 0.001, 400) // f ~ 0 -> pct clamp 100
-    expect(tiny.mask_padding_pct).toBeLessThanOrEqual(100)
+    const shrunkFraction = applyImageResize({}, 1000) // f huge -> pct negative -> clamp 0
+    expect(shrunkFraction.mask_padding_pct).toBeGreaterThanOrEqual(0)
+    const grownFraction = applyImageResize({}, 0.0001) // f ~ 0 -> pct clamp 100
+    expect(grownFraction.mask_padding_pct).toBeLessThanOrEqual(100)
+  })
+})
+
+describe("radiusFractionToPaddingPct", () => {
+  it("f=1 (no padding) -> pct 0", () => {
+    expect(radiusFractionToPaddingPct(1)).toBe(0)
+  })
+
+  it("f<=0 -> pct 100 (guards div-by-zero)", () => {
+    expect(radiusFractionToPaddingPct(0)).toBe(100)
+  })
+})
+
+describe("casingScreenRadius / applyCasingResize roundtrip", () => {
+  it("computes the rest on-screen radius for outer_radius/floor_half/imgPx", () => {
+    // outer_radius=100, floor_half=600, imgPx=400 (imgHalf=200) -> 100*200/600 = 33.33
+    expect(casingScreenRadius(100, 600, 400)).toBeCloseTo(33.33, 1)
+  })
+
+  it("returns 0 when floorHalf is non-positive", () => {
+    expect(casingScreenRadius(100, 0, 400)).toBe(0)
+  })
+
+  it("resizing the casing to its own rest radius leaves floor_half_size unchanged", () => {
+    const r = casingScreenRadius(100, 600, 400)
+    const next = applyCasingResize({ outer_radius: 100, floor_half_size: 600 }, r, 400)
+    expect(next.floor_half_size).toBe(600)
+  })
+
+  it("a BIGGER casing on screen (larger R) implies a SMALLER floor_half_size", () => {
+    const next = applyCasingResize({ outer_radius: 100, floor_half_size: 600 }, 200, 400)
+    // 100 * 200/200 = 100
+    expect(next.floor_half_size).toBe(100)
+  })
+
+  it("a SMALLER casing on screen (smaller R) implies a BIGGER floor_half_size", () => {
+    const next = applyCasingResize({ outer_radius: 100, floor_half_size: 600 }, 10, 400)
+    // 100 * 200/10 = 2000 -> clamped
+    expect(next.floor_half_size).toBe(2000)
+  })
+
+  it("clamps to [50, 2000]", () => {
+    const shrunk = applyCasingResize({ outer_radius: 100 }, 100000, 400)
+    expect(shrunk.floor_half_size).toBe(50)
+    const grown = applyCasingResize({ outer_radius: 100 }, 0.01, 400)
+    expect(grown.floor_half_size).toBe(2000)
+  })
+
+  it("no-ops (returns config copy) when radius or imgPx is non-positive", () => {
+    const next = applyCasingResize({ outer_radius: 100, floor_half_size: 600 }, 0, 400)
+    expect(next.floor_half_size).toBe(600)
+  })
+})
+
+describe("applyLampDrag (Object 3 — lamp position relative to casing center)", () => {
+  it("converts absolute px offset from casing center to mm", () => {
+    // imgPx=400, floorHalf=600 -> 3mm/px; xPx=5 -> 15mm
+    const next = applyLampDrag({ floor_half_size: 600 }, 5, 0, 400)
+    expect(next.light_x).toBe(15)
+    expect(next.light_y).toBe(-0)
+  })
+
+  it("inverts screen y for light_y", () => {
+    const next = applyLampDrag({ floor_half_size: 600 }, 0, 5, 400)
+    expect(next.light_y).toBe(-15)
+  })
+
+  it("clamps to +-50mm", () => {
+    const next = applyLampDrag({ floor_half_size: 600 }, 1000, 1000, 400)
+    expect(next.light_x).toBe(50)
+    expect(next.light_y).toBe(-50)
+    const neg = applyLampDrag({ floor_half_size: 600 }, -1000, -1000, 400)
+    expect(neg.light_x).toBe(-50)
+    expect(neg.light_y).toBe(50)
+  })
+
+  it("is absolute, not accumulated — re-dragging to the same spot yields the same value", () => {
+    const a = applyLampDrag({ floor_half_size: 600, light_x: 40, light_y: 40 }, 5, 0, 400)
+    expect(a.light_x).toBe(15)
+  })
+})
+
+describe("parseFlooringShape", () => {
+  it("defaults to circle when raw is missing/empty", () => {
+    expect(parseFlooringShape(undefined)).toEqual({ base: "circle", w: 1, h: 1 })
+    expect(parseFlooringShape("")).toEqual({ base: "circle", w: 1, h: 1 })
+  })
+
+  it("parses simple shape strings", () => {
+    expect(parseFlooringShape("square")).toEqual({ base: "square", w: 1, h: 1 })
+    expect(parseFlooringShape("triangle")).toEqual({ base: "triangle", w: 1, h: 1 })
+    expect(parseFlooringShape("custom")).toEqual({ base: "custom", w: 1, h: 1 })
+  })
+
+  it("parses rect:W:H and oval:W:H with numeric ratios", () => {
+    expect(parseFlooringShape("rect:3:4")).toEqual({ base: "rect", w: 3, h: 4 })
+    expect(parseFlooringShape("oval:16:9")).toEqual({ base: "oval", w: 16, h: 9 })
+  })
+
+  it("falls back to sane default ratios for bare rect/oval", () => {
+    expect(parseFlooringShape("rect")).toEqual({ base: "rect", w: 3, h: 4 })
+    expect(parseFlooringShape("oval")).toEqual({ base: "oval", w: 16, h: 9 })
   })
 })

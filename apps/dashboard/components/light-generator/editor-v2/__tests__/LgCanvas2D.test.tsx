@@ -13,18 +13,19 @@ describe("LgCanvas2D", () => {
     expect(html).not.toContain('data-testid="lg-canvas-overlay"')
   })
 
-  it("renders the interactive overlay (rings/handles) whenever onConfigChange is provided — no mode toggle", () => {
+  it("renders the interactive overlay (image/casing/lamp objects) whenever onConfigChange is provided — no mode toggle", () => {
     const html = renderToStaticMarkup(
       <LgCanvas2D
         pngUrl="/preview.png"
         loading={false}
-        config={{ floor_half_size: 600, mask_padding_pct: 10, auto_fit_mask: false }}
+        config={{ floor_half_size: 600, outer_radius: 100, mask_padding_pct: 10, auto_fit_mask: false }}
         onConfigChange={() => {}}
       />,
     )
     expect(html).toContain('data-testid="lg-canvas-overlay"')
-    expect(html).toContain('data-testid="lg-floor-handle"')
-    expect(html).toContain('data-testid="lg-padding-handle"')
+    expect(html).toContain('data-testid="lg-image-handle"')
+    expect(html).toContain('data-testid="lg-casing-handle"')
+    expect(html).toContain('data-testid="lg-lamp-handle"')
     expect(html).not.toContain(">Edit<")
   })
 
@@ -39,11 +40,11 @@ describe("LgCanvas2D", () => {
       />,
     )
     expect(html).not.toContain('data-testid="lg-canvas-overlay"')
-    expect(html).not.toContain('data-testid="lg-floor-handle"')
-    expect(html).not.toContain('data-testid="lg-padding-handle"')
+    expect(html).not.toContain('data-testid="lg-image-handle"')
+    expect(html).not.toContain('data-testid="lg-casing-handle"')
   })
 
-  it('shows the "Auto" chip and ghosts the padding ring when auto_fit_mask is true', () => {
+  it('shows the "Auto" chip when auto_fit_mask is true', () => {
     const html = renderToStaticMarkup(
       <LgCanvas2D
         pngUrl="/preview.png"
@@ -53,8 +54,6 @@ describe("LgCanvas2D", () => {
       />,
     )
     expect(html).toContain("Auto")
-    // no padding handles rendered while auto-fit is active
-    expect(html).not.toContain('data-testid="lg-padding-handle"')
   })
 
   it("shows the updating badge while loading", () => {
@@ -120,5 +119,18 @@ describe("LgCanvas2D", () => {
     )
     expect(html).not.toContain("filter:brightness")
     expect(html).not.toContain("filter: brightness")
+  })
+
+  it("renders the custom flooring image at the casing when flooring_shape is custom and flooringImageUrl is provided", () => {
+    const html = renderToStaticMarkup(
+      <LgCanvas2D
+        pngUrl="/preview.png"
+        loading={false}
+        config={{ flooring_shape: "custom" }}
+        flooringImageUrl="/api/light-generator/orders/abc/additional"
+        onConfigChange={() => {}}
+      />,
+    )
+    expect(html).toContain('href="/api/light-generator/orders/abc/additional"')
   })
 })

@@ -4,11 +4,15 @@ import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import {
   applyOffsetDrag,
-  applyFloorResizeDrag,
-  applyPaddingDrag,
+  applyImageResize,
+  applyCasingResize,
+  applyCasingDrag,
+  applyLampDrag,
+  casingScreenRadius,
   paddingPctToRadiusFraction,
   overlayGeometry,
   buildImageFilter,
+  parseFlooringShape,
 } from "./canvas-math"
 
 interface LgCanvas2DProps {
@@ -24,12 +28,15 @@ interface LgCanvas2DProps {
    * omits this and keeps rendering `pngUrl` (the actual thresholded/masked
    * output) untouched. */
   originalImageUrl?: string | null
+  /** URL of the order's uploaded custom-flooring image, used to render the
+   * casing overlay when flooring_shape is "custom" instead of an SVG shape. */
+  flooringImageUrl?: string | null
   /** Forces the overlay/handles off even when `onConfigChange` is provided —
    * used by the "Shadow preview" card, which shows the same image clean,
    * with no drag interactions. Default off (i.e. interactive whenever
    * `onConfigChange` is passed) — used by the "Canvas Editor" card. */
   readOnly?: boolean
-  /** Dims the backdrop image (opacity-80) so the ring/handle overlays read
+  /** Dims the backdrop image (opacity-80) so the object overlays read
    * clearly on top of it — used by the "Canvas Editor" card. */
   dimBackdrop?: boolean
   /** Overrides the container height class. Defaults to a size tuned for the
@@ -44,35 +51,44 @@ interface LgCanvas2DProps {
   onRetry?: () => void
 }
 
-/** Inset (px) subtracted from the measured square so edge handles (whose
- * center sits exactly on the ring, radius 6-7px) never get clipped by the
- * container's overflow-hidden boundary. */
+/** Inset (px) subtracted from the measured square so corner handles never
+ * get clipped by the container's overflow-hidden boundary. */
 const WRAP_INSET_PX = 16
 
 const DEFAULT_HEIGHT_CLASS = "h-[52vh] min-h-[380px]"
 
-type DragKind = "body" | "floor" | "padding" | null
+const HANDLE_R = 6
+const LAMP_R = 5
+
+type DragKind = "image" | "image-resize" | "casing" | "casing-resize" | "lamp" | null
 
 interface DragState {
   kind: DragKind
   startX: number
   startY: number
-  // live values shown during drag, in screen px relative to image center
+  // live values shown during drag, in screen px relative to image/casing center
   liveDxPx: number
   liveDyPx: number
-  liveRadiusPx: number
+  // live half-size (image-resize) or radius (casing-resize) in px
+  liveSizePx: number
 }
 
 /**
- * Canvas Editor / Shadow preview — the PNG preview doubles as a
- * direct-manipulation editor when interactive. Three hit targets layered
- * over the image, no mode toggle (overlays are always on for the editor
- * card, always off for the preview card via `readOnly`):
- *   - body drag (anywhere not on a handle) -> shadow_offset_x/y
- *   - floor ring handle (top, at the image edge) -> floor_half_size
- *   - padding ring handles (4 cardinal points, inner ring) -> mask_padding_pct
+ * Canvas Editor / Shadow preview — the PNG preview doubles as an
+ * OBJECT-based direct-manipulation editor when interactive. Three objects
+ * layered over the wrapper square, no mode toggle (overlays are always on
+ * for the editor card, always off for the preview card via `readOnly`):
+ *
+ *   Object 1 — Main image (backdrop): body drag -> shadow_offset_x/y;
+ *     corner handles -> mask_padding_pct (via content fraction).
+ *   Object 2 — Casing shape (always the origin of generator space): body
+ *     drag -> shadow_offset_x/y INVERTED (dragging the casing shifts the
+ *     world the other way); corner handles -> floor_half_size.
+ *   Object 3 — Lamp: small dot at casing center + light offset; drag ->
+ *     light_x/light_y, following the casing group during a casing drag.
+ *
  * All commits happen on pointerup via onConfigChange; drag-in-progress state
- * stays local (optimistic CSS transform / live ring redraw) per the "no
+ * stays local (optimistic CSS transform / live overlay redraw) per the "no
  * internal config copies" rule.
  */
 export function LgCanvas2D({
@@ -81,6 +97,7 @@ export function LgCanvas2D({
   config,
   onConfigChange,
   originalImageUrl,
+  flooringImageUrl,
   readOnly = false,
   dimBackdrop = false,
   heightClass = DEFAULT_HEIGHT_CLASS,
@@ -91,7 +108,7 @@ export function LgCanvas2D({
   // The wrapper is the actual rendered image square (object-contain can
   // letterbox inside a non-square container in the wide grid layout) — all
   // pointer math and overlay rendering must use ITS rect, not the outer
-  // container's, or every px<->mm mapping and ring radius drifts whenever
+  // container's, or every px<->mm mapping and object size drifts whenever
   // the container's aspect ratio isn't 1:1.
   const wrapRef = useRef<HTMLDivElement | null>(null)
   const [wrapSize, setWrapSize] = useState(0)
@@ -105,6 +122,12 @@ export function LgCanvas2D({
   const autoFit = !!cfg.auto_fit_mask
   const paddingPct = Number(cfg.mask_padding_pct) || 0
   const floorHalf = Number(cfg.floor_half_size) || 600
+  const outerRadius = Number(cfg.outer_radius) || 100
+  const offsetXMm = Number(cfg.shadow_offset_x) || 0
+  const offsetYMm = Number(cfg.shadow_offset_y) || 0
+  const lightXMm = Number(cfg.light_x) || 0
+  const lightYMm = Number(cfg.light_y) || 0
+  const shape = parseFlooringShape(cfg.flooring_shape)
 
   useEffect(() => {
     const el = containerRef.current
@@ -112,8 +135,8 @@ export function LgCanvas2D({
     const measure = () => {
       const rect = el.getBoundingClientRect()
       const { size } = overlayGeometry(rect.width, rect.height)
-      // Small inset so edge handles (floor ring hugs the image boundary)
-      // never get clipped by the container's overflow-hidden edge.
+      // Small inset so corner handles never get clipped by the container's
+      // overflow-hidden edge.
       setWrapSize(Math.max(0, size - WRAP_INSET_PX))
     }
     measure()
@@ -121,6 +144,19 @@ export function LgCanvas2D({
     ro.observe(el)
     return () => ro.disconnect()
   }, [])
+
+  // Esc cancels an in-progress drag without writing anything.
+  useEffect(() => {
+    if (!drag) return
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        appliedRef.current = true // suppress a trailing pointerup from applying
+        setDrag(null)
+      }
+    }
+    window.addEventListener("keydown", onKeyDown)
+    return () => window.removeEventListener("keydown", onKeyDown)
+  }, [drag])
 
   function getImgPx(): number {
     return wrapRef.current?.getBoundingClientRect().width ?? 0
@@ -132,34 +168,26 @@ export function LgCanvas2D({
     return { cx: rect.left + rect.width / 2, cy: rect.top + rect.height / 2 }
   }
 
-  function startBodyDrag(e: React.PointerEvent) {
-    if (!onConfigChange || drag) return
-    e.stopPropagation()
-    e.currentTarget.setPointerCapture(e.pointerId)
-    appliedRef.current = false
-    setDrag({ kind: "body", startX: e.clientX, startY: e.clientY, liveDxPx: 0, liveDyPx: 0, liveRadiusPx: 0 })
-  }
-
-  function startRingDrag(kind: "floor" | "padding") {
+  function startDrag(kind: Exclude<DragKind, null>, initialSizePx = 0) {
     return (e: React.PointerEvent) => {
       if (!onConfigChange || drag) return
       e.stopPropagation()
       e.currentTarget.setPointerCapture(e.pointerId)
-      const { cx, cy } = getCenter()
-      const r = Math.hypot(e.clientX - cx, e.clientY - cy)
       appliedRef.current = false
-      setDrag({ kind, startX: e.clientX, startY: e.clientY, liveDxPx: 0, liveDyPx: 0, liveRadiusPx: r })
+      setDrag({ kind, startX: e.clientX, startY: e.clientY, liveDxPx: 0, liveDyPx: 0, liveSizePx: initialSizePx })
     }
   }
 
   function handlePointerMove(e: React.PointerEvent) {
     if (!drag) return
-    if (drag.kind === "body") {
-      setDrag({ ...drag, liveDxPx: e.clientX - drag.startX, liveDyPx: e.clientY - drag.startY })
-    } else if (drag.kind === "floor" || drag.kind === "padding") {
+    const dx = e.clientX - drag.startX
+    const dy = e.clientY - drag.startY
+    if (drag.kind === "image-resize" || drag.kind === "casing-resize") {
       const { cx, cy } = getCenter()
       const r = Math.hypot(e.clientX - cx, e.clientY - cy)
-      setDrag({ ...drag, liveRadiusPx: r })
+      setDrag({ ...drag, liveSizePx: r })
+    } else {
+      setDrag({ ...drag, liveDxPx: dx, liveDyPx: dy })
     }
   }
 
@@ -170,20 +198,31 @@ export function LgCanvas2D({
     }
     appliedRef.current = true
     const imgPx = getImgPx()
+    const imgHalf = imgPx / 2
     // Exactly one applier per gesture, writing only its own config keys —
-    // this switch is the single source of truth for "which mode is active",
-    // so a gesture can never touch more than one of offset/floor/padding.
+    // this switch is the single source of truth for "which object is
+    // active", so a gesture can never touch more than one object's config.
     switch (drag.kind) {
-      case "body":
+      case "image":
         if (drag.liveDxPx !== 0 || drag.liveDyPx !== 0) {
           onConfigChange(applyOffsetDrag(cfg, drag.liveDxPx, drag.liveDyPx, imgPx))
         }
         break
-      case "floor":
-        onConfigChange(applyFloorResizeDrag(cfg, drag.liveRadiusPx, imgPx))
+      case "image-resize": {
+        const f = imgHalf > 0 ? drag.liveSizePx / imgHalf : 0
+        onConfigChange(applyImageResize(cfg, f))
         break
-      case "padding":
-        onConfigChange(applyPaddingDrag(cfg, drag.liveRadiusPx, imgPx))
+      }
+      case "casing":
+        if (drag.liveDxPx !== 0 || drag.liveDyPx !== 0) {
+          onConfigChange(applyCasingDrag(cfg, drag.liveDxPx, drag.liveDyPx, imgPx))
+        }
+        break
+      case "casing-resize":
+        onConfigChange(applyCasingResize(cfg, drag.liveSizePx, imgPx))
+        break
+      case "lamp":
+        onConfigChange(applyLampDrag(cfg, drag.liveDxPx, drag.liveDyPx, imgPx))
         break
     }
     setDrag(null)
@@ -195,24 +234,46 @@ export function LgCanvas2D({
 
   // canConfig gates the (always-visible) info chips + Auto button — those
   // aren't drag overlays and stay usable regardless of readOnly. interactive
-  // additionally gates the ring/handle overlay + body drag, which only make
-  // sense for the editor card (readOnly=false).
+  // additionally gates the object overlays + drags, which only make sense
+  // for the editor card (readOnly=false).
   const canConfig = !!onConfigChange && !readOnly
   const interactive = canConfig
-  // viewBox uses the wrapper's real measured px so ring radii computed from
-  // real pointer coordinates (getCenter/getImgPx above) map 1:1 onto the SVG
-  // — no separate "logical" unit space to drift out of sync with the DOM.
+  // viewBox uses the wrapper's real measured px so object sizes computed
+  // from real pointer coordinates (getCenter/getImgPx above) map 1:1 onto
+  // the SVG — no separate "logical" unit space to drift out of sync with
+  // the DOM.
   const imgPx = wrapSize
   const imgHalf = imgPx / 2
 
-  const liveFloorRadius = drag?.kind === "floor" ? drag.liveRadiusPx : imgHalf
-  const liveFloorPx = drag && drag.kind === "floor" ? liveFloorRadius : imgHalf
-  const restPaddingFraction = paddingPctToRadiusFraction(paddingPct)
-  const livePaddingRadius = drag?.kind === "padding" ? drag.liveRadiusPx : restPaddingFraction * imgHalf
+  // pxPerMm converts mm offsets (shadow offset, light position) into screen
+  // px for rendering the objects at rest.
+  const pxPerMm = floorHalf > 0 ? imgPx / (2 * floorHalf) : 0
 
-  const bodyTransform = drag?.kind === "body"
-    ? `translate(${drag.liveDxPx}px, ${drag.liveDyPx}px)`
-    : undefined
+  // --- Object 1: main image ---
+  const restFraction = paddingPctToRadiusFraction(paddingPct)
+  const restImgHalfPx = restFraction * imgHalf
+  const imgResizeLiveHalfPx = drag?.kind === "image-resize" ? drag.liveSizePx : restImgHalfPx
+  const imageBodyDx = drag?.kind === "image" ? drag.liveDxPx : 0
+  const imageBodyDy = drag?.kind === "image" ? drag.liveDyPx : 0
+  const imageOffsetPxX = offsetXMm * pxPerMm
+  const imageOffsetPxY = -offsetYMm * pxPerMm
+  const imageTransform = `translate(${imageOffsetPxX + imageBodyDx}px, ${imageOffsetPxY + imageBodyDy}px)`
+
+  // --- Object 2: casing shape (always the origin — sits at wrapper center) ---
+  const casingRestR = casingScreenRadius(outerRadius, floorHalf, imgPx)
+  const casingLiveR = drag?.kind === "casing-resize" ? drag.liveSizePx : casingRestR
+  const casingDx = drag?.kind === "casing" ? drag.liveDxPx : 0
+  const casingDy = drag?.kind === "casing" ? drag.liveDyPx : 0
+  const casingCx = imgHalf + casingDx
+  const casingCy = imgHalf + casingDy
+
+  // --- Object 3: lamp — casing center + light offset, follows casing drag ---
+  const lampRestX = lightXMm * pxPerMm
+  const lampRestY = -lightYMm * pxPerMm
+  const lampLiveX = drag?.kind === "lamp" ? drag.liveDxPx : lampRestX
+  const lampLiveY = drag?.kind === "lamp" ? drag.liveDyPx : lampRestY
+  const lampCx = casingCx + lampLiveX
+  const lampCy = casingCy + lampLiveY
 
   // Editor backdrop prefers the ORIGINAL uploaded silhouette (colored inputs
   // included) so brightness/contrast/saturation can be tuned visually; the
@@ -223,6 +284,74 @@ export function LgCanvas2D({
   // sliders; the server-rendered Shadow preview PNG is the ground truth for
   // what actually gets thresholded/printed.
   const imageFilter = originalImageUrl ? buildImageFilter(cfg) : undefined
+
+  function casingShapePath(): { el: React.ReactNode } {
+    const r = casingLiveR
+    const stroke = "rgba(103,232,249,0.9)" // cyan
+    const fill = "rgba(103,232,249,0.12)"
+    if (shape.base === "custom" && flooringImageUrl) {
+      const side = r * 2
+      return {
+        el: (
+          <image
+            href={flooringImageUrl}
+            x={casingCx - side / 2}
+            y={casingCy - side / 2}
+            width={side}
+            height={side}
+            opacity={0.55}
+            preserveAspectRatio="xMidYMid meet"
+          />
+        ),
+      }
+    }
+    if (shape.base === "square") {
+      return { el: <rect x={casingCx - r} y={casingCy - r} width={r * 2} height={r * 2} stroke={stroke} fill={fill} strokeWidth={1.5} /> }
+    }
+    if (shape.base === "triangle") {
+      const p1 = `${casingCx},${casingCy - r}`
+      const p2 = `${casingCx - r},${casingCy + r}`
+      const p3 = `${casingCx + r},${casingCy + r}`
+      return { el: <polygon points={`${p1} ${p2} ${p3}`} stroke={stroke} fill={fill} strokeWidth={1.5} /> }
+    }
+    if (shape.base === "rect" || shape.base === "oval") {
+      const ratio = shape.w / shape.h || 1
+      const rx = ratio >= 1 ? r : r * ratio
+      const ry = ratio >= 1 ? r / ratio : r
+      if (shape.base === "oval") {
+        return { el: <ellipse cx={casingCx} cy={casingCy} rx={rx} ry={ry} stroke={stroke} fill={fill} strokeWidth={1.5} /> }
+      }
+      return { el: <rect x={casingCx - rx} y={casingCy - ry} width={rx * 2} height={ry * 2} stroke={stroke} fill={fill} strokeWidth={1.5} /> }
+    }
+    return { el: <circle cx={casingCx} cy={casingCy} r={r} stroke={stroke} fill={fill} strokeWidth={1.5} /> }
+  }
+
+  const dragTooltip = (() => {
+    if (!drag) return null
+    switch (drag.kind) {
+      case "image":
+        return `Δx ${Math.round(drag.liveDxPx)}px / Δy ${Math.round(drag.liveDyPx)}px`
+      case "image-resize":
+        return `padding ~${Math.round(paddingPct)}%`
+      case "casing": {
+        const imgPxNow = getImgPx()
+        const next = applyCasingDrag(cfg, drag.liveDxPx, drag.liveDyPx, imgPxNow)
+        return `offset ${next.shadow_offset_x}, ${next.shadow_offset_y} mm`
+      }
+      case "casing-resize": {
+        const imgPxNow = getImgPx()
+        const next = applyCasingResize(cfg, drag.liveSizePx, imgPxNow)
+        return `⌀ ${Math.round(Number(next.floor_half_size) * 2 / 10)} cm`
+      }
+      case "lamp": {
+        const imgPxNow = getImgPx()
+        const next = applyLampDrag(cfg, drag.liveDxPx, drag.liveDyPx, imgPxNow)
+        return `light ${next.light_x}, ${next.light_y} mm`
+      }
+      default:
+        return null
+    }
+  })()
 
   return (
     <div className="flex w-full flex-col gap-2">
@@ -251,10 +380,19 @@ export function LgCanvas2D({
         <img
           src={imageSrc}
           alt="Shadow preview"
-          className={`h-full w-full object-contain ${loading || dimBackdrop ? "opacity-80" : ""}`}
-          style={{ transform: bodyTransform, filter: imageFilter, cursor: interactive ? "move" : undefined }}
+          className={`object-contain ${loading || dimBackdrop ? "opacity-80" : ""}`}
+          style={{
+            width: restFraction * 100 + "%",
+            height: restFraction * 100 + "%",
+            position: "absolute",
+            left: `${50 - restFraction * 50}%`,
+            top: `${50 - restFraction * 50}%`,
+            transform: imageTransform,
+            filter: imageFilter,
+            cursor: interactive ? "move" : undefined,
+          }}
           draggable={false}
-          onPointerDown={interactive ? startBodyDrag : undefined}
+          onPointerDown={interactive ? startDrag("image") : undefined}
         />
       ) : error ? (
         <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
@@ -281,75 +419,91 @@ export function LgCanvas2D({
           viewBox={`0 0 ${imgPx || 1} ${imgPx || 1}`}
           data-testid="lg-canvas-overlay"
         >
-          {/* Floor ring — hugs the image edge, one handle at top */}
+          {/* Object 1 — main image corner handles, driven by the same box
+              the <img> above renders at (imgResizeLiveHalfPx during drag). */}
+          {[
+            { x: -1, y: -1, cursor: "nwse-resize" },
+            { x: 1, y: -1, cursor: "nesw-resize" },
+            { x: -1, y: 1, cursor: "nesw-resize" },
+            { x: 1, y: 1, cursor: "nwse-resize" },
+          ].map((c, i) => (
+            <rect
+              key={`img-${i}`}
+              data-testid="lg-image-handle"
+              className="pointer-events-auto"
+              x={imgHalf + imageOffsetPxX + imageBodyDx + c.x * imgResizeLiveHalfPx - HANDLE_R / 2}
+              y={imgHalf + imageOffsetPxY + imageBodyDy + c.y * imgResizeLiveHalfPx - HANDLE_R / 2}
+              width={HANDLE_R}
+              height={HANDLE_R}
+              fill="rgba(226,232,240,0.95)"
+              stroke="black"
+              strokeWidth={1}
+              style={{ cursor: c.cursor }}
+              onPointerDown={startDrag("image-resize", imgResizeLiveHalfPx)}
+            />
+          ))}
+
+          {/* Object 2 — casing shape overlay + corner handles */}
+          <g
+            className="pointer-events-auto"
+            style={{ cursor: "move" }}
+            onPointerDown={startDrag("casing")}
+          >
+            {casingShapePath().el}
+          </g>
+          {[
+            { x: -1, y: -1, cursor: "nwse-resize" },
+            { x: 1, y: -1, cursor: "nesw-resize" },
+            { x: -1, y: 1, cursor: "nesw-resize" },
+            { x: 1, y: 1, cursor: "nwse-resize" },
+          ].map((c, i) => (
+            <rect
+              key={`casing-${i}`}
+              data-testid="lg-casing-handle"
+              className="pointer-events-auto"
+              x={casingCx + c.x * casingLiveR - HANDLE_R / 2}
+              y={casingCy + c.y * casingLiveR - HANDLE_R / 2}
+              width={HANDLE_R}
+              height={HANDLE_R}
+              fill="rgba(103,232,249,0.95)"
+              stroke="white"
+              strokeWidth={1}
+              style={{ cursor: c.cursor }}
+              onPointerDown={startDrag("casing-resize", casingLiveR)}
+            />
+          ))}
+
+          {/* Object 3 — lamp: amber dot + glow ring, follows the casing group */}
           <circle
-            cx={imgHalf}
-            cy={imgHalf}
-            r={liveFloorPx}
-            fill="none"
-            stroke="rgba(99,179,237,0.8)"
-            strokeDasharray="4 3"
-            strokeWidth={1.5}
+            data-testid="lg-lamp-handle"
+            className="pointer-events-auto"
+            cx={lampCx}
+            cy={lampCy}
+            r={LAMP_R + 4}
+            fill="rgba(251,191,36,0.25)"
           />
           <circle
-            data-testid="lg-floor-handle"
             className="pointer-events-auto"
-            cx={imgHalf}
-            cy={imgHalf - liveFloorPx}
-            r={7}
-            fill="rgba(99,179,237,0.95)"
+            cx={lampCx}
+            cy={lampCy}
+            r={LAMP_R}
+            fill="rgba(251,191,36,0.95)"
             stroke="white"
             strokeWidth={1}
-            style={{ cursor: "ns-resize" }}
-            onPointerDown={startRingDrag("floor")}
+            style={{ cursor: "move" }}
+            onPointerDown={startDrag("lamp")}
           />
-
-          {/* Padding ring — inner circle, 4 cardinal handles, ghosted when auto */}
-          <circle
-            cx={imgHalf}
-            cy={imgHalf}
-            r={livePaddingRadius}
-            fill="none"
-            stroke="rgba(246,173,85,0.85)"
-            strokeWidth={1.5}
-            opacity={autoFit ? 0.5 : 1}
-            className={autoFit ? "" : "pointer-events-auto"}
-          />
-          {!autoFit && (
-            <>
-              {[
-                { x: imgHalf, y: imgHalf - livePaddingRadius },
-                { x: imgHalf, y: imgHalf + livePaddingRadius },
-                { x: imgHalf - livePaddingRadius, y: imgHalf },
-                { x: imgHalf + livePaddingRadius, y: imgHalf },
-              ].map((p, i) => (
-                <circle
-                  key={i}
-                  data-testid="lg-padding-handle"
-                  className="pointer-events-auto"
-                  cx={p.x}
-                  cy={p.y}
-                  r={6}
-                  fill="rgba(246,173,85,0.95)"
-                  stroke="white"
-                  strokeWidth={1}
-                  style={{ cursor: "nesw-resize" }}
-                  onPointerDown={startRingDrag("padding")}
-                />
-              ))}
-            </>
-          )}
         </svg>
       )}
 
       {canConfig && imageSrc && (
         <div className="pointer-events-none absolute inset-0">
-          {drag?.kind === "body" && (
+          {dragTooltip && (
             <span className="absolute left-2 bottom-2 pointer-events-none rounded bg-black/70 px-2 py-0.5 text-xs text-white">
-              Δx {Math.round(drag.liveDxPx)}px / Δy {Math.round(drag.liveDyPx)}px
+              {dragTooltip}
             </span>
           )}
-          {drag?.kind !== "body" && (
+          {!dragTooltip && (
             <span className="absolute left-2 bottom-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
               floor ⌀ {Math.round(floorHalf * 2 / 10)} cm
             </span>

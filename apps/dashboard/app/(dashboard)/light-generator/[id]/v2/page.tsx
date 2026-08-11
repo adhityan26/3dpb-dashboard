@@ -155,6 +155,11 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
                   <LgCanvas2D
                     pngUrl={preview.pngUrl}
                     originalImageUrl={`/api/light-generator/orders/${order.id}/silhouette`}
+                    flooringImageUrl={
+                      order.additionalImagePath
+                        ? `/api/light-generator/orders/${order.id}/additional`
+                        : undefined
+                    }
                     loading={preview.status === "loading"}
                     config={effectiveConfig}
                     onConfigChange={handleConfigChange}
