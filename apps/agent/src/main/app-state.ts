@@ -3,6 +3,7 @@ import type { Engine, MqttReporter } from "@3pb/printer-monitor-core";
 
 let engine: Engine | null = null;
 let brokerPort: number | null = null;
+let brokerPin: string | null = null;
 // MqttReporter(s) yang dibuat startEngine() bareng Engine yang lagi aktif. Engine.stop()
 // (packages/printer-monitor-core) CUMA stop connector+timer, tidak pernah nutup reporter-nya
 // sendiri -- jadi siapa pun yang ganti Engine (agent:sync) WAJIB juga nutup reporter lama
@@ -14,6 +15,8 @@ export function setEngine(e: Engine | null): void { engine = e; }
 export function getEngine(): Engine | null { return engine; }
 export function setBrokerPort(port: number | null): void { brokerPort = port; }
 export function getBrokerPort(): number | null { return brokerPort; }
+export function setBrokerPin(pin: string | null): void { brokerPin = pin; }
+export function getBrokerPin(): string | null { return brokerPin; }
 export function setReporters(r: MqttReporter[]): void { reporters = r; }
 export function getReporters(): MqttReporter[] { return reporters; }
 
