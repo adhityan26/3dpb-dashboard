@@ -104,60 +104,80 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
 
   return (
     <PageShell title={`${order.id} · editor v2`}>
-      <LgEditorShell
-        orderId={order.id}
-        customerName={order.customerName}
-        status={order.status}
-        saveStatus={autosave.status}
-        savedAt={autosave.savedAt}
-        isStale={isStale}
-        estimate={estimate}
-        preview={{ latencyMs: preview.latencyMs, islands: preview.islands }}
-        activeTab={activeTab}
-        onTabChange={setActiveTab}
-        onGenerate={handleGenerate}
-        generating={generateStl.isPending}
-        feedback={feedback}
-        canvas={
-          activeTab === "shadow" ? (
-            <LgCanvas2D pngUrl={preview.pngUrl} loading={preview.status === "loading"} />
-          ) : (
-            <Card>
-              <CardHeader><CardTitle>{activeTab === "wall" ? "Wall (θ,z)" : "3D"}</CardTitle></CardHeader>
-              <CardContent className="text-sm text-muted-foreground">
-                Segera — increment berikutnya
-              </CardContent>
-            </Card>
-          )
-        }
-        inspector={<LgInspector config={effectiveConfig} onChange={handleConfigChange} />}
-        rail={
-          <div className="space-y-4">
-            <Card>
-              <CardHeader><CardTitle className="text-sm">Customer</CardTitle></CardHeader>
-              <CardContent className="space-y-1 text-xs">
-                <p><span className="text-muted-foreground">Name:</span> {order.customerName}</p>
-                <p><span className="text-muted-foreground">Contact:</span> {order.customerContact}</p>
-              </CardContent>
-            </Card>
-            <div className="grid grid-cols-2 gap-2">
-              <LgImageSlot orderId={id} label="Silhouette" type="silhouette" hasImage={!!order.imagePath} />
-              <LgImageSlot orderId={id} label="Floor Insert" type="additional" hasImage={!!order.additionalImagePath} />
-            </div>
-            <div className="space-y-1">
-              <span className="text-xs text-muted-foreground">Status</span>
-              <Select value={order.status} onValueChange={(v) => { if (v) handleStatusChange(v) }}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {STATUS_FLOW.map((s) => (
-                    <SelectItem key={s} value={s}>{s}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        }
-      />
+      {/* Break out of the dashboard layout's max-w-6xl <main> so the canvas
+          gets real room (user feedback: "pengap"). Re-center to a generous
+          but still bounded max-width so it doesn't sprawl on ultrawide
+          monitors. Scoped to this page only — PageShell/layout untouched. */}
+      <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen px-4">
+        <div className="w-full max-w-[1700px] mx-auto">
+          <LgEditorShell
+            orderId={order.id}
+            customerName={order.customerName}
+            status={order.status}
+            saveStatus={autosave.status}
+            savedAt={autosave.savedAt}
+            isStale={isStale}
+            estimate={estimate}
+            preview={{ latencyMs: preview.latencyMs, islands: preview.islands }}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            onGenerate={handleGenerate}
+            generating={generateStl.isPending}
+            feedback={feedback}
+            canvas={
+              activeTab === "shadow" ? (
+                <LgCanvas2D
+                  pngUrl={preview.pngUrl}
+                  loading={preview.status === "loading"}
+                  config={effectiveConfig}
+                  onConfigChange={handleConfigChange}
+                />
+              ) : (
+                <Card>
+                  <CardHeader><CardTitle>{activeTab === "wall" ? "Wall (θ,z)" : "3D"}</CardTitle></CardHeader>
+                  <CardContent className="text-sm text-muted-foreground">
+                    Segera — increment berikutnya
+                  </CardContent>
+                </Card>
+              )
+            }
+            inspector={
+              <LgInspector
+                config={effectiveConfig}
+                onChange={handleConfigChange}
+                orderId={order.id}
+                hasFlooringImage={!!order.additionalImagePath}
+              />
+            }
+            rail={
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader><CardTitle className="text-sm">Customer</CardTitle></CardHeader>
+                  <CardContent className="space-y-1 text-xs">
+                    <p><span className="text-muted-foreground">Name:</span> {order.customerName}</p>
+                    <p><span className="text-muted-foreground">Contact:</span> {order.customerContact}</p>
+                  </CardContent>
+                </Card>
+                <div className="grid grid-cols-2 gap-2">
+                  <LgImageSlot orderId={id} label="Silhouette" type="silhouette" hasImage={!!order.imagePath} />
+                  <LgImageSlot orderId={id} label="Floor Insert" type="additional" hasImage={!!order.additionalImagePath} />
+                </div>
+                <div className="space-y-1">
+                  <span className="text-xs text-muted-foreground">Status</span>
+                  <Select value={order.status} onValueChange={(v) => { if (v) handleStatusChange(v) }}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {STATUS_FLOW.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            }
+          />
+        </div>
+      </div>
     </PageShell>
   )
 }

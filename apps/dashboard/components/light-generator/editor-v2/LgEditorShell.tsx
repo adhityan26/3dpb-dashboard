@@ -100,8 +100,9 @@ export function LgEditorShell({
         </div>
       )}
 
-      {/* Main grid: rail | center (tabs + canvas) | inspector */}
-      <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)_340px]">
+      {/* Main grid: rail | center (tabs + canvas) | inspector — canvas column
+          dominates so the Shadow tab has room to breathe (user feedback: "pengap"). */}
+      <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_320px]">
         <div>{rail}</div>
         <div className="space-y-3">
           <div className="flex gap-1 border-b">
