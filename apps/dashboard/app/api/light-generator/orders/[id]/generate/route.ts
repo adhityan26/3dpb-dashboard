@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db"
 import { downloadFromMinio, uploadToMinio } from "@/lib/lg-storage"
 import { stlGenerate } from "@/lib/stl-service"
 import { MissingFlooringImageError, resolveFlooringImage } from "@/lib/light-generator/flooring-image"
+import { hashLgConfig } from "@/lib/light-generator/config-hash"
 import { NextRequest, NextResponse } from "next/server"
 
 export async function POST(
@@ -42,10 +43,12 @@ export async function POST(
     const stlKey = `orders/${id}/casing.stl`
     await uploadToMinio(stlKey, stlBytes, "model/stl")
 
-    // 5. Update order
+    // 5. Update order — hash the merged config BEFORE flooring-image
+    // resolution/stripping, so it matches what the client hashes when
+    // deciding whether the STL is stale relative to the current edit.
     await prisma.lightGeneratorOrder.update({
       where: { id },
-      data: { stlPath: stlKey, status: "ready" },
+      data: { stlPath: stlKey, status: "ready", generatedConfigHash: hashLgConfig(configJson as Record<string, unknown>) },
     })
 
     return NextResponse.json({ ok: true, stlSize: stlBytes.byteLength })

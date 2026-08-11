@@ -6,7 +6,7 @@ import { MissingFlooringImageError, resolveFlooringImage } from "@/lib/light-gen
 import { NextRequest, NextResponse } from "next/server"
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth()
@@ -18,7 +18,16 @@ export async function POST(
 
   const imageBuffer = await downloadFromMinio(order.imagePath)
   const filename = order.imagePath.split("/").pop() ?? "input.png"
-  const configJson = JSON.parse(order.configJsonOperator ?? order.configJson) as object
+
+  // v2 editor previews unsaved edits: an optional { config } body overrides
+  // the persisted config so the debounced preview reflects live edits before
+  // autosave commits them. v1 sends no body, so it keeps using the DB value.
+  const body = await req.json().catch(() => ({} as { config?: unknown }))
+  const configJson = (
+    body && typeof body === "object" && body.config && typeof body.config === "object"
+      ? body.config
+      : JSON.parse(order.configJsonOperator ?? order.configJson)
+  ) as object
 
   let effectiveConfig: object
   let flooringImage

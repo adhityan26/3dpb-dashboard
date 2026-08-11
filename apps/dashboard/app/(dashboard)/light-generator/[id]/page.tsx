@@ -88,6 +88,9 @@ export default function LgOrderDetailPage({ params }: { params: Promise<{ id: st
         <Badge variant={STATUS_VARIANT[order.status] ?? "outline"} className="capitalize">
           {order.status}
         </Badge>
+        <Link href={`/light-generator/${order.id}/v2`} className="text-xs text-muted-foreground underline">
+          Coba editor v2 →
+        </Link>
         <Button
           variant="ghost"
           size="sm"

@@ -685,3 +685,4 @@ git commit -m "feat(dashboard): LG editor shell v2 page - top bar, rail, canvas,
 - Spec coverage inc-1: route /v2 ✓ topbar ✓ rail ✓ inspector+search ✓ status strip ✓ tab stub ✓ switcher ✓ autosave ✓; inc-2: canvas Shadow ✓ debounce+abort+seq ✓ shimmer ✓ filament live ✓ stale hash ✓ chained islands ✓.
 - Increment 3–6 (padding ring, Wall/stems, centroids, 3D r3f) — plan terpisah menyusul.
 - Type consistency: `hashLgConfig`/`createAutosaver`/`createPreviewRunner`/`filterSections` konsisten di semua task.
+- Revert-to-last-generated & rail collapse: descoped from inc1-2, ditunda ke increment berikutnya.

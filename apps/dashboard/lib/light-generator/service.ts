@@ -17,6 +17,7 @@ function serializeOrder(o: {
   stlPath: string | null
   notesOperator: string | null
   additionalImagePath: string | null
+  generatedConfigHash: string | null
   createdAt: Date
   updatedAt: Date
 }): LgOrder {
