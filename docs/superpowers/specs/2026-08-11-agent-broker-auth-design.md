@@ -21,30 +21,69 @@ Out of scope:
 
 ## Token lifecycle
 
-- **Generated once**, the first time the broker starts and no PIN is found in storage. Stored via the existing `credential-store.ts` (`safeStorage`, OS-level encryption) — the same mechanism already used for printer access codes, not a new storage location.
-- **Displayed in `DashboardScreen.tsx`**, right next to the existing "Alamat broker (ketik ini di setup WiFi CYD)" line — the user already manually transcribes IP:port into the CYD's setup screen today; the PIN becomes one more field copied in the same step, not a separate flow.
-- **No "regenerate" UI in this pass.** If the PIN needs to change (suspected compromise), deleting the stored credential and restarting the Agent regenerates it — an acceptable manual escape hatch for a scenario expected to be rare, avoiding UI for it now.
+- **Generated once**, the first time the broker starts and no PIN is found in storage. Stored via the existing `credential-store.ts` (`safeStorage`, OS-level encryption) — the same mechanism already used for printer access codes, not a new storage location. `CredentialBlob` gains a new optional field `brokerPin?: string` (stored zero-padded, e.g. `"0042"` — as a string, not a number, so leading zeros survive). Generated with `crypto.randomInt(0, 10000)`, not `Math.random`.
+- **Displayed in `DashboardScreen.tsx`**, right next to the existing "Alamat broker (ketik ini di setup WiFi CYD)" line — flows through the existing `agent:get-broker-info` IPC call (already polled every 5s), whose return shape gains a `pin` field. The user already manually transcribes IP:port into the CYD's setup screen today; the PIN becomes one more field copied in the same step, not a separate flow.
+- **No "regenerate" UI in this pass** — no button in Settings/Dashboard. But see "Safe PIN bootstrap" below: even without a UI trigger, the underlying mechanism for ever clearing a stored PIN must be a narrow, field-scoped operation on the existing blob, never "delete the whole credential file." `credentials.enc` is a single blob holding `agentToken` and every paired printer's `DeviceSecret` — deleting the file to reset the PIN would also force the user through SaaS re-activation and re-pairing every printer, which is a wildly disproportionate reset for "I want a new PIN." Add a narrow `clearBrokerPin(blob): CredentialBlob` helper in `credential-store.ts` (pure function, no I/O) that a future regenerate action — or, until then, manual support guidance — calls before `saveCredentials()`, instead of touching the file directly.
+
+## Safe PIN bootstrap (do not skip — real data-loss risk otherwise)
+
+`loadCredentials()` (`credential-store.ts:22-34`) intentionally never throws: no file, `safeStorage` unavailable, and a corrupted/undecryptable file *all* collapse to the same `EMPTY_BLOB` return value. That's fine for its current only caller (`ipc.ts`'s user-triggered pairing flow, where an empty result just means "ask the user to pair again"). It is **not** fine for PIN bootstrap, which runs unattended on every startup: naively doing `if (!blob.brokerPin) { blob.brokerPin = generate(); await saveCredentials(blob) }` would, on a genuine decrypt failure of an *existing* file (corrupted write, OS keychain hiccup, etc.), silently overwrite that file with a blob containing only the new PIN — permanently destroying the user's `agentToken` and every paired printer's `DeviceSecret`. This is the first credential-store write path that runs automatically with no user action in the loop; every existing write is user-triggered (pairing, forgetting a device), so this class of bug hasn't existed here before.
+
+The bootstrap logic must distinguish "genuinely first run" from "a file exists but couldn't be read," and only auto-persist in the first case:
+
+```
+async function ensureBrokerPin(): Promise<string> {
+  const fileExists = fs.existsSync(credentialFilePath()); // check BEFORE loadCredentials collapses the distinction
+  const blob = await loadCredentials();
+  if (blob.brokerPin) return blob.brokerPin;
+
+  const pin = generatePin();
+  if (fileExists) {
+    // File exists but came back without a PIN -- loadCredentials() cannot tell us whether
+    // that's because decrypt genuinely failed (real agentToken/devices data at risk) or the
+    // file just predates this feature. Never safe to assume the latter and overwrite.
+    console.error("[broker] credential file exists but couldn't be read for PIN bootstrap -- using a session-only PIN, not persisting (would risk overwriting agentToken/devices)");
+    return pin; // in-memory only for this run; CYD needs the PIN re-entered if this repeats
+  }
+  await saveCredentials({ ...blob, brokerPin: pin }); // blob is EMPTY_BLOB here, safe to write
+  return pin;
+}
+```
+
+The in-memory-only fallback means a genuinely corrupted credential file produces a new PIN on every restart (mildly annoying — CYD needs re-provisioning each time) instead of silently destroying the user's activation and every printer pairing. That trade is correct.
 
 ## Enforcement
 
-`apps/agent/src/main/broker.ts`: add an `authenticate` handler to the `Aedes` instance before `server.listen()`. It:
-1. Checks the source IP against the rate-limit map; if locked out, reject immediately (no PIN comparison).
-2. Compares the presented `password` against the stored PIN. `username` is not checked (MQTT requires the field to exist, but this design gives it no meaning — any value is accepted).
-3. On failure, increments that IP's failure counter (starting/refreshing the 60s window) and rejects.
-4. On success, clears that IP's failure counter and accepts.
+`apps/agent/src/main/broker.ts`: `startBroker(port, pin)` takes the PIN as a parameter (resolved by `ensureBrokerPin()` in `bootstrap()`/`index.ts` before calling it) rather than loading credentials itself — keeps `broker.ts` free of an `electron` import, so its existing tests (real embedded-broker style, no electron mocking) keep working unchanged for the new auth tests too.
+
+Add an `authenticate` handler to the `Aedes` instance before `server.listen()`. It:
+1. Normalizes the source IP (`client.conn.remoteAddress`, stripping the `::ffff:` IPv4-mapped-IPv6 prefix so `127.0.0.1` and `::ffff:127.0.0.1` are treated as the same key) and checks it against the rate-limit map. If locked out, reject immediately — **do not compare the PIN, and do not touch the failure counter or `lockedUntil` for this rejection.** A lockout rejection must never extend its own lockout; only a genuine PIN comparison (step 2) affects the counter. This matters in practice: CYD's connect-retry loop fires every few seconds, so a real device that trips a lockout must be able to count down and reconnect once it expires, not get its window silently renewed by its own retries.
+2. **Loopback exemption:** if the normalized IP is `127.0.0.1` (or its IPv6 equivalent), skip rate-limiting entirely — still require the correct PIN, just never lock this address out. This is the Agent's own process (`MqttReporter`/`layout-publisher.ts`) reconnecting to itself; the LAN-stranger threat this spec defends against cannot originate from loopback, so there's no reason a transient local reconnect burst (e.g. right after a Sync restarts the Engine) should ever ratchet toward a lockout.
+3. For non-loopback IPs: compare the presented `password` against the stored PIN. `username` is not checked for its value, but MQTT requires the CONNECT packet's username flag to be set for the password to be transmitted at all by most client libraries — the CYD firmware side must send a non-empty placeholder username alongside the real PIN as password (see "Coordination needed with CYD firmware" below).
+4. On failure: increment that IP's failure counter, refresh `lockedUntil` to `now + 60s` once the count reaches 5, and reject.
+5. On success: remove that IP's entry from the map entirely (not just reset to 0 — a stale expired entry left in the map is harmless either way, but removing keeps the map from growing unbounded across long uptimes with many transient reconnects) and accept.
 
 ## Internal call sites need updating too
 
-Two places inside the Agent's own main process connect to its own broker at `mqtt://127.0.0.1:<port>` and, once `authenticate` is added, would otherwise be rejected like any unauthenticated client:
+Two places inside the Agent's own main process connect to its own broker at `mqtt://127.0.0.1:<port>` and, once `authenticate` is added, would otherwise be rejected like any unauthenticated client (mitigated in practice by the loopback rate-limit exemption above, but they still need to present the correct PIN — that exemption only means they can't get locked out, not that they're exempt from authenticating):
 
 - `packages/printer-monitor-core/src/reporters/mqtt.ts` (`MqttReporter`, publishes printer status) — used for connecting to the embedded broker specifically (this same class is also reused for the internal homelab service's separate, unrelated broker, so the fix must be an optional credential, not a hardcoded requirement).
 - `apps/agent/src/main/layout-publisher.ts` (`publishLayout`, publishes CYD layout config).
 
-Both need the stored PIN passed as MQTT `password` when connecting to the local broker.
+Both need the stored PIN passed as MQTT `password` (with a placeholder `username`) when connecting to the local broker.
+
+## Coordination needed with CYD firmware (separate repo, tracked here so it isn't silently forgotten)
+
+The CYD firmware repo (`3pb-monitoring-display`) needs matching changes before this spec's Agent-side auth can go live without breaking existing deployed units:
+
+- **New PIN field in the AP-mode captive portal provisioning UI**, alongside the existing broker IP:port field (per `docs/superpowers/specs/2026-07-18-cyd-wifi-provisioning-design.md` §3.3), saved to NVS the same way.
+- **PubSubClient must send the PIN as the MQTT CONNECT password**, with a non-empty placeholder username (MQTT client libraries generally only transmit the password field when the username flag is set).
+- **On-screen distinction between "wrong PIN" and "broker unreachable."** Today a failed connection is an undifferentiated silent retry loop; once wrong-PIN becomes a real failure mode a user can actually cause (typo during setup), the CYD screen needs to say so specifically rather than leaving the user guessing why the device never leaves "Menyambungkan...".
+- **Rollout ordering risk:** an Agent updated to enforce auth will silently stop serving any CYD still running firmware without PIN support — that CYD keeps retrying forever with no way to know why. This needs either a coordinated release (firmware ships and existing units get re-provisioned before/alongside the Agent update that enables enforcement) or a temporary grace mode, decided with the firmware session before this ships — not something this spec can resolve unilaterally since the firmware repo and its release process belong to a different session/context.
 
 ## Testing
 
-- `broker.ts`: unit tests using a real client connection (mirroring the existing `bambu-connector.test.ts` pattern of a real embedded broker, not a mock) — correct PIN connects, wrong PIN rejected, 5 failures from one IP locks out further attempts (correct or not) for the cooldown window, a different source IP is unaffected by another IP's lockout, cooldown expiring allows retry.
-- `MqttReporter` / `layout-publisher.ts`: verify the PIN is passed as `password` when connecting to the embedded broker.
-- `DashboardScreen.tsx`: PIN displayed alongside broker IP:port.
-- `credential-store.ts`: PIN generated once and persisted; a second broker start reuses the stored PIN rather than generating a new one.
+- `broker.ts`: unit tests using a real client connection (mirroring the existing `bambu-connector.test.ts` pattern of a real embedded broker, not a mock) — correct PIN connects, wrong PIN rejected, 5 failures from one non-loopback IP locks out further attempts (correct or not) for the cooldown window without extending it further, a different source IP is unaffected by another IP's lockout, cooldown expiring resets the counter and allows retry, and `127.0.0.1` never gets locked out regardless of failure count (still requires the correct PIN, just never rate-limited).
+- `credential-store.ts` / PIN bootstrap: PIN generated once and persisted on genuine first run (no file); a second broker start reuses the stored PIN rather than generating a new one; a file that exists but fails to load produces an in-memory-only PIN and does **not** call `saveCredentials()` (the critical case — assert `saveCredentials` was never invoked in this path, not just that the returned PIN differs).
+- `MqttReporter` / `layout-publisher.ts`: verify the PIN is passed as `password` (with a placeholder `username`) when connecting to the embedded broker.
+- `DashboardScreen.tsx`: PIN displayed alongside broker IP:port, sourced from the extended `agent:get-broker-info` IPC response.
