@@ -12,6 +12,7 @@ import {
   overlayGeometry,
   buildImageFilter,
   parseFlooringShape,
+  resizeFromCursor,
 } from "../canvas-math"
 
 describe("buildImageFilter", () => {
@@ -244,5 +245,24 @@ describe("parseFlooringShape", () => {
   it("falls back to sane default ratios for bare rect/oval", () => {
     expect(parseFlooringShape("rect")).toEqual({ base: "rect", w: 3, h: 4 })
     expect(parseFlooringShape("oval")).toEqual({ base: "oval", w: 16, h: 9 })
+  })
+})
+
+describe("resizeFromCursor (Object 1/2 relative corner-handle resize)", () => {
+  it("is identity when the cursor hasn't moved from its start (r === r0)", () => {
+    expect(resizeFromCursor(100, 50, 50)).toBe(100)
+  })
+
+  it("doubles the size when the cursor's distance to center doubles (r === 2*r0)", () => {
+    expect(resizeFromCursor(100, 50, 100)).toBe(200)
+  })
+
+  it("halves the size when the cursor moves to half its start distance", () => {
+    expect(resizeFromCursor(100, 50, 25)).toBe(50)
+  })
+
+  it("guards against a tiny r0 (press near dead center) by returning S0 unchanged", () => {
+    expect(resizeFromCursor(100, 0, 999)).toBe(100)
+    expect(resizeFromCursor(100, 3, 999)).toBe(100)
   })
 })

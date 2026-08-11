@@ -190,6 +190,34 @@ export function applyLampDrag(
   }
 }
 
+/** Guard below which r0 (the cursor's initial distance to center) is too
+ * small to divide by safely — a press essentially on top of the center would
+ * otherwise blow the scale factor up to a huge/undefined number on the very
+ * first move event. */
+const MIN_R0_PX = 8
+
+/**
+ * Relative resize scaling for corner-handle drags (image-resize and
+ * casing-resize). Previously the live size was set directly from the
+ * cursor's absolute distance to the object's center (`r = hypot(cursor -
+ * center)`), so the FIRST pointermove after pointerdown snapped the object
+ * straight to wherever the cursor happened to be — reported live as
+ * "pointer loncat ke size lebih besar" (the object visibly jumps on the very
+ * first movement instead of scaling smoothly from where it started).
+ *
+ * Fixed by scaling relative to the gesture's own start: `S0` is the object's
+ * on-screen size at pointerdown, `r0` is the cursor's distance to center at
+ * that same moment, and `r` is the cursor's CURRENT distance to center.
+ * `newSize = S0 * (r / r0)` — at r == r0 (no movement yet) this returns
+ * exactly S0, so there's no jump; the object then scales smoothly in
+ * proportion to how far the cursor has moved from its start, not from an
+ * arbitrary absolute distance.
+ */
+export function resizeFromCursor(S0: number, r0: number, r: number): number {
+  if (r0 < MIN_R0_PX) return S0
+  return S0 * (r / r0)
+}
+
 /**
  * The overlay SVG + pointer math must operate on the actual rendered image
  * square, not the (possibly non-square) outer container — the container can

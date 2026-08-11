@@ -13,6 +13,7 @@ import {
   overlayGeometry,
   buildImageFilter,
   parseFlooringShape,
+  resizeFromCursor,
 } from "./canvas-math"
 
 interface LgCanvas2DProps {
@@ -89,6 +90,14 @@ interface DragState {
   liveDyPx: number
   // live half-size (image-resize) or radius (casing-resize) in px
   liveSizePx: number
+  /** Object's on-screen size (half-size / radius, px) at the moment the drag
+   * started — the S0 in the relative-resize formula `S0 * (r / r0)`. Only
+   * meaningful for "image-resize"/"casing-resize" kinds. */
+  startSizePx: number
+  /** Cursor's distance (px) to the object's center at the moment the drag
+   * started — the r0 in the relative-resize formula. Only meaningful for
+   * "image-resize"/"casing-resize" kinds. */
+  startCursorRadiusPx: number
   /** True once the pointer has travelled past DRAG_THRESHOLD_PX — only then
    * does the gesture commit on pointerup. Guards every object against
    * click-with-tremor writes. */
@@ -196,7 +205,23 @@ export function LgCanvas2D({
       e.stopPropagation()
       e.currentTarget.setPointerCapture(e.pointerId)
       appliedRef.current = false
-      setDrag({ kind, startX: e.clientX, startY: e.clientY, liveDxPx: 0, liveDyPx: 0, liveSizePx: initialSizePx, moved: false })
+      // For the resize kinds, capture r0 (cursor's distance to center right
+      // now) alongside S0 (initialSizePx, the object's current on-screen
+      // size) so the first pointermove can scale RELATIVE to this gesture's
+      // own start instead of jumping to the cursor's absolute distance.
+      const { cx, cy } = getCenter()
+      const startCursorRadiusPx = Math.hypot(e.clientX - cx, e.clientY - cy)
+      setDrag({
+        kind,
+        startX: e.clientX,
+        startY: e.clientY,
+        liveDxPx: 0,
+        liveDyPx: 0,
+        liveSizePx: initialSizePx,
+        startSizePx: initialSizePx,
+        startCursorRadiusPx,
+        moved: false,
+      })
     }
   }
 
@@ -211,7 +236,8 @@ export function LgCanvas2D({
     if (drag.kind === "image-resize" || drag.kind === "casing-resize") {
       const { cx, cy } = getCenter()
       const r = Math.hypot(e.clientX - cx, e.clientY - cy)
-      setDrag({ ...drag, liveSizePx: r, moved })
+      const liveSizePx = resizeFromCursor(drag.startSizePx, drag.startCursorRadiusPx, r)
+      setDrag({ ...drag, liveSizePx, moved })
     } else {
       setDrag({ ...drag, liveDxPx: dx, liveDyPx: dy, moved })
     }
@@ -293,7 +319,14 @@ export function LgCanvas2D({
   const imageBodyDy = drag?.kind === "image" ? drag.liveDyPx : 0
   const imageOffsetPxX = offsetXMm * pxPerMm
   const imageOffsetPxY = -offsetYMm * pxPerMm
-  const imageTransform = `translate(${imageOffsetPxX + imageBodyDx}px, ${imageOffsetPxY + imageBodyDy}px)`
+  // Live resize feedback: while an image-resize drag is in progress, scale
+  // the <img> itself (transform-origin defaults to the element's own center,
+  // matching the corner handles' from-center resize math) instead of only
+  // moving the handles — otherwise the backdrop visibly lags behind the
+  // handles until pointerup, which reads as the drag "doing nothing" until
+  // release.
+  const imageLiveScale = restImgHalfPx > 0 ? imgResizeLiveHalfPx / restImgHalfPx : 1
+  const imageTransform = `translate(${imageOffsetPxX + imageBodyDx}px, ${imageOffsetPxY + imageBodyDy}px) scale(${imageLiveScale})`
 
   // --- Object 2: casing shape (always the origin — sits at wrapper center) ---
   const casingRestR = casingScreenRadius(outerRadius, floorHalf, imgPx)
@@ -321,45 +354,65 @@ export function LgCanvas2D({
   // what actually gets thresholded/printed.
   const imageFilter = originalImageUrl ? buildImageFilter(cfg) : undefined
 
+  // Casing contour color — user feedback: the overlay (especially the
+  // custom-flooring image at 55% opacity) was hard to see against the dark
+  // backdrop. Bumped from the previous rgba(103,232,249,...) to a solid,
+  // higher-contrast cyan (#22d3ee, matching the shadow preview's casing
+  // outline) at 2px, so the casing bounding box reads clearly regardless of
+  // what's rendered inside it.
+  const CASING_STROKE = "#22d3ee"
+  const CASING_STROKE_GLOW = "rgba(34,211,238,0.35)"
+  const CASING_FILL = "rgba(34,211,238,0.1)"
+
   function casingShapePath(): { el: React.ReactNode } {
     const r = casingLiveR
-    const stroke = "rgba(103,232,249,0.9)" // cyan
-    const fill = "rgba(103,232,249,0.12)"
+    const stroke = CASING_STROKE
+    const fill = CASING_FILL
     if (shape.base === "custom" && flooringImageUrl) {
       const side = r * 2
+      const x = casingCx - side / 2
+      const y = casingCy - side / 2
       return {
         el: (
-          <image
-            href={flooringImageUrl}
-            x={casingCx - side / 2}
-            y={casingCy - side / 2}
-            width={side}
-            height={side}
-            opacity={0.55}
-            preserveAspectRatio="xMidYMid meet"
-          />
+          <>
+            <image
+              href={flooringImageUrl}
+              x={x}
+              y={y}
+              width={side}
+              height={side}
+              opacity={0.55}
+              preserveAspectRatio="xMidYMid meet"
+            />
+            {/* Contour border for the custom-flooring image: a wider, low-
+                opacity outer stroke gives a subtle glow, and the inner 2px
+                solid cyan stroke traces the bounding box clearly against any
+                backdrop — the image alone had no edge to anchor on. */}
+            <rect x={x} y={y} width={side} height={side} fill="none" stroke={CASING_STROKE_GLOW} strokeWidth={5} />
+            <rect x={x} y={y} width={side} height={side} rx={4} fill="none" stroke={stroke} strokeWidth={2} />
+          </>
         ),
       }
     }
     if (shape.base === "square") {
-      return { el: <rect x={casingCx - r} y={casingCy - r} width={r * 2} height={r * 2} stroke={stroke} fill={fill} strokeWidth={1.5} /> }
+      return { el: <rect x={casingCx - r} y={casingCy - r} width={r * 2} height={r * 2} stroke={stroke} fill={fill} strokeWidth={2} /> }
     }
     if (shape.base === "triangle") {
       const p1 = `${casingCx},${casingCy - r}`
       const p2 = `${casingCx - r},${casingCy + r}`
       const p3 = `${casingCx + r},${casingCy + r}`
-      return { el: <polygon points={`${p1} ${p2} ${p3}`} stroke={stroke} fill={fill} strokeWidth={1.5} /> }
+      return { el: <polygon points={`${p1} ${p2} ${p3}`} stroke={stroke} fill={fill} strokeWidth={2} /> }
     }
     if (shape.base === "rect" || shape.base === "oval") {
       const ratio = shape.w / shape.h || 1
       const rx = ratio >= 1 ? r : r * ratio
       const ry = ratio >= 1 ? r / ratio : r
       if (shape.base === "oval") {
-        return { el: <ellipse cx={casingCx} cy={casingCy} rx={rx} ry={ry} stroke={stroke} fill={fill} strokeWidth={1.5} /> }
+        return { el: <ellipse cx={casingCx} cy={casingCy} rx={rx} ry={ry} stroke={stroke} fill={fill} strokeWidth={2} /> }
       }
-      return { el: <rect x={casingCx - rx} y={casingCy - ry} width={rx * 2} height={ry * 2} stroke={stroke} fill={fill} strokeWidth={1.5} /> }
+      return { el: <rect x={casingCx - rx} y={casingCy - ry} width={rx * 2} height={ry * 2} stroke={stroke} fill={fill} strokeWidth={2} /> }
     }
-    return { el: <circle cx={casingCx} cy={casingCy} r={r} stroke={stroke} fill={fill} strokeWidth={1.5} /> }
+    return { el: <circle cx={casingCx} cy={casingCy} r={r} stroke={stroke} fill={fill} strokeWidth={2} /> }
   }
 
   const dragTooltip = (() => {

@@ -101,9 +101,15 @@ export function LgEditorShell({
       )}
 
       {/* Main grid: rail | center (tabs + canvas) | inspector — canvas column
-          dominates so the Shadow tab has room to breathe (user feedback: "pengap"). */}
-      <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_320px]">
-        <div>{rail}</div>
+          dominates so the Shadow tab has room to breathe (user feedback: "pengap").
+          Rail and inspector are sticky with their own scrollbar (user feedback:
+          the inspector should scroll independently while the canvas + shadow
+          preview stay visible) — `top-4` matches the grid's own gap-4 offset
+          from the top bar above, and `100vh-120px` roughly reserves the top
+          bar + status strip + page padding so the sticky column's max height
+          doesn't push past the viewport. */}
+      <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_320px] lg:items-start">
+        <div className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">{rail}</div>
         <div className="space-y-3">
           <div className="flex gap-1 border-b">
             {TABS.map((tab) => (
@@ -123,7 +129,7 @@ export function LgEditorShell({
           </div>
           <div>{canvas}</div>
         </div>
-        <div>{inspector}</div>
+        <div className="lg:sticky lg:top-4 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">{inspector}</div>
       </div>
 
       {/* Status strip */}
