@@ -85,7 +85,14 @@ export function LgWallCanvas({
 
   function measure(el: HTMLDivElement) {
     const rect = el.getBoundingClientRect()
-    setWrapSize({ w: rect.width, h: rect.height })
+    // Only update state when the size actually changed — a fresh object every
+    // render from the ref callback would trigger an infinite re-render loop
+    // ("maximum update depth exceeded").
+    setWrapSize((prev) =>
+      prev && prev.w === rect.width && prev.h === rect.height
+        ? prev
+        : { w: rect.width, h: rect.height },
+    )
   }
 
   function getRect(): DOMRect | null {
