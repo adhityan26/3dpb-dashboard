@@ -21,6 +21,8 @@ import { composeKomponen, splitPackingRow, hitungPerbandinganPrinter, type Kompo
 import { PrintableQuote } from "./PrintableQuote"
 import { RincianPanel } from "./RincianPanel"
 import { import3mfFile } from "@/lib/kalkulator/import-3mf"
+import type { Kalkulasi3mfDraft } from "@/lib/kalkulator/import-3mf/types"
+import { mergeImportedPlates } from "@/lib/kalkulator/import-3mf/merge-plates"
 import { CalcSection } from "@3pb/ui"
 
 type PlateRow = PlateInputApp & { key: string; id?: string; thumbnailKey?: string | null }
@@ -62,31 +64,53 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
   const { data: materialProfiles } = useMaterialProfiles()
   const { data: filamentCatalog } = useFilamentHarga()
   const fileRef = useRef<HTMLInputElement>(null)
+  // Monotonic key counter across imports — `p-3mf-${index}` would collide when a
+  // second import appends plates, breaking React keys and thumbnail mapping.
+  const importSeqRef = useRef(0)
   const [import3mfPending, setImport3mfPending] = useState(false)
   const [import3mfError, setImport3mfError] = useState<string | null>(null)
   const [import3mfWarnings, setImport3mfWarnings] = useState<string[]>([])
   const [isDraggingFile, setIsDraggingFile] = useState(false)
   const dragCounterRef = useRef(0) // dragenter/dragleave fire per-child element — counter biar overlay ga kedip
 
-  async function handleImport3mf(file: File) {
+  async function handleImport3mf(files: File[]) {
     setImport3mfError(null)
     setImport3mfWarnings([])
     setImport3mfPending(true)
     try {
-      const draft = await import3mfFile(file, {
-        filamentCatalog: filamentCatalog ?? [],
-        printerProfiles: printerProfiles ?? [],
-      })
-      setNama(draft.nama)
-      setBatch(draft.batch)
-      const newPlates = draft.plates.map((p, i) => ({ ...p, key: `p-3mf-${i}` }))
-      setPlates(newPlates)
+      const drafts: Kalkulasi3mfDraft[] = []
+      const failed: string[] = []
+      for (const file of files) {
+        try {
+          drafts.push(await import3mfFile(file, {
+            filamentCatalog: filamentCatalog ?? [],
+            printerProfiles: printerProfiles ?? [],
+          }))
+        } catch (e) {
+          failed.push(`${file.name}: ${e instanceof Error ? e.message : "Gagal membaca file 3MF"}`)
+        }
+      }
+      if (failed.length > 0) setImport3mfError(failed.join(" · "))
+      if (drafts.length === 0) return
+      const newPlates: PlateRow[] = drafts.flatMap(d =>
+        d.plates.map(p => ({ ...p, key: `p-3mf-${++importSeqRef.current}` }))
+      )
+      // Thumbnails are index-aligned per draft — walk drafts with a running offset
+      // into newPlates to key each blob by its plate's key.
       const thumbs: Record<string, Blob> = {}
-      draft.thumbnails.forEach((blob, i) => { if (blob) thumbs[newPlates[i].key] = blob })
-      setPendingThumbnails(thumbs)
-      setImport3mfWarnings(draft.warnings)
-    } catch (e) {
-      setImport3mfError(e instanceof Error ? e.message : "Gagal membaca file 3MF")
+      let offset = 0
+      for (const d of drafts) {
+        d.thumbnails.forEach((blob, i) => { if (blob) thumbs[newPlates[offset + i].key] = blob })
+        offset += d.plates.length
+      }
+      const { plates: merged, wasPristine } = mergeImportedPlates(plates, newPlates)
+      setPlates(merged)
+      if (wasPristine) {
+        setNama(drafts[0].nama)
+        setBatch(drafts[0].batch)
+      }
+      setPendingThumbnails(prev => (wasPristine ? thumbs : { ...prev, ...thumbs }))
+      setImport3mfWarnings([...new Set(drafts.flatMap(d => d.warnings))])
     } finally {
       setImport3mfPending(false)
     }
@@ -114,8 +138,8 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
     dragCounterRef.current = 0
     setIsDraggingFile(false)
     if (isEditing) return
-    const f = e.dataTransfer.files?.[0]
-    if (f) handleImport3mf(f)
+    const files = Array.from(e.dataTransfer.files ?? [])
+    if (files.length > 0) handleImport3mf(files)
   }
 
   // Deps untuk jalur v2 — buildHasilV2/RincianPanel butuh keempatnya sudah ter-load.
@@ -360,10 +384,11 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
                 ref={fileRef}
                 type="file"
                 accept=".3mf"
+                multiple
                 className="hidden"
                 onChange={e => {
-                  const f = e.target.files?.[0]
-                  if (f) handleImport3mf(f)
+                  const files = Array.from(e.target.files ?? [])
+                  if (files.length > 0) handleImport3mf(files)
                   e.target.value = ""
                 }}
               />
@@ -371,7 +396,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
                 onClick={() => fileRef.current?.click()}
                 disabled={import3mfPending}
                 className="h-8 px-3 rounded-[5px] text-xs font-semibold transition-all g-btn-ghost shrink-0"
-                title="Auto-fill dari file .gcode.3mf hasil slice Bambu Studio/OrcaSlicer"
+                title="Auto-fill dari file .gcode.3mf hasil slice Bambu Studio/OrcaSlicer — bisa pilih beberapa file sekaligus; import berikutnya menambah plate"
               >
                 {import3mfPending ? "⏳ Membaca..." : "📥 Import dari 3MF"}
               </button>
