@@ -103,7 +103,7 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
         d.thumbnails.forEach((blob, i) => { if (blob) thumbs[newPlates[offset + i].key] = blob })
         offset += d.plates.length
       }
-      const { plates: merged, wasPristine } = mergeImportedPlates(plates, newPlates)
+      const { plates: merged, wasPristine } = mergeImportedPlates(platesRef.current, newPlates)
       setPlates(merged)
       if (wasPristine) {
         setNama(drafts[0].nama)
@@ -188,6 +188,10 @@ export function KalkulasiForm({ initial, onSaved }: Props) {
       materialProfileId: p.materialProfileId ?? undefined,
     })) ?? [DEFAULT_PLATE]
   )
+  // Latest-plates mirror so the async import merges against current state, not the
+  // snapshot closed over at dispatch time (user may edit plates while files parse).
+  const platesRef = useRef(plates)
+  platesRef.current = plates
 
   const [pendingThumbnails, setPendingThumbnails] = useState<Record<string, Blob>>({})
   const [pendingThumbnailUrls, setPendingThumbnailUrls] = useState<Record<string, string>>({})

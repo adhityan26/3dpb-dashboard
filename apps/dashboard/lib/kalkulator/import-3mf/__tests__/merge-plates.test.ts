@@ -18,7 +18,7 @@ describe("isPristinePlate (dashboard)", () => {
     expect(isPristinePlate({ ...empty, namaPart: "x" })).toBe(false)
   })
   it("multi-material with any weight → not pristine", () => {
-    expect(isPristinePlate({ ...empty, materials: [{ id: 1, material: "PLA", color: "", gramasi: 3 }] })).toBe(false)
+    expect(isPristinePlate({ ...empty, materials: [{ brand: "", material: "PLA", color: "", gramasi: 3 }] })).toBe(false)
   })
 })
 
