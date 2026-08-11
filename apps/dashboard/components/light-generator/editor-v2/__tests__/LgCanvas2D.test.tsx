@@ -13,7 +13,7 @@ describe("LgCanvas2D", () => {
     expect(html).not.toContain('data-testid="lg-canvas-overlay"')
   })
 
-  it("renders the interactive overlay (floor ring handle) when config + onConfigChange are provided", () => {
+  it("renders no ring/handle overlay by default (edit mode off) even with config + onConfigChange", () => {
     const html = renderToStaticMarkup(
       <LgCanvas2D
         pngUrl="/preview.png"
@@ -22,12 +22,28 @@ describe("LgCanvas2D", () => {
         onConfigChange={() => {}}
       />,
     )
+    expect(html).not.toContain('data-testid="lg-canvas-overlay"')
+    expect(html).not.toContain('data-testid="lg-floor-handle"')
+    expect(html).not.toContain('data-testid="lg-padding-handle"')
+    expect(html).toContain(">Edit<")
+  })
+
+  it("renders the interactive overlay (floor ring handle) when defaultEditMode forces edit mode on", () => {
+    const html = renderToStaticMarkup(
+      <LgCanvas2D
+        pngUrl="/preview.png"
+        loading={false}
+        config={{ floor_half_size: 600, mask_padding_pct: 10, auto_fit_mask: false }}
+        onConfigChange={() => {}}
+        defaultEditMode
+      />,
+    )
     expect(html).toContain('data-testid="lg-canvas-overlay"')
     expect(html).toContain('data-testid="lg-floor-handle"')
     expect(html).toContain('data-testid="lg-padding-handle"')
   })
 
-  it('shows the "Auto" chip and ghosts the padding ring when auto_fit_mask is true', () => {
+  it('shows the "Auto" chip and ghosts the padding ring when auto_fit_mask is true (info chip is independent of edit mode)', () => {
     const html = renderToStaticMarkup(
       <LgCanvas2D
         pngUrl="/preview.png"

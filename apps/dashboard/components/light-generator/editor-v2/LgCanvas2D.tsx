@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { Button } from "@/components/ui/button"
 import {
   applyOffsetDrag,
   applyFloorResizeDrag,
@@ -14,7 +15,16 @@ interface LgCanvas2DProps {
   loading: boolean
   config?: Record<string, unknown>
   onConfigChange?: (next: Record<string, unknown>) => void
+  /** Forces edit mode on regardless of local UI state — used by SSR markup
+   * tests to assert the ring/handle overlays render without simulating a
+   * click. Defaults to off (clean preview) like real first render. */
+  defaultEditMode?: boolean
 }
+
+/** Inset (px) subtracted from the measured square so edge handles (whose
+ * center sits exactly on the ring, radius 6-7px) never get clipped by the
+ * container's overflow-hidden boundary. */
+const WRAP_INSET_PX = 16
 
 type DragKind = "body" | "floor" | "padding" | null
 
@@ -38,7 +48,18 @@ interface DragState {
  * stays local (optimistic CSS transform / live ring redraw) per the "no
  * internal config copies" rule.
  */
-export function LgCanvas2D({ pngUrl, loading, config, onConfigChange }: LgCanvas2DProps) {
+export function LgCanvas2D({
+  pngUrl,
+  loading,
+  config,
+  onConfigChange,
+  defaultEditMode = false,
+}: LgCanvas2DProps) {
+  // View-only toggle: rings/handles/drag are opt-in so the preview (which
+  // already shows the casing outline + light position) isn't cluttered by
+  // default. Never touches config — purely local UI state.
+  const [editModeState, setEditModeState] = useState(defaultEditMode)
+  const editMode = defaultEditMode || editModeState
   const containerRef = useRef<HTMLDivElement | null>(null)
   // The wrapper is the actual rendered image square (object-contain can
   // letterbox inside a non-square container in the wide grid layout) — all
@@ -64,7 +85,9 @@ export function LgCanvas2D({ pngUrl, loading, config, onConfigChange }: LgCanvas
     const measure = () => {
       const rect = el.getBoundingClientRect()
       const { size } = overlayGeometry(rect.width, rect.height)
-      setWrapSize(size)
+      // Small inset so edge handles (floor ring hugs the image boundary)
+      // never get clipped by the container's overflow-hidden edge.
+      setWrapSize(Math.max(0, size - WRAP_INSET_PX))
     }
     measure()
     const ro = new ResizeObserver(measure)
@@ -143,7 +166,12 @@ export function LgCanvas2D({ pngUrl, loading, config, onConfigChange }: LgCanvas
     onConfigChange?.({ ...cfg, auto_fit_mask: true })
   }
 
-  const interactive = !!onConfigChange
+  // canConfig gates the (always-visible) info chips + Auto button — those
+  // aren't drag overlays and stay usable regardless of edit mode. interactive
+  // additionally gates the ring/handle overlay + body drag, which only make
+  // sense once edit mode is on.
+  const canConfig = !!onConfigChange
+  const interactive = canConfig && editMode
   // viewBox uses the wrapper's real measured px so ring radii computed from
   // real pointer coordinates (getCenter/getImgPx above) map 1:1 onto the SVG
   // — no separate "logical" unit space to drift out of sync with the DOM.
@@ -160,10 +188,28 @@ export function LgCanvas2D({ pngUrl, loading, config, onConfigChange }: LgCanvas
     : undefined
 
   return (
-    <div
-      ref={containerRef}
-      className="relative flex w-full min-h-[60vh] items-center justify-center overflow-hidden rounded-lg border bg-[#16181d] select-none"
-    >
+    <div className="flex w-full flex-col gap-2">
+      {canConfig && (
+        <div className="flex items-center justify-end">
+          <Button
+            type="button"
+            size="sm"
+            variant={editModeState ? "default" : "outline"}
+            onClick={() => setEditModeState((v) => !v)}
+            disabled={defaultEditMode}
+          >
+            Edit
+          </Button>
+        </div>
+      )}
+      {/* Bounded height so the square preview (incl. handles at its edge)
+          always fits without pushing the page into scroll on a typical
+          1440x900 viewport — the inner square wrapper below is sized by
+          BOTH container dimensions (overlayGeometry), not width alone. */}
+      <div
+        ref={containerRef}
+        className="relative flex h-[calc(100vh-240px)] min-h-[420px] w-full items-center justify-center overflow-hidden rounded-lg border bg-[#16181d] select-none"
+      >
       {/* Square wrapper — the actual rendered image box (object-contain can
           letterbox inside this container once it isn't square itself). The
           overlay SVG and all pointer handlers below are scoped to THIS box,
@@ -198,7 +244,7 @@ export function LgCanvas2D({ pngUrl, loading, config, onConfigChange }: LgCanvas
 
       {interactive && pngUrl && (
         <svg
-          className="pointer-events-none absolute inset-0 h-full w-full"
+          className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
           viewBox={`0 0 ${imgPx || 1} ${imgPx || 1}`}
           data-testid="lg-canvas-overlay"
         >
@@ -263,7 +309,7 @@ export function LgCanvas2D({ pngUrl, loading, config, onConfigChange }: LgCanvas
         </svg>
       )}
 
-      {interactive && pngUrl && (
+      {canConfig && pngUrl && (
         <div className="pointer-events-none absolute inset-0">
           {drag?.kind === "body" && (
             <span className="absolute left-2 bottom-2 pointer-events-none rounded bg-black/70 px-2 py-0.5 text-xs text-white">
@@ -291,6 +337,7 @@ export function LgCanvas2D({ pngUrl, loading, config, onConfigChange }: LgCanvas
           </span>
         </div>
       )}
+      </div>
       </div>
     </div>
   )
