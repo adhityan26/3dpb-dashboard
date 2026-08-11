@@ -239,11 +239,62 @@ def pad_canvas(raw: np.ndarray, padding_pct: float) -> np.ndarray:
     return canvas
 
 
+def adjust_image(raw: np.ndarray, brightness: float = 0.0, contrast: float = 0.0,
+                  saturation: float = 100.0) -> np.ndarray:
+    """
+    Pre-threshold image adjustments so colored inputs can be tuned into a
+    clean mask. brightness: -100..100 (additive, scaled to 0-255 range);
+    contrast: -100..100 (linear gain 1 + c/100 around mid-gray 127);
+    saturation: 0..200 (% — scales HSV S channel; no-op for grayscale/alpha).
+    Applied to the COLOR channels only; alpha channel (if any) is preserved
+    untouched. No-op when all three are at defaults.
+    """
+    if brightness == 0.0 and contrast == 0.0 and saturation == 100.0:
+        return raw
+
+    is_rgba = raw.ndim == 3 and raw.shape[2] == 4
+    is_color = raw.ndim == 3 and raw.shape[2] >= 3
+
+    if is_rgba:
+        alpha = raw[:, :, 3]
+        bgr = raw[:, :, :3]
+    elif is_color:
+        alpha = None
+        bgr = raw
+    else:
+        alpha = None
+        bgr = raw
+
+    out = bgr.astype(np.float64)
+
+    # Saturation (color images only — no-op for grayscale)
+    if is_color and saturation != 100.0:
+        hsv = cv2.cvtColor(out.astype(np.uint8), cv2.COLOR_BGR2HSV).astype(np.float64)
+        hsv[:, :, 1] = np.clip(hsv[:, :, 1] * (saturation / 100.0), 0, 255)
+        out = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR).astype(np.float64)
+
+    # Contrast around mid-gray, then brightness (additive)
+    if contrast != 0.0 or brightness != 0.0:
+        out = (out - 127.0) * (1.0 + contrast / 100.0) + 127.0 + brightness * 2.55
+
+    out = np.clip(out, 0, 255).astype(np.uint8)
+
+    if is_rgba:
+        result = np.dstack([out, alpha])
+    else:
+        result = out
+
+    return result
+
+
 def load_silhouette_mask(
     image_path: str,
     invert: bool = False,
     auto_fit: bool = False,
     padding_pct: float = 0.0,
+    brightness: float = 0.0,
+    contrast: float = 0.0,
+    saturation: float = 100.0,
 ) -> np.ndarray:
     """Load image → raw binary mask (255 = solid wall / blocks light, 0 = hole).
 
@@ -275,6 +326,8 @@ def load_silhouette_mask(
     raw = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
     if raw is None:
         raise FileNotFoundError(f"Cannot open: {image_path}")
+
+    raw = adjust_image(raw, brightness=brightness, contrast=contrast, saturation=saturation)
 
     if auto_fit:
         raw = auto_fit_canvas(raw)
@@ -2902,6 +2955,9 @@ def run(
     invert_mask          = False,
     auto_fit_mask        = False,
     mask_padding_pct     = 0.0,
+    img_brightness       = 0.0,    # -100..100, additive brightness applied pre-threshold
+    img_contrast         = 0.0,    # -100..100, linear gain around mid-gray applied pre-threshold
+    img_saturation       = 100.0,  # 0..200 %, HSV saturation scale applied pre-threshold
     preview_mode         = False,
     contour_builder      = False,   # disabled: contour pipeline loses detail on complex silhouettes
     merged_builder       = False,  # v2: column merging + correct normals, small files
@@ -3031,7 +3087,8 @@ def run(
     # ── 2. Load + smooth shadow mask via SDF ─────────────────────────
     print('\n[generator] loading and smoothing silhouette mask …')
     raw_mask = load_silhouette_mask(
-        input_image, invert=invert_mask, auto_fit=auto_fit_mask, padding_pct=mask_padding_pct
+        input_image, invert=invert_mask, auto_fit=auto_fit_mask, padding_pct=mask_padding_pct,
+        brightness=img_brightness, contrast=img_contrast, saturation=img_saturation,
     )
     smooth_mask, sdf = prepare_sdf_mask(raw_mask, edge_smooth_sigma,
                                          shadow_threshold, mask_upsample)
@@ -3412,6 +3469,12 @@ if __name__ == '__main__':
     p.add_argument('--mask-padding-pct', type=float, default=0.0,
                    help='Extra uniform padding around the silhouette, as a percent '
                         'of max(width, height) (default 0.0; applied after --auto-fit-mask)')
+    p.add_argument('--img-brightness', type=float, default=0.0,
+                   help='Pre-threshold image brightness adjustment, -100..100 (default 0.0)')
+    p.add_argument('--img-contrast', type=float, default=0.0,
+                   help='Pre-threshold image contrast adjustment, -100..100 (default 0.0)')
+    p.add_argument('--img-saturation', type=float, default=100.0,
+                   help='Pre-threshold image saturation adjustment percent, 0..200 (default 100.0)')
 
     # Casing lift (compensation for external electronics chamber)
     p.add_argument('--casing-lift', type=float, default=CASING_LIFT,
@@ -3467,4 +3530,7 @@ if __name__ == '__main__':
         invert_mask          = a.invert_shadow,
         auto_fit_mask        = a.auto_fit_mask,
         mask_padding_pct     = a.mask_padding_pct,
+        img_brightness       = a.img_brightness,
+        img_contrast         = a.img_contrast,
+        img_saturation       = a.img_saturation,
     )

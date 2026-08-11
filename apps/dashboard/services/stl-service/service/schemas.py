@@ -48,6 +48,9 @@ class GeneratorConfig(BaseModel):
     invert_mask:       Optional[bool]  = None
     auto_fit_mask:     Optional[bool]  = None
     mask_padding_pct:  Optional[float] = Field(default=None, ge=0, le=100)
+    img_brightness:    Optional[float] = Field(default=None, ge=-100, le=100)
+    img_contrast:      Optional[float] = Field(default=None, ge=-100, le=100)
+    img_saturation:    Optional[float] = Field(default=None, ge=0, le=200)
 
     # ── Stencil resolution ───────────────────────────────────────────────
     n_stencil_theta: Optional[int] = Field(default=None, ge=32, le=8192)

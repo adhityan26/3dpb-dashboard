@@ -54,6 +54,9 @@ _PREVIEW_DEFAULTS: dict = {
     "invert_mask":       False,
     "auto_fit_mask":     False,
     "mask_padding_pct":  0.0,
+    "img_brightness":    0.0,
+    "img_contrast":      0.0,
+    "img_saturation":    100.0,
     "n_stencil_theta":   512,
     "n_stencil_z":       128,
     "flooring_shape":    None,
@@ -144,6 +147,9 @@ def render_shadow_preview(image_path: str, config: dict | None = None) -> bytes:
         invert=bool(p["invert_mask"]),
         auto_fit=bool(p["auto_fit_mask"]),
         padding_pct=float(p["mask_padding_pct"]),
+        brightness=float(p["img_brightness"]),
+        contrast=float(p["img_contrast"]),
+        saturation=float(p["img_saturation"]),
     )
     if raw_mask is None or raw_mask.size == 0:
         raise ValueError(f"Could not load silhouette image: {image_path}")
