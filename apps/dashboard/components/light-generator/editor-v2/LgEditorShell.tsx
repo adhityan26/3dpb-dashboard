@@ -153,13 +153,13 @@ export function LgEditorShell({
           offset from the top bar above, and `100vh-120px` roughly reserves
           the top bar + status strip + page padding so the sticky column's
           max height doesn't push past the viewport. */}
-      <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_320px] lg:items-start">
+      <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)_320px] lg:gap-0 lg:divide-x lg:divide-border/60 lg:items-start">
         {/* Three main sections — rail / canvas / inspector — each get the
             bordered studio-panel look from the mockup. */}
-        <div className="scrollbar-slim rounded-xl border bg-card/30 p-3 lg:sticky lg:top-4 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
+        <div className="scrollbar-slim p-3 lg:pr-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
           {rail}
         </div>
-        <div className="space-y-3 rounded-xl border bg-card/30 p-3">
+        <div className="space-y-3 p-3 lg:px-4">
           {/* Workflow steps — numbered, not plain tabs. */}
           <div className="flex gap-4 border-b pb-2">
             {STEPS.map((step) => {
@@ -185,7 +185,7 @@ export function LgEditorShell({
           </div>
           <div>{canvas}</div>
         </div>
-        <div className="scrollbar-slim space-y-3 rounded-xl border bg-card/30 p-3 lg:sticky lg:top-4 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
+        <div className="scrollbar-slim space-y-3 p-3 lg:pl-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto">
           {inspector}
 
           {/* Validation card — the single home for Generate STL (never in

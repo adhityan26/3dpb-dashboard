@@ -341,9 +341,9 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
           groups as cards, not one long accordion with full-width
           separators) — className on AccordionItem overrides the primitive's
           default `not-last:border-b` divider. */}
-      <Accordion multiple value={openGroups} onValueChange={(v) => setOpenGroups(v as string[])}>
+      <Accordion multiple value={openGroups} onValueChange={(v) => setOpenGroups(v as string[])} className="space-y-2">
         {/* Casing — shape + cover + recess/pillar */}
-        <AccordionItem value="Casing" className="border-b border-border/60 last:border-b-0">
+        <AccordionItem value="Casing" className="rounded-lg border bg-card/50 px-3">
           <AccordionTrigger>Casing</AccordionTrigger>
           <AccordionContent>
             <div className="space-y-4">
@@ -449,7 +449,7 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
         </AccordionItem>
 
         {/* Shadow behavior — invert, bottom frame, auto-fit, mask padding, offsets */}
-        <AccordionItem value="Shadow behavior" className="border-b border-border/60 last:border-b-0">
+        <AccordionItem value="Shadow behavior" className="rounded-lg border bg-card/50 px-3">
           <AccordionTrigger>Shadow behavior</AccordionTrigger>
           <AccordionContent>
             <div className="space-y-4">
@@ -504,24 +504,24 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
         </AccordionItem>
 
         {/* Dimensions — radii, heights, thickness */}
-        <AccordionItem value="Dimensions" className="border-b border-border/60 last:border-b-0">
+        <AccordionItem value="Dimensions" className="rounded-lg border bg-card/50 px-3">
           <AccordionTrigger>Dimensions</AccordionTrigger>
           <AccordionContent>{renderParamList(DIMENSIONS_KEYS)}</AccordionContent>
         </AccordionItem>
 
         {/* Lighting — light x/y/z */}
-        <AccordionItem value="Lighting" className="border-b border-border/60 last:border-b-0">
+        <AccordionItem value="Lighting" className="rounded-lg border bg-card/50 px-3">
           <AccordionTrigger>Lighting</AccordionTrigger>
           <AccordionContent>{renderParamList(LIGHTING_KEYS)}</AccordionContent>
         </AccordionItem>
 
         {/* Advanced — resolution, smoothness, printability, mesh post, image adjustment */}
-        <AccordionItem value="Advanced" className="border-b border-border/60 last:border-b-0">
+        <AccordionItem value="Advanced" className="rounded-lg border bg-card/50 px-3">
           <AccordionTrigger>Advanced</AccordionTrigger>
           <AccordionContent>{renderParamList(ADVANCED_KEYS)}</AccordionContent>
         </AccordionItem>
 
-        <AccordionItem value="Stems" className="border-b border-border/60 last:border-b-0">
+        <AccordionItem value="Stems" className="rounded-lg border bg-card/50 px-3">
           <AccordionTrigger>Stems</AccordionTrigger>
           <AccordionContent>
             <div className="space-y-2">
@@ -552,7 +552,7 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
           </AccordionContent>
         </AccordionItem>
 
-        <AccordionItem value="Raw JSON" className="border-b border-border/60 last:border-b-0">
+        <AccordionItem value="Raw JSON" className="rounded-lg border bg-card/50 px-3">
           <AccordionTrigger>Raw JSON</AccordionTrigger>
           <AccordionContent>
             <div className="space-y-2">
