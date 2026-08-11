@@ -4,7 +4,7 @@ vi.mock("./saas-client", () => ({ fetchLayout: vi.fn() }));
 
 const publishAsyncMock = vi.fn().mockResolvedValue(undefined);
 const endAsyncMock = vi.fn().mockResolvedValue(undefined);
-const connectAsyncMock = vi.fn(() => Promise.resolve({ publishAsync: publishAsyncMock, endAsync: endAsyncMock }));
+const connectAsyncMock = vi.fn((..._args: any[]) => Promise.resolve({ publishAsync: publishAsyncMock, endAsync: endAsyncMock }));
 vi.mock("mqtt", () => ({
   default: { connectAsync: (...args: any[]) => connectAsyncMock(...args) },
 }));
