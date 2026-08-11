@@ -78,7 +78,7 @@ export function DashboardScreen({
   onManageDevices = () => {},
 }: { initialSync?: boolean; onManageDevices?: () => void } = {}) {
   const [snapshot, setSnapshot] = useState<PrintersPayload>({ payload: [] });
-  const [brokerInfo, setBrokerInfo] = useState<{ ip: string; port: number | null } | null>(null);
+  const [brokerInfo, setBrokerInfo] = useState<{ ip: string; port: number | null; pin: string | null } | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({ kind: "idle" });
   const initialSyncStarted = useRef(false);
 
@@ -158,6 +158,11 @@ export function DashboardScreen({
               ? `${brokerInfo.ip}:${brokerInfo.port}`
               : "broker belum jalan (port 1883 dipakai proses lain, atau diblokir sistem — cek log aplikasi)"}
           </p>
+          {brokerInfo.port !== null && brokerInfo.pin !== null && (
+            <p className="g-t2 text-sm mt-1">
+              PIN broker (ketik ini juga di setup WiFi CYD): <span className="font-semibold">{brokerInfo.pin}</span>
+            </p>
+          )}
         </GlassCard>
       )}
       <div className="space-y-3">

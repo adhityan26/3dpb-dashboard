@@ -23,7 +23,7 @@ export interface StartedEngine {
   reporters: MqttReporter[];
 }
 
-export async function startEngine(paired: PairedDevice[], brokerPort: number): Promise<StartedEngine> {
+export async function startEngine(paired: PairedDevice[], brokerPort: number, pin: string): Promise<StartedEngine> {
   const devices: DeviceConfig[] = [];
   const connectors: Connector[] = [];
 
@@ -61,6 +61,7 @@ export async function startEngine(paired: PairedDevice[], brokerPort: number): P
   const reporter = new MqttReporter({
     url: `mqtt://127.0.0.1:${brokerPort}`,
     statusTopic: "3dpb/printers", // WAJIB override — default reporter "3dpb/printers-v2" salah buat kontrak CYD
+    password: pin,
   });
   await reporter.connect();
 

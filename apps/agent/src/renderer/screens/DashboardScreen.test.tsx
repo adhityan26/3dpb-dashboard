@@ -6,7 +6,7 @@ import { DashboardScreen } from "./DashboardScreen";
 beforeEach(() => {
   (globalThis as any).window.agentApi = {
     getSnapshot: vi.fn().mockResolvedValue({ payload: [{ id: "abc1234567", name: "Printer A", type: "bambu", connector: "bambu", state: "running", progress: 45, remaining_min: 30, filename: "box.gcode", error_msg: "", last_seen: "2026-07-29T10:00:00Z", nozzle_temp: 219, bed_temp: 60 }] }),
-    getBrokerInfo: vi.fn().mockResolvedValue({ ip: "192.168.1.100", port: 1883 }),
+    getBrokerInfo: vi.fn().mockResolvedValue({ ip: "192.168.1.100", port: 1883, pin: "0042" }),
     sync: vi.fn().mockResolvedValue({ ok: true, deviceCount: 1 }),
   };
 });
@@ -94,6 +94,11 @@ describe("DashboardScreen", () => {
     await waitFor(() => expect(screen.getByText(/192\.168\.1\.100/)).toBeTruthy());
   });
 
+  it("PIN broker ditampilkan di samping alamat IP:port", async () => {
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText(/0042/)).toBeTruthy());
+  });
+
   it("tombol Pengaturan panggil onManageDevices -- satu-satunya jalan balik ke PairingScreen buat edit/lupakan device", async () => {
     const onManageDevices = vi.fn();
     render(<DashboardScreen onManageDevices={onManageDevices} />);
@@ -157,6 +162,13 @@ describe("DashboardScreen", () => {
     render(<DashboardScreen />);
     await waitFor(() => expect(screen.getByText(/broker belum jalan/i)).toBeTruthy());
     expect(screen.queryByText(/192\.168\.1\.100/)).toBeNull();
+  });
+
+  it("getBrokerInfo balikin port:null MESKI pin masih ada di response -> JANGAN tampilkan PIN (broker belum jalan, PIN itu tak berguna/menyesatkan)", async () => {
+    (window as any).agentApi.getBrokerInfo.mockResolvedValue({ ip: "192.168.1.100", port: null, pin: "0042" });
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText(/broker belum jalan/i)).toBeTruthy());
+    expect(screen.queryByText(/PIN broker/i)).toBeNull();
   });
 
   it("getSnapshot()/getBrokerInfo() reject -> tidak crash (UI tetap render, tak ada unhandled rejection)", async () => {

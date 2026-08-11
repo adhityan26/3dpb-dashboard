@@ -67,3 +67,14 @@ describe("pickLocalIpCandidates", () => {
     expect(pickLocalIpCandidates({ en0: undefined })).toEqual([]);
   });
 });
+
+describe("getBrokerPin/setBrokerPin", () => {
+  it("default null, tersimpan+terbaca kembali persis seperti setBrokerPort/getBrokerPort", async () => {
+    const { setBrokerPin, getBrokerPin } = await import("./app-state");
+    expect(getBrokerPin()).toBeNull();
+    setBrokerPin("0042");
+    expect(getBrokerPin()).toBe("0042");
+    setBrokerPin(null);
+    expect(getBrokerPin()).toBeNull();
+  });
+});

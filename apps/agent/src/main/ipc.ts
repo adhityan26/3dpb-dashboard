@@ -3,7 +3,7 @@ import { loadCredentials, saveCredentials, type DeviceSecret } from "./credentia
 import { fetchDevices, patchDeviceModel, type SaasDevice } from "./saas-client";
 import { scanBambu } from "./discovery/bambu-ssdp";
 import { scanMoonraker } from "./discovery/moonraker-mdns";
-import { getEngine, setEngine, getBrokerPort, getLocalIp, getReporters, setReporters } from "./app-state";
+import { getEngine, setEngine, getBrokerPort, getBrokerPin, getLocalIp, getReporters, setReporters } from "./app-state";
 import { reconcileDevices } from "./startup";
 import { startEngine } from "./engine-manager";
 import { publishLayout } from "./layout-publisher";
@@ -90,6 +90,7 @@ export function registerIpcHandlers(): void {
     // yang menyesatkan (device sebenarnya nol yang termonitor), yang kontradiksi sama pesan
     // "broker belum jalan" yang sudah tampil di Dashboard yang sama (Task 13 review Minor #1).
     if (brokerPort === null) return { ok: false, kind: "broker_unavailable" };
+    const brokerPin = getBrokerPin() as string; // non-null past the guard above — bootstrap() always sets brokerPin BEFORE brokerPort (broker.ts's authenticate handler needs the final PIN before server.listen()), and only sets brokerPort at all if startBroker() succeeds — so brokerPort non-null implies brokerPin non-null, even though they aren't set "together"
 
     const { fetchResult, paired } = await reconcileDevices(blob.agentToken);
 
@@ -106,7 +107,7 @@ export function registerIpcHandlers(): void {
 
     if (paired.length > 0) {
       try {
-        const started = await startEngine(paired, brokerPort);
+        const started = await startEngine(paired, brokerPort, brokerPin);
         setEngine(started.engine);
         setReporters(started.reporters);
       } catch (err) {
@@ -120,7 +121,7 @@ export function registerIpcHandlers(): void {
 
     // Republish layout non-fatal -- kegagalannya gak boleh bikin seluruh Sync dianggap gagal
     // (device sudah kepasang duluan di atas), cukup dicatat.
-    await publishLayout(blob.agentToken, brokerPort).catch((err) => {
+    await publishLayout(blob.agentToken, brokerPort, "default", brokerPin).catch((err) => {
       console.error("[ipc] agent:sync gagal republish layout (non-fatal)", err);
     });
 
@@ -147,7 +148,7 @@ export function registerIpcHandlers(): void {
   });
 
   ipcMain.handle("agent:get-broker-info", async () => {
-    return { ip: getLocalIp(), port: getBrokerPort() };
+    return { ip: getLocalIp(), port: getBrokerPort(), pin: getBrokerPin() };
   });
 
   // Kirim command kontrol (pause/resume/stop/speed) ke printer tertentu -- device yang tak

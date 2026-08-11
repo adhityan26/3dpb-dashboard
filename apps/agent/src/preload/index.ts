@@ -23,7 +23,7 @@ const agentApi = {
     ipcRenderer.invoke("agent:update-device-model", shortCode, model),
   sync: (): Promise<SyncResult> => ipcRenderer.invoke("agent:sync"),
   getSnapshot: (): Promise<PrintersPayload> => ipcRenderer.invoke("agent:get-snapshot"),
-  getBrokerInfo: (): Promise<{ ip: string; port: number | null }> =>
+  getBrokerInfo: (): Promise<{ ip: string; port: number | null; pin: string | null }> =>
     ipcRenderer.invoke("agent:get-broker-info"),
   getActivationState: (): Promise<ActivationState> => ipcRenderer.invoke("agent:get-activation-state"),
   sendPrinterCommand: (deviceId: string, cmd: PrinterCommand): Promise<CommandResult> =>

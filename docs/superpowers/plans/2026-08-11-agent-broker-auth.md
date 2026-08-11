@@ -1349,9 +1349,9 @@ Expected: all packages pass, including `apps/agent` and `packages/printer-monito
 
 - [ ] **Step 2: Typecheck**
 
-`apps/agent/package.json` has no dedicated `typecheck` script — use `tsc` directly against its project references (same as its `tsconfig.json`'s `references: [{ path: "./tsconfig.node.json" }]` plus `tsconfig.web.json` for the renderer):
+`apps/agent/package.json` has no dedicated `typecheck` script — use `tsc` directly against the root config. `tsconfig.node.json` only covers `electron.vite.config.ts`, not `src/main/**`, so it never actually typechecks `index.ts`/`ipc.ts`/etc; the root `tsconfig.json` has `include: ["src"]`, which covers main, preload, and renderer in one pass — there's no need for a separate `tsconfig.web.json` command either, since `tsconfig.web.json` only adds DOM lib types for a subset already included in the root check:
 
-Run: `cd apps/agent && npx tsc --noEmit -p tsconfig.node.json && npx tsc --noEmit -p tsconfig.web.json`
+Run: `cd apps/agent && npx tsc --noEmit -p tsconfig.json`
 Expected: no type errors — every call site of `startBroker`, `startEngine`, `publishLayout` must now pass the PIN argument (Tasks 2/4/6 changed their signatures), and `agentApi.getBrokerInfo()`'s new `pin` field must be consistent between `preload/index.ts` and its usage in `DashboardScreen.tsx`.
 
 - [ ] **Step 3: Build**

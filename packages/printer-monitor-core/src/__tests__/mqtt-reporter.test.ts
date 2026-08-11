@@ -54,4 +54,27 @@ describe('MqttReporter', () => {
     expect(got.retain).toBe(false)
     expect(got.body).toMatchObject({ deviceId: 'mars', kind: 'started' })
   })
+
+  it("password diteruskan sebagai auth CONNECT (dengan username placeholder) kalau opts.password diisi", async () => {
+    const authServer = createServer();
+    const authAedes = new Aedes()
+    let received: { username?: string; password?: Buffer } = {}
+    authAedes.authenticate = (_client, username, password, done) => {
+      received = { username, password }
+      done(null, password?.toString() === 'my-pin')
+    }
+    authServer.on('connection', authAedes.handle)
+    await new Promise<void>((res) => authServer.listen(0, () => res()))
+    const authPort = (authServer.address() as { port: number }).port
+
+    const rep = new MqttReporter({ url: `mqtt://127.0.0.1:${authPort}`, password: 'my-pin' })
+    await rep.connect()
+    await rep.close()
+
+    expect(received.password?.toString()).toBe('my-pin')
+    expect(received.username).toBeTruthy() // MQTT butuh username flag diset biar password ikut terkirim
+
+    authAedes.close()
+    authServer.close()
+  })
 })
