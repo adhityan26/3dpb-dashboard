@@ -1150,8 +1150,14 @@ def build_stencil_wall_marching_cubes(
         stencil, n_isl = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
         if n_isl:
             print(f"  [stencil] bridged {n_isl} floating island(s)")
-        stem_cells = stencil & (thickness_frac < 0.5)
-        thickness_frac[stem_cells] = 1.0
+    # Force full thickness for ANY stencil cell not already reflected in the
+    # continuous thickness field — covers both auto-bridged stems (above) and
+    # manual user_stems (rasterized in earlier), independent of support_stems.
+    # Without this, manual stems on an otherwise-empty column would flip the
+    # binary stencil bit (used for shadow sim) but leave thickness_frac ~0,
+    # so the mesh builder below emits no faces for that column at all.
+    stem_cells = stencil & (thickness_frac < 0.5)
+    thickness_frac[stem_cells] = 1.0
 
     n_solid = int((thickness_frac > 0.01).sum())
     print(f"  [stencil] grid {n_theta}×{n_z},  solid {n_solid}/{n_theta*n_z} "
@@ -1427,8 +1433,14 @@ def build_stencil_wall_sdf_surface(
         stencil, n_islands = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
         if n_islands:
             print(f"  [stencil] bridged {n_islands} floating island(s)")
-        stem_cells = stencil & (thickness_frac < 0.5)
-        thickness_frac[stem_cells] = 1.0
+    # Force full thickness for ANY stencil cell not already reflected in the
+    # continuous thickness field — covers both auto-bridged stems (above) and
+    # manual user_stems (rasterized in earlier), independent of support_stems.
+    # Without this, manual stems on an otherwise-empty column would flip the
+    # binary stencil bit (used for shadow sim) but leave thickness_frac ~0,
+    # so the mesh builder below emits no faces for that column at all.
+    stem_cells = stencil & (thickness_frac < 0.5)
+    thickness_frac[stem_cells] = 1.0
 
     # ── 2D Gaussian blur on thickness field → smooth hole edges ──
     # This is the key to eliminating staircase WITHOUT increasing n_theta.

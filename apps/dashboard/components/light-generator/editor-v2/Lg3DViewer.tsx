@@ -122,8 +122,15 @@ function ContextScene({ config }: { config: Record<string, unknown> }) {
 
   return (
     <group>
-      {/* Casing wall outline */}
-      <mesh rotation={[Math.PI / 2, 0, 0]}>
+      {/* Casing wall outline: a flat footprint ring at z=0. RingGeometry
+          already lies in the local XY plane by default, which — in this
+          scene's z-up (generator) world convention — IS the horizontal
+          "floor" plane, so no rotation is needed. (A previous version
+          rotated this 90° around X, which is only correct for a y-up
+          scene; combined with the y-up default camera `up` below, it made
+          the whole context scene, including the stem gizmos, render
+          tilted/sideways instead of upright.) */}
+      <mesh>
         <ringGeometry args={[radius - 1, radius, 64]} />
         <meshBasicMaterial color="#64748b" transparent opacity={0.25} side={THREE.DoubleSide} />
       </mesh>
@@ -171,7 +178,15 @@ function Scene({ stlUrl, config }: { stlUrl: string | null; config: Record<strin
 export default function Lg3DViewer({ stlUrl, config, stale }: Lg3DViewerProps) {
   return (
     <Lg3DViewerShell hasStl={!!stlUrl} stale={stale}>
-      <Canvas camera={{ position: [250, -250, 200], fov: 45, near: 0.1, far: 5000 }}>
+      {/* `up: [0, 0, 1]` is required because this scene's world convention
+          is z-up (matches the STL/generator space per three-math.ts's doc
+          comment — the loaded STL is centered but never rotated). Three.js
+          cameras default to y-up; leaving that default meant OrbitControls
+          and the initial lookAt() framed "up" as world Y, so the model's
+          real vertical axis (Z) rendered sideways — the stem gizmos (thin
+          vertical boxes elongated along Z) looked tilted/horizontal even
+          though their world-space geometry was correct. */}
+      <Canvas camera={{ position: [250, -250, 200], up: [0, 0, 1], fov: 45, near: 0.1, far: 5000 }}>
         <Scene stlUrl={stlUrl} config={config} />
       </Canvas>
     </Lg3DViewerShell>
