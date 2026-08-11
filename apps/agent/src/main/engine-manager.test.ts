@@ -34,14 +34,19 @@ import { hmsTable } from "./hms-table";
 describe("startEngine", () => {
   it("bikin DeviceConfig dengan id = shortCode (BUKAN label/serial lain)", async () => {
     const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", secret: { ip: "192.168.1.5", serial: "SER1", accessCode: "1234" } }];
-    const { engine } = await startEngine(paired, 1883);
+    const { engine } = await startEngine(paired, 1883, "1234");
     const snapshot = engine.snapshot();
     expect(snapshot.payload[0].id).toBe("abc1234567");
   });
 
   it("override statusTopic ke 3dpb/printers (BUKAN default 3dpb/printers-v2)", async () => {
-    await startEngine([{ shortCode: "x", label: "L", printerType: "moonraker", secret: { ip: "10.0.0.5", serial: "", accessCode: "" } }], 1883);
+    await startEngine([{ shortCode: "x", label: "L", printerType: "moonraker", secret: { ip: "10.0.0.5", serial: "", accessCode: "" } }], 1883, "1234");
     expect(MqttReporter).toHaveBeenCalledWith(expect.objectContaining({ statusTopic: "3dpb/printers" }));
+  });
+
+  it("PIN diteruskan sebagai password ke MqttReporter", async () => {
+    await startEngine([{ shortCode: "x", label: "L", printerType: "moonraker", secret: { ip: "10.0.0.5", serial: "", accessCode: "" } }], 1883, "9042");
+    expect(MqttReporter).toHaveBeenCalledWith(expect.objectContaining({ password: "9042" }));
   });
 
   it("printerType tak dikenal di-skip (bukan crash seluruh Engine)", async () => {
@@ -49,18 +54,18 @@ describe("startEngine", () => {
       { shortCode: "a", label: "A", printerType: "bambu", secret: { ip: "1.1.1.1", serial: "S", accessCode: "C" } },
       { shortCode: "b", label: "B", printerType: "prusa-tak-didukung", secret: { ip: "2.2.2.2", serial: "", accessCode: "" } },
     ];
-    const { engine } = await startEngine(paired, 1883);
+    const { engine } = await startEngine(paired, 1883, "1234");
     expect(engine.snapshot().payload.map((p) => p.id)).toEqual(["a"]);
   });
 
   it("HmsLookup diisi table eksplisit dari hms-table.ts (BUKAN default zero-arg readFileSync)", async () => {
-    await startEngine([{ shortCode: "h", label: "H", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S", accessCode: "C" } }], 1883);
+    await startEngine([{ shortCode: "h", label: "H", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S", accessCode: "C" } }], 1883, "1234");
     expect(HmsLookup).toHaveBeenCalledWith(hmsTable);
   });
 
   it("balikin reporter yang dibikin bareng Engine -- caller (agent:sync) WAJIB bisa nutupnya pas ganti Engine (Task 13 review: MqttReporter leak)", async () => {
     const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", secret: { ip: "192.168.1.5", serial: "SER1", accessCode: "1234" } }];
-    const { reporters } = await startEngine(paired, 1883);
+    const { reporters } = await startEngine(paired, 1883, "1234");
     expect(reporters).toHaveLength(1);
     expect(reporters[0].close).toBeDefined();
 
@@ -73,7 +78,7 @@ describe("startEngine", () => {
 
   it("isi DeviceConfig.type dari PairedDevice.model kalau ada", async () => {
     const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", model: "P1S", secret: { ip: "1.1.1.1", serial: "S", accessCode: "C" } }];
-    const { engine } = await startEngine(paired, 1883);
+    const { engine } = await startEngine(paired, 1883, "1234");
     expect(engine.snapshot().payload[0].type).toBe("P1S");
   });
 
@@ -87,7 +92,7 @@ describe("startEngine", () => {
       { shortCode: "good-moonraker", label: "Printer Klipper", printerType: "moonraker", secret: { ip: "3.3.3.3", serial: "", accessCode: "" } },
     ];
 
-    const { engine } = await startEngine(paired, 1883);
+    const { engine } = await startEngine(paired, 1883, "1234");
 
     // Device yang gagal construct TETAP muncul di snapshot (kelihatan di dashboard, bukan
     // hilang diam-diam) -- cuma tanpa data status karena tak pernah termonitor.
@@ -103,7 +108,7 @@ describe("startEngine", () => {
       { shortCode: "b", label: "B", printerType: "bambu", model: "   ", secret: { ip: "1.1.1.2", serial: "S", accessCode: "C" } },
       { shortCode: "c", label: "C", printerType: "moonraker", model: undefined, secret: { ip: "1.1.1.3", serial: "", accessCode: "" } },
     ];
-    const { engine } = await startEngine(paired, 1883);
+    const { engine } = await startEngine(paired, 1883, "1234");
     const byId = Object.fromEntries(engine.snapshot().payload.map((p) => [p.id, p.type]));
     expect(byId.a).toBe("Bambu Lab");
     expect(byId.b).toBe("Bambu Lab");
