@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import net from "node:net";
 import { EventEmitter } from "node:events";
 import { startBroker, stopBroker } from "./broker";
@@ -164,13 +164,15 @@ describe("startBroker — authenticate (PIN + rate limit)", () => {
     expect(accepted).toBe(false);
   });
 
-  it("5 kegagalan dari 1 IP non-loopback -> percobaan ke-6 (PIN BENAR sekalipun) tetap ditolak selama cooldown", async () => {
+  it("5 percobaan PIN salah berturut-turut dari loopback -> semuanya ditolak satu-satu (BUKAN test rate-limit -- 127.0.0.1 exempt, lihat describe block __checkPinForTests untuk itu)", async () => {
     await startBroker(18843, PIN);
-    // net.createConnection ke 127.0.0.1 secara teknis loopback -- test ini memverifikasi
-    // MEKANISME rate-limit map-nya lewat address override, bukan alamat asli socket (yang
-    // memang exempt). Broker tak punya cara bedakan "test lokal" dari "loopback asli" selain
-    // alamat itu sendiri, jadi verifikasi mekanisme cooldown dilakukan lewat unit test pada
-    // fungsi rate-limit yang diekspor terpisah (lihat test "rateLimitForTesting" di bawah).
+    // net.createConnection ke 127.0.0.1 secara teknis loopback -- alamat ini EXEMPT dari
+    // rate-limit (lihat isLoopback()), jadi test ini TIDAK memverifikasi mekanisme lockout/cooldown
+    // sama sekali -- cuma memastikan tiap percobaan PIN salah ditolak satu-satu, berulang, tanpa
+    // crash/hang, dan tanpa attempt ke-N tiba-tiba diterima gara-gara bug counter. Verifikasi
+    // mekanisme rate-limit (lock di attempt ke-5, cooldown, reset ke budget penuh) ada di describe
+    // block "rate limit bookkeeping (non-loopback simulation via exported helper)" di bawah, yang
+    // memakai __checkPinForTests dengan address non-loopback yang di-override manual.
     for (let i = 0; i < 5; i++) {
       const { accepted } = await attemptMqttConnect(18843, `bad${i}`, { username: "agent", password: "0000" });
       expect(accepted).toBe(false);
@@ -206,5 +208,42 @@ describe("rate limit bookkeeping (non-loopback simulation via exported helper)",
       }
       expect(__checkPinForTests(addr, PIN, PIN)).toEqual({ ok: true, locked: false });
     }
+  });
+
+  describe("cooldown expiry (fake timers)", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("cooldown habis -> attempt berikutnya dapat budget PENUH 5 baru, BUKAN lanjutan count lama sisa lockout", async () => {
+      const { __resetRateLimitForTests, __checkPinForTests } = await import("./broker");
+      __resetRateLimitForTests();
+      const ATTACKER = "203.0.113.11";
+
+      // Kunci ATTACKER: 5 gagal berturut-turut -> attempt ke-5 memicu lockout.
+      for (let i = 0; i < 5; i++) {
+        expect(__checkPinForTests(ATTACKER, "wrong", PIN)).toEqual({ ok: false, locked: false });
+      }
+      // Terkunci -- PIN benar pun ditolak tanpa dibandingkan selama cooldown belum habis.
+      expect(__checkPinForTests(ATTACKER, PIN, PIN)).toEqual({ ok: false, locked: true });
+
+      // Maju waktu melewati LOCKOUT_MS (60_000ms di broker.ts) supaya cooldown benar-benar habis.
+      vi.advanceTimersByTime(60_001);
+
+      // Kalau implementasi BENAR (rateLimitMap.delete(addr) saat cooldown habis -> fresh start),
+      // 4 percobaan gagal berikutnya adalah attempt 1-4 dari budget BARU -> belum locked.
+      // Kalau implementasi salah (mis. cuma unlock tapi count lama tak direset), attempt-attempt
+      // ini akan langsung locked lagi -- assertion di bawah akan gagal dan menangkap regresi itu.
+      for (let i = 0; i < 4; i++) {
+        expect(__checkPinForTests(ATTACKER, "wrong", PIN)).toEqual({ ok: false, locked: false });
+      }
+      // Attempt ke-5 dari budget baru -> memicu lockout baru (bukan "masih locked dari sebelumnya").
+      expect(__checkPinForTests(ATTACKER, "wrong", PIN)).toEqual({ ok: false, locked: false });
+      // Attempt ke-6 -> locked lagi, membuktikan siklus lock/cooldown/reset berulang dengan benar.
+      expect(__checkPinForTests(ATTACKER, PIN, PIN)).toEqual({ ok: false, locked: true });
+    });
   });
 });
