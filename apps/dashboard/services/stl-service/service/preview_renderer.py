@@ -24,6 +24,7 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from generate_shadow_casing import (  # noqa: E402
+    _apply_user_stems,
     _bridge_floating_islands,
     load_silhouette_mask,
     prepare_sdf_mask,
@@ -117,6 +118,46 @@ def _draw_casing_outline(
         thickness=2,
     )
     return bgr
+
+
+def _render_wall_unwrap(
+    stencil: np.ndarray, z_min_mm: float, z_max_mm: float, r_wall_arr: np.ndarray,
+) -> bytes:
+    """Render the (θ,z) stencil grid itself as an unwrap PNG — the "Wall" tab
+    placement surface for manual stems, as opposed to the "Shadow" tab's
+    floor-projected radial view.
+
+    Mapping (documented for the dashboard, which derives it independently
+    rather than reading it from the PNG):
+      x_px / width  * 360        = theta_deg   (0 = column 0, wraps at width)
+      row 0                      = z_max_mm    (TOP of the wall)
+      row (height-1)             = z_min_mm    (BOTTOM of the wall)
+      (linear in between)
+
+    Polarity matches the Shadow tab: solid stencil cells (material, blocks
+    light) render dark (20); holes (light passes through) render bright
+    (235) — same convention as `_to_physical_polarity`.
+    """
+    n_theta, n_z = stencil.shape
+    # (n_z, n_theta) grid, row j == z_cents[j] (ascending: row 0 = z_min)
+    grid = np.where(stencil.T, 20, 235).astype(np.uint8)
+    # Flip so row 0 = TOP = z_max, matching the documented mapping.
+    grid = grid[::-1, :]
+
+    width = 1024
+    r_mean = float(r_wall_arr.mean()) if r_wall_arr.size else 0.0
+    circumference = 2.0 * np.pi * r_mean
+    z_range = max(float(z_max_mm - z_min_mm), 0.0)
+    height = int(round(width * (z_range / circumference))) if circumference > 0 else width
+    height = min(max(height, 128), width)
+
+    resized = cv2.resize(grid, (width, height), interpolation=cv2.INTER_NEAREST)
+    bgr = cv2.cvtColor(resized, cv2.COLOR_GRAY2BGR)
+
+    ok, buf = cv2.imencode(".png", bgr)
+    if not ok:
+        raise RuntimeError("PNG encoding failed")
+    return bytes(buf)
 
 
 def render_shadow_preview(image_path: str, config: dict | None = None) -> bytes:
@@ -232,8 +273,23 @@ def render_shadow_preview(image_path: str, config: dict | None = None) -> bytes:
         stencil = (smooth_mask[PY, PX] > 0)
     stencil[R_fl > floor_half * 1.02] = False
 
+    stem_anchor = "top" if str(p.get("cover_type", "bottom")) == "top" else "bottom"
+
+    # Manual stems (v2 editor) merge in BEFORE auto-bridging, same order as
+    # the generator itself, so BFS treats them as already-grounded.
+    user_stems = p.get("user_stems")
+    if user_stems:
+        stencil = _apply_user_stems(
+            stencil, user_stems, int(p["stem_width"]), z_min_s, z_max_s, anchor=stem_anchor,
+        )
+
     if bool(p["support_stems"]):
-        stencil, _n_islands = _bridge_floating_islands(stencil, int(p["stem_width"]))
+        stencil, _n_islands = _bridge_floating_islands(
+            stencil, int(p["stem_width"]), anchor=stem_anchor,
+        )
+
+    if str(p.get("preview_view", "floor")) == "wall":
+        return _render_wall_unwrap(stencil, z_min_s, z_max_s, r_wall_arr)
 
     shadow_gray = simulate_shadow(
         stencil, z_cents, light_pos, r_wall_arr, floor_half, res=int(p["shadow_res"])

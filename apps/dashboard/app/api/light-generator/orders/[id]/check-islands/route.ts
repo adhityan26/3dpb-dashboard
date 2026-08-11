@@ -44,5 +44,8 @@ export async function POST(
   }
 
   const result = await stlCheckIslands(imageBuffer, filename, effectiveConfig)
-  return NextResponse.json({ has_floating_islands: result.has_floating_islands })
+  return NextResponse.json({
+    has_floating_islands: result.has_floating_islands,
+    islands: result.islands ?? [],
+  })
 }

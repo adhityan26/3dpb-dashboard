@@ -5,7 +5,7 @@
  * Endpoints used:
  *   POST /generate         — image + config_json → STL bytes
  *   POST /preview          — image + config_json → PNG bytes
- *   POST /check-islands    — image + config_json → { has_floating_islands: bool }
+ *   POST /check-islands    — image + config_json → { has_floating_islands: bool, islands: [{theta_deg, z_mm}] }
  */
 
 /**
@@ -113,7 +113,7 @@ export async function stlCheckIslands(
   imageFilename: string,
   config: object = {},
   flooringImage?: FlooringImage,
-): Promise<{ has_floating_islands: boolean }> {
+): Promise<{ has_floating_islands: boolean; islands?: Array<{ theta_deg: number; z_mm: number }> }> {
   const form = buildFormData(imageBuffer, imageFilename, config, flooringImage)
   const res = await fetch(`${getServiceUrl()}/check-islands`, {
     method: "POST",
@@ -124,5 +124,8 @@ export async function stlCheckIslands(
     const text = await res.text()
     throw new Error(`STL service /check-islands error ${res.status}: ${text}`)
   }
-  return res.json() as Promise<{ has_floating_islands: boolean }>
+  return res.json() as Promise<{
+    has_floating_islands: boolean
+    islands?: Array<{ theta_deg: number; z_mm: number }>
+  }>
 }

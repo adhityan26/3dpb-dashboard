@@ -75,6 +75,22 @@ class GeneratorConfig(BaseModel):
     min_wall_mm:   Optional[float] = Field(default=None, ge=0, le=20)
     min_bridge_mm: Optional[float] = Field(default=None, ge=0, le=20)
 
+    # ── Manual stems (v2 editor) ─────────────────────────────────────────
+    # List of {"theta_deg": float, "z_mm": float, ...}. Deliberately loose
+    # (list[dict], not a nested model with extra="forbid") so UI-side fields
+    # like "id"/"provenance" pass through without a schema change on either
+    # side; the generator's _apply_user_stems() reads only theta_deg/z_mm and
+    # clamps out-of-range values server-side rather than rejecting the
+    # request — mid-session edits shouldn't 400 on a stale param window.
+    user_stems: Optional[list[dict]] = None
+
+    # ── Preview mode selector (v2 editor's Wall tab) ─────────────────────
+    # /preview only: "floor" (default, existing radial shadow) or "wall"
+    # (unwrap of the (θ,z) stencil grid itself — see preview_renderer.py).
+    # Popped by render_shadow_preview()/preview.py, never reaches the mesh
+    # builders, so it's declared here purely so the route doesn't 400 on it.
+    preview_view: Optional[Literal["floor", "wall"]] = None
+
     # ── Wall builder selection ───────────────────────────────────────────
     smooth_builder:  Optional[bool] = None
     contour_builder: Optional[bool] = None

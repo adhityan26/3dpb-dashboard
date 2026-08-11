@@ -35,6 +35,7 @@ Smoothness approach (v4 improvement)
 All distances in millimetres.
 """
 
+import json
 import os
 import numpy as np
 import cv2
@@ -627,24 +628,19 @@ def _apply_bottom_frame(stencil: np.ndarray, frame_height_mm: float, dz: float) 
     return out
 
 
-def _bridge_floating_islands(stencil: np.ndarray,
-                              stem_width: int = 2,
-                              anchor: str = 'bottom') -> tuple[np.ndarray, int]:
+def find_floating_islands(stencil: np.ndarray, anchor: str = 'bottom') -> list[np.ndarray]:
     """
     Find solid cells that are NOT reachable from the structural anchor edge
-    via 4-connected BFS (θ wraps around), label them as connected components,
-    and add one narrow vertical stem (stem_width columns wide) bridging each
-    island to that edge.
+    via 4-connected BFS (θ wraps around), and label them into per-island
+    boolean masks.
 
     anchor='bottom' (default): the structural edge is z=0 (the base) — BFS is
-      seeded from all solid cells at j=0, and stems fill from z=0 up to each
-      island's lowest z. This matches cover_type='bottom'/'none' where the
-      wall's bottom sits on the base.
+      seeded from all solid cells at j=0. Matches cover_type='bottom'/'none'
+      where the wall's bottom sits on the base.
 
     anchor='top': the structural edge is z=n_z-1 (the wall top, which adjoins
-      the closed cover) — BFS is seeded from all solid cells at j=n_z-1, and
-      stems fill from each island's highest z up to the top edge. This
-      matches cover_type='top', where the base is open and only the top is
+      the closed cover) — BFS is seeded from all solid cells at j=n_z-1.
+      Matches cover_type='top', where the base is open and only the top is
       structural.
 
     Why BFS instead of a per-column check:
@@ -653,7 +649,12 @@ def _bridge_floating_islands(stencil: np.ndarray,
       letter stroke). Per-column checks miss those; BFS from the anchor edge
       finds all unreachable cells.
 
-    Returns (modified_stencil, n_islands).
+    Returns a list of (n_theta, n_z) boolean masks, one per floating
+    connected component. Empty list if nothing is floating.
+
+    Shared by `_bridge_floating_islands` (auto-stem generation) and the
+    `/check-islands` route (centroid reporting) so the two can never disagree
+    about what counts as floating.
     """
     from collections import deque
 
@@ -681,7 +682,7 @@ def _bridge_floating_islands(stencil: np.ndarray,
 
     floating = stencil & ~connected
     if not floating.any():
-        return stencil, 0
+        return []
 
     # ── Step 2: Label connected components of floating cells ─────────────
     labeled  = np.zeros(stencil.shape, dtype=np.int32)
@@ -703,10 +704,25 @@ def _bridge_floating_islands(stencil: np.ndarray,
                     labeled[ni, nj] = n_island
                     q.append((ni, nj))
 
-    # ── Step 3: One narrow stem per island ────────────────────────────────
+    return [labeled == c for c in range(1, n_island + 1)]
+
+
+def _bridge_floating_islands(stencil: np.ndarray,
+                              stem_width: int = 2,
+                              anchor: str = 'bottom') -> tuple[np.ndarray, int]:
+    """
+    Add one narrow vertical stem (stem_width columns wide) bridging each
+    floating island (see `find_floating_islands`) to the structural anchor
+    edge. Returns (modified_stencil, n_islands).
+    """
+    n_theta, n_z = stencil.shape
+    islands = find_floating_islands(stencil, anchor=anchor)
+    if not islands:
+        return stencil, 0
+
+    # ── One narrow stem per island ────────────────────────────────────────
     modified = stencil.copy()
-    for c in range(1, n_island + 1):
-        mask  = labeled == c
+    for mask in islands:
         # pick the θ column with the most island cells (thickest = best anchor)
         best_i = int(mask.sum(axis=1).argmax())
         half   = stem_width // 2
@@ -721,7 +737,77 @@ def _bridge_floating_islands(stencil: np.ndarray,
                 bi = (best_i - half + k) % n_theta
                 modified[bi, j_max + 1:] = True   # fill gap from island up to top edge
 
-    return modified, n_island
+    return modified, len(islands)
+
+
+def _apply_user_stems(stencil: np.ndarray,
+                       user_stems: list | None,
+                       stem_width: int,
+                       z_min_mm: float,
+                       z_max_mm: float,
+                       anchor: str = 'bottom') -> np.ndarray:
+    """
+    Rasterize manually-placed stems into the stencil (mutates a copy).
+
+    Each entry of `user_stems` is a dict with at least `theta_deg` and
+    `z_mm` (extra keys, e.g. a UI-side `id`, are ignored). Invalid entries
+    (missing/non-numeric fields) are skipped rather than raising, since this
+    runs on user-editable data mid-session.
+
+    Mapping:
+      theta_deg -> column: wraps at 360°, i.e. `theta_deg % 360`, then scaled
+        to [0, n_theta) the same way `np.linspace(0, 2π, n_theta, endpoint=False)`
+        divides the circle (theta=0 -> col 0, theta=180 -> col n_theta/2).
+      z_mm -> row: linearly mapped from [z_min_mm, z_max_mm] to [0, n_z-1].
+        Out-of-range z is clamped into that span rather than skipped, so a
+        stem placed slightly outside the current z-window (e.g. after a
+        param tweak shrinks the wall) still lands at the nearest valid row.
+
+    anchor='bottom': fill the stem's columns from row 0 up to (and
+      including) the stem's row — same "bridge to the base" semantics as
+      `_bridge_floating_islands`.
+    anchor='top': fill from the stem's row up to (and including) the last
+      row — "bridge to the wall top" semantics.
+
+    stem_width columns are filled, centred on the target column (wrapping
+    around 0/360°), matching `_bridge_floating_islands`'s stem shape.
+    """
+    if not user_stems:
+        return stencil
+
+    n_theta, n_z = stencil.shape
+    if n_theta == 0 or n_z == 0 or z_max_mm <= z_min_mm:
+        return stencil
+
+    modified = stencil.copy()
+    half = stem_width // 2
+    z_span = z_max_mm - z_min_mm
+
+    for entry in user_stems:
+        if not isinstance(entry, dict):
+            continue
+        theta = entry.get('theta_deg')
+        z_mm  = entry.get('z_mm')
+        if not isinstance(theta, (int, float)) or not isinstance(z_mm, (int, float)):
+            continue
+        if isinstance(theta, bool) or isinstance(z_mm, bool):
+            continue  # bool is an int subclass — reject explicitly
+
+        theta_wrapped = float(theta) % 360.0
+        col = int(round((theta_wrapped / 360.0) * n_theta)) % n_theta
+
+        z_clamped = min(max(float(z_mm), z_min_mm), z_max_mm)
+        row = int(round((z_clamped - z_min_mm) / z_span * (n_z - 1)))
+        row = min(max(row, 0), n_z - 1)
+
+        for k in range(stem_width):
+            bi = (col - half + k) % n_theta
+            if anchor == 'bottom':
+                modified[bi, :row + 1] = True
+            else:  # 'top'
+                modified[bi, row:] = True
+
+    return modified
 
 
 def _merge_column_runs(col: np.ndarray) -> list[tuple[int, int]]:
@@ -748,6 +834,7 @@ def build_stencil_wall(smooth_mask: np.ndarray,
                         stem_width: int = 2,
                         stem_anchor: str = 'bottom',
                         bottom_frame_height: float = 0.0,
+                        user_stems: list | None = None,
                         ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Build a perforated wall from the smooth SDF mask.
@@ -846,6 +933,12 @@ def build_stencil_wall(smooth_mask: np.ndarray,
     # Uses BFS from z=0 to find solid cells that are truly unreachable
     # (not just columns that happen to lack a z=0 cell), then adds the
     # minimum number of stems needed — one narrow stem per island.
+    # Manual stems (from the v2 editor) are rasterized in BEFORE auto-bridging,
+    # so the BFS in _bridge_floating_islands sees them as already-grounded and
+    # won't add a redundant auto stem next to a manual one.
+    if user_stems:
+        stencil = _apply_user_stems(stencil, user_stems, stem_width,
+                                     float(z_cents[0]), float(z_cents[-1]), anchor=stem_anchor)
     if support_stems:
         stencil, n_islands = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
         if n_islands:
@@ -940,6 +1033,7 @@ def build_stencil_wall_marching_cubes(
         stem_width: int = 2,
         stem_anchor: str = 'bottom',
         bottom_frame_height: float = 0.0,
+                        user_stems: list | None = None,
 ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Build stencil wall using marching cubes on a 3D volume field.
@@ -1046,6 +1140,12 @@ def build_stencil_wall_marching_cubes(
         thickness_frac[frame_cells] = 1.0
         if n_frame_rows:
             print(f"  [stencil] bottom frame: {n_frame_rows} rows (~{bottom_frame_height:.1f}mm)")
+    # Manual stems (from the v2 editor) are rasterized in BEFORE auto-bridging,
+    # so the BFS in _bridge_floating_islands sees them as already-grounded and
+    # won't add a redundant auto stem next to a manual one.
+    if user_stems:
+        stencil = _apply_user_stems(stencil, user_stems, stem_width,
+                                     float(z_cents[0]), float(z_cents[-1]), anchor=stem_anchor)
     if support_stems:
         stencil, n_isl = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
         if n_isl:
@@ -1176,6 +1276,7 @@ def build_stencil_wall_sdf_surface(
         stem_width: int = 2,
         stem_anchor: str = 'bottom',
         bottom_frame_height: float = 0.0,
+                        user_stems: list | None = None,
 ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Build stencil wall as a continuous surface with SDF-based thickness.
@@ -1316,6 +1417,12 @@ def build_stencil_wall_sdf_surface(
         if n_frame_rows:
             print(f"  [stencil] bottom frame: {n_frame_rows} rows (~{bottom_frame_height:.1f}mm)")
 
+    # Manual stems (from the v2 editor) are rasterized in BEFORE auto-bridging,
+    # so the BFS in _bridge_floating_islands sees them as already-grounded and
+    # won't add a redundant auto stem next to a manual one.
+    if user_stems:
+        stencil = _apply_user_stems(stencil, user_stems, stem_width,
+                                     float(z_cents[0]), float(z_cents[-1]), anchor=stem_anchor)
     if support_stems:
         stencil, n_islands = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
         if n_islands:
@@ -1468,6 +1575,7 @@ def build_stencil_wall_merged(
         stem_width: int = 2,
         stem_anchor: str = 'bottom',
         bottom_frame_height: float = 0.0,
+                        user_stems: list | None = None,
 ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Best-of-both-worlds stencil wall builder: column merging (small file)
@@ -1500,6 +1608,12 @@ def build_stencil_wall_merged(
             print(f"  [stencil] bottom frame: {n_frame_rows} rows (~{bottom_frame_height:.1f}mm)")
 
     # Bridge floating islands
+    # Manual stems (from the v2 editor) are rasterized in BEFORE auto-bridging,
+    # so the BFS in _bridge_floating_islands sees them as already-grounded and
+    # won't add a redundant auto stem next to a manual one.
+    if user_stems:
+        stencil = _apply_user_stems(stencil, user_stems, stem_width,
+                                     float(z_cents[0]), float(z_cents[-1]), anchor=stem_anchor)
     if support_stems:
         stencil, n_islands = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
         if n_islands:
@@ -1617,6 +1731,7 @@ def build_stencil_wall_smooth(
         stem_width: int = 2,
         stem_anchor: str = 'bottom',
         bottom_frame_height: float = 0.0,
+                        user_stems: list | None = None,
 ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Drop-in replacement for build_stencil_wall() that generates a smooth surface.
@@ -1688,6 +1803,12 @@ def build_stencil_wall_smooth(
         if n_frame_rows:
             print(f"  [stencil] bottom frame: {n_frame_rows} rows (~{bottom_frame_height:.1f}mm)")
 
+    # Manual stems (from the v2 editor) are rasterized in BEFORE auto-bridging,
+    # so the BFS in _bridge_floating_islands sees them as already-grounded and
+    # won't add a redundant auto stem next to a manual one.
+    if user_stems:
+        stencil = _apply_user_stems(stencil, user_stems, stem_width,
+                                     float(z_cents[0]), float(z_cents[-1]), anchor=stem_anchor)
     if support_stems:
         stencil, n_islands = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
         if n_islands:
@@ -2971,6 +3092,7 @@ def run(
     led_socket_height    = 10.0,    # mm — height of LED mount above pillar top
     min_bridge_mm        = 1.2,    # minimum feature width on FLOOR plane (mm); guarantees ~0.3mm wall after anamorphic compression
     edge_blur_sigma      = 1.0,    # grid-cell blur on thickness field; smooths the staircase introduced by the min-thickness floor
+    user_stems           = None,   # list of {"theta_deg": float, "z_mm": float} manual stems (v2 editor); merged in before auto-bridging
 ):
     """
     Build shadow casing — three components:
@@ -3190,6 +3312,14 @@ def run(
             if n_frame_rows:
                 print(f"  [stencil] bottom frame: {n_frame_rows} rows (~{effective_bottom_frame_height:.1f}mm)")
 
+        # Manual stems merged in BEFORE auto-bridging, same order as every
+        # other builder — so BFS treats them as already-grounded.
+        if user_stems:
+            stencil_cleaned = _apply_user_stems(
+                stencil_cleaned, user_stems, stem_width,
+                float(z_cents_s[0]), float(z_cents_s[-1]), anchor=stem_anchor,
+            )
+
         # Bridge floating islands if requested
         if support_stems:
             stencil_cleaned, n_islands = _bridge_floating_islands(
@@ -3229,6 +3359,7 @@ def run(
             stem_width=stem_width,
             stem_anchor=stem_anchor,
             bottom_frame_height=effective_bottom_frame_height,
+            user_stems=user_stems,
         )
     elif smooth_builder:
         # ── SMOOTH BUILDER (v5) — per-cell, large files, reliable ──
@@ -3242,6 +3373,7 @@ def run(
             stem_width=stem_width,
             stem_anchor=stem_anchor,
             bottom_frame_height=effective_bottom_frame_height,
+            user_stems=user_stems,
         )
     else:
         wall_mesh, stencil, z_cents = build_stencil_wall(
@@ -3254,6 +3386,7 @@ def run(
             stem_width=stem_width,
             stem_anchor=stem_anchor,
             bottom_frame_height=effective_bottom_frame_height,
+            user_stems=user_stems,
         )
     print(f'  [A] stencil wall — faces: {len(wall_mesh.faces)}')
 
@@ -3428,6 +3561,8 @@ if __name__ == '__main__':
                    help='Solid stencil band at the wall base that catches nearby islands so they fuse with the wall')
     p.add_argument('--bottom-frame-height', type=float, default=5.0,
                    help='Height of the bottom frame band in mm (default 5.0; used when --bottom-frame is set)')
+    p.add_argument('--user-stems',       type=str,   default=None,
+                   help='JSON list of manual stems: \'[{"theta_deg": 90, "z_mm": 20}, ...]\'')
 
     # Smoothness — SDF
     p.add_argument('--smooth-sigma',   type=float, default=EDGE_SMOOTH_SIGMA,
@@ -3495,6 +3630,8 @@ if __name__ == '__main__':
 
     a = p.parse_args()
 
+    user_stems_arg = json.loads(a.user_stems) if a.user_stems else None
+
     run(
         input_image          = a.input,
         output_stl           = a.output,
@@ -3513,6 +3650,7 @@ if __name__ == '__main__':
         stem_width           = a.stem_width,
         bottom_frame         = a.bottom_frame,
         bottom_frame_height  = a.bottom_frame_height,
+        user_stems           = user_stems_arg,
         edge_smooth_sigma    = a.smooth_sigma,
         shadow_threshold     = a.threshold,
         n_stencil_theta      = a.n_theta,

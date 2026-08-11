@@ -9,7 +9,6 @@ import sys
 import tempfile
 from pathlib import Path
 
-import cv2
 import numpy as np
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import JSONResponse
@@ -22,12 +21,52 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from generate_shadow_casing import (  # noqa: E402
+    find_floating_islands,
     load_silhouette_mask,
     prepare_sdf_mask,
     resolve_flooring_shape,
 )
 
 router = APIRouter()
+
+
+def island_centroids(
+    stencil: np.ndarray,
+    anchor: str,
+    z_min_mm: float,
+    z_max_mm: float,
+) -> list[dict]:
+    """Centroid (theta_deg, z_mm) of each floating island in `stencil`.
+
+    Uses the same `find_floating_islands` BFS the generator's auto-bridging
+    relies on, so this route and the mesh builder can never disagree about
+    what counts as floating. Returns [] when the stencil is fully grounded
+    to the anchor edge (or empty).
+
+    theta centroid is the circular mean (average unit vector, then atan2)
+    rather than a raw index average, so an island straddling the 0/360° wrap
+    doesn't collapse to a bogus mid-circle angle.
+    """
+    n_theta, n_z = stencil.shape
+    islands = find_floating_islands(stencil, anchor=anchor)
+    z_span = z_max_mm - z_min_mm
+
+    out = []
+    for mask in islands:
+        i_idx, j_idx = np.where(mask)
+        angles = i_idx.astype(np.float64) / n_theta * 2.0 * np.pi
+        mean_x = float(np.mean(np.cos(angles)))
+        mean_y = float(np.mean(np.sin(angles)))
+        theta_centroid = float(np.degrees(np.arctan2(mean_y, mean_x)) % 360.0)
+
+        j_centroid = float(np.mean(j_idx))
+        if n_z > 1 and z_span != 0:
+            z_centroid = z_min_mm + (j_centroid / (n_z - 1)) * z_span
+        else:
+            z_centroid = z_min_mm
+        out.append({"theta_deg": theta_centroid, "z_mm": float(z_centroid)})
+
+    return out
 
 
 @router.post(
@@ -45,8 +84,12 @@ async def check_islands(
 ) -> JSONResponse:
     """Detect floating islands in the projected silhouette stencil.
 
-    Returns: {has_islands: bool, island_count: int}
-    Island count = number of disconnected solid components BEYOND the main one.
+    Returns: {has_floating_islands: bool, islands: [{theta_deg, z_mm}, ...]}
+    (plus has_islands/island_count, kept for backward compatibility).
+    A "floating island" is a solid stencil component unreachable from the
+    wall's structural anchor edge (base for cover_type='bottom', top for
+    cover_type='top') — same definition the generator's auto-bridging uses,
+    via the shared `find_floating_islands` helper.
     """
     try:
         config_dict = json.loads(config_json) if config_json else {}
@@ -143,29 +186,25 @@ async def check_islands(
             0, h_mask - 1,
         )
 
-        stencil = (smooth_mask[PY, PX] > 0).astype(np.uint8)
-        stencil[R_fl > floor_half * 1.02] = 0
+        stencil = (smooth_mask[PY, PX] > 0)
+        stencil[R_fl > floor_half * 1.02] = False
 
-        # Connected components on the stencil (theta x z grid).
-        # Note: theta axis wraps at 0/2π — we need to account for that.
-        # For simplicity: count labeled components. Islands NOT touching
-        # the bottom row (z_min, i.e. base floor) are floating.
-        num_labels, labels = cv2.connectedComponents(stencil)
-        # num_labels includes the background (0). Actual components = num_labels - 1.
-
-        # Find labels that touch the bottom row (grounded to the base)
-        bottom_row_labels = set(int(l) for l in labels[:, 0] if l > 0)
-
-        # Count floating islands (labels not in bottom_row_labels)
-        all_labels = set(int(l) for l in np.unique(labels) if l > 0)
-        floating_labels = all_labels - bottom_row_labels
-        island_count = len(floating_labels)
+        # Same BFS-from-anchor-edge labeling the generator uses to decide
+        # what needs an auto stem — reusing it means bridging and reporting
+        # can never disagree about what counts as "floating". cover_type
+        # 'top' anchors to the wall's top edge instead of the base, same as
+        # run()'s stem_anchor.
+        cover_type = cfg.get("cover_type", "bottom")
+        anchor = "top" if cover_type == "top" else "bottom"
+        islands = island_centroids(stencil, anchor, base_z, z_max_s)
 
         return JSONResponse(
             {
-                "has_islands": island_count > 0,
-                "island_count": island_count,
-                "total_components": len(all_labels),
+                "has_floating_islands": len(islands) > 0,
+                "islands": islands,
+                # kept for backward compatibility with any existing caller
+                "has_islands": len(islands) > 0,
+                "island_count": len(islands),
             }
         )
     finally:
