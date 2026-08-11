@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { filterSections, coerceParamValue } from "../filter-params"
+import { filterSections, coerceParamValue, shouldWarnJsonApply } from "../filter-params"
 import { SECTIONS } from "../../config-params"
 
 describe("filterSections", () => {
@@ -38,5 +38,20 @@ describe("coerceParamValue", () => {
   it("boolean: passes through unchanged", () => {
     const out = coerceParamValue({}, "invert_mask", true, "boolean")
     expect(out).toEqual({ invert_mask: true })
+  })
+})
+
+describe("shouldWarnJsonApply", () => {
+  it("no dirty snapshot (draft not dirty) -> never warn", () => {
+    expect(shouldWarnJsonApply(null, JSON.stringify({ a: 1 }))).toBe(false)
+  })
+  it("dirty snapshot matches current config -> no warn (nothing changed underneath)", () => {
+    const snap = JSON.stringify({ a: 1 })
+    expect(shouldWarnJsonApply(snap, snap)).toBe(false)
+  })
+  it("dirty snapshot differs from current config -> warn (config changed elsewhere)", () => {
+    const snap = JSON.stringify({ a: 1 })
+    const current = JSON.stringify({ a: 2 })
+    expect(shouldWarnJsonApply(snap, current)).toBe(true)
   })
 })

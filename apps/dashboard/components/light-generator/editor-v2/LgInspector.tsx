@@ -26,7 +26,7 @@ import {
   SHAPE_OPTIONS,
   type ParamDef,
 } from "../config-params"
-import { filterSections, coerceParamValue } from "./filter-params"
+import { filterSections, coerceParamValue, shouldWarnJsonApply } from "./filter-params"
 
 interface LgInspectorProps {
   config: Record<string, unknown>
@@ -55,6 +55,14 @@ export function LgInspector({ config, onChange }: LgInspectorProps) {
   // their in-progress edit wins until they explicitly Apply (which clears
   // the flag) or the JSON errors out.
   const jsonDirty = useRef(false)
+  // Config snapshot (JSON.stringify) captured at the moment the draft became
+  // dirty. Used by shouldWarnJsonApply to detect if config changed elsewhere
+  // (e.g. a slider edit) while the JSON draft was being edited — see
+  // filter-params.ts for the full scenario this guards against.
+  const dirtySnapshot = useRef<string | null>(null)
+  // Set once the user has clicked Apply while shouldWarnJsonApply is true —
+  // a second Apply click then proceeds and overwrites intentionally.
+  const [confirmOverwrite, setConfirmOverwrite] = useState(false)
 
   useEffect(() => {
     if (jsonDirty.current) return
@@ -160,9 +168,28 @@ export function LgInspector({ config, onChange }: LgInspectorProps) {
       return
     }
     const incoming = parsed as Record<string, unknown>
+
+    if (!confirmOverwrite && shouldWarnJsonApply(dirtySnapshot.current, JSON.stringify(config))) {
+      setJsonError(
+        "Config berubah sejak JSON diedit — muat ulang draft (tombol Reload) atau klik Apply lagi untuk menimpa",
+      )
+      setConfirmOverwrite(true)
+      return
+    }
+
     onChange({ ...config, ...incoming })
     setJsonError(null)
+    setConfirmOverwrite(false)
     jsonDirty.current = false
+    dirtySnapshot.current = null
+  }
+
+  function reloadJsonDraft() {
+    setJsonDraft(JSON.stringify(config, null, 2))
+    setJsonError(null)
+    setConfirmOverwrite(false)
+    jsonDirty.current = false
+    dirtySnapshot.current = null
   }
 
   return (
@@ -325,15 +352,30 @@ export function LgInspector({ config, onChange }: LgInspectorProps) {
             <div className="space-y-2">
               <textarea
                 value={jsonDraft}
-                onChange={(e) => { jsonDirty.current = true; setJsonDraft(e.currentTarget.value); setJsonError(null) }}
+                onChange={(e) => {
+                  if (!jsonDirty.current) {
+                    jsonDirty.current = true
+                    dirtySnapshot.current = JSON.stringify(config)
+                  }
+                  setConfirmOverwrite(false)
+                  setJsonDraft(e.currentTarget.value)
+                  setJsonError(null)
+                }}
                 spellCheck={false}
                 rows={Math.min(24, jsonDraft.split("\n").length + 1)}
                 className="bg-muted w-full resize-y overflow-auto rounded-lg p-3 font-mono text-xs"
                 aria-label="Raw config JSON"
               />
-              <Button variant="outline" size="sm" onClick={applyJsonDraft}>
-                Apply
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={applyJsonDraft}>
+                  {confirmOverwrite ? "Apply (timpa)" : "Apply"}
+                </Button>
+                {jsonDirty.current && (
+                  <Button variant="ghost" size="sm" onClick={reloadJsonDraft}>
+                    Reload
+                  </Button>
+                )}
+              </div>
               {jsonError && <p className="text-sm text-red-500">❌ {jsonError}</p>}
             </div>
           </AccordionContent>

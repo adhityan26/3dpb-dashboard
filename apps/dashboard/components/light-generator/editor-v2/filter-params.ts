@@ -46,3 +46,29 @@ export function coerceParamValue(
   if (Number.isNaN(n)) return null
   return { ...config, [key]: n }
 }
+
+/**
+ * Decides whether applying the Raw JSON draft should be blocked with a
+ * warning instead of silently merging.
+ *
+ * Scenario this guards against: user opens Raw JSON, types an edit (draft
+ * becomes dirty, `dirtySnapshot` is captured as the config at that moment),
+ * closes the accordion, edits a field elsewhere (a slider), reopens Raw
+ * JSON, clicks Apply. If Apply just merges `{ ...config, ...incoming }`
+ * using the *current* config as the base, that's fine — but `incoming` was
+ * parsed from a draft that still reflects the *old* config, so keys the
+ * slider changed get clobbered back to their stale values. We can't tell
+ * which keys are "safe" from JSON alone, so instead we compare the config
+ * as of when the draft went dirty (`dirtySnapshot`) against the config now
+ * (`currentConfigStr`): if they differ, something changed underneath the
+ * draft and applying it unconditionally would silently lose that change.
+ *
+ * `dirtySnapshot` is null when the draft isn't dirty (nothing to protect).
+ */
+export function shouldWarnJsonApply(
+  dirtySnapshot: string | null,
+  currentConfigStr: string,
+): boolean {
+  if (dirtySnapshot === null) return false
+  return dirtySnapshot !== currentConfigStr
+}

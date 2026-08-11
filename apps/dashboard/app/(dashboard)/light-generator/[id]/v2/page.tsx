@@ -85,8 +85,11 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
     // collapses to a single immediate PATCH (push sets `pending`, flush
     // cancels the debounce timer and runs immediately).
     autosave.push(effectiveConfig)
-    await autosave.flush()
-    if (autosave.status === "error") {
+    // Read the resolved status from flush()'s return value, not React state
+    // (`autosave.status`) — React state is a snapshot from the last render
+    // and does not reflect the outcome of the flush that just completed.
+    const saveStatus = await autosave.flush()
+    if (saveStatus === "error") {
       setFeedback("Gagal menyimpan config — perbaiki dulu sebelum generate")
       return
     }
