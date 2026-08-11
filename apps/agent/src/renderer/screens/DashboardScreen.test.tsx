@@ -6,7 +6,7 @@ import { DashboardScreen } from "./DashboardScreen";
 beforeEach(() => {
   (globalThis as any).window.agentApi = {
     getSnapshot: vi.fn().mockResolvedValue({ payload: [{ id: "abc1234567", name: "Printer A", type: "bambu", connector: "bambu", state: "running", progress: 45, remaining_min: 30, filename: "box.gcode", error_msg: "", last_seen: "2026-07-29T10:00:00Z", nozzle_temp: 219, bed_temp: 60 }] }),
-    getBrokerInfo: vi.fn().mockResolvedValue({ ip: "192.168.1.100", port: 1883 }),
+    getBrokerInfo: vi.fn().mockResolvedValue({ ip: "192.168.1.100", port: 1883, pin: "0042" }),
     sync: vi.fn().mockResolvedValue({ ok: true, deviceCount: 1 }),
   };
 });
@@ -92,6 +92,11 @@ describe("DashboardScreen", () => {
   it("tampilkan IP broker saat ini (buat diketik ke captive portal CYD)", async () => {
     render(<DashboardScreen />);
     await waitFor(() => expect(screen.getByText(/192\.168\.1\.100/)).toBeTruthy());
+  });
+
+  it("PIN broker ditampilkan di samping alamat IP:port", async () => {
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText(/0042/)).toBeTruthy());
   });
 
   it("tombol Pengaturan panggil onManageDevices -- satu-satunya jalan balik ke PairingScreen buat edit/lupakan device", async () => {
