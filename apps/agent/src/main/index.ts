@@ -6,10 +6,10 @@ import { startBroker } from './broker'
 import { buildPairedDevices } from './startup'
 import { startEngine } from './engine-manager'
 import { publishLayout } from './layout-publisher'
-import { loadCredentials } from './credential-store'
+import { loadCredentials, ensureBrokerPin } from './credential-store'
 import { registerIpcHandlers } from './ipc'
 import { saasBaseUrl } from './saas-client'
-import { setEngine, setBrokerPort, setReporters, listLocalIpCandidates } from './app-state'
+import { setEngine, setBrokerPort, setBrokerPin, setReporters, listLocalIpCandidates } from './app-state'
 
 const gotLock = app.requestSingleInstanceLock()
 
@@ -50,7 +50,12 @@ async function bootstrap(): Promise<void> {
     // kalau tebakan utama salah (adapter virtual/VPN) masih ada jejak buat support.
     console.log('[agent] kandidat IP LAN (urut prioritas):', listLocalIpCandidates().join(', ') || '(tidak ada)')
 
-    const brokerResult = await startBroker()
+    // PIN diresolusi SEBELUM broker start -- authenticate handler broker.ts butuh PIN final
+    // di tangan pas server.listen() dipanggil, tak bisa dipasang belakangan.
+    const brokerPin = await ensureBrokerPin()
+    setBrokerPin(brokerPin)
+
+    const brokerResult = await startBroker(1883, brokerPin)
     if (!brokerResult.ok) {
       console.error(
         `[agent] broker MQTT lokal gagal start (${brokerResult.reason}) — monitoring lokal tak akan jalan`,
@@ -61,14 +66,14 @@ async function bootstrap(): Promise<void> {
 
     const paired = await buildPairedDevices()
     if (paired.length > 0) {
-      const started = await startEngine(paired, brokerResult.port)
+      const started = await startEngine(paired, brokerResult.port, brokerPin)
       setEngine(started.engine)
       setReporters(started.reporters) // dilacak biar agent:sync bisa nutupnya pas ganti Engine
     }
 
     const blob = await loadCredentials()
     if (blob.agentToken) {
-      await publishLayout(blob.agentToken, brokerResult.port)
+      await publishLayout(blob.agentToken, brokerResult.port, "default", brokerPin)
     }
   } catch (err) {
     console.error('[agent] bootstrap gagal di tengah jalan (broker/engine/layout) — IPC tetap didaftarkan biar renderer bisa recover', err)
