@@ -60,6 +60,24 @@ const DEFAULT_HEIGHT_CLASS = "h-[52vh] min-h-[380px]"
 const HANDLE_R = 6
 const LAMP_R = 5
 
+/**
+ * Minimum pointer travel (px, Chebyshev-ish via hypot) before a press counts
+ * as a DRAG. Below it the gesture is a plain click and is discarded without
+ * writing anything.
+ *
+ * Why this exists: every applier below commits real config keys, and
+ * `handlePointerUp` used to run them for any press/release pair. A bare click
+ * on a corner handle therefore wrote `mask_padding_pct` + `auto_fit_mask:
+ * false` (image-resize), a click on the casing handles rewrote
+ * `floor_half_size`, and a click on the lamp rewrote `light_x/light_y` — all
+ * with zero intent. The two body drags guarded only against EXACTLY zero
+ * movement, so the 1-3px tremor every real mouse/trackpad click carries was
+ * enough to write `shadow_offset_x/y` (observed live: a click with ~2px/-8px
+ * of travel saved offsets 2.2/8.8 mm). Combined with autosave this looked
+ * like the editor silently mutating a config nobody touched.
+ */
+const DRAG_THRESHOLD_PX = 3
+
 type DragKind = "image" | "image-resize" | "casing" | "casing-resize" | "lamp" | null
 
 interface DragState {
@@ -71,6 +89,10 @@ interface DragState {
   liveDyPx: number
   // live half-size (image-resize) or radius (casing-resize) in px
   liveSizePx: number
+  /** True once the pointer has travelled past DRAG_THRESHOLD_PX — only then
+   * does the gesture commit on pointerup. Guards every object against
+   * click-with-tremor writes. */
+  moved: boolean
 }
 
 /**
@@ -174,7 +196,7 @@ export function LgCanvas2D({
       e.stopPropagation()
       e.currentTarget.setPointerCapture(e.pointerId)
       appliedRef.current = false
-      setDrag({ kind, startX: e.clientX, startY: e.clientY, liveDxPx: 0, liveDyPx: 0, liveSizePx: initialSizePx })
+      setDrag({ kind, startX: e.clientX, startY: e.clientY, liveDxPx: 0, liveDyPx: 0, liveSizePx: initialSizePx, moved: false })
     }
   }
 
@@ -182,17 +204,28 @@ export function LgCanvas2D({
     if (!drag) return
     const dx = e.clientX - drag.startX
     const dy = e.clientY - drag.startY
+    // Travel is measured from the press point for EVERY kind (including the
+    // resizes, whose live value is a radius from the wrapper centre) so
+    // "did the user actually drag?" has one definition.
+    const moved = drag.moved || Math.hypot(dx, dy) >= DRAG_THRESHOLD_PX
     if (drag.kind === "image-resize" || drag.kind === "casing-resize") {
       const { cx, cy } = getCenter()
       const r = Math.hypot(e.clientX - cx, e.clientY - cy)
-      setDrag({ ...drag, liveSizePx: r })
+      setDrag({ ...drag, liveSizePx: r, moved })
     } else {
-      setDrag({ ...drag, liveDxPx: dx, liveDyPx: dy })
+      setDrag({ ...drag, liveDxPx: dx, liveDyPx: dy, moved })
     }
   }
 
   function handlePointerUp() {
     if (!drag || !onConfigChange || appliedRef.current) {
+      setDrag(null)
+      return
+    }
+    // A press that never travelled past the threshold is a CLICK, not a
+    // drag: discard it so no object commits anything. Without this, merely
+    // clicking on the canvas rewrites config (and autosaves it).
+    if (!drag.moved) {
       setDrag(null)
       return
     }
@@ -204,9 +237,7 @@ export function LgCanvas2D({
     // active", so a gesture can never touch more than one object's config.
     switch (drag.kind) {
       case "image":
-        if (drag.liveDxPx !== 0 || drag.liveDyPx !== 0) {
-          onConfigChange(applyOffsetDrag(cfg, drag.liveDxPx, drag.liveDyPx, imgPx))
-        }
+        onConfigChange(applyOffsetDrag(cfg, drag.liveDxPx, drag.liveDyPx, imgPx))
         break
       case "image-resize": {
         const f = imgHalf > 0 ? drag.liveSizePx / imgHalf : 0
@@ -214,9 +245,7 @@ export function LgCanvas2D({
         break
       }
       case "casing":
-        if (drag.liveDxPx !== 0 || drag.liveDyPx !== 0) {
-          onConfigChange(applyCasingDrag(cfg, drag.liveDxPx, drag.liveDyPx, imgPx))
-        }
+        onConfigChange(applyCasingDrag(cfg, drag.liveDxPx, drag.liveDyPx, imgPx))
         break
       case "casing-resize":
         onConfigChange(applyCasingResize(cfg, drag.liveSizePx, imgPx))
@@ -238,6 +267,13 @@ export function LgCanvas2D({
   // for the editor card (readOnly=false).
   const canConfig = !!onConfigChange && !readOnly
   const interactive = canConfig
+  // Handles/objects only become hit targets once the wrapper has been
+  // MEASURED. At wrapSize === 0 the viewBox falls back to "0 0 1 1" while the
+  // SVG still stretches across the whole wrapper, so every 6x6 handle rect is
+  // scaled to ~6x the canvas — on the first frame(s) the entire card is one
+  // giant image-resize hit target sitting on top of everything else.
+  const measured = wrapSize > 0
+  const hitClass = measured ? "pointer-events-auto" : "pointer-events-none"
   // viewBox uses the wrapper's real measured px so object sizes computed
   // from real pointer coordinates (getCenter/getImgPx above) map 1:1 onto
   // the SVG — no separate "logical" unit space to drift out of sync with
@@ -392,7 +428,7 @@ export function LgCanvas2D({
             cursor: interactive ? "move" : undefined,
           }}
           draggable={false}
-          onPointerDown={interactive ? startDrag("image") : undefined}
+          onPointerDown={interactive && measured ? startDrag("image") : undefined}
         />
       ) : error ? (
         <div className="flex h-full flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
@@ -430,7 +466,7 @@ export function LgCanvas2D({
             <rect
               key={`img-${i}`}
               data-testid="lg-image-handle"
-              className="pointer-events-auto"
+              className={hitClass}
               x={imgHalf + imageOffsetPxX + imageBodyDx + c.x * imgResizeLiveHalfPx - HANDLE_R / 2}
               y={imgHalf + imageOffsetPxY + imageBodyDy + c.y * imgResizeLiveHalfPx - HANDLE_R / 2}
               width={HANDLE_R}
@@ -445,7 +481,7 @@ export function LgCanvas2D({
 
           {/* Object 2 — casing shape overlay + corner handles */}
           <g
-            className="pointer-events-auto"
+            className={hitClass}
             style={{ cursor: "move" }}
             onPointerDown={startDrag("casing")}
           >
@@ -460,7 +496,7 @@ export function LgCanvas2D({
             <rect
               key={`casing-${i}`}
               data-testid="lg-casing-handle"
-              className="pointer-events-auto"
+              className={hitClass}
               x={casingCx + c.x * casingLiveR - HANDLE_R / 2}
               y={casingCy + c.y * casingLiveR - HANDLE_R / 2}
               width={HANDLE_R}
@@ -476,14 +512,14 @@ export function LgCanvas2D({
           {/* Object 3 — lamp: amber dot + glow ring, follows the casing group */}
           <circle
             data-testid="lg-lamp-handle"
-            className="pointer-events-auto"
+            className={hitClass}
             cx={lampCx}
             cy={lampCy}
             r={LAMP_R + 4}
             fill="rgba(251,191,36,0.25)"
           />
           <circle
-            className="pointer-events-auto"
+            className={hitClass}
             cx={lampCx}
             cy={lampCy}
             r={LAMP_R}
