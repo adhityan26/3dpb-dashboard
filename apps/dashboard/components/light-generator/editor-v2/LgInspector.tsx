@@ -329,13 +329,18 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
 
   return (
     <div className="space-y-4">
-      <Input
-        type="search"
-        placeholder="search parameter…"
-        value={query}
-        onChange={(e) => setQuery(e.currentTarget.value)}
-        aria-label="search parameter"
-      />
+      {/* Sticky within the inspector's own scroll container (the
+          overflow-y-auto column in LgEditorShell) so the search field stays
+          reachable while the rest of the inspector scrolls underneath it. */}
+      <div className="sticky top-0 z-10 bg-background/95 pb-2 backdrop-blur">
+        <Input
+          type="search"
+          placeholder="search parameter…"
+          value={query}
+          onChange={(e) => setQuery(e.currentTarget.value)}
+          aria-label="search parameter"
+        />
+      </div>
 
       {/* Each group renders as its own bordered card (mockup: parameter
           groups as cards, not one long accordion with full-width
@@ -344,7 +349,7 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
       <Accordion multiple value={openGroups} onValueChange={(v) => setOpenGroups(v as string[])} className="space-y-2">
         {/* Casing — shape + cover + recess/pillar */}
         <AccordionItem value="Casing" className="rounded-lg border bg-card/50 px-3">
-          <AccordionTrigger>Casing</AccordionTrigger>
+          <AccordionTrigger className="border-b border-border/50">Casing</AccordionTrigger>
           <AccordionContent>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -450,7 +455,7 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
 
         {/* Shadow behavior — invert, bottom frame, auto-fit, mask padding, offsets */}
         <AccordionItem value="Shadow behavior" className="rounded-lg border bg-card/50 px-3">
-          <AccordionTrigger>Shadow behavior</AccordionTrigger>
+          <AccordionTrigger className="border-b border-border/50">Shadow behavior</AccordionTrigger>
           <AccordionContent>
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-3">
@@ -505,24 +510,24 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
 
         {/* Dimensions — radii, heights, thickness */}
         <AccordionItem value="Dimensions" className="rounded-lg border bg-card/50 px-3">
-          <AccordionTrigger>Dimensions</AccordionTrigger>
+          <AccordionTrigger className="border-b border-border/50">Dimensions</AccordionTrigger>
           <AccordionContent>{renderParamList(DIMENSIONS_KEYS)}</AccordionContent>
         </AccordionItem>
 
         {/* Lighting — light x/y/z */}
         <AccordionItem value="Lighting" className="rounded-lg border bg-card/50 px-3">
-          <AccordionTrigger>Lighting</AccordionTrigger>
+          <AccordionTrigger className="border-b border-border/50">Lighting</AccordionTrigger>
           <AccordionContent>{renderParamList(LIGHTING_KEYS)}</AccordionContent>
         </AccordionItem>
 
         {/* Advanced — resolution, smoothness, printability, mesh post, image adjustment */}
         <AccordionItem value="Advanced" className="rounded-lg border bg-card/50 px-3">
-          <AccordionTrigger>Advanced</AccordionTrigger>
+          <AccordionTrigger className="border-b border-border/50">Advanced</AccordionTrigger>
           <AccordionContent>{renderParamList(ADVANCED_KEYS)}</AccordionContent>
         </AccordionItem>
 
         <AccordionItem value="Stems" className="rounded-lg border bg-card/50 px-3">
-          <AccordionTrigger>Stems</AccordionTrigger>
+          <AccordionTrigger className="border-b border-border/50">Stems</AccordionTrigger>
           <AccordionContent>
             <div className="space-y-2">
               {userStems.length === 0 ? (
@@ -553,7 +558,7 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
         </AccordionItem>
 
         <AccordionItem value="Raw JSON" className="rounded-lg border bg-card/50 px-3">
-          <AccordionTrigger>Raw JSON</AccordionTrigger>
+          <AccordionTrigger className="border-b border-border/50">Raw JSON</AccordionTrigger>
           <AccordionContent>
             <div className="space-y-2">
               <textarea

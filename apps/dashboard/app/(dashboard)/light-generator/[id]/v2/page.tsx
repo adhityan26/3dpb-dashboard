@@ -193,21 +193,28 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
                 onRetry={retryPreview}
               />
               {/* Shadow preview — clean render of the same pngUrl, no
-                  overlays, no pointer handlers. Plain muted caption instead
-                  of Card chrome, matching the mockup's simple label. */}
-              <p className="text-xs text-muted-foreground">Shadow preview</p>
-              <LgCanvas2D
-                pngUrl={preview.pngUrl}
-                loading={preview.status === "loading"}
-                readOnly
-                heightClass="h-[34vh] min-h-[220px]"
-                error={previewError}
-                onRetry={retryPreview}
-              />
+                  overlays, no pointer handlers. Wrapped in a Card (unlike the
+                  bare editor canvas above) so it reads as its own panel with
+                  a titled header. */}
+              <Card>
+                <CardHeader className="border-b border-border/50 py-2">
+                  <CardTitle className="text-sm">Shadow preview</CardTitle>
+                </CardHeader>
+                <CardContent className="p-2">
+                  <LgCanvas2D
+                    pngUrl={preview.pngUrl}
+                    loading={preview.status === "loading"}
+                    readOnly
+                    heightClass="h-[34vh] min-h-[220px]"
+                    error={previewError}
+                    onRetry={retryPreview}
+                  />
+                </CardContent>
+              </Card>
             </div>
           ) : activeTab === "wall" ? (
             <Card>
-              <CardHeader className="py-2">
+              <CardHeader className="border-b border-border/50 py-2">
                 <CardTitle className="text-sm">Wall (θ,z)</CardTitle>
               </CardHeader>
               <CardContent className="p-2">
@@ -224,7 +231,7 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
             </Card>
           ) : (
             <Card>
-              <CardHeader className="py-2">
+              <CardHeader className="border-b border-border/50 py-2">
                 <CardTitle className="text-sm">3D</CardTitle>
               </CardHeader>
               <CardContent className="p-2">
@@ -254,11 +261,12 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
         rail={
           <div className="space-y-4">
             {/* Rail already sits inside the bordered panel from
-                LgEditorShell — inner cards go borderless/transparent here so
-                the two don't double up. */}
-            <Card className="border-transparent bg-transparent shadow-none">
-              <CardHeader className="px-0"><CardTitle className="text-sm">Project assets</CardTitle></CardHeader>
-              <CardContent className="px-0">
+                LgEditorShell, so these read as subtle cards — faint bg +
+                border, not the full elevated Card look — while keeping
+                comfortable inner padding. */}
+            <Card className="border-border/60 bg-card/50 shadow-none">
+              <CardHeader className="border-b border-border/50 pb-3"><CardTitle className="text-sm">Project assets</CardTitle></CardHeader>
+              <CardContent className="p-4">
                 <div className="grid grid-cols-2 gap-2">
                   <LgImageSlot orderId={id} label="Silhouette" type="silhouette" hasImage={!!order.imagePath} />
                   <LgImageSlot orderId={id} label="Floor Insert" type="additional" hasImage={!!order.additionalImagePath} />
@@ -270,9 +278,9 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
                 edit). Plain label:value rows separated by thin dividers,
                 matching the mockup instead of a headline-stat layout. */}
             {estimateRaw && (
-              <Card className="border-transparent bg-transparent shadow-none">
-                <CardHeader className="px-0"><CardTitle className="text-sm">Production summary</CardTitle></CardHeader>
-                <CardContent className="divide-y divide-border/50 px-0 text-xs">
+              <Card className="border-border/60 bg-card/50 shadow-none">
+                <CardHeader className="border-b border-border/50 pb-3"><CardTitle className="text-sm">Production summary</CardTitle></CardHeader>
+                <CardContent className="divide-y divide-border/50 p-4 text-xs">
                   <div className="flex items-center justify-between gap-2 py-1.5">
                     <span className="text-muted-foreground">Casing footprint</span>
                     <span className="font-medium">{estimateRaw.casingDimDesc}</span>
