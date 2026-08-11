@@ -27,10 +27,14 @@ export function createAutosaver(
       if (timer) clearTimeout(timer)
       timer = setTimeout(run, delayMs)
     },
-    async flush() { if (timer) clearTimeout(timer); await run() },
+    // Returns the status immediately after running, synchronously reflecting
+    // the outcome — callers that need to branch on success/error right after
+    // flush() must use this return value, not React state (which updates on
+    // the next render and can't be read reliably in the same async flow).
+    async flush() { if (timer) clearTimeout(timer); await run(); return status },
     dispose() { if (timer) clearTimeout(timer) },
     get status() { return status },
-    onStatus(cb: (s: AutosaveStatus) => void) { listeners.add(cb) },
+    onStatus(cb: (s: AutosaveStatus) => void) { listeners.add(cb); return () => listeners.delete(cb) },
   }
 }
 
@@ -46,8 +50,8 @@ export function useLgAutosave(orderId: string) {
     if (!res.ok) throw new Error(`save failed: ${res.status}`)
   }), [orderId])
   useEffect(() => {
-    autosaver.onStatus(s => { setStatus(s); if (s === "saved") setSavedAt(new Date()) })
-    return () => autosaver.dispose()
+    const unsubscribe = autosaver.onStatus(s => { setStatus(s); if (s === "saved") setSavedAt(new Date()) })
+    return () => { unsubscribe(); autosaver.dispose() }
   }, [autosaver])
   return { push: autosaver.push.bind(autosaver), flush: () => autosaver.flush(), status, savedAt }
 }

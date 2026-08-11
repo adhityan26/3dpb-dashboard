@@ -27,6 +27,7 @@ export interface LgEditorShellProps {
   onTabChange: (tab: LgEditorTab) => void
   onGenerate: () => void
   generating: boolean
+  feedback?: string | null
   inspector: ReactNode
   canvas: ReactNode
   rail: ReactNode
@@ -67,6 +68,7 @@ export function LgEditorShell({
   onTabChange,
   onGenerate,
   generating,
+  feedback,
   inspector,
   canvas,
   rail,
@@ -91,6 +93,12 @@ export function LgEditorShell({
           </Button>
         </div>
       </div>
+
+      {feedback && (
+        <div className="rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          {feedback}
+        </div>
+      )}
 
       {/* Main grid: rail | center (tabs + canvas) | inspector */}
       <div className="grid gap-4 lg:grid-cols-[260px_minmax(0,1fr)_340px]">

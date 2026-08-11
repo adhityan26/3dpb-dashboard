@@ -32,7 +32,7 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
 
   const [config, setConfig] = useState<Record<string, unknown> | null>(null)
   const [activeTab, setActiveTab] = useState<LgEditorTab>("shadow")
-  const [initialPreviewFired, setInitialPreviewFired] = useState(false)
+  const [feedback, setFeedback] = useState<string | null>(null)
 
   // Merge customer + operator config once the order loads, and fire the
   // first preview request so the canvas isn't empty on load.
@@ -45,10 +45,7 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
     })()
     const merged = { ...customerConfig, ...(operatorConfig ?? {}) }
     setConfig(merged)
-    if (!initialPreviewFired) {
-      preview.request(merged)
-      setInitialPreviewFired(true)
-    }
+    preview.request(merged)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order])
 
@@ -78,10 +75,22 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
     : null
 
   async function handleGenerate() {
-    // Server hashes the SAVED config (configJsonOperator), so we must flush
-    // the autosave first — otherwise an unflushed edit leaves a stale badge
-    // even right after a successful generate.
+    // Server hashes the SAVED config (configJsonOperator), so saved must
+    // equal hashed at generate time. On a v1-era order the page can be
+    // opened with zero edits — no push ever happened, so `flush()` alone has
+    // nothing pending and configJsonOperator can still be stale/null,
+    // producing a permanent stale badge after generate. Pushing the current
+    // merged config right before flushing guarantees there is always a
+    // pending save that matches exactly what the client hashes; push+flush
+    // collapses to a single immediate PATCH (push sets `pending`, flush
+    // cancels the debounce timer and runs immediately).
+    autosave.push(effectiveConfig)
     await autosave.flush()
+    if (autosave.status === "error") {
+      setFeedback("Gagal menyimpan config — perbaiki dulu sebelum generate")
+      return
+    }
+    setFeedback(null)
     await generateStl.mutateAsync()
     await refetch()
   }
@@ -105,6 +114,7 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
         onTabChange={setActiveTab}
         onGenerate={handleGenerate}
         generating={generateStl.isPending}
+        feedback={feedback}
         canvas={
           activeTab === "shadow" ? (
             <LgCanvas2D pngUrl={preview.pngUrl} loading={preview.status === "loading"} />

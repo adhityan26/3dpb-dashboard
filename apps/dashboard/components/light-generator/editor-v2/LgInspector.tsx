@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
@@ -26,7 +26,7 @@ import {
   SHAPE_OPTIONS,
   type ParamDef,
 } from "../config-params"
-import { filterSections } from "./filter-params"
+import { filterSections, coerceParamValue } from "./filter-params"
 
 interface LgInspectorProps {
   config: Record<string, unknown>
@@ -48,6 +48,19 @@ export function LgInspector({ config, onChange }: LgInspectorProps) {
   const [query, setQuery] = useState("")
   const [jsonDraft, setJsonDraft] = useState(() => JSON.stringify(config, null, 2))
   const [jsonError, setJsonError] = useState<string | null>(null)
+  // Invariant: slider/field edits made elsewhere in the inspector must never
+  // be reverted by clicking "Apply" on the Raw JSON textarea. `jsonDraft`
+  // resyncs from `config` on every external change UNLESS the user has
+  // typed into the textarea since the last sync (jsonDirty) — in that case
+  // their in-progress edit wins until they explicitly Apply (which clears
+  // the flag) or the JSON errors out.
+  const jsonDirty = useRef(false)
+
+  useEffect(() => {
+    if (jsonDirty.current) return
+    setJsonDraft(JSON.stringify(config, null, 2))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [config])
 
   const coverType = config.cover_type === "top" ? "top" : "bottom"
   const shape = parseShape(config.flooring_shape)
@@ -63,8 +76,17 @@ export function LgInspector({ config, onChange }: LgInspectorProps) {
     return !!config[key]
   }
 
-  function setValue(key: string, value: unknown) {
-    onChange({ ...config, [key]: value })
+  // Centralized field-edit handler: coerces numeric inputs (empty string ->
+  // key removed so the generator default applies; non-numeric -> ignored)
+  // and passes booleans/strings straight through.
+  function setValue(key: string, raw: unknown, type: "number" | "boolean" | "string" = "string") {
+    if (type === "string") {
+      onChange({ ...config, [key]: raw })
+      return
+    }
+    const next = coerceParamValue(config, key, raw, type)
+    if (next === null) return
+    onChange(next)
   }
 
   function setShape(base: string, w: string, h: string) {
@@ -81,7 +103,7 @@ export function LgInspector({ config, onChange }: LgInspectorProps) {
             <Label className="text-sm">{p.label}</Label>
             <p className="text-muted-foreground text-[11px]">{p.help}</p>
           </div>
-          <Switch checked={getBool(p.key)} onCheckedChange={(checked) => setValue(p.key, checked)} />
+          <Switch checked={getBool(p.key)} onCheckedChange={(checked) => setValue(p.key, checked, "boolean")} />
         </div>
       )
     }
@@ -98,7 +120,7 @@ export function LgInspector({ config, onChange }: LgInspectorProps) {
           step={p.step}
           onValueChange={(val) => {
             const v = Array.isArray(val) ? val[0] : (val as number)
-            if (v !== undefined) setValue(p.key, v)
+            if (v !== undefined) setValue(p.key, v, "number")
           }}
         />
         <div className="flex items-center gap-2">
@@ -108,7 +130,7 @@ export function LgInspector({ config, onChange }: LgInspectorProps) {
             min={p.min}
             max={p.max}
             step={p.step}
-            onChange={(e) => setValue(p.key, e.currentTarget.value)}
+            onChange={(e) => setValue(p.key, e.currentTarget.value, "number")}
             className="h-8 w-24 text-sm"
           />
           <p className="text-muted-foreground text-[11px] flex-1">{p.help}</p>
@@ -140,6 +162,7 @@ export function LgInspector({ config, onChange }: LgInspectorProps) {
     const incoming = parsed as Record<string, unknown>
     onChange({ ...config, ...incoming })
     setJsonError(null)
+    jsonDirty.current = false
   }
 
   return (
@@ -234,14 +257,14 @@ export function LgInspector({ config, onChange }: LgInspectorProps) {
                   <Label className="text-sm">Invert shadow</Label>
                   <p className="text-muted-foreground text-[11px]">Swap solid/hole regions of the silhouette</p>
                 </div>
-                <Switch checked={getBool("invert_mask")} onCheckedChange={(c) => setValue("invert_mask", c)} />
+                <Switch checked={getBool("invert_mask")} onCheckedChange={(c) => setValue("invert_mask", c, "boolean")} />
               </div>
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <Label className="text-sm">Bottom frame</Label>
                   <p className="text-muted-foreground text-[11px]">Solid band at the wall base that catches islands near the bottom</p>
                 </div>
-                <Switch checked={getBool("bottom_frame")} onCheckedChange={(c) => setValue("bottom_frame", c)} />
+                <Switch checked={getBool("bottom_frame")} onCheckedChange={(c) => setValue("bottom_frame", c, "boolean")} />
               </div>
               {getBool("bottom_frame") && (
                 <div className="space-y-2">
@@ -256,7 +279,7 @@ export function LgInspector({ config, onChange }: LgInspectorProps) {
                     step={0.5}
                     onValueChange={(val) => {
                       const v = Array.isArray(val) ? val[0] : (val as number)
-                      if (v !== undefined) setValue("bottom_frame_height", v)
+                      if (v !== undefined) setValue("bottom_frame_height", v, "number")
                     }}
                   />
                   <Input
@@ -265,7 +288,7 @@ export function LgInspector({ config, onChange }: LgInspectorProps) {
                     min={1}
                     max={30}
                     step={0.5}
-                    onChange={(e) => setValue("bottom_frame_height", e.currentTarget.value)}
+                    onChange={(e) => setValue("bottom_frame_height", e.currentTarget.value, "number")}
                     className="h-8 w-24 text-sm"
                   />
                 </div>
@@ -302,7 +325,7 @@ export function LgInspector({ config, onChange }: LgInspectorProps) {
             <div className="space-y-2">
               <textarea
                 value={jsonDraft}
-                onChange={(e) => { setJsonDraft(e.currentTarget.value); setJsonError(null) }}
+                onChange={(e) => { jsonDirty.current = true; setJsonDraft(e.currentTarget.value); setJsonError(null) }}
                 spellCheck={false}
                 rows={Math.min(24, jsonDraft.split("\n").length + 1)}
                 className="bg-muted w-full resize-y overflow-auto rounded-lg p-3 font-mono text-xs"

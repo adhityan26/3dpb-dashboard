@@ -43,4 +43,26 @@ describe('createAutosaver', () => {
     expect(save).toHaveBeenCalledWith({ v: 1 })
     vi.useRealTimers()
   })
+  it('push then flush immediately saves the pushed value exactly once (I1 hash contract)', async () => {
+    vi.useFakeTimers()
+    const save = vi.fn().mockResolvedValue(undefined)
+    const a = createAutosaver(save, 1000)
+    // Simulates handleGenerate: push the current merged config right before
+    // flushing, even with no prior pending edit — this is what guarantees
+    // configJsonOperator equals the object the client hashes.
+    a.push({ merged: true })
+    const status = await a.flush()
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(save).toHaveBeenCalledWith({ merged: true })
+    expect(status).toBe('saved')
+    vi.useRealTimers()
+  })
+  it('flush resolves to "error" status when save rejects', async () => {
+    vi.useFakeTimers()
+    const a = createAutosaver(async () => { throw new Error('x') }, 1000)
+    a.push({ v: 1 })
+    const status = await a.flush()
+    expect(status).toBe('error')
+    vi.useRealTimers()
+  })
 })

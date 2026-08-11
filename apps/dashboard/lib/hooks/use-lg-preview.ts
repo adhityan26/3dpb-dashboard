@@ -40,8 +40,8 @@ export function createPreviewRunner(
       if (timer) clearTimeout(timer)
       timer = setTimeout(() => run(config), delayMs)
     },
-    onResult(cb: (r: PreviewResult) => void) { resultCbs.add(cb) },
-    onError(cb: (e: unknown) => void) { errorCbs.add(cb) },
+    onResult(cb: (r: PreviewResult) => void) { resultCbs.add(cb); return () => resultCbs.delete(cb) },
+    onError(cb: (e: unknown) => void) { errorCbs.add(cb); return () => errorCbs.delete(cb) },
     dispose() { if (timer) clearTimeout(timer); controller?.abort() },
   }
 }
@@ -52,6 +52,7 @@ export function useLgPreview(orderId: string) {
   const [latencyMs, setLatencyMs] = useState<number | null>(null)
   const [islands, setIslands] = useState<{ hasFloating: boolean } | null>(null)
   const lastConfig = useRef<Record<string, unknown> | null>(null)
+  const lastUrl = useRef<string | null>(null)
 
   const runner = useMemo(() => createPreviewRunner(async (config, signal) => {
     const res = await fetch(`/api/light-generator/orders/${orderId}/preview`, {
@@ -65,8 +66,9 @@ export function useLgPreview(orderId: string) {
   }, 500), [orderId])
 
   useEffect(() => {
-    runner.onResult(async ({ url, latencyMs }) => {
+    const unsubResult = runner.onResult(async ({ url, latencyMs }) => {
       setPngUrl(prev => { if (prev) URL.revokeObjectURL(prev); return url })
+      lastUrl.current = url
       setLatencyMs(latencyMs)
       setStatus("ready")
       // Chained island check with the same config (fire-and-forget)
@@ -82,8 +84,15 @@ export function useLgPreview(orderId: string) {
         }
       } catch { /* island check is advisory */ }
     })
-    runner.onError(() => setStatus("error"))
-    return () => runner.dispose()
+    const unsubError = runner.onError(() => setStatus("error"))
+    return () => {
+      unsubResult()
+      unsubError()
+      runner.dispose()
+      // Revoke the last object URL so it doesn't leak once this hook's
+      // consumer unmounts (e.g. navigating away from the editor).
+      if (lastUrl.current) { URL.revokeObjectURL(lastUrl.current); lastUrl.current = null }
+    }
   }, [runner, orderId])
 
   return {
