@@ -273,6 +273,23 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
                 <p><span className="text-muted-foreground">Contact:</span> {order.customerContact}</p>
               </CardContent>
             </Card>
+            {/* Object info — same numbers v1's LgGeneratePanel shows, fed by
+                the shared computeObjectInfo (live, updates with every edit). */}
+            {estimateRaw && (
+              <Card>
+                <CardHeader><CardTitle className="text-sm">Object</CardTitle></CardHeader>
+                <CardContent className="space-y-1 text-xs">
+                  <p><span className="text-muted-foreground">Casing footprint:</span> {estimateRaw.casingDimDesc}</p>
+                  <p><span className="text-muted-foreground">Shell height:</span> {estimateRaw.shellHeight} mm{estimateRaw.isAuto ? " (auto)" : ""}</p>
+                  <p><span className="text-muted-foreground">Total print height:</span> {estimateRaw.totalHeight} mm</p>
+                  <p><span className="text-muted-foreground">Light Z offset:</span> {estimateRaw.lightZOffset} mm above wall</p>
+                  <p><span className="text-muted-foreground">Light Z from floor:</span> {estimateRaw.lightZAbsolute} mm</p>
+                  <p><span className="text-muted-foreground">Shadow floor size:</span> {estimateRaw.shadowDesc}</p>
+                  <p><span className="text-muted-foreground">PLA+ estimate:</span> ~{estimateRaw.filamentG} g</p>
+                  <p className="text-muted-foreground text-[10px]">50% wall fill assumed — actual varies by silhouette</p>
+                </CardContent>
+              </Card>
+            )}
             <div className="grid grid-cols-2 gap-2">
               <LgImageSlot orderId={id} label="Silhouette" type="silhouette" hasImage={!!order.imagePath} />
               <LgImageSlot orderId={id} label="Floor Insert" type="additional" hasImage={!!order.additionalImagePath} />
