@@ -14,4 +14,21 @@ describe("LgInspector", () => {
     expect(html).toContain("Recess radius")
     expect(html).not.toContain("Pillar outer radius")
   })
+  it("custom shape + hasFlooringImage shows the flooring upload control", () => {
+    const html = renderToStaticMarkup(
+      <LgInspector
+        config={{ flooring_shape: "custom" }}
+        onChange={() => {}}
+        orderId="LG-1"
+        hasFlooringImage={true}
+      />,
+    )
+    expect(html).toContain("gambar flooring tersedia")
+    expect(html).toContain('type="file"')
+  })
+  it("custom shape without hasFlooringImage shows the missing-image warning, no orderId means no file input", () => {
+    const html = renderToStaticMarkup(<LgInspector config={{ flooring_shape: "custom" }} onChange={() => {}} />)
+    expect(html).toContain("Belum ada gambar flooring")
+    expect(html).not.toContain('type="file"')
+  })
 })

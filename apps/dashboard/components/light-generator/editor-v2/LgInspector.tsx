@@ -31,6 +31,10 @@ import { filterSections, coerceParamValue, shouldWarnJsonApply } from "./filter-
 interface LgInspectorProps {
   config: Record<string, unknown>
   onChange: (next: Record<string, unknown>) => void
+  /** Order id — needed to PUT the floor-insert image for custom shapes. Optional so existing callers/tests are unaffected. */
+  orderId?: string
+  /** Whether the order already has a floor-insert image (order.additionalImagePath). */
+  hasFlooringImage?: boolean
 }
 
 function parseShape(raw: unknown): { base: string; w: string; h: string } {
@@ -44,8 +48,35 @@ function parseShape(raw: unknown): { base: string; w: string; h: string } {
   return { base: s || "circle", w: "3", h: "4" }
 }
 
-export function LgInspector({ config, onChange }: LgInspectorProps) {
+export function LgInspector({ config, onChange, orderId, hasFlooringImage = false }: LgInspectorProps) {
   const [query, setQuery] = useState("")
+  const [flooringUploaded, setFlooringUploaded] = useState(hasFlooringImage)
+  const [flooringUploadPending, setFlooringUploadPending] = useState(false)
+  const [flooringUploadError, setFlooringUploadError] = useState<string | null>(null)
+
+  async function handleFlooringImageUpload(file: File) {
+    if (!orderId) return
+    setFlooringUploadError(null)
+    setFlooringUploadPending(true)
+    try {
+      const form = new FormData()
+      form.append("file", file)
+      const res = await fetch(`/api/light-generator/orders/${orderId}/additional`, {
+        method: "PUT",
+        body: form,
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setFlooringUploadError(body.error ?? res.statusText)
+        return
+      }
+      setFlooringUploaded(true)
+    } catch (err) {
+      setFlooringUploadError(String(err))
+    } finally {
+      setFlooringUploadPending(false)
+    }
+  }
   const [jsonDraft, setJsonDraft] = useState(() => JSON.stringify(config, null, 2))
   const [jsonError, setJsonError] = useState<string | null>(null)
   // Invariant: slider/field edits made elsewhere in the inspector must never
@@ -253,9 +284,32 @@ export function LgInspector({ config, onChange }: LgInspectorProps) {
                 </div>
               )}
               {isCustomShape && (
-                <p className="text-muted-foreground text-[11px]">
-                  Hitam = footprint casing. Order customer dengan floor insert image sudah otomatis terisi.
-                </p>
+                <div className="space-y-2 pt-1">
+                  <p className="text-muted-foreground text-[11px]">
+                    Hitam = footprint casing. Order customer dengan floor insert image sudah otomatis terisi.
+                  </p>
+                  {flooringUploaded ? (
+                    <p className="text-xs text-green-600">✓ gambar flooring tersedia</p>
+                  ) : (
+                    <p className="text-xs text-amber-600">Belum ada gambar flooring untuk order ini</p>
+                  )}
+                  {orderId && (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="file"
+                        accept="image/png,image/jpeg"
+                        className="h-8 text-xs"
+                        disabled={flooringUploadPending}
+                        onChange={(e) => {
+                          const file = e.currentTarget.files?.[0]
+                          if (file) void handleFlooringImageUpload(file)
+                        }}
+                      />
+                    </div>
+                  )}
+                  {flooringUploadPending && <p className="text-muted-foreground text-[11px]">Mengupload...</p>}
+                  {flooringUploadError && <p className="text-xs text-red-500">❌ {flooringUploadError}</p>}
+                </div>
               )}
             </div>
           </AccordionContent>
