@@ -5,7 +5,26 @@ import {
   applyFloorResizeDrag,
   applyPaddingDrag,
   paddingPctToRadiusFraction,
+  overlayGeometry,
 } from "../canvas-math"
+
+describe("overlayGeometry", () => {
+  it("square container: size = side length, no offset", () => {
+    expect(overlayGeometry(500, 500)).toEqual({ size: 500, offsetX: 0, offsetY: 0 })
+  })
+
+  it("wide container: size = height, centered horizontally", () => {
+    expect(overlayGeometry(800, 500)).toEqual({ size: 500, offsetX: 150, offsetY: 0 })
+  })
+
+  it("tall container: size = width, centered vertically", () => {
+    expect(overlayGeometry(500, 900)).toEqual({ size: 500, offsetX: 0, offsetY: 200 })
+  })
+
+  it("zero-size container clamps to zero instead of negative", () => {
+    expect(overlayGeometry(0, 0)).toEqual({ size: 0, offsetX: 0, offsetY: 0 })
+  })
+})
 
 describe("pxToMm", () => {
   it("maps px to mm linearly using image width = 2*floorHalf mm", () => {

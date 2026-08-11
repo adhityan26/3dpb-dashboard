@@ -100,6 +100,25 @@ export function paddingPctToRadiusFraction(pct: number): number {
   return 1 / (1 + (2 * p) / 100)
 }
 
+/**
+ * The overlay SVG + pointer math must operate on the actual rendered image
+ * square, not the (possibly non-square) outer container — the container can
+ * be wider or taller than the image due to `object-contain` letterboxing in
+ * roomier grid layouts. Given the outer box size, returns the side length of
+ * the largest centered square that fits, plus its offset within the box.
+ */
+export function overlayGeometry(
+  containerW: number,
+  containerH: number,
+): { size: number; offsetX: number; offsetY: number } {
+  const size = Math.max(0, Math.min(containerW, containerH))
+  return {
+    size,
+    offsetX: (containerW - size) / 2,
+    offsetY: (containerH - size) / 2,
+  }
+}
+
 function radiusFractionToPaddingPct(f: number): number {
   if (f <= 0) return 100
   const pct = (50 * (1 - f)) / f

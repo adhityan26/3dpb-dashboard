@@ -1,11 +1,12 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useEffect, useRef, useState } from "react"
 import {
   applyOffsetDrag,
   applyFloorResizeDrag,
   applyPaddingDrag,
   paddingPctToRadiusFraction,
+  overlayGeometry,
 } from "./canvas-math"
 
 interface LgCanvas2DProps {
@@ -39,36 +40,64 @@ interface DragState {
  */
 export function LgCanvas2D({ pngUrl, loading, config, onConfigChange }: LgCanvas2DProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
+  // The wrapper is the actual rendered image square (object-contain can
+  // letterbox inside a non-square container in the wide grid layout) — all
+  // pointer math and overlay rendering must use ITS rect, not the outer
+  // container's, or every px<->mm mapping and ring radius drifts whenever
+  // the container's aspect ratio isn't 1:1.
+  const wrapRef = useRef<HTMLDivElement | null>(null)
+  const [wrapSize, setWrapSize] = useState(0)
   const [drag, setDrag] = useState<DragState | null>(null)
+  // Guards a single gesture against applying more than once: pointerup can
+  // fire after pointercancel in some browsers, or a stray move/up could race
+  // a just-cleared drag state. Once a gesture has applied, it's done.
+  const appliedRef = useRef(false)
 
   const cfg = config ?? {}
   const autoFit = !!cfg.auto_fit_mask
   const paddingPct = Number(cfg.mask_padding_pct) || 0
   const floorHalf = Number(cfg.floor_half_size) || 600
 
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const measure = () => {
+      const rect = el.getBoundingClientRect()
+      const { size } = overlayGeometry(rect.width, rect.height)
+      setWrapSize(size)
+    }
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
   function getImgPx(): number {
-    return containerRef.current?.getBoundingClientRect().width ?? 0
+    return wrapRef.current?.getBoundingClientRect().width ?? 0
   }
 
   function getCenter(): { cx: number; cy: number } {
-    const rect = containerRef.current?.getBoundingClientRect()
+    const rect = wrapRef.current?.getBoundingClientRect()
     if (!rect) return { cx: 0, cy: 0 }
     return { cx: rect.left + rect.width / 2, cy: rect.top + rect.height / 2 }
   }
 
   function startBodyDrag(e: React.PointerEvent) {
-    if (!onConfigChange) return
+    if (!onConfigChange || drag) return
+    e.stopPropagation()
     e.currentTarget.setPointerCapture(e.pointerId)
+    appliedRef.current = false
     setDrag({ kind: "body", startX: e.clientX, startY: e.clientY, liveDxPx: 0, liveDyPx: 0, liveRadiusPx: 0 })
   }
 
   function startRingDrag(kind: "floor" | "padding") {
     return (e: React.PointerEvent) => {
-      if (!onConfigChange) return
+      if (!onConfigChange || drag) return
       e.stopPropagation()
       e.currentTarget.setPointerCapture(e.pointerId)
       const { cx, cy } = getCenter()
       const r = Math.hypot(e.clientX - cx, e.clientY - cy)
+      appliedRef.current = false
       setDrag({ kind, startX: e.clientX, startY: e.clientY, liveDxPx: 0, liveDyPx: 0, liveRadiusPx: r })
     }
   }
@@ -85,19 +114,27 @@ export function LgCanvas2D({ pngUrl, loading, config, onConfigChange }: LgCanvas
   }
 
   function handlePointerUp() {
-    if (!drag || !onConfigChange) {
+    if (!drag || !onConfigChange || appliedRef.current) {
       setDrag(null)
       return
     }
+    appliedRef.current = true
     const imgPx = getImgPx()
-    if (drag.kind === "body") {
-      if (drag.liveDxPx !== 0 || drag.liveDyPx !== 0) {
-        onConfigChange(applyOffsetDrag(cfg, drag.liveDxPx, drag.liveDyPx, imgPx))
-      }
-    } else if (drag.kind === "floor") {
-      onConfigChange(applyFloorResizeDrag(cfg, drag.liveRadiusPx, imgPx))
-    } else if (drag.kind === "padding") {
-      onConfigChange(applyPaddingDrag(cfg, drag.liveRadiusPx, imgPx))
+    // Exactly one applier per gesture, writing only its own config keys —
+    // this switch is the single source of truth for "which mode is active",
+    // so a gesture can never touch more than one of offset/floor/padding.
+    switch (drag.kind) {
+      case "body":
+        if (drag.liveDxPx !== 0 || drag.liveDyPx !== 0) {
+          onConfigChange(applyOffsetDrag(cfg, drag.liveDxPx, drag.liveDyPx, imgPx))
+        }
+        break
+      case "floor":
+        onConfigChange(applyFloorResizeDrag(cfg, drag.liveRadiusPx, imgPx))
+        break
+      case "padding":
+        onConfigChange(applyPaddingDrag(cfg, drag.liveRadiusPx, imgPx))
+        break
     }
     setDrag(null)
   }
@@ -107,7 +144,10 @@ export function LgCanvas2D({ pngUrl, loading, config, onConfigChange }: LgCanvas
   }
 
   const interactive = !!onConfigChange
-  const imgPx = 400 // logical viewBox size; overlay scales via percentages so real px doesn't matter
+  // viewBox uses the wrapper's real measured px so ring radii computed from
+  // real pointer coordinates (getCenter/getImgPx above) map 1:1 onto the SVG
+  // — no separate "logical" unit space to drift out of sync with the DOM.
+  const imgPx = wrapSize
   const imgHalf = imgPx / 2
 
   const liveFloorRadius = drag?.kind === "floor" ? drag.liveRadiusPx : imgHalf
@@ -122,11 +162,21 @@ export function LgCanvas2D({ pngUrl, loading, config, onConfigChange }: LgCanvas
   return (
     <div
       ref={containerRef}
-      className="relative aspect-square w-full min-h-[60vh] overflow-hidden rounded-lg border bg-[#16181d] select-none"
-      onPointerMove={interactive ? handlePointerMove : undefined}
-      onPointerUp={interactive ? handlePointerUp : undefined}
-      onPointerCancel={interactive ? handlePointerUp : undefined}
+      className="relative flex w-full min-h-[60vh] items-center justify-center overflow-hidden rounded-lg border bg-[#16181d] select-none"
     >
+      {/* Square wrapper — the actual rendered image box (object-contain can
+          letterbox inside this container once it isn't square itself). The
+          overlay SVG and all pointer handlers below are scoped to THIS box,
+          not the outer container, so px<->mm math stays correct regardless
+          of the container's aspect ratio. */}
+      <div
+        ref={wrapRef}
+        className="relative"
+        style={wrapSize > 0 ? { width: wrapSize, height: wrapSize } : { width: "100%", height: "100%" }}
+        onPointerMove={interactive ? handlePointerMove : undefined}
+        onPointerUp={interactive ? handlePointerUp : undefined}
+        onPointerCancel={interactive ? handlePointerUp : undefined}
+      >
       {pngUrl ? (
         <img
           src={pngUrl}
@@ -149,7 +199,7 @@ export function LgCanvas2D({ pngUrl, loading, config, onConfigChange }: LgCanvas
       {interactive && pngUrl && (
         <svg
           className="pointer-events-none absolute inset-0 h-full w-full"
-          viewBox={`0 0 ${imgPx} ${imgPx}`}
+          viewBox={`0 0 ${imgPx || 1} ${imgPx || 1}`}
           data-testid="lg-canvas-overlay"
         >
           {/* Floor ring — hugs the image edge, one handle at top */}
@@ -241,6 +291,7 @@ export function LgCanvas2D({ pngUrl, loading, config, onConfigChange }: LgCanvas
           </span>
         </div>
       )}
+      </div>
     </div>
   )
 }
