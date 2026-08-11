@@ -27,6 +27,7 @@ import {
   type ParamDef,
 } from "../config-params"
 import { filterSections, coerceParamValue, shouldWarnJsonApply } from "./filter-params"
+import { removeStem, type UserStem } from "./wall-math"
 
 interface LgInspectorProps {
   config: Record<string, unknown>
@@ -182,9 +183,15 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
     (section) => !(coverType === "top" && section.title === "LED Pillar"),
   )
 
+  const userStems: UserStem[] = Array.isArray(config.user_stems) ? (config.user_stems as UserStem[]) : []
+
+  function deleteStem(id: string) {
+    onChange(removeStem(config, id))
+  }
+
   const allSectionValues = ["Casing Shape", "Cover", ...filteredSections.map((s) => s.title)]
   if (coverType === "top") allSectionValues.push("LED Recess")
-  allSectionValues.push("Raw JSON")
+  allSectionValues.push("Stems", "Raw JSON")
 
   function applyJsonDraft() {
     let parsed: unknown
@@ -399,6 +406,37 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
             </AccordionContent>
           </AccordionItem>
         )}
+
+        <AccordionItem value="Stems">
+          <AccordionTrigger>Stems</AccordionTrigger>
+          <AccordionContent>
+            <div className="space-y-2">
+              {userStems.length === 0 ? (
+                <p className="text-muted-foreground text-[11px]">
+                  Belum ada stem manual — tambahkan lewat tab Wall (θ,z).
+                </p>
+              ) : (
+                userStems.map((stem) => (
+                  <div key={stem.id} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="font-mono">
+                      θ {stem.theta_deg}° · z {stem.z_mm}mm
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 px-2"
+                      aria-label={`Hapus stem ${stem.id}`}
+                      onClick={() => deleteStem(stem.id)}
+                    >
+                      🗑
+                    </Button>
+                  </div>
+                ))
+              )}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
 
         <AccordionItem value="Raw JSON">
           <AccordionTrigger>Raw JSON</AccordionTrigger>

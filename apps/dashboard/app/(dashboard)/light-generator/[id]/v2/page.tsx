@@ -17,6 +17,7 @@ import { hashLgConfig } from "@/lib/light-generator/config-hash"
 import { computeObjectInfo } from "@/lib/light-generator/estimate"
 import { LgInspector } from "@/components/light-generator/editor-v2/LgInspector"
 import { LgCanvas2D } from "@/components/light-generator/editor-v2/LgCanvas2D"
+import { LgWallCanvas } from "@/components/light-generator/editor-v2/LgWallCanvas"
 import { LgEditorShell, type LgEditorTab } from "@/components/light-generator/editor-v2/LgEditorShell"
 import { LgImageSlot } from "@/components/light-generator/LgImageSlot"
 
@@ -29,6 +30,13 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
   const generateStl = useGenerateLgStl(id)
   const autosave = useLgAutosave(id)
   const preview = useLgPreview(id)
+  // Separate preview runner for the Wall tab — same debounced pipeline, but
+  // requesting preview_view: "wall" so the server returns the (theta,z)
+  // unwrap PNG instead of the floor-projected shadow. Kept as its own hook
+  // instance (own pngUrl/status/latency state) so switching tabs doesn't
+  // clobber the Shadow tab's preview, and only fired while the Wall tab is
+  // active to avoid doubling every preview request.
+  const wallPreview = useLgPreview(id)
 
   const [config, setConfig] = useState<Record<string, unknown> | null>(null)
   const [activeTab, setActiveTab] = useState<LgEditorTab>("shadow")
@@ -67,6 +75,16 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
     preview.request(merged)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order])
+
+  // Fire the Wall tab's own preview request whenever it's active and the
+  // config changes — mirrors the Shadow tab's request-on-change, just scoped
+  // to preview_view: "wall" and gated so it never fires while on another tab
+  // (config edits made elsewhere shouldn't burn a second preview render).
+  useEffect(() => {
+    if (activeTab !== "wall" || !config) return
+    wallPreview.request({ ...config, preview_view: "wall" })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, config])
 
   if (isLoading || !order) {
     return (
@@ -188,9 +206,26 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
                 </CardContent>
               </Card>
             </div>
+          ) : activeTab === "wall" ? (
+            <Card>
+              <CardHeader className="py-2">
+                <CardTitle className="text-sm">Wall (θ,z)</CardTitle>
+              </CardHeader>
+              <CardContent className="p-2">
+                <LgWallCanvas
+                  pngUrl={wallPreview.pngUrl}
+                  loading={wallPreview.status === "loading"}
+                  config={effectiveConfig}
+                  onConfigChange={handleConfigChange}
+                  islands={preview.islands?.list ?? []}
+                  error={wallPreview.status === "error"}
+                  onRetry={() => wallPreview.request({ ...effectiveConfig, preview_view: "wall" })}
+                />
+              </CardContent>
+            </Card>
           ) : (
             <Card>
-              <CardHeader><CardTitle>{activeTab === "wall" ? "Wall (θ,z)" : "3D"}</CardTitle></CardHeader>
+              <CardHeader><CardTitle>3D</CardTitle></CardHeader>
               <CardContent className="text-sm text-muted-foreground">
                 Segera — increment berikutnya
               </CardContent>

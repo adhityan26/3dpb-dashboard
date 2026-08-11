@@ -50,7 +50,10 @@ export function useLgPreview(orderId: string) {
   const [pngUrl, setPngUrl] = useState<string | null>(null)
   const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">("idle")
   const [latencyMs, setLatencyMs] = useState<number | null>(null)
-  const [islands, setIslands] = useState<{ hasFloating: boolean } | null>(null)
+  const [islands, setIslands] = useState<{
+    hasFloating: boolean
+    list: { theta_deg: number; z_mm: number }[]
+  } | null>(null)
   const lastConfig = useRef<Record<string, unknown> | null>(null)
   const lastUrl = useRef<string | null>(null)
 
@@ -80,7 +83,10 @@ export function useLgPreview(orderId: string) {
         })
         if (res.ok) {
           const j = await res.json()
-          setIslands({ hasFloating: !!(j.has_floating_islands ?? j.hasFloatingIslands) })
+          setIslands({
+            hasFloating: !!(j.has_floating_islands ?? j.hasFloatingIslands),
+            list: Array.isArray(j.islands) ? j.islands : [],
+          })
         }
       } catch { /* island check is advisory */ }
     })

@@ -31,4 +31,21 @@ describe("LgInspector", () => {
     expect(html).toContain("Belum ada gambar flooring")
     expect(html).not.toContain('type="file"')
   })
+  it("renders the Stems section with an empty-state hint when no user_stems", () => {
+    const html = renderToStaticMarkup(<LgInspector config={{}} onChange={() => {}} />)
+    expect(html).toContain("Stems")
+    expect(html).toContain("Belum ada stem manual")
+  })
+  it("renders a row per user_stems entry with theta/z and a trash button", () => {
+    const html = renderToStaticMarkup(
+      <LgInspector
+        config={{ user_stems: [{ id: "a", theta_deg: 12.5, z_mm: 30 }, { id: "b", theta_deg: 200, z_mm: 10 }] }}
+        onChange={() => {}}
+      />,
+    )
+    expect(html).toContain("θ 12.5° · z 30mm")
+    expect(html).toContain("θ 200° · z 10mm")
+    expect(html).toContain("Hapus stem a")
+    expect(html).toContain("Hapus stem b")
+  })
 })
