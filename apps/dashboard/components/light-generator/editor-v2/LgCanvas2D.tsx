@@ -1,12 +1,245 @@
 "use client"
-export function LgCanvas2D({ pngUrl, loading }: { pngUrl: string | null; loading: boolean }) {
+
+import { useRef, useState } from "react"
+import {
+  applyOffsetDrag,
+  applyFloorResizeDrag,
+  applyPaddingDrag,
+  paddingPctToRadiusFraction,
+} from "./canvas-math"
+
+interface LgCanvas2DProps {
+  pngUrl: string | null
+  loading: boolean
+  config?: Record<string, unknown>
+  onConfigChange?: (next: Record<string, unknown>) => void
+}
+
+type DragKind = "body" | "floor" | "padding" | null
+
+interface DragState {
+  kind: DragKind
+  startX: number
+  startY: number
+  // live values shown during drag, in screen px relative to image center
+  liveDxPx: number
+  liveDyPx: number
+  liveRadiusPx: number
+}
+
+/**
+ * Canvas Shadow tab — the PNG preview doubles as a direct-manipulation
+ * editor. Three hit targets layered over the image, no mode toggle:
+ *   - body drag (anywhere not on a handle) -> shadow_offset_x/y
+ *   - floor ring handle (top, at the image edge) -> floor_half_size
+ *   - padding ring handles (4 cardinal points, inner ring) -> mask_padding_pct
+ * All commits happen on pointerup via onConfigChange; drag-in-progress state
+ * stays local (optimistic CSS transform / live ring redraw) per the "no
+ * internal config copies" rule.
+ */
+export function LgCanvas2D({ pngUrl, loading, config, onConfigChange }: LgCanvas2DProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null)
+  const [drag, setDrag] = useState<DragState | null>(null)
+
+  const cfg = config ?? {}
+  const autoFit = !!cfg.auto_fit_mask
+  const paddingPct = Number(cfg.mask_padding_pct) || 0
+  const floorHalf = Number(cfg.floor_half_size) || 600
+
+  function getImgPx(): number {
+    return containerRef.current?.getBoundingClientRect().width ?? 0
+  }
+
+  function getCenter(): { cx: number; cy: number } {
+    const rect = containerRef.current?.getBoundingClientRect()
+    if (!rect) return { cx: 0, cy: 0 }
+    return { cx: rect.left + rect.width / 2, cy: rect.top + rect.height / 2 }
+  }
+
+  function startBodyDrag(e: React.PointerEvent) {
+    if (!onConfigChange) return
+    e.currentTarget.setPointerCapture(e.pointerId)
+    setDrag({ kind: "body", startX: e.clientX, startY: e.clientY, liveDxPx: 0, liveDyPx: 0, liveRadiusPx: 0 })
+  }
+
+  function startRingDrag(kind: "floor" | "padding") {
+    return (e: React.PointerEvent) => {
+      if (!onConfigChange) return
+      e.stopPropagation()
+      e.currentTarget.setPointerCapture(e.pointerId)
+      const { cx, cy } = getCenter()
+      const r = Math.hypot(e.clientX - cx, e.clientY - cy)
+      setDrag({ kind, startX: e.clientX, startY: e.clientY, liveDxPx: 0, liveDyPx: 0, liveRadiusPx: r })
+    }
+  }
+
+  function handlePointerMove(e: React.PointerEvent) {
+    if (!drag) return
+    if (drag.kind === "body") {
+      setDrag({ ...drag, liveDxPx: e.clientX - drag.startX, liveDyPx: e.clientY - drag.startY })
+    } else if (drag.kind === "floor" || drag.kind === "padding") {
+      const { cx, cy } = getCenter()
+      const r = Math.hypot(e.clientX - cx, e.clientY - cy)
+      setDrag({ ...drag, liveRadiusPx: r })
+    }
+  }
+
+  function handlePointerUp() {
+    if (!drag || !onConfigChange) {
+      setDrag(null)
+      return
+    }
+    const imgPx = getImgPx()
+    if (drag.kind === "body") {
+      if (drag.liveDxPx !== 0 || drag.liveDyPx !== 0) {
+        onConfigChange(applyOffsetDrag(cfg, drag.liveDxPx, drag.liveDyPx, imgPx))
+      }
+    } else if (drag.kind === "floor") {
+      onConfigChange(applyFloorResizeDrag(cfg, drag.liveRadiusPx, imgPx))
+    } else if (drag.kind === "padding") {
+      onConfigChange(applyPaddingDrag(cfg, drag.liveRadiusPx, imgPx))
+    }
+    setDrag(null)
+  }
+
+  function enableAutoFit() {
+    onConfigChange?.({ ...cfg, auto_fit_mask: true })
+  }
+
+  const interactive = !!onConfigChange
+  const imgPx = 400 // logical viewBox size; overlay scales via percentages so real px doesn't matter
+  const imgHalf = imgPx / 2
+
+  const liveFloorRadius = drag?.kind === "floor" ? drag.liveRadiusPx : imgHalf
+  const liveFloorPx = drag && drag.kind === "floor" ? liveFloorRadius : imgHalf
+  const restPaddingFraction = paddingPctToRadiusFraction(paddingPct)
+  const livePaddingRadius = drag?.kind === "padding" ? drag.liveRadiusPx : restPaddingFraction * imgHalf
+
+  const bodyTransform = drag?.kind === "body"
+    ? `translate(${drag.liveDxPx}px, ${drag.liveDyPx}px)`
+    : undefined
+
   return (
-    <div className="relative aspect-square w-full overflow-hidden rounded-lg border bg-[#16181d]">
-      {pngUrl
-        ? <img src={pngUrl} alt="Shadow preview" className={`h-full w-full object-contain ${loading ? "opacity-60" : ""}`} />
-        : <div className="flex h-full items-center justify-center text-sm text-muted-foreground">Belum ada preview — ubah parameter untuk memicu</div>}
+    <div
+      ref={containerRef}
+      className="relative aspect-square w-full min-h-[60vh] overflow-hidden rounded-lg border bg-[#16181d] select-none"
+      onPointerMove={interactive ? handlePointerMove : undefined}
+      onPointerUp={interactive ? handlePointerUp : undefined}
+      onPointerCancel={interactive ? handlePointerUp : undefined}
+    >
+      {pngUrl ? (
+        <img
+          src={pngUrl}
+          alt="Shadow preview"
+          className={`h-full w-full object-contain ${loading ? "opacity-60" : ""}`}
+          style={{ transform: bodyTransform, cursor: interactive ? "move" : undefined }}
+          draggable={false}
+          onPointerDown={interactive ? startBodyDrag : undefined}
+        />
+      ) : (
+        <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+          Belum ada preview — ubah parameter untuk memicu
+        </div>
+      )}
+
       {loading && (
         <span className="absolute right-2 top-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white">updating…</span>
+      )}
+
+      {interactive && pngUrl && (
+        <svg
+          className="pointer-events-none absolute inset-0 h-full w-full"
+          viewBox={`0 0 ${imgPx} ${imgPx}`}
+          data-testid="lg-canvas-overlay"
+        >
+          {/* Floor ring — hugs the image edge, one handle at top */}
+          <circle
+            cx={imgHalf}
+            cy={imgHalf}
+            r={liveFloorPx}
+            fill="none"
+            stroke="rgba(99,179,237,0.8)"
+            strokeDasharray="4 3"
+            strokeWidth={1.5}
+          />
+          <circle
+            data-testid="lg-floor-handle"
+            className="pointer-events-auto"
+            cx={imgHalf}
+            cy={imgHalf - liveFloorPx}
+            r={7}
+            fill="rgba(99,179,237,0.95)"
+            stroke="white"
+            strokeWidth={1}
+            style={{ cursor: "ns-resize" }}
+            onPointerDown={startRingDrag("floor")}
+          />
+
+          {/* Padding ring — inner circle, 4 cardinal handles, ghosted when auto */}
+          <circle
+            cx={imgHalf}
+            cy={imgHalf}
+            r={livePaddingRadius}
+            fill="none"
+            stroke="rgba(246,173,85,0.85)"
+            strokeWidth={1.5}
+            opacity={autoFit ? 0.5 : 1}
+            className={autoFit ? "" : "pointer-events-auto"}
+          />
+          {!autoFit && (
+            <>
+              {[
+                { x: imgHalf, y: imgHalf - livePaddingRadius },
+                { x: imgHalf, y: imgHalf + livePaddingRadius },
+                { x: imgHalf - livePaddingRadius, y: imgHalf },
+                { x: imgHalf + livePaddingRadius, y: imgHalf },
+              ].map((p, i) => (
+                <circle
+                  key={i}
+                  data-testid="lg-padding-handle"
+                  className="pointer-events-auto"
+                  cx={p.x}
+                  cy={p.y}
+                  r={6}
+                  fill="rgba(246,173,85,0.95)"
+                  stroke="white"
+                  strokeWidth={1}
+                  style={{ cursor: "nesw-resize" }}
+                  onPointerDown={startRingDrag("padding")}
+                />
+              ))}
+            </>
+          )}
+        </svg>
+      )}
+
+      {interactive && pngUrl && (
+        <div className="pointer-events-none absolute inset-0">
+          {drag?.kind === "body" && (
+            <span className="absolute left-2 bottom-2 pointer-events-none rounded bg-black/70 px-2 py-0.5 text-xs text-white">
+              Δx {Math.round(drag.liveDxPx)}px / Δy {Math.round(drag.liveDyPx)}px
+            </span>
+          )}
+          {drag?.kind !== "body" && (
+            <span className="absolute left-2 bottom-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
+              floor ⌀ {Math.round(floorHalf * 2 / 10)} cm
+            </span>
+          )}
+          <span className="pointer-events-auto absolute right-2 bottom-2 rounded bg-black/60 px-2 py-0.5 text-xs text-white">
+            {autoFit ? (
+              <button type="button" onClick={enableAutoFit} className="underline" disabled>
+                Auto
+              </button>
+            ) : (
+              <>
+                {paddingPct}%{" "}
+                <button type="button" onClick={enableAutoFit} className="underline">
+                  Auto
+                </button>
+              </>
+            )}
+          </span>
+        </div>
       )}
     </div>
   )
