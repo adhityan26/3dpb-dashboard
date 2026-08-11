@@ -88,3 +88,15 @@ Hasil konvergensi diskusi dua desainer eksternal (Kimi K3 × GLM 5.2, 2 ronde: p
 - Mobile layout (desktop-first, tablet = drawer).
 - Menghapus v1 (nunggu keputusan user).
 - Parametric 3D proxy yang merespons slider (dinilai over-engineering oleh kedua desainer).
+
+## Addendum 2026-08-11: Increment 3 direvisi — canvas direct-manipulation + layout lega
+
+Feedback user setelah mencoba inc 1-2: UI terasa pengap; preview harus jadi editor langsung.
+
+1. **Layout lega**: container v2 diperlebar (lebar penuh dengan padding, ~max 1700px), kolom canvas diprioritaskan; grid jadi `[240px | 1fr | 320px]` dan canvas mengisi tinggi viewport yang tersedia.
+2. **Canvas Shadow = editor drag**, semua overlay client-side di atas PNG (mapping px↔mm linear: lebar gambar = 2×`floor_half_size`, sumbu y layar terbalik):
+   - **Drag badan gambar** → `shadow_offset_x/y` (grab bayangan, geser; tooltip nilai mm live).
+   - **Ring floor** (lingkaran dashed di tepi area proyeksi + handle) → drag mengubah `floor_half_size` proporsional.
+   - **Ring padding** (lingkaran dalam + handle, desain inc-3 asli) → `mask_padding_pct`; auto-fit chip: drag handle memindah ke manual, tap chip balik ke auto.
+   - Semua drag: update config on-release (atau throttle ringan saat drag) → autosave + preview debounce pipeline existing; input angka inspector tetap sebagai kontrol presisi.
+3. Hit-target dibedakan tanpa mode toggle: handle ring (lingkaran kecil) vs area tengah (offset). Kursor menyesuaikan (move/ns-resize).
