@@ -134,6 +134,9 @@ docker run -d \
   -e BOT_API_TOKEN="${BOT_API_TOKEN:-}" \
   -e CYD_OTA_PASSWORD="${CYD_OTA_PASSWORD:-}" \
   -e INTERNAL_SERVICE_TOKEN="${INTERNAL_SERVICE_TOKEN:-}" \
+  -e GOPAY_LOGIN_BRIDGE_URL="${GOPAY_LOGIN_BRIDGE_URL:-}" \
+  -e GOPAY_LOGIN_BRIDGE_API_KEY="${GOPAY_LOGIN_BRIDGE_API_KEY:-}" \
+  -e GOPAY_GATEWAY_URL="${GOPAY_GATEWAY_URL:-}" \
   "$DEPLOY_IMAGE"
 
 # ── Health check ───────────────────────────────────────────────────────────────
