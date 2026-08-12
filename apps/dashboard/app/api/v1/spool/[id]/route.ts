@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { requireApiV1Token } from '@/lib/api-v1/auth'
 
 function spoolStatus(initialWeight: number | null, usedWeight: number): string {
   if (!initialWeight || initialWeight === 0) return 'new'
@@ -71,9 +72,10 @@ function toSpoolResponse(s: {
 
 // GET /api/v1/spool/{id} — fetch single spool
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!requireApiV1Token(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   const spoolId = parseInt(id, 10)
   if (isNaN(spoolId)) {
@@ -96,6 +98,7 @@ export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  if (!requireApiV1Token(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { id } = await params
   const spoolId = parseInt(id, 10)
   if (isNaN(spoolId)) {

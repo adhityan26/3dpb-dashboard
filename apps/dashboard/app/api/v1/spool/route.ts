@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { requireApiV1Token } from '@/lib/api-v1/auth'
 
 function toResponse(s: {
   id: number; lotNr: string | null; initialWeight: number | null; usedWeight: number
@@ -65,6 +66,7 @@ function spoolStatus(initialWeight: number | null, usedWeight: number): string {
 
 // GET /api/v1/spool?lot_nr={lotNr}
 export async function GET(req: NextRequest) {
+  if (!requireApiV1Token(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const lotNr = req.nextUrl.searchParams.get('lot_nr')
   const spools = await prisma.spoolmanSpool.findMany({
     where: lotNr ? { lotNr } : undefined,
@@ -76,6 +78,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/v1/spool — create new spool, also create Spool in our system
 export async function POST(req: NextRequest) {
+  if (!requireApiV1Token(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json()
 
   const filament = await prisma.spoolmanFilament.findUnique({
