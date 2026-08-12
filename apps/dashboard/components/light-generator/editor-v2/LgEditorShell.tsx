@@ -217,11 +217,15 @@ export function LgEditorShell({
               {generating ? `Generating… ${elapsed}` : "Generate STL"}
             </Button>
             {stlDownloadUrl && (
-              <Button asChild size="sm" variant="outline" className="mt-2 w-full">
-                <a href={stlDownloadUrl} download>
-                  Download STL
-                </a>
-              </Button>
+              // Plain anchor styled like an outline button — this repo's Button
+              // doesn't support asChild, and a download link should be a real <a>.
+              <a
+                href={stlDownloadUrl}
+                download
+                className="mt-2 inline-flex h-8 w-full items-center justify-center rounded-md border border-input bg-transparent px-3 text-xs font-medium shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+              >
+                Download STL
+              </a>
             )}
           </div>
         </div>
