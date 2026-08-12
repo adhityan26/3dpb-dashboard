@@ -19,8 +19,12 @@ const CATALOG: FilamentCatalogEntry[] = [
 
 describe('resolveFilamentToCatalog — word-boundary color matching', () => {
   it('"Esun Cored" TIDAK match entri colorName "Red" (substring "red" di dalam "Cored")', () => {
-    const result = resolveFilamentToCatalog('Esun Cored', CATALOG)
-    expect(result?.colorName).toBe('Cored')
+    // Catalog WITHOUT 'Cored' entry — forces query to partial-match phase where bug manifests
+    const catalog: FilamentCatalogEntry[] = [entry('eSUN', 'Red'), entry('eSUN', 'Blue')]
+    const result = resolveFilamentToCatalog('Esun Cored', catalog)
+    // With old code: would return Red (bug: "cored".includes("red") === true)
+    // With new code: returns null (correct: no word-boundary match for "red" in "cored")
+    expect(result).toBeNull()
   })
 
   it('exact match colorName tetap jalan', () => {
