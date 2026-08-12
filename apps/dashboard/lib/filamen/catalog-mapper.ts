@@ -57,7 +57,7 @@ export function resolveFilamentToCatalog(
   const partials = byBrand.filter((e) => {
     const colorNameLower = e.colorName.toLowerCase()
     if (colorNameLower.includes(q)) return true
-    const boundaryPattern = new RegExp(`(^|\\s)${escapeRegExp(colorNameLower)}($|\\s)`)
+    const boundaryPattern = new RegExp(`(^|[^a-z0-9])${escapeRegExp(colorNameLower)}($|[^a-z0-9])`)
     return boundaryPattern.test(q)
   })
   if (partials.length === 1) return partials[0]

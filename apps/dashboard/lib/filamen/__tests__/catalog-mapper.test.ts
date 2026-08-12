@@ -43,4 +43,16 @@ describe('resolveFilamentToCatalog — word-boundary color matching', () => {
     const result = resolveFilamentToCatalog('Esun Dark Blue', catalog)
     expect(result?.colorName).toBe('Blue')
   })
+
+  it('nama warna dipisah tanda baca (bukan whitespace) tetap match — "red-wine" harus match colorName "Red"', () => {
+    const catalog: FilamentCatalogEntry[] = [entry('eSUN', 'Red')]
+    const result = resolveFilamentToCatalog('Esun red-wine', catalog)
+    expect(result?.colorName).toBe('Red')
+  })
+
+  it('colorName dengan karakter spesial regex (mis. "Black+") tetap match — escapeRegExp benar-benar dipakai', () => {
+    const catalog: FilamentCatalogEntry[] = [entry('eSUN', 'Black+')]
+    const result = resolveFilamentToCatalog('Esun Black+ matte', catalog)
+    expect(result?.colorName).toBe('Black+')
+  })
 })
