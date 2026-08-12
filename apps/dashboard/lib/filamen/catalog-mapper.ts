@@ -1,5 +1,9 @@
 import type { FilamentCatalogEntry } from './types'
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
 // Brand prefix → matcher function
 const BRAND_MATCHERS: Array<{ prefixes: string[]; match: (brand: string) => boolean }> = [
   { prefixes: ['esun', 'esun'], match: (b) => /esun/i.test(b) },
@@ -47,10 +51,15 @@ export function resolveFilamentToCatalog(
   const exact = byBrand.find((e) => e.colorName.toLowerCase() === q)
   if (exact) return exact
 
-  // Partial: colorName contains query OR query contains colorName
-  const partials = byBrand.filter(
-    (e) => e.colorName.toLowerCase().includes(q) || q.includes(e.colorName.toLowerCase())
-  )
+  // Partial: colorName contains query, OR colorName appears as a whole word/phrase
+  // inside query (NOT an unbounded substring — "Cored" must not match colorName "Red"
+  // just because "cored".includes("red") is true).
+  const partials = byBrand.filter((e) => {
+    const colorNameLower = e.colorName.toLowerCase()
+    if (colorNameLower.includes(q)) return true
+    const boundaryPattern = new RegExp(`(^|\\s)${escapeRegExp(colorNameLower)}($|\\s)`)
+    return boundaryPattern.test(q)
+  })
   if (partials.length === 1) return partials[0]
   if (partials.length > 1) {
     // Prefer shorter colorName (more specific match)
