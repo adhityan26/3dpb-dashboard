@@ -112,8 +112,8 @@ export function LgEditorShell({
     <div className="space-y-4">
       {/* Top bar */}
       <div className="flex flex-wrap items-center gap-3">
-        <Link href={`/light-generator/${orderId}`} className="text-xs text-muted-foreground underline">
-          ← v1
+        <Link href={`/light-generator/${orderId}/v1`} className="text-xs text-muted-foreground underline">
+          Buka di v1
         </Link>
         <nav className="flex items-center gap-1 text-sm text-muted-foreground">
           <span>Orders</span>
