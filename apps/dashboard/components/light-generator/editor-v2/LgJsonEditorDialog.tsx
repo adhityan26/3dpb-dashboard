@@ -10,20 +10,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { shouldWarnJsonApply } from "./filter-params"
-// vanilla-jsoneditor ships its default theme as inline/adopted stylesheets
-// inside index.js itself — there is no separate default-theme .css file to
-// import (only an optional jse-theme-dark.css override, unused here).
-
-// vanilla-jsoneditor's JSONEditor touches `document` at import time, so it
-// must never be pulled into the SSR bundle. Loaded client-only inside a
-// useEffect (next/dynamic isn't a good fit here since this isn't a React
-// component — it's an imperative widget mounted into a plain div ref).
-type JsonEditorInstance = {
-  set: (content: { json?: unknown; text?: string }) => void
-  get: () => { json?: unknown; text?: string }
-  destroy: () => void
-  updateProps: (props: Record<string, unknown>) => void
-}
 
 interface LgJsonEditorDialogProps {
   open: boolean
@@ -34,90 +20,91 @@ interface LgJsonEditorDialogProps {
 
 /**
  * Raw JSON editing, moved out of the always-visible accordion into an
- * on-demand Dialog (2026-08-12 polish addendum item 7). Uses
- * vanilla-jsoneditor (tree + text modes) instead of a bare textarea.
- * Ports the same shouldWarnJsonApply guard the old inline textarea used —
- * Apply is blocked with a warning (then allowed on a second click) if the
- * config changed elsewhere while this dialog was open.
+ * on-demand Dialog (2026-08-12 polish addendum item 7).
+ *
+ * Implementation note: this was originally built on vanilla-jsoneditor
+ * (tree + text modes), but its dynamic-import chunk never resolves under
+ * Next 16's Turbopack dev server (silent hang, no rejection) — so per the
+ * planned fallback it uses a monospace textarea with live JSON validation
+ * instead. Same guard semantics as the old inline editor: Apply is blocked
+ * with a warning (then allowed on a second click) if the config changed
+ * elsewhere while this dialog was open (shouldWarnJsonApply).
  */
 export function LgJsonEditorDialog({ open, onOpenChange, config, onApply }: LgJsonEditorDialogProps) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const editorRef = useRef<JsonEditorInstance | null>(null)
   const openSnapshot = useRef<string | null>(null)
+  const [draft, setDraft] = useState("")
   const [error, setError] = useState<string | null>(null)
   const [confirmOverwrite, setConfirmOverwrite] = useState(false)
 
+  // Seed the draft each time the dialog opens; while open, the draft is the
+  // user's — external config changes don't clobber it (the snapshot guard
+  // warns on Apply instead).
   useEffect(() => {
-    if (!open || !containerRef.current) return
-    let cancelled = false
-    let instance: JsonEditorInstance | null = null
+    if (!open) return
     openSnapshot.current = JSON.stringify(config)
+    setDraft(JSON.stringify(config, null, 2))
     setError(null)
     setConfirmOverwrite(false)
-    import("vanilla-jsoneditor").then(({ createJSONEditor }) => {
-      // The dialog content mounts via a portal AFTER `open` flips, so the
-      // container ref can still be null on the effect's first pass — retry on
-      // animation frames until it exists (or the dialog closed again).
-      const tryCreate = () => {
-        if (cancelled) return
-        if (!containerRef.current) {
-          requestAnimationFrame(tryCreate)
-          return
-        }
-        instance = createJSONEditor({
-          target: containerRef.current,
-          props: { content: { json: config } },
-        }) as unknown as JsonEditorInstance
-        editorRef.current = instance
-      }
-      tryCreate()
-    })
-    return () => {
-      cancelled = true
-      instance?.destroy()
-      editorRef.current = null
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
-  function handleApply() {
-    const editor = editorRef.current
-    if (!editor) return
-    let incoming: unknown
+  function validate(text: string): Record<string, unknown> | null {
     try {
-      const content = editor.get()
-      incoming = content.json !== undefined ? content.json : JSON.parse(content.text ?? "{}")
+      const parsed = JSON.parse(text)
+      if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+        setError("JSON must be an object { … }")
+        return null
+      }
+      setError(null)
+      return parsed as Record<string, unknown>
     } catch (err) {
       setError(`Invalid JSON: ${err instanceof Error ? err.message : String(err)}`)
-      return
+      return null
     }
-    if (incoming === null || typeof incoming !== "object" || Array.isArray(incoming)) {
-      setError("JSON must be an object { … }")
-      return
-    }
-    if (!confirmOverwrite && shouldWarnJsonApply(openSnapshot.current, JSON.stringify(config))) {
-      setError("Config changed since you opened this dialog — click Apply again to overwrite")
+  }
+
+  function handleApply() {
+    const incoming = validate(draft)
+    if (!incoming) return
+    if (
+      !confirmOverwrite &&
+      shouldWarnJsonApply(openSnapshot.current, JSON.stringify(config))
+    ) {
+      setError(
+        "Config changed elsewhere while this dialog was open — Apply again to overwrite, or Cancel to keep those changes.",
+      )
       setConfirmOverwrite(true)
       return
     }
-    onApply({ ...config, ...(incoming as Record<string, unknown>) })
+    onApply({ ...config, ...incoming })
     onOpenChange(false)
   }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
-        <DialogHeader>
+        <DialogHeader className="border-b border-border/50 pb-2">
           <DialogTitle>Edit raw JSON</DialogTitle>
         </DialogHeader>
-        <div ref={containerRef} className="lg-jsoneditor h-[60vh] min-h-[320px] overflow-hidden rounded-md border" />
-        {error && <p className="text-sm text-red-500">❌ {error}</p>}
+        <textarea
+          value={draft}
+          onChange={(e) => {
+            setDraft(e.currentTarget.value)
+            setError(null)
+            setConfirmOverwrite(false)
+          }}
+          spellCheck={false}
+          rows={22}
+          aria-label="Raw config JSON"
+          className="scrollbar-slim w-full resize-y rounded-md border bg-muted/40 p-3 font-mono text-xs leading-relaxed outline-none focus:ring-1 focus:ring-ring"
+        />
+        {error && <p className="text-sm text-red-500">{error}</p>}
         <DialogFooter>
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
           <Button size="sm" onClick={handleApply}>
-            {confirmOverwrite ? "Apply (overwrite)" : "Apply"}
+            Apply
           </Button>
         </DialogFooter>
       </DialogContent>
