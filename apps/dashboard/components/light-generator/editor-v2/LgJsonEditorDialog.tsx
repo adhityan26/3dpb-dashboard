@@ -55,12 +55,22 @@ export function LgJsonEditorDialog({ open, onOpenChange, config, onApply }: LgJs
     setError(null)
     setConfirmOverwrite(false)
     import("vanilla-jsoneditor").then(({ createJSONEditor }) => {
-      if (cancelled || !containerRef.current) return
-      instance = createJSONEditor({
-        target: containerRef.current,
-        props: { content: { json: config } },
-      }) as unknown as JsonEditorInstance
-      editorRef.current = instance
+      // The dialog content mounts via a portal AFTER `open` flips, so the
+      // container ref can still be null on the effect's first pass — retry on
+      // animation frames until it exists (or the dialog closed again).
+      const tryCreate = () => {
+        if (cancelled) return
+        if (!containerRef.current) {
+          requestAnimationFrame(tryCreate)
+          return
+        }
+        instance = createJSONEditor({
+          target: containerRef.current,
+          props: { content: { json: config } },
+        }) as unknown as JsonEditorInstance
+        editorRef.current = instance
+      }
+      tryCreate()
     })
     return () => {
       cancelled = true
