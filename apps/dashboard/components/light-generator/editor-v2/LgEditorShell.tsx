@@ -35,6 +35,8 @@ export interface LgEditorShellProps {
   activeTab: LgEditorTab
   onTabChange: (tab: LgEditorTab) => void
   onGenerate: () => void
+  /** Download URL of the last generated STL — renders a Download button when set. */
+  stlDownloadUrl?: string | null
   generating: boolean
   feedback?: string | null
   inspector: ReactNode
@@ -99,6 +101,7 @@ export function LgEditorShell({
   activeTab,
   onTabChange,
   onGenerate,
+  stlDownloadUrl,
   generating,
   feedback,
   inspector,
@@ -213,6 +216,13 @@ export function LgEditorShell({
             <Button size="sm" className="mt-2 w-full" disabled={generating} onClick={onGenerate}>
               {generating ? `Generating… ${elapsed}` : "Generate STL"}
             </Button>
+            {stlDownloadUrl && (
+              <Button asChild size="sm" variant="outline" className="mt-2 w-full">
+                <a href={stlDownloadUrl} download>
+                  Download STL
+                </a>
+              </Button>
+            )}
           </div>
         </div>
       </div>

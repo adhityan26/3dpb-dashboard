@@ -164,6 +164,9 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onGenerate={handleGenerate}
+        stlDownloadUrl={order.stlPath
+          ? `/api/light-generator/orders/${order.id}/stl?v=${order.generatedConfigHash ?? "0"}`
+          : null}
         generating={generateStl.isPending}
         feedback={feedback}
         canvas={
