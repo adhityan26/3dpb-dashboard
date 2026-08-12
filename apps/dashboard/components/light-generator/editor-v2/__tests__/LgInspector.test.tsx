@@ -11,7 +11,7 @@ describe("LgInspector", () => {
     expect(html).toContain("Lighting")
     expect(html).toContain("Advanced")
     expect(html).toContain("search parameter")
-    expect(html).toContain("Raw JSON")
+    expect(html).toContain("Edit raw JSON")
   })
 
   it("renders a unit chip next to a mm-valued param", () => {
@@ -19,9 +19,9 @@ describe("LgInspector", () => {
     expect(html).toContain(">mm<")
   })
 
-  it("shows help text via a native title tooltip instead of an inline paragraph", () => {
+  it("shows help text via a discoverable tooltip (aria-label) instead of an inline paragraph", () => {
     const html = renderToStaticMarkup(<LgInspector config={{}} onChange={() => {}} />)
-    expect(html).toContain("title=\"Radius of the casing wall\"")
+    expect(html).toContain('aria-label="Radius of the casing wall"')
   })
 
   it("cover top shows recess params, cover bottom shows pillar params, in the Casing group", () => {
@@ -78,9 +78,16 @@ describe("LgInspector", () => {
     expect(html).not.toContain("Light X")
   })
 
-  it("with activeStep=wall, defaults to Casing/Stems open", () => {
+  it("with activeStep=wall, defaults to Stems/Advanced open (Lighting closed)", () => {
     const html = renderToStaticMarkup(<LgInspector config={{}} onChange={() => {}} activeStep="wall" />)
     expect(html).toContain("No manual stems yet")
+    expect(html).toContain("Decimation ratio")
+    expect(html).not.toContain("Light X")
+  })
+
+  it("with activeStep=3d, defaults to Dimensions open (Lighting closed)", () => {
+    const html = renderToStaticMarkup(<LgInspector config={{}} onChange={() => {}} activeStep="3d" />)
+    expect(html).toContain("Outer radius")
     expect(html).not.toContain("Light X")
   })
 })

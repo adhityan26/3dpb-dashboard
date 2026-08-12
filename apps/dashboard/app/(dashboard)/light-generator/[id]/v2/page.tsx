@@ -267,7 +267,11 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
             <Card className="border-border/60 bg-card/50 shadow-none">
               <CardHeader className="border-b border-border/50 pb-3"><CardTitle className="text-sm">Project assets</CardTitle></CardHeader>
               <CardContent className="p-4">
-                <div className="grid grid-cols-2 gap-2">
+                {/* Stacked vertically (not a 2-col grid) — the 240px rail
+                    doesn't have room for two Download/Replace button pairs
+                    side by side without them colliding/overflowing the card
+                    padding. v1's LgImageSlot is unchanged; this is v2-rail-only. */}
+                <div className="grid grid-cols-1 gap-4">
                   <LgImageSlot orderId={id} label="Silhouette" type="silhouette" hasImage={!!order.imagePath} />
                   <LgImageSlot orderId={id} label="Floor Insert" type="additional" hasImage={!!order.additionalImagePath} />
                 </div>
@@ -280,37 +284,49 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
             {estimateRaw && (
               <Card className="border-border/60 bg-card/50 shadow-none">
                 <CardHeader className="border-b border-border/50 pb-3"><CardTitle className="text-sm">Production summary</CardTitle></CardHeader>
-                <CardContent className="divide-y divide-border/50 p-4 text-xs">
-                  <div className="flex items-center justify-between gap-2 py-1.5">
-                    <span className="text-muted-foreground">Casing footprint</span>
-                    <span className="font-medium">{estimateRaw.casingDimDesc}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 py-1.5">
-                    <span className="text-muted-foreground">Shell height</span>
-                    <span className="font-medium">
-                      {estimateRaw.shellHeight} mm{estimateRaw.isAuto ? " (auto)" : ""}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 py-1.5">
-                    <span className="text-muted-foreground">Total print height</span>
-                    <span className="font-medium">{estimateRaw.totalHeight} mm</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 py-1.5">
-                    <span className="text-muted-foreground">Light Z offset</span>
-                    <span className="font-medium">{estimateRaw.lightZOffset} mm above wall</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 py-1.5">
-                    <span className="text-muted-foreground">Light Z from floor</span>
-                    <span className="font-medium">{estimateRaw.lightZAbsolute} mm</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 py-1.5">
-                    <span className="text-muted-foreground">Shadow floor size</span>
-                    <span className="font-medium">{estimateRaw.shadowDesc}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 py-1.5">
-                    <span className="text-muted-foreground">PLA+ estimate</span>
-                    <span className="font-medium">~{estimateRaw.filamentG} g</span>
-                  </div>
+                <CardContent className="p-4 text-xs">
+                  {/* Clean two-column table: label left (muted), value right
+                      (tabular-nums, right-aligned), consistent row height,
+                      thin dividers between rows, full-width footnote. */}
+                  <table className="w-full border-collapse">
+                    <tbody className="divide-y divide-border/50">
+                      <tr className="[&>td]:py-1.5">
+                        <td className="text-muted-foreground">Casing footprint</td>
+                        <td className="text-right font-medium tabular-nums">{estimateRaw.casingDimDesc}</td>
+                      </tr>
+                      <tr className="[&>td]:py-1.5">
+                        <td className="text-muted-foreground">Shell height</td>
+                        <td className="text-right font-medium tabular-nums">
+                          {estimateRaw.shellHeight} mm{estimateRaw.isAuto ? " (auto)" : ""}
+                        </td>
+                      </tr>
+                      <tr className="[&>td]:py-1.5">
+                        <td className="text-muted-foreground">Total print height</td>
+                        <td className="text-right font-medium tabular-nums">{estimateRaw.totalHeight} mm</td>
+                      </tr>
+                      <tr className="[&>td]:py-1.5">
+                        {/* Full "above wall" detail moved to a tooltip on the
+                            label so the value column stays short and doesn't
+                            collide/wrap awkwardly. */}
+                        <td className="text-muted-foreground">
+                          <span title="Height of the light socket above the wall/shell base">Light Z offset</span>
+                        </td>
+                        <td className="text-right font-medium tabular-nums">{estimateRaw.lightZOffset} mm</td>
+                      </tr>
+                      <tr className="[&>td]:py-1.5">
+                        <td className="text-muted-foreground">Light Z from floor</td>
+                        <td className="text-right font-medium tabular-nums">{estimateRaw.lightZAbsolute} mm</td>
+                      </tr>
+                      <tr className="[&>td]:py-1.5">
+                        <td className="text-muted-foreground">Shadow floor size</td>
+                        <td className="text-right font-medium tabular-nums">{estimateRaw.shadowDesc}</td>
+                      </tr>
+                      <tr className="[&>td]:py-1.5">
+                        <td className="text-muted-foreground">PLA+ estimate</td>
+                        <td className="text-right font-medium tabular-nums">~{estimateRaw.filamentG} g</td>
+                      </tr>
+                    </tbody>
+                  </table>
                   <p className="pt-1.5 text-[11px] text-muted-foreground/70">
                     50% wall fill assumed — actual varies by silhouette
                   </p>

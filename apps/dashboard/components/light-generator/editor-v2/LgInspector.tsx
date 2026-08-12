@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Slider } from "@/components/ui/slider"
@@ -19,6 +19,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   SECTIONS,
   RECESS_PARAMS,
@@ -26,9 +27,18 @@ import {
   SHAPE_OPTIONS,
   type ParamDef,
 } from "../config-params"
-import { coerceParamValue, shouldWarnJsonApply } from "./filter-params"
+import { coerceParamValue } from "./filter-params"
 import { removeStem, type UserStem } from "./wall-math"
 import type { LgEditorTab } from "./LgEditorShell"
+import { LgJsonEditorDialog } from "./LgJsonEditorDialog"
+
+/** Single clean border look for accordion cards: card owns the outer
+ * border, the trigger owns ONE separator (bottom only) — overrides the
+ * primitive's default `rounded-lg border border-transparent` (an
+ * all-sides transparent border reserved for the focus ring) which,
+ * combined with a naive `border-b` addition, produced a visible double
+ * border on the card's left/right edges. */
+const TRIGGER_CLASS = "rounded-none border-0 border-b border-border/40"
 
 interface LgInspectorProps {
   config: Record<string, unknown>
@@ -96,15 +106,16 @@ function parseShape(raw: unknown): { base: string; w: string; h: string } {
   return { base: s || "circle", w: "3", h: "4" }
 }
 
-const ALL_GROUPS = ["Casing", "Shadow behavior", "Dimensions", "Lighting", "Advanced", "Stems", "Raw JSON"]
+const ALL_GROUPS = ["Casing", "Shadow behavior", "Dimensions", "Lighting", "Advanced", "Stems"]
 
 /** Default-open groups per workflow step — "kontekstual per step" from the
- * 2026-08-12 polish addendum. Casing stays open everywhere since shape/cover
- * selection is foundational to every step. */
+ * 2026-08-12 polish addendum: shadow -> Casing/Shadow behavior/Dimensions,
+ * wall -> Stems/Advanced, 3d -> Dimensions. */
 function defaultOpenGroups(step: LgEditorTab | undefined): string[] {
   if (step === undefined) return ALL_GROUPS
   if (step === "shadow") return ["Casing", "Shadow behavior", "Dimensions"]
-  if (step === "wall") return ["Casing", "Stems"]
+  if (step === "wall") return ["Stems", "Advanced"]
+  if (step === "3d") return ["Dimensions"]
   return ["Casing"]
 }
 
@@ -137,29 +148,10 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
       setFlooringUploadPending(false)
     }
   }
-  const [jsonDraft, setJsonDraft] = useState(() => JSON.stringify(config, null, 2))
-  const [jsonError, setJsonError] = useState<string | null>(null)
-  // Invariant: slider/field edits made elsewhere in the inspector must never
-  // be reverted by clicking "Apply" on the Raw JSON textarea. `jsonDraft`
-  // resyncs from `config` on every external change UNLESS the user has
-  // typed into the textarea since the last sync (jsonDirty) — in that case
-  // their in-progress edit wins until they explicitly Apply (which clears
-  // the flag) or the JSON errors out.
-  const jsonDirty = useRef(false)
-  // Config snapshot (JSON.stringify) captured at the moment the draft became
-  // dirty. Used by shouldWarnJsonApply to detect if config changed elsewhere
-  // (e.g. a slider edit) while the JSON draft was being edited — see
-  // filter-params.ts for the full scenario this guards against.
-  const dirtySnapshot = useRef<string | null>(null)
-  // Set once the user has clicked Apply while shouldWarnJsonApply is true —
-  // a second Apply click then proceeds and overwrites intentionally.
-  const [confirmOverwrite, setConfirmOverwrite] = useState(false)
-
-  useEffect(() => {
-    if (jsonDirty.current) return
-    setJsonDraft(JSON.stringify(config, null, 2))
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [config])
+  // Raw JSON now lives in an on-demand Dialog (LgJsonEditorDialog) instead
+  // of an always-visible accordion — see item 7 of the 2026-08-12 polish
+  // addendum. The dialog owns its own dirty/apply-guard state internally.
+  const [jsonDialogOpen, setJsonDialogOpen] = useState(false)
 
   const coverType = config.cover_type === "top" ? "top" : "bottom"
   const shape = parseShape(config.flooring_shape)
@@ -194,8 +186,23 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
     onChange({ ...config, flooring_shape })
   }
 
-  // Row layout: label + ⓘ (native title tooltip, no inline paragraph) +
-  // slider + number Input + unit chip.
+  // Row layout: [Label ⓘ] … [Slider] [Input+unit] — the value now lives
+  // only in the number Input, and the ⓘ is a real (discoverable) hover/focus
+  // tooltip instead of a native `title` attribute.
+  function paramInfo(help: string) {
+    return (
+      <Tooltip>
+        <TooltipTrigger
+          aria-label={help}
+          className="text-muted-foreground text-xs cursor-help outline-none"
+        >
+          ⓘ
+        </TooltipTrigger>
+        <TooltipContent>{help}</TooltipContent>
+      </Tooltip>
+    )
+  }
+
   function renderParam(p: ParamDef) {
     const unit = unitFromLabel(p.label)
     const bareLabel = p.label.replace(/\s*\([^)]+\)\s*$/, "")
@@ -204,7 +211,7 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
         <div key={p.key} className="flex items-center justify-between gap-3">
           <div className="flex items-center gap-1.5">
             <Label className="text-sm">{bareLabel}</Label>
-            <span title={p.help} aria-label={p.help} className="text-muted-foreground text-xs cursor-help">ⓘ</span>
+            {paramInfo(p.help)}
           </div>
           <Switch checked={getBool(p.key)} onCheckedChange={(checked) => setValue(p.key, checked, "boolean")} />
         </div>
@@ -212,12 +219,9 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
     }
     return (
       <div key={p.key} className="space-y-2">
-        <div className="flex items-baseline justify-between">
-          <div className="flex items-center gap-1.5">
-            <Label className="text-sm">{bareLabel}</Label>
-            <span title={p.help} aria-label={p.help} className="text-muted-foreground text-xs cursor-help">ⓘ</span>
-          </div>
-          <span className="text-muted-foreground text-xs tabular-nums">{getNum(p.key)}</span>
+        <div className="flex items-center gap-1.5">
+          <Label className="text-sm">{bareLabel}</Label>
+          {paramInfo(p.help)}
         </div>
         <div className="flex items-center gap-2">
           <Slider
@@ -287,43 +291,6 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeStep])
 
-  function applyJsonDraft() {
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(jsonDraft)
-    } catch (err) {
-      setJsonError(`Invalid JSON: ${err instanceof Error ? err.message : String(err)}`)
-      return
-    }
-    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      setJsonError("JSON must be an object { … }")
-      return
-    }
-    const incoming = parsed as Record<string, unknown>
-
-    if (!confirmOverwrite && shouldWarnJsonApply(dirtySnapshot.current, JSON.stringify(config))) {
-      setJsonError(
-        "Config changed since you started editing JSON — reload the draft, or click Apply again to overwrite",
-      )
-      setConfirmOverwrite(true)
-      return
-    }
-
-    onChange({ ...config, ...incoming })
-    setJsonError(null)
-    setConfirmOverwrite(false)
-    jsonDirty.current = false
-    dirtySnapshot.current = null
-  }
-
-  function reloadJsonDraft() {
-    setJsonDraft(JSON.stringify(config, null, 2))
-    setJsonError(null)
-    setConfirmOverwrite(false)
-    jsonDirty.current = false
-    dirtySnapshot.current = null
-  }
-
   const bottomFrameOn = getBool("bottom_frame")
   const recessOrPillarParams = coverType === "top" ? RECESS_PARAMS : (SECTIONS.find((s) => s.title === "LED Pillar")?.params ?? [])
 
@@ -332,7 +299,7 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
       {/* Sticky within the inspector's own scroll container (the
           overflow-y-auto column in LgEditorShell) so the search field stays
           reachable while the rest of the inspector scrolls underneath it. */}
-      <div className="sticky top-0 z-10 bg-background/95 pb-2 backdrop-blur">
+      <div className="sticky top-0 z-10 border-b border-border/40 bg-background pb-3">
         <Input
           type="search"
           placeholder="search parameter…"
@@ -349,7 +316,7 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
       <Accordion multiple value={openGroups} onValueChange={(v) => setOpenGroups(v as string[])} className="space-y-2">
         {/* Casing — shape + cover + recess/pillar */}
         <AccordionItem value="Casing" className="rounded-lg border bg-card/50 px-3">
-          <AccordionTrigger className="border-b border-border/50">Casing</AccordionTrigger>
+          <AccordionTrigger className={TRIGGER_CLASS}>Casing</AccordionTrigger>
           <AccordionContent>
             <div className="space-y-4">
               <div className="space-y-2">
@@ -455,7 +422,7 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
 
         {/* Shadow behavior — invert, bottom frame, auto-fit, mask padding, offsets */}
         <AccordionItem value="Shadow behavior" className="rounded-lg border bg-card/50 px-3">
-          <AccordionTrigger className="border-b border-border/50">Shadow behavior</AccordionTrigger>
+          <AccordionTrigger className={TRIGGER_CLASS}>Shadow behavior</AccordionTrigger>
           <AccordionContent>
             <div className="space-y-4">
               <div className="flex items-center justify-between gap-3">
@@ -510,24 +477,24 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
 
         {/* Dimensions — radii, heights, thickness */}
         <AccordionItem value="Dimensions" className="rounded-lg border bg-card/50 px-3">
-          <AccordionTrigger className="border-b border-border/50">Dimensions</AccordionTrigger>
+          <AccordionTrigger className={TRIGGER_CLASS}>Dimensions</AccordionTrigger>
           <AccordionContent>{renderParamList(DIMENSIONS_KEYS)}</AccordionContent>
         </AccordionItem>
 
         {/* Lighting — light x/y/z */}
         <AccordionItem value="Lighting" className="rounded-lg border bg-card/50 px-3">
-          <AccordionTrigger className="border-b border-border/50">Lighting</AccordionTrigger>
+          <AccordionTrigger className={TRIGGER_CLASS}>Lighting</AccordionTrigger>
           <AccordionContent>{renderParamList(LIGHTING_KEYS)}</AccordionContent>
         </AccordionItem>
 
         {/* Advanced — resolution, smoothness, printability, mesh post, image adjustment */}
         <AccordionItem value="Advanced" className="rounded-lg border bg-card/50 px-3">
-          <AccordionTrigger className="border-b border-border/50">Advanced</AccordionTrigger>
+          <AccordionTrigger className={TRIGGER_CLASS}>Advanced</AccordionTrigger>
           <AccordionContent>{renderParamList(ADVANCED_KEYS)}</AccordionContent>
         </AccordionItem>
 
         <AccordionItem value="Stems" className="rounded-lg border bg-card/50 px-3">
-          <AccordionTrigger className="border-b border-border/50">Stems</AccordionTrigger>
+          <AccordionTrigger className={TRIGGER_CLASS}>Stems</AccordionTrigger>
           <AccordionContent>
             <div className="space-y-2">
               {userStems.length === 0 ? (
@@ -557,41 +524,19 @@ export function LgInspector({ config, onChange, orderId, hasFlooringImage = fals
           </AccordionContent>
         </AccordionItem>
 
-        <AccordionItem value="Raw JSON" className="rounded-lg border bg-card/50 px-3">
-          <AccordionTrigger className="border-b border-border/50">Raw JSON</AccordionTrigger>
-          <AccordionContent>
-            <div className="space-y-2">
-              <textarea
-                value={jsonDraft}
-                onChange={(e) => {
-                  if (!jsonDirty.current) {
-                    jsonDirty.current = true
-                    dirtySnapshot.current = JSON.stringify(config)
-                  }
-                  setConfirmOverwrite(false)
-                  setJsonDraft(e.currentTarget.value)
-                  setJsonError(null)
-                }}
-                spellCheck={false}
-                rows={Math.min(24, jsonDraft.split("\n").length + 1)}
-                className="bg-muted w-full resize-y overflow-auto rounded-lg p-3 font-mono text-xs"
-                aria-label="Raw config JSON"
-              />
-              <div className="flex gap-2">
-                <Button variant="outline" size="sm" onClick={applyJsonDraft}>
-                  {confirmOverwrite ? "Apply (overwrite)" : "Apply"}
-                </Button>
-                {jsonDirty.current && (
-                  <Button variant="ghost" size="sm" onClick={reloadJsonDraft}>
-                    Reload
-                  </Button>
-                )}
-              </div>
-              {jsonError && <p className="text-sm text-red-500">❌ {jsonError}</p>}
-            </div>
-          </AccordionContent>
-        </AccordionItem>
       </Accordion>
+
+      {/* Raw JSON moved out of the accordion into an on-demand Dialog —
+          item 7 of the 2026-08-12 polish addendum. */}
+      <Button variant="outline" size="sm" className="w-full" onClick={() => setJsonDialogOpen(true)}>
+        Edit raw JSON
+      </Button>
+      <LgJsonEditorDialog
+        open={jsonDialogOpen}
+        onOpenChange={setJsonDialogOpen}
+        config={config}
+        onApply={onChange}
+      />
     </div>
   )
 }
