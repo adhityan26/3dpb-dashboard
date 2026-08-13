@@ -5,8 +5,6 @@ import { NextRequest, NextResponse } from "next/server"
 
 const ALLOWED_ROLES = ["OWNER", "TEST_USER"]
 
-export { parseRangeFromSearchParams }
-
 export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session?.user) {
