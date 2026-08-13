@@ -1,5 +1,5 @@
 import { auth } from "@/lib/auth"
-import { getAnalytics, type AnalyticsRange } from "@/lib/analytics/service"
+import { getAnalytics } from "@/lib/analytics/service"
 import { parseRangeFromSearchParams } from "@/lib/analytics/parse-range"
 import { NextRequest, NextResponse } from "next/server"
 

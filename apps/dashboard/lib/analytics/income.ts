@@ -3,6 +3,7 @@ import { getEscrowDetail } from "@/lib/shopee/escrow"
 import { getReturnListForOrders, isReturnFinal } from "@/lib/shopee/returns"
 
 export const RETURN_MUTABLE_WINDOW_DAYS = 30
+export const MAX_ESCROW_FETCH_PER_REQUEST = 50
 
 export interface OrderEscrowRow {
   orderSn: string
@@ -83,8 +84,10 @@ export async function syncAndGetEscrowForOrders(
 
   const result = new Map<string, OrderEscrowRow>()
 
-  // Tahap 1: isi cache yang kosong
-  const missing = completed.filter((o) => !cachedBySn.has(o.order_sn))
+  // Tahap 1: isi cache yang kosong (dibatasi per request agar tidak timeout)
+  const missing = completed
+    .filter((o) => !cachedBySn.has(o.order_sn))
+    .slice(0, MAX_ESCROW_FETCH_PER_REQUEST)
   for (const order of missing) {
     const detail = await getEscrowDetail(order.order_sn)
     if (!detail) continue // skip on fetch failure, retried next load
@@ -105,14 +108,24 @@ export async function syncAndGetEscrowForOrders(
     return nowSec - c.orderCompleteTime <= windowSec
   })
 
-  if (inWindow.length > 0) {
-    const oldestComplete = Math.min(...inWindow.map((o) => cachedBySn.get(o.order_sn)!.orderCompleteTime))
+  // Orders already flagged as having a reconciled return don't need to be
+  // re-checked — the reconciliation already happened once, so skip them
+  // both from the returns-list query and from any escrow re-fetch.
+  const needsReturnCheck = inWindow.filter((o) => !cachedBySn.get(o.order_sn)!.hasReturnFlag)
+  const alreadyFlagged = inWindow.filter((o) => cachedBySn.get(o.order_sn)!.hasReturnFlag)
+
+  for (const order of alreadyFlagged) {
+    result.set(order.order_sn, toRow(cachedBySn.get(order.order_sn)!))
+  }
+
+  if (needsReturnCheck.length > 0) {
+    const oldestComplete = Math.min(...needsReturnCheck.map((o) => cachedBySn.get(o.order_sn)!.orderCompleteTime))
     let returns: Awaited<ReturnType<typeof getReturnListForOrders>> = []
     try {
       returns = await getReturnListForOrders({
         createTimeFrom: oldestComplete,
         createTimeTo: nowSec,
-        orderSns: inWindow.map((o) => o.order_sn),
+        orderSns: needsReturnCheck.map((o) => o.order_sn),
       })
     } catch {
       returns = [] // best-effort; retried next load
@@ -122,7 +135,7 @@ export async function syncAndGetEscrowForOrders(
       returns.filter((r) => isReturnFinal(r.status)).map((r) => r.order_sn),
     )
 
-    for (const order of inWindow) {
+    for (const order of needsReturnCheck) {
       const cachedRow = cachedBySn.get(order.order_sn)!
       if (!finalReturnSns.has(order.order_sn)) {
         result.set(order.order_sn, toRow(cachedRow))
@@ -165,6 +178,7 @@ export interface ProductFeeAllocation {
   productName: string
   adminFee: number | null
   received: number | null
+  buyerPayment: number | null
   hasReturn: boolean
 }
 
@@ -188,6 +202,7 @@ export function allocateFeePerProduct(
         productName: item.item_name,
         adminFee: escrow ? totalFee * share : null,
         received: escrow ? escrow.escrowAmount * share : null,
+        buyerPayment: escrow ? escrow.buyerPaymentAmount * share : null,
         hasReturn: escrow?.hasReturnFlag ?? false,
       }
     })

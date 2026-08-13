@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db"
 import { generateMockAnalytics } from "./mock"
 import type { AnalyticsData, DailyPoint, TopProduct } from "./types"
 import { resolveRange, type FlexRange } from "@/lib/dateRange"
-import { syncAndGetEscrowForOrders, allocateFeePerProduct } from "./income"
+import { syncAndGetEscrowForOrders, allocateFeePerProduct, type OrderEscrowRow } from "./income"
 import type { IncomeBreakdownSummary, ProductIncomeBreakdown } from "./types"
 
 export type AnalyticsRange = FlexRange  // backwards-compatible alias
@@ -172,7 +172,7 @@ export async function getAnalytics(
 
   // Income breakdown: sync escrow cache, allocate fees per product
   const nowSec = Math.floor(Date.now() / 1000)
-  let escrowByOrderSn = new Map<string, Awaited<ReturnType<typeof syncAndGetEscrowForOrders>> extends Map<string, infer V> ? V : never>()
+  let escrowByOrderSn = new Map<string, OrderEscrowRow>()
   try {
     escrowByOrderSn = await syncAndGetEscrowForOrders(orders, nowSec)
   } catch (err) {
@@ -186,6 +186,7 @@ export async function getAnalytics(
     for (let i = 0; i < order.item_list.length; i++) {
       const item = order.item_list[i]
       const line = lines[i]
+      if (!line) continue
       const existing = incomeByProductMap.get(item.item_name) ?? {
         productName: item.item_name,
         qty: 0,
@@ -197,7 +198,10 @@ export async function getAnalytics(
       }
       existing.qty += item.model_quantity_purchased
       existing.shopeePrice += item.model_discounted_price * item.model_quantity_purchased
-      existing.buyerPayment += item.model_discounted_price * item.model_quantity_purchased
+      existing.buyerPayment +=
+        line.buyerPayment !== null
+          ? line.buyerPayment
+          : item.model_discounted_price * item.model_quantity_purchased
       if (line.adminFee !== null) {
         existing.adminFee = (existing.adminFee ?? 0) + line.adminFee
       }

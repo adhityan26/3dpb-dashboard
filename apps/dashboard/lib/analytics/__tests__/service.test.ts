@@ -61,7 +61,7 @@ describe("getAnalytics income breakdown", () => {
       new Map([
         [
           "ORD1",
-          [{ productName: "Produk A", adminFee: 10000, received: 90000, hasReturn: false }],
+          [{ productName: "Produk A", adminFee: 10000, received: 90000, buyerPayment: 95000, hasReturn: false }],
         ],
       ]),
     )
@@ -69,7 +69,7 @@ describe("getAnalytics income breakdown", () => {
     const result = await getAnalytics("7d")
 
     expect(result.incomeSummary).toEqual({
-      totalBuyerPayment: 100000,
+      totalBuyerPayment: 95000,
       totalShopeePrice: 100000,
       totalAdminFee: 10000,
       totalReceived: 90000,
@@ -80,7 +80,7 @@ describe("getAnalytics income breakdown", () => {
       {
         productName: "Produk A",
         qty: 1,
-        buyerPayment: 100000,
+        buyerPayment: 95000,
         shopeePrice: 100000,
         adminFee: 10000,
         received: 90000,
@@ -103,7 +103,7 @@ describe("getAnalytics income breakdown", () => {
     mockGetOrdersInRange.mockResolvedValue([order])
     mockSyncAndGetEscrowForOrders.mockResolvedValue(new Map())
     mockAllocateFeePerProduct.mockReturnValue(
-      new Map([["ORD2", [{ productName: "Produk B", adminFee: null, received: null, hasReturn: false }]]]),
+      new Map([["ORD2", [{ productName: "Produk B", adminFee: null, received: null, buyerPayment: null, hasReturn: false }]]]),
     )
 
     const result = await getAnalytics("7d")
@@ -136,7 +136,7 @@ describe("getAnalytics income breakdown", () => {
     mockSyncAndGetEscrowForOrders.mockRejectedValue(new Error("Shopee API down"))
     // When escrow sync fails, allocateFeePerProduct receives empty map and returns null fees
     mockAllocateFeePerProduct.mockReturnValue(
-      new Map([["ORD3", [{ productName: "Produk C", adminFee: null, received: null, hasReturn: false }]]]),
+      new Map([["ORD3", [{ productName: "Produk C", adminFee: null, received: null, buyerPayment: null, hasReturn: false }]]]),
     )
 
     // Should NOT throw, resolves successfully

@@ -22,7 +22,7 @@ vi.mock("@/lib/shopee/returns", () => ({
   isReturnFinal: (status: string) => status === "REFUND_APPROVED",
 }))
 
-import { syncAndGetEscrowForOrders, allocateFeePerProduct } from "../income"
+import { syncAndGetEscrowForOrders, allocateFeePerProduct, MAX_ESCROW_FETCH_PER_REQUEST } from "../income"
 
 const NOW = 1_700_000_000 // fixed reference "now" in seconds
 
@@ -204,6 +204,64 @@ describe("syncAndGetEscrowForOrders", () => {
     // getEscrowDetail should NOT be called for either (no new fetches needed)
     expect(mockGetEscrowDetail).not.toHaveBeenCalled()
   })
+
+  it("skips re-checking returns/escrow for orders already flagged hasReturnFlag", async () => {
+    const recentCompleteTime = NOW - 5 * 86400 // inside window
+    mockFindMany.mockResolvedValue([
+      {
+        orderSn: "ORD6",
+        buyerPaymentAmount: 100000,
+        escrowAmount: 70000,
+        commissionFee: 5000,
+        serviceFee: 3000,
+        transactionFee: 2000,
+        actualShippingFee: 0,
+        hasReturnFlag: true, // already reconciled once before
+        orderCompleteTime: recentCompleteTime,
+      },
+    ])
+
+    const orders = [{ order_sn: "ORD6", order_status: "COMPLETED", update_time: recentCompleteTime }]
+    const result = await syncAndGetEscrowForOrders(orders, NOW)
+
+    expect(mockGetReturnListForOrders).not.toHaveBeenCalled()
+    expect(mockGetEscrowDetail).not.toHaveBeenCalled()
+    expect(result.get("ORD6")).toEqual({
+      orderSn: "ORD6",
+      buyerPaymentAmount: 100000,
+      escrowAmount: 70000,
+      commissionFee: 5000,
+      serviceFee: 3000,
+      transactionFee: 2000,
+      actualShippingFee: 0,
+      hasReturnFlag: true,
+    })
+  })
+
+  it("caps stage-1 escrow fetch to MAX_ESCROW_FETCH_PER_REQUEST when cache is cold", async () => {
+    mockFindMany.mockResolvedValue([]) // nothing cached
+    mockGetEscrowDetail.mockResolvedValue({
+      order_sn: "X",
+      buyer_payment_amount: 1000,
+      escrow_amount: 900,
+      commission_fee: 50,
+      service_fee: 30,
+      transaction_fee: 20,
+      actual_shipping_fee: 0,
+    })
+    mockUpsert.mockResolvedValue({})
+
+    const total = MAX_ESCROW_FETCH_PER_REQUEST + 20
+    const orders = Array.from({ length: total }, (_, i) => ({
+      order_sn: `ORD-${i}`,
+      order_status: "COMPLETED",
+      update_time: NOW - 86400,
+    }))
+
+    await syncAndGetEscrowForOrders(orders, NOW)
+
+    expect(mockGetEscrowDetail).toHaveBeenCalledTimes(MAX_ESCROW_FETCH_PER_REQUEST)
+  })
 })
 
 describe("allocateFeePerProduct", () => {
@@ -240,9 +298,12 @@ describe("allocateFeePerProduct", () => {
     // Total fee = 10000, split 75/25
     expect(lines.find((l) => l.productName === "Produk A")?.adminFee).toBeCloseTo(7500)
     expect(lines.find((l) => l.productName === "Produk B")?.adminFee).toBeCloseTo(2500)
+    // buyerPaymentAmount = 100000, split 75/25 same as fee share
+    expect(lines.find((l) => l.productName === "Produk A")?.buyerPayment).toBeCloseTo(75000)
+    expect(lines.find((l) => l.productName === "Produk B")?.buyerPayment).toBeCloseTo(25000)
   })
 
-  it("returns null adminFee/received for orders with no escrow entry", () => {
+  it("returns null adminFee/received/buyerPayment for orders with no escrow entry", () => {
     const orders = [
       {
         order_sn: "ORD2",
@@ -256,5 +317,6 @@ describe("allocateFeePerProduct", () => {
     const lines = result.get("ORD2")!
     expect(lines[0].adminFee).toBeNull()
     expect(lines[0].received).toBeNull()
+    expect(lines[0].buyerPayment).toBeNull()
   })
 })

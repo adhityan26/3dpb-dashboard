@@ -46,9 +46,10 @@ export async function getReturnListForOrders(params: {
         ...(cursor ? { cursor } : {}),
       },
     )
-    all.push(...json.response.return)
+    all.push(...(json.response.return ?? []))
     hasMore = json.response.more
     cursor = json.response.next_cursor
+    if (hasMore && !cursor) break
     safety++
   }
 
