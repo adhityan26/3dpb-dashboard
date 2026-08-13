@@ -120,4 +120,53 @@ describe("getAnalytics income breakdown", () => {
     expect(result.incomeSummary.completedOrderCount).toBe(0)
     expect(result.incomeSummary.totalOrderCount).toBe(1)
   })
+
+  it("gracefully handles escrow sync failure and continues with fee degradation", async () => {
+    const order = {
+      order_sn: "ORD3",
+      order_status: "COMPLETED",
+      create_time: Math.floor(Date.now() / 1000) - 3600,
+      update_time: Math.floor(Date.now() / 1000) - 3600,
+      total_amount: 75000,
+      item_list: [
+        { item_id: 3, item_name: "Produk C", model_quantity_purchased: 2, model_discounted_price: 37500 },
+      ],
+    }
+    mockGetOrdersInRange.mockResolvedValue([order])
+    mockSyncAndGetEscrowForOrders.mockRejectedValue(new Error("Shopee API down"))
+    // When escrow sync fails, allocateFeePerProduct receives empty map and returns null fees
+    mockAllocateFeePerProduct.mockReturnValue(
+      new Map([["ORD3", [{ productName: "Produk C", adminFee: null, received: null, hasReturn: false }]]]),
+    )
+
+    // Should NOT throw, resolves successfully
+    const result = await getAnalytics("7d")
+
+    // Daily and topProducts still populated from order data
+    expect(result.daily.length).toBeGreaterThan(0)
+    expect(result.topProducts).toContainEqual({
+      productName: "Produk C",
+      qty: 2,
+      omzet: 75000,
+    })
+
+    // completedOrderCount reflects the COMPLETED order
+    expect(result.incomeSummary.completedOrderCount).toBe(1)
+    expect(result.incomeSummary.totalOrderCount).toBe(1)
+
+    // Fees degrade gracefully to 0 (no escrow data available)
+    expect(result.incomeSummary.totalAdminFee).toBe(0)
+    expect(result.incomeSummary.totalReceived).toBe(0)
+
+    // Product income breakdown shows null fees (not-final state)
+    expect(result.incomeByProduct[0]).toEqual({
+      productName: "Produk C",
+      qty: 2,
+      buyerPayment: 75000,
+      shopeePrice: 75000,
+      adminFee: null,
+      received: null,
+      hasReturn: false,
+    })
+  })
 })
