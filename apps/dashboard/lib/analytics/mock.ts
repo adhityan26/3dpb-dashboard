@@ -89,22 +89,5 @@ export function generateMockAnalytics(
     },
     daily,
     topProducts,
-    incomeSummary: {
-      totalBuyerPayment: totalOmzet,
-      totalShopeePrice: totalOmzet,
-      totalAdminFee: Math.round(totalOmzet * 0.05),
-      totalReceived: Math.round(totalOmzet * 0.95),
-      completedOrderCount: totalOrders,
-      totalOrderCount: totalOrders,
-    },
-    incomeByProduct: topProducts.map((p) => ({
-      productName: p.productName,
-      qty: p.qty,
-      buyerPayment: p.omzet,
-      shopeePrice: p.omzet,
-      adminFee: Math.round(p.omzet * 0.05),
-      received: Math.round(p.omzet * 0.95),
-      hasReturn: false,
-    })),
   }
 }
