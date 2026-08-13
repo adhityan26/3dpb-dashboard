@@ -528,3 +528,17 @@ model CydFieldPreset {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model OrderEscrow {
+  orderSn            String   @id
+  buyerPaymentAmount Float
+  escrowAmount       Float
+  commissionFee      Float
+  serviceFee         Float
+  transactionFee     Float
+  actualShippingFee  Float
+  hasReturnFlag      Boolean  @default(false)
+  orderCompleteTime  Int
+  fetchedAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+}
