@@ -1,4 +1,4 @@
-import type { AnalyticsData, DailyPoint, TopProduct } from "./types"
+import type { AnalyticsData, DailyPoint, TopProduct, IncomeBreakdownSummary, ProductIncomeBreakdown } from "./types"
 
 /**
  * Generate mock analytics data for sandbox/development.
@@ -74,6 +74,28 @@ export function generateMockAnalytics(
   const avgOrderValue = totalOrders > 0 ? totalOmzet / totalOrders : 0
   const grossProfit = totalOmzet - totalAdSpend
 
+  const incomeByProduct: ProductIncomeBreakdown[] = topProducts.map((p) => {
+    const adminFee = Math.round(p.omzet * 0.08) // mock: ~8% total Shopee fees
+    return {
+      productName: p.productName,
+      qty: p.qty,
+      buyerPayment: p.omzet,
+      shopeePrice: p.omzet,
+      adminFee,
+      received: p.omzet - adminFee,
+      hasReturn: false,
+    }
+  })
+
+  const incomeSummary: IncomeBreakdownSummary = {
+    totalBuyerPayment: incomeByProduct.reduce((s, p) => s + p.buyerPayment, 0),
+    totalShopeePrice: incomeByProduct.reduce((s, p) => s + p.shopeePrice, 0),
+    totalAdminFee: incomeByProduct.reduce((s, p) => s + (p.adminFee ?? 0), 0),
+    totalReceived: incomeByProduct.reduce((s, p) => s + (p.received ?? 0), 0),
+    completedOrderCount: totalOrders,
+    totalOrderCount: totalOrders,
+  }
+
   return {
     range: { startDate, endDate },
     fetchedAt: new Date().toISOString(),
@@ -89,5 +111,7 @@ export function generateMockAnalytics(
     },
     daily,
     topProducts,
+    incomeSummary,
+    incomeByProduct,
   }
 }
