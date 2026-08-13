@@ -52,11 +52,11 @@ Reuses `headBinary()` (already exists, `apps/saas/lib/storage/r2.ts`) — no new
 
 **File:** `apps/agent/src/main/saas-client.ts` (modify)
 
-Add alongside `fetchDevices`/`fetchLayout`, same shape:
+Add alongside `fetchDevices`/`fetchLayout`, same shape — **the commit-hash comparison happens here, in main, once**, so nothing downstream (IPC, preload, renderer) needs to know about commit hashes at all:
 
 ```typescript
 export type FetchVersionResult =
-  | { ok: true; data: { commitHash: string | null } }
+  | { ok: true; data: { updateAvailable: boolean } }
   | { ok: false; kind: "invalid_token" | "entitlement_expired" | "network_error" };
 
 export async function fetchLatestVersion(token: string, platform: "win" | "mac"): Promise<FetchVersionResult> {
@@ -68,55 +68,89 @@ export async function fetchLatestVersion(token: string, platform: "win" | "mac")
     if (res.status === 401) return { ok: false, kind: "invalid_token" };
     if (res.status === 403) return { ok: false, kind: "entitlement_expired" };
     if (!res.ok) return { ok: false, kind: "network_error" };
-    return { ok: true, data: (await res.json()) as { commitHash: string | null } };
+    const { commitHash } = (await res.json()) as { commitHash: string | null };
+    return { ok: true, data: { updateAvailable: commitHash !== null && commitHash !== AGENT_COMMIT_HASH } };
   } catch {
     return { ok: false, kind: "network_error" };
   }
 }
 ```
 
-`AGENT_BUILD_ID` and `AGENT_COMMIT_HASH` are already module-level constants in this file (from the existing commit-hash-in-binary feature) — the update check compares `AGENT_COMMIT_HASH` (this build's own hash) against the fetched `commitHash` (latest hosted hash). Platform is `process.platform === "darwin" ? "mac" : "win"` (matches `DownloadAgentSection.tsx`'s own OS-detection convention, just server-side-safe via Node's `process.platform` instead of `navigator.userAgent`).
+`AGENT_BUILD_ID` and `AGENT_COMMIT_HASH` are already module-level constants in this exact file (`apps/agent/src/main/saas-client.ts`, from the existing commit-hash-in-binary feature) — `fetchLatestVersion` reads `AGENT_COMMIT_HASH` directly as a same-file local, no export needed. Platform is `process.platform === "darwin" ? "mac" : "win"` (matches `DownloadAgentSection.tsx`'s own OS-detection convention, just server-side-safe via Node's `process.platform` instead of `navigator.userAgent`).
+
+**Accepted risk:** a rollback to an older build, or a locally-built dev binary, will show `updateAvailable: true` too (any hash mismatch counts, not just "older than"). This is a low-stakes UX nudge (a dismissible link, not a forced update), so treating "different" as "newer" is fine for this iteration — not worth a version-ordering scheme yet.
 
 ### Main-process wiring
 
-**File:** `apps/agent/src/main/app-state.ts` (modify) — add `setUpdateAvailable(commitHash: string | null): void` / `getUpdateAvailable(): string | null`, same pattern as every other piece of cross-module state in this file.
+**File:** `apps/agent/src/main/app-state.ts` (modify) — add `setUpdateAvailable(available: boolean): void` / `getUpdateAvailable(): boolean` (default `false`), same pattern as every other piece of cross-module state in this file.
 
-**File:** `apps/agent/src/main/index.ts` (modify) — after `bootstrap()`'s existing flow, if `blob.agentToken` is set, call `fetchLatestVersion` once at startup; on success, if `commitHash !== null && commitHash !== AGENT_COMMIT_HASH`, call `setUpdateAvailable(commitHash)`. Also start a `setInterval` (6 hours — `6 * 60 * 60 * 1000`) that re-checks and updates the same state, using `.unref()` on the timer so it never blocks app shutdown (matching `broker.ts`'s existing timer-unref convention). Only start the interval if `blob.agentToken` was set (no token, no check — matches how sync/layout are already gated).
+**File:** `apps/agent/src/main/index.ts` (modify) — add a new function, independent of `bootstrap()`:
+
+```typescript
+async function startUpdateChecks(): Promise<void> {
+  const blob = await loadCredentials()
+  if (!blob.agentToken) return
+  const platform = process.platform === 'darwin' ? 'mac' : 'win'
+  const check = async () => {
+    const result = await fetchLatestVersion(blob.agentToken!, platform)
+    if (result.ok) setUpdateAvailable(result.data.updateAvailable)
+  }
+  await check()
+  const timer = setInterval(check, 6 * 60 * 60 * 1000)
+  timer.unref?.()
+}
+```
+
+Call it as `void startUpdateChecks().catch((err) => console.error('[agent] update check gagal', err))` inside `app.on('ready', ...)`'s `try` block, right after `await bootstrap()` (currently `index.ts:104`) — **not** inside `bootstrap()` itself. `bootstrap()` returns early at `index.ts:63` when the broker fails to start, so nesting the update check inside it means it silently never runs on exactly the failure case where the user most needs to know a fix might be available. Placing it after `await bootstrap()` in the `ready` handler means it always fires once window/tray creation is reached, regardless of broker/engine/layout outcome. It's fire-and-forget (not awaited by the caller) so it never delays `createWindow()`.
+
+Needs two new imports in `index.ts`: `fetchLatestVersion` from `./saas-client` (add to the existing `saasBaseUrl` import), and `setUpdateAvailable` from `./app-state` (add to the existing import list).
 
 **File:** `apps/agent/src/main/ipc.ts` (modify) — new handler:
 
 ```typescript
 ipcMain.handle("agent:get-update-status", async () => {
-  return { latestCommitHash: getUpdateAvailable() };
+  return { updateAvailable: getUpdateAvailable() };
 });
 ```
 
-**File:** `apps/agent/src/preload/index.ts` (modify) — new `agentApi` method:
+**File:** `apps/agent/src/preload/index.ts` (modify) — new `agentApi` methods:
 
 ```typescript
-  getUpdateStatus: (): Promise<{ latestCommitHash: string | null }> =>
+  getUpdateStatus: (): Promise<{ updateAvailable: boolean }> =>
     ipcRenderer.invoke("agent:get-update-status"),
+  openDownloadPage: (): Promise<void> =>
+    ipcRenderer.invoke("agent:open-download-page"),
 ```
 
-### Renderer: banner in `AgentShell`
+### Renderer: banner in `DashboardScreen`
 
-**File:** `apps/agent/src/renderer/lib/build-info.ts` (modify) — this file already computes a bare `AGENT_COMMIT_HASH` local constant (used to build `AGENT_BUILD_ID`) but doesn't export it. Add `export` to that existing `const AGENT_COMMIT_HASH = ...` line (no other change) so the banner logic below can compare against it directly instead of parsing it back out of `AGENT_BUILD_ID`'s combined string.
+**Not** `AgentShell` — `AgentShell` wraps every screen (`App.tsx`, `ActivationScreen.tsx`, `PairingScreen.tsx`, `DashboardScreen.tsx`), including the two pre-token screens, and each has its own partial `window.agentApi` mock in its test file with no `getUpdateStatus`. Putting the poll there would need `window.agentApi` mock updates across four unrelated test files just to keep them from throwing, for a check that's meaningless before a token even exists. `DashboardScreen` is the only place a token is guaranteed (you can't reach it without one) and is already where `sendLogs` lives (see Section B) — same screen, same lifecycle, one `window.agentApi` mock to extend instead of four.
 
-**File:** `apps/agent/src/renderer/AgentShell.tsx` (modify) — poll `getUpdateStatus()` every 60s (much lighter than the 5s device-status polls, this changes at most every 6 hours). When `latestCommitHash` is non-null AND differs from `AGENT_COMMIT_HASH` (now exported from `build-info.ts`), render a small banner above the existing version footer:
+**File:** `apps/agent/src/renderer/screens/DashboardScreen.tsx` (modify) — a second `useEffect` alongside the existing 5s status-poll one, polling `getUpdateStatus()` every 60s (much lighter than the 5s device-status poll — this changes at most every 6 hours):
 
 ```tsx
 {updateAvailable && (
   <button
     type="button"
     onClick={() => window.agentApi.openDownloadPage()}
-    className="mt-3 text-[11px] px-3 py-1.5 rounded-md g-btn-ghost"
+    className="text-[11px] px-3 py-1.5 rounded-md g-btn-ghost"
   >
     Versi baru tersedia — klik untuk unduh
   </button>
 )}
 ```
 
-`openDownloadPage()` is a new preload/IPC pair that calls Electron's `shell.openExternal(`${saasBaseUrl}/settings`)` in the main process (never let the renderer call `shell.openExternal` directly — matches this codebase's existing `contextIsolation`/narrow-preload-surface convention). `saasBaseUrl()` is already available in main (`saas-client.ts`).
+Place it in the header row, near the existing "Pengaturan" button. `openDownloadPage()`'s IPC handler (in `ipc.ts`, alongside `agent:get-update-status`):
+
+```typescript
+ipcMain.handle("agent:open-download-page", async () => {
+  const base = saasBaseUrl()
+  if (!base) return // dev-config error already logged loudly at startup (index.ts) -- silent no-op here, not a second error path
+  await shell.openExternal(`${base}/settings`)
+})
+```
+
+Needs `shell` added to `ipc.ts`'s existing `import { ipcMain } from "electron"` → `import { ipcMain, shell } from "electron"`. Never let the renderer call `shell.openExternal` directly — matches this codebase's existing `contextIsolation`/narrow-preload-surface convention.
 
 ## B — Local logging + send-to-support
 
@@ -136,6 +170,8 @@ log.errorHandler.startCatching(); // uncaught exceptions + unhandled rejections 
 
 `electron-log/main`'s default transport already writes to a rotating file at the OS-appropriate location (`app.getPath("userData")/logs/main.log` equivalent — this is the library's own default, no custom path config needed). Replace the existing `console.error(...)` calls in `bootstrap()`'s catch block, `broker.ts`'s error paths, `engine-manager.ts`'s per-device construction failures, and `ipc.ts`'s `agent:sync` error paths with `log.error(...)` — same call sites, same messages, just swapping the function so these already-thoughtfully-placed error logs actually persist across restarts instead of vanishing with the console.
 
+**No secrets in the log, ever.** `credential-store.ts` already never logs the PIN or the raw agent token in plaintext anywhere in its existing code — that discipline must hold after the `console.error` → `log.error` swap. None of the call sites being converted currently log a full credentials/blob object (they log specific reasons/IDs), and this must stay true: never pass a whole `blob`/`DeviceSecret` object to `log.error`, only specific non-secret fields (device id, error reason, etc.) exactly as the existing calls already do.
+
 ### New SaaS endpoint: `POST /api/agent/logs`
 
 **File:** `apps/saas/app/api/agent/logs/route.ts` (new)
@@ -145,15 +181,25 @@ import { NextResponse } from "next/server";
 import { requireAgentToken } from "@/lib/agent-auth";
 import { putLog } from "@/lib/storage/r2";
 
+const MAX_LOG_BYTES = 5 * 1024 * 1024;
+
 export async function POST(req: Request) {
   const result = await requireAgentToken(req);
   if (result instanceof NextResponse) return result;
 
+  // Check declared size BEFORE buffering -- our own client (ipc.ts) always sends a Buffer
+  // body, so Node's fetch sets Content-Length automatically; reject oversized requests
+  // without ever pulling the body into server memory. A missing/lying Content-Length still
+  // gets caught by the byteLength check below (defense in depth), just after buffering.
+  const declaredLength = Number(req.headers.get("content-length") ?? "0");
+  if (declaredLength > MAX_LOG_BYTES) {
+    return NextResponse.json({ error: "log_too_large" }, { status: 413 });
+  }
+
   const body = await req.arrayBuffer();
-  // 5 MB cap -- a rotated electron-log file is well under this; reject anything larger
-  // rather than silently truncating (a truncated log is worse than no log -- the missing
-  // tail is exactly where a crash's final lines usually are).
-  if (body.byteLength > 5 * 1024 * 1024) {
+  // Reject anything larger rather than silently truncating -- a truncated log is worse
+  // than no log, since the missing tail is exactly where a crash's final lines usually are.
+  if (body.byteLength > MAX_LOG_BYTES) {
     return NextResponse.json({ error: "log_too_large" }, { status: 413 });
   }
 
@@ -177,6 +223,10 @@ export async function putLog(key: string, body: ArrayBuffer): Promise<void> {
 }
 ```
 
+### Retrieval & retention
+
+There is no listing endpoint, admin UI, or auto-expiry in this iteration — matches the "no committed script, one-off local tool" pattern already established for `putBinary` uploads (see `r2.ts`'s own comment on `putBinary`). To actually read an uploaded log: a short local script using `aws4fetch`'s `AwsClient` (same shape as the existing binary-upload one-off script), `GET`-ing `agent-logs/<userId>/<timestamp>.log` directly from R2 with the same `.env.deploy` credentials. No retention/lifecycle rule for now — at current usage volume (single-digit users) manual cleanup is fine; revisit with an R2 lifecycle rule if this bucket prefix grows unmanageable. This is documentation, not a code task — no file changes, just the operational note above for whoever needs to pull a log later.
+
 ### Main-process: read + send
 
 **File:** `apps/agent/src/main/ipc.ts` (modify) — this file's current import list (verified directly, not from memory) is:
@@ -194,35 +244,54 @@ import { publishLayout } from "./layout-publisher";
 import type { CommandResult, PrinterCommand } from "@3pb/printer-monitor-core";
 ```
 
-`saasBaseUrl` is NOT currently imported here — add it to line 3's existing `./saas-client` import: `import { fetchDevices, patchDeviceModel, saasBaseUrl, type SaasDevice } from "./saas-client";`. Also add `getUpdateAvailable` to line 6's existing `./app-state` import list. Also add two brand-new imports: `import { readFileSync } from "node:fs";` and `import log from "electron-log/main";` (the same `electron-log/main` instance section A's `index.ts` change initializes — importing it again here just gets the already-initialized singleton, `electron-log` is designed to be imported per-module this way). Then two new handlers — first, the update-status one from section A above (`agent:get-update-status`, using `getUpdateAvailable`), and then:
+`saasBaseUrl` is NOT currently imported here — add it to line 3's existing `./saas-client` import: `import { fetchDevices, patchDeviceModel, saasBaseUrl, type SaasDevice } from "./saas-client";`. Also add `getUpdateAvailable` to line 6's existing `./app-state` import list. Also add `shell` to line 1's `electron` import (see Section A). Also add two brand-new imports: `import { readFile, stat } from "node:fs/promises";` and `import log from "electron-log/main";` (the same `electron-log/main` instance Section A's `index.ts` change initializes — importing it again here just gets the already-initialized singleton, `electron-log` is designed to be imported per-module this way). Then three new handlers — the two from Section A (`agent:get-update-status`, `agent:open-download-page`), and:
 
 ```typescript
-ipcMain.handle("agent:send-logs", async (): Promise<{ ok: boolean }> => {
+const MAX_LOG_BYTES = 5 * 1024 * 1024;
+
+ipcMain.handle("agent:send-logs", async (): Promise<{ ok: boolean; reason?: string }> => {
   const blob = await loadCredentials();
-  if (!blob.agentToken) return { ok: false };
+  if (!blob.agentToken) return { ok: false, reason: "no_token" };
+
   const logPath = log.transports.file.getFile().path; // electron-log's own API for its current log file location
+  let stats;
+  try {
+    stats = await stat(logPath);
+  } catch {
+    return { ok: false, reason: "read_failed" };
+  }
+  // Check client-side before even reading the file, so an oversized log fails fast with a
+  // distinct message instead of a generic upload failure -- the server enforces the same
+  // cap independently (Section B's route), this is purely a faster/clearer UX path.
+  if (stats.size > MAX_LOG_BYTES) {
+    return { ok: false, reason: "too_large" };
+  }
+
   let content: Buffer;
   try {
-    content = readFileSync(logPath);
+    content = await readFile(logPath);
   } catch {
-    return { ok: false };
+    return { ok: false, reason: "read_failed" };
   }
+
   const res = await fetch(`${saasBaseUrl()}/api/agent/logs`, {
     method: "POST",
     headers: { Authorization: `Bearer ${blob.agentToken}`, "Content-Type": "text/plain" },
     body: content,
   }).catch(() => null);
-  return { ok: res?.ok === true };
+  return res?.ok === true ? { ok: true } : { ok: false, reason: "upload_failed" };
 });
 ```
 
-`saasBaseUrl` is already imported in `ipc.ts` from `./saas-client` per its existing import list — no new import needed for that one.
+**Test mocking note:** `ipc.test.ts`'s current `vi.mock("electron", ...)` only provides `{ ipcMain: {...} }`. `electron-log/main` touches Electron's `app` module at import/initialize time, so importing it (even just to get the already-initialized singleton) will break under that mock unless a `vi.mock("electron-log/main", () => ({ default: { transports: { file: { getFile: () => ({ path: "/tmp/mock.log" }) } }, error: vi.fn() } }))` is added alongside it. Same applies to any future test that imports `index.ts` directly.
 
-**File:** `apps/agent/src/preload/index.ts` (modify) — `sendLogs: (): Promise<{ ok: boolean }> => ipcRenderer.invoke("agent:send-logs")`.
+**File:** `apps/agent/src/preload/index.ts` (modify) — `sendLogs: (): Promise<{ ok: boolean; reason?: string }> => ipcRenderer.invoke("agent:send-logs")`.
 
 ### Renderer: the button
 
-**File:** `apps/agent/src/renderer/screens/DashboardScreen.tsx` (modify) — small "Kirim log ke tim support" button (ghost-style, low visual weight, this is a support tool not a primary action) near the existing "Pengaturan" button in the header row. On click: call `sendLogs()`, show a one-line success/failure message (`g-success`/`g-error` text, same convention as the existing sync-status messages) for a few seconds, no modal/dialog needed — this is a fire-and-forget support action, not something requiring confirmation.
+**File:** `apps/agent/src/renderer/screens/DashboardScreen.tsx` (modify) — small "Kirim log ke tim support" button (ghost-style, low visual weight, this is a support tool not a primary action) near the existing "Pengaturan" button in the header row, next to the update banner from Section A. On click: call `sendLogs()`, show a one-line message for a few seconds (`g-success`/`g-error` text, same convention as the existing sync-status messages) — success text, or a `reason`-specific failure message (`too_large` → "Log terlalu besar", `upload_failed`/`read_failed`/`no_token` → generic "Gagal mengirim log"). No modal/dialog needed — this is a fire-and-forget support action, not something requiring confirmation.
+
+**Disclosure:** since this uploads a file the user hasn't inspected, the button needs a one-line caption under it (small, muted text, no dialog): "Log berisi info koneksi (IP lokal, ID printer) untuk membantu diagnosa — tidak berisi PIN atau kredensial." This keeps the app's existing "stays local unless the user explicitly acts" posture honest: the action is still one click, no confirmation dialog, but the user can see what leaves the machine before clicking, matching `credential-store.ts`'s own care about never surfacing the PIN.
 
 ## C — Install docs
 
@@ -243,10 +312,11 @@ No separate docs route — matches the earlier decision to keep this next to the
 ## Testing
 
 - `apps/saas/app/api/agent/version/route.test.ts` (new): 401 without valid token; 400 for missing/invalid `platform` param; 200 with `commitHash` from a mocked `headBinary`; 200 with `commitHash: null` when `headBinary` returns `null`; 503 when `headBinary` throws.
-- `apps/agent/src/main/saas-client.test.ts` (modify, existing file — confirm exact name before writing the plan): `fetchLatestVersion` unit tests mirroring `fetchDevices`'s existing 401/403/network-error/success cases.
-- `apps/agent/src/main/app-state.test.ts` (modify): `setUpdateAvailable`/`getUpdateAvailable` round-trip, same shape as the existing `setBrokerPin`/`getBrokerPin` test.
-- `apps/agent/src/main/ipc.test.ts` (modify): `agent:get-update-status` returns current state; `agent:send-logs` returns `{ok:false}` when no token, `{ok:true}`/`{ok:false}` based on mocked fetch response.
-- `apps/saas/app/api/agent/logs/route.test.ts` (new): 401 without valid token; 413 for an oversized body; 200 + `putLog` called with the right key shape on success; 503 when `putLog` throws.
+- `apps/agent/src/main/saas-client.test.ts` (modify, existing file — confirm exact name before writing the plan): `fetchLatestVersion` unit tests mirroring `fetchDevices`'s existing 401/403/network-error/success cases, plus the `updateAvailable` boolean derivation itself: `commitHash` equal to `AGENT_COMMIT_HASH` → `false`; different → `true`; `null` → `false`.
+- `apps/agent/src/main/app-state.test.ts` (modify): `setUpdateAvailable`/`getUpdateAvailable` round-trip (boolean, default `false`), same shape as the existing `setBrokerPin`/`getBrokerPin` test.
+- `apps/agent/src/main/ipc.test.ts` (modify — remember the `electron-log/main` mock note above, or these will fail at import time): `agent:get-update-status` returns current state; `agent:open-download-page` calls `shell.openExternal` with `${saasBaseUrl}/settings` when a base URL is configured, no-ops when it's empty; `agent:send-logs` returns `{ok:false, reason:"no_token"}` when no token, `{ok:false, reason:"too_large"}` when the mocked file stat exceeds 5MB, `{ok:true}`/`{ok:false, reason:"upload_failed"}` based on mocked fetch response.
+- `apps/saas/app/api/agent/logs/route.test.ts` (new): 401 without valid token; 413 via an oversized `Content-Length` header (rejected before buffering); 413 via an oversized actual body with a missing/understated `Content-Length` (the post-buffer check); 200 + `putLog` called with the right key shape on success; 503 when `putLog` throws.
 - `apps/saas/lib/storage/r2.test.ts` (modify, existing file): `putLog` unit test mirroring `putProof`'s existing test.
-- `apps/agent/src/renderer/AgentShell.test.tsx` (modify — this file already exists with 3 tests covering children/logo/build-id-footer rendering; the new tests below are added alongside them, and `window.agentApi` needs a `getUpdateStatus` mock added to whatever setup the existing 3 tests already share): banner renders when `getUpdateStatus()` returns a commit hash different from the build's own; banner absent when they match or when `latestCommitHash` is `null`.
-- `apps/agent/src/renderer/screens/DashboardScreen.test.tsx` (modify): "Kirim log" button calls `sendLogs()` and shows success/failure text based on the mocked result.
+- `apps/agent/src/renderer/screens/DashboardScreen.test.tsx` (modify — this file already has a `window.agentApi` mock; extend it with `getUpdateStatus`, `openDownloadPage`, `sendLogs`): update banner renders when `getUpdateStatus()` returns `{updateAvailable: true}`, absent when `false`, clicking it calls `openDownloadPage()`; "Kirim log" button calls `sendLogs()` and shows success text or a `reason`-specific failure message (`too_large` vs. the generic fallback) based on the mocked result.
+- `AgentShell.tsx` is untouched by this spec — `AgentShell.test.tsx`'s existing 3 tests need no changes.
+- `apps/saas/components/settings/DownloadAgentSection.test.tsx` (already exists, no changes needed) — the new disclaimer paragraph is static copy with no interactive behavior, doesn't need new test coverage.
