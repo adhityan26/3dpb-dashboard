@@ -26,4 +26,25 @@ export interface AnalyticsData {
   }
   daily: DailyPoint[]
   topProducts: TopProduct[]
+  incomeSummary: IncomeBreakdownSummary
+  incomeByProduct: ProductIncomeBreakdown[]
+}
+
+export interface IncomeBreakdownSummary {
+  totalBuyerPayment: number
+  totalShopeePrice: number
+  totalAdminFee: number
+  totalReceived: number
+  completedOrderCount: number
+  totalOrderCount: number
+}
+
+export interface ProductIncomeBreakdown {
+  productName: string
+  qty: number
+  buyerPayment: number
+  shopeePrice: number
+  adminFee: number | null
+  received: number | null
+  hasReturn: boolean
 }
