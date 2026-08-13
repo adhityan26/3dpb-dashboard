@@ -136,12 +136,13 @@ export async function syncAndGetEscrowForOrders(
       const row = await upsertFromEscrowDetail(order.order_sn, cachedRow.orderCompleteTime, true, detail)
       result.set(order.order_sn, row)
     }
-  } else {
-    // No orders in window among the cached ones — still surface their cached rows.
-    for (const order of completed) {
-      const c = cachedBySn.get(order.order_sn)
-      if (c && !result.has(order.order_sn)) result.set(order.order_sn, toRow(c))
-    }
+  }
+
+  // Unconditionally backfill any cached order not yet in result (regardless of inWindow).
+  // This ensures orders outside the mutable window are still returned from cache.
+  for (const order of completed) {
+    const c = cachedBySn.get(order.order_sn)
+    if (c && !result.has(order.order_sn)) result.set(order.order_sn, toRow(c))
   }
 
   return result

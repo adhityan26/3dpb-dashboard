@@ -157,6 +157,53 @@ describe("syncAndGetEscrowForOrders", () => {
     expect(mockGetEscrowDetail).not.toHaveBeenCalled()
     expect(result.get("ORD5")?.escrowAmount).toBe(90000)
   })
+
+  it("returns both outside-window and inside-window cached orders in mixed batch", async () => {
+    const oldCompleteTime = NOW - 40 * 86400 // 40 days ago, outside 30-day window
+    const recentCompleteTime = NOW - 5 * 86400 // 5 days ago, inside window
+    mockFindMany.mockResolvedValue([
+      {
+        orderSn: "ORD-OLD",
+        buyerPaymentAmount: 100000,
+        escrowAmount: 90000,
+        commissionFee: 5000,
+        serviceFee: 3000,
+        transactionFee: 2000,
+        actualShippingFee: 0,
+        hasReturnFlag: false,
+        orderCompleteTime: oldCompleteTime,
+      },
+      {
+        orderSn: "ORD-RECENT",
+        buyerPaymentAmount: 200000,
+        escrowAmount: 180000,
+        commissionFee: 10000,
+        serviceFee: 6000,
+        transactionFee: 4000,
+        actualShippingFee: 0,
+        hasReturnFlag: false,
+        orderCompleteTime: recentCompleteTime,
+      },
+    ])
+    mockGetReturnListForOrders.mockResolvedValue([]) // no final returns
+
+    const orders = [
+      { order_sn: "ORD-OLD", order_status: "COMPLETED", update_time: oldCompleteTime },
+      { order_sn: "ORD-RECENT", order_status: "COMPLETED", update_time: recentCompleteTime },
+    ]
+    const result = await syncAndGetEscrowForOrders(orders, NOW)
+
+    // Both should be present in the result with original cached values
+    expect(result.has("ORD-OLD")).toBe(true)
+    expect(result.get("ORD-OLD")?.escrowAmount).toBe(90000)
+    expect(result.has("ORD-RECENT")).toBe(true)
+    expect(result.get("ORD-RECENT")?.escrowAmount).toBe(180000)
+
+    // getReturnListForOrders should be called (for the in-window order only)
+    expect(mockGetReturnListForOrders).toHaveBeenCalled()
+    // getEscrowDetail should NOT be called for either (no new fetches needed)
+    expect(mockGetEscrowDetail).not.toHaveBeenCalled()
+  })
 })
 
 describe("allocateFeePerProduct", () => {
