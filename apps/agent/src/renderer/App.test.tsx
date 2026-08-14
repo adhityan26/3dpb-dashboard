@@ -154,8 +154,8 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /pengaturan/i }));
 
     await waitFor(() => expect(screen.getByText(/terpasang/i)).toBeTruthy());
-    expect(screen.getByRole("button", { name: /^edit$/i })).toBeTruthy());
-    expect(screen.getByRole("button", { name: /lupakan/i })).toBeTruthy());
+    expect(screen.getByRole("button", { name: /^edit$/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /lupakan/i })).toBeTruthy();
   });
 
   it("agent:get-activation-state gagal (IPC reject) -> fallback ke layar Aktivasi, tidak macet di loading", async () => {
