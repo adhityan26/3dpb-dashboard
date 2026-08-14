@@ -28,6 +28,11 @@ const agentApi = {
   getActivationState: (): Promise<ActivationState> => ipcRenderer.invoke("agent:get-activation-state"),
   sendPrinterCommand: (deviceId: string, cmd: PrinterCommand): Promise<CommandResult> =>
     ipcRenderer.invoke("agent:printer-command", deviceId, cmd),
+  getUpdateStatus: (): Promise<{ updateAvailable: boolean }> =>
+    ipcRenderer.invoke("agent:get-update-status"),
+  openDownloadPage: (): Promise<void> =>
+    ipcRenderer.invoke("agent:open-download-page"),
+  sendLogs: (): Promise<{ ok: boolean; reason?: string }> => ipcRenderer.invoke("agent:send-logs"),
 };
 
 export type AgentApi = typeof agentApi;

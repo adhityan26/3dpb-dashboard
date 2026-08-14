@@ -1,9 +1,11 @@
-import { ipcMain } from "electron";
+import { ipcMain, shell } from "electron";
+import { readFile, stat } from "node:fs/promises";
+import log from "electron-log/main";
 import { loadCredentials, saveCredentials, type DeviceSecret } from "./credential-store";
-import { fetchDevices, patchDeviceModel, type SaasDevice } from "./saas-client";
+import { fetchDevices, patchDeviceModel, saasBaseUrl, type SaasDevice } from "./saas-client";
 import { scanBambu } from "./discovery/bambu-ssdp";
 import { scanMoonraker } from "./discovery/moonraker-mdns";
-import { getEngine, setEngine, getBrokerPort, getBrokerPin, getLocalIp, getReporters, setReporters } from "./app-state";
+import { getEngine, setEngine, getBrokerPort, getBrokerPin, getLocalIp, getReporters, setReporters, getUpdateAvailable } from "./app-state";
 import { reconcileDevices } from "./startup";
 import { startEngine } from "./engine-manager";
 import { publishLayout } from "./layout-publisher";
@@ -101,7 +103,7 @@ export function registerIpcHandlers(): void {
     // Tanpa ini, TIAP Sync yang restart Engine bikin 1 koneksi MQTT baru yang gak pernah
     // ditutup (leak — Task 13 review Important finding pasca fix-wave sebelumnya).
     for (const r of getReporters()) {
-      await r.close().catch((err) => console.error("[ipc] agent:sync gagal tutup reporter lama", err));
+      await r.close().catch((err) => log.error("[ipc] agent:sync gagal tutup reporter lama", err));
     }
     setReporters([]);
 
@@ -111,7 +113,7 @@ export function registerIpcHandlers(): void {
         setEngine(started.engine);
         setReporters(started.reporters);
       } catch (err) {
-        console.error("[ipc] agent:sync gagal restart engine dengan device terbaru", err);
+        log.error("[ipc] agent:sync gagal restart engine dengan device terbaru", err);
         setEngine(null);
         return { ok: false, kind: "engine_error" };
       }
@@ -122,7 +124,7 @@ export function registerIpcHandlers(): void {
     // Republish layout non-fatal -- kegagalannya gak boleh bikin seluruh Sync dianggap gagal
     // (device sudah kepasang duluan di atas), cukup dicatat.
     await publishLayout(blob.agentToken, brokerPort, "default", brokerPin).catch((err) => {
-      console.error("[ipc] agent:sync gagal republish layout (non-fatal)", err);
+      log.error("[ipc] agent:sync gagal republish layout (non-fatal)", err);
     });
 
     if (!fetchResult.ok) return fetchResult;
@@ -158,5 +160,53 @@ export function registerIpcHandlers(): void {
     const engine = getEngine();
     if (!engine) return { ok: false, message: "engine_not_running" };
     return engine.sendCommand(deviceId, cmd);
+  });
+
+  ipcMain.handle("agent:get-update-status", async () => {
+    return { updateAvailable: getUpdateAvailable() };
+  });
+
+  ipcMain.handle("agent:open-download-page", async () => {
+    const base = saasBaseUrl();
+    if (!base) return; // dev-config error already logged loudly at startup (index.ts) -- silent no-op here, not a second error path
+    await shell.openExternal(`${base}/settings`);
+  });
+
+  const MAX_LOG_BYTES = 5 * 1024 * 1024;
+
+  ipcMain.handle("agent:send-logs", async (): Promise<{ ok: boolean; reason?: string }> => {
+    const blob = await loadCredentials();
+    if (!blob.agentToken) return { ok: false, reason: "no_token" };
+
+    const logPath = log.transports.file.getFile().path;
+    let stats;
+    try {
+      stats = await stat(logPath);
+    } catch {
+      return { ok: false, reason: "read_failed" };
+    }
+    // Check client-side before even reading the file, so an oversized log fails fast with
+    // a distinct message -- the server enforces the same cap independently (Task 8), this
+    // is purely a faster/clearer UX path.
+    if (stats.size > MAX_LOG_BYTES) {
+      return { ok: false, reason: "too_large" };
+    }
+
+    let content: Buffer;
+    try {
+      content = await readFile(logPath);
+    } catch {
+      return { ok: false, reason: "read_failed" };
+    }
+
+    const res = await fetch(`${saasBaseUrl()}/api/agent/logs`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${blob.agentToken}`, "Content-Type": "text/plain" },
+      // Cast needed: this TypeScript/@types-node combo types Buffer as Buffer<ArrayBufferLike>,
+      // which structurally no longer satisfies fetch's BodyInit -- Buffer is a real Uint8Array
+      // at runtime and Node's fetch accepts it directly, this is a type-level mismatch only.
+      body: content as unknown as BodyInit,
+    }).catch(() => null);
+    return res?.ok === true ? { ok: true } : { ok: false, reason: "upload_failed" };
   });
 }

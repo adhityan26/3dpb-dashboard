@@ -1,5 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 
+vi.mock("electron-log/main", () => ({
+  default: { error: vi.fn() },
+}));
+
 const connectMock = vi.fn().mockResolvedValue(undefined);
 vi.mock("@3pb/printer-monitor-core", async () => {
   const actual = await vi.importActual<any>("@3pb/printer-monitor-core");
@@ -30,6 +34,7 @@ vi.mock("@3pb/printer-monitor-core", async () => {
 import { startEngine } from "./engine-manager";
 import { MqttReporter, HmsLookup } from "@3pb/printer-monitor-core";
 import { hmsTable } from "./hms-table";
+import log from "electron-log/main";
 
 describe("startEngine", () => {
   it("bikin DeviceConfig dengan id = shortCode (BUKAN label/serial lain)", async () => {
@@ -83,7 +88,8 @@ describe("startEngine", () => {
   });
 
   it("satu device bambu dengan secret salah (serial/accessCode kosong) gagal construct -> device LAIN (bambu+moonraker valid) TETAP termonitor, startEngine() tidak throw", async () => {
-    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const errSpy = vi.mocked(log.error);
+    errSpy.mockClear();
     const paired = [
       { shortCode: "good-bambu", label: "Printer Baik", printerType: "bambu", secret: { ip: "1.1.1.1", serial: "SER1", accessCode: "1234" } },
       // Skenario nyata: device slot ber-type "bambu" dipasangkan dengan info yang salah
@@ -99,7 +105,6 @@ describe("startEngine", () => {
     const ids = engine.snapshot().payload.map((p) => p.id);
     expect(ids).toEqual(["good-bambu", "bad-bambu", "good-moonraker"]);
     expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("bad-bambu"), expect.any(Error));
-    errSpy.mockRestore();
   });
 
   it("model null/kosong/whitespace -> fallback CYD_TYPE_FALLBACK per printerType", async () => {

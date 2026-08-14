@@ -110,6 +110,14 @@ export function DownloadAgentSection({ buildId }: { buildId?: string | null } = 
         dipasang. Windows: klik "More info" lalu "Run anyway". macOS: buka System Settings &gt;
         Privacy &amp; Security, lalu "Open Anyway".
       </p>
+
+      <p className="text-[11px] g-t4 mt-3 pt-3" style={{ borderTop: "1px solid var(--g-row-border)" }}>
+        Saat pertama dibuka, Windows mungkin menampilkan prompt "Windows Defender Firewall has
+        blocked some features" -- klik "Allow access" (centang jaringan privat/kerja kalau
+        ditanya). Ini diperlukan supaya Agent bisa terhubung ke printer &amp; layar Mini Display di
+        jaringan lokal yang sama. Di macOS, sistem mungkin minta izin "Local Network" -- pilih
+        "Allow" saat muncul.
+      </p>
     </div>
   );
 }

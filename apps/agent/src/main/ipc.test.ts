@@ -1,25 +1,46 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const handlers: Record<string, (...args: any[]) => any> = {};
 vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn((channel: string, fn: any) => { handlers[channel] = fn; }) },
+  shell: { openExternal: vi.fn() },
 }));
 vi.mock("./credential-store", () => ({ loadCredentials: vi.fn().mockResolvedValue({ agentToken: null, devices: {} }), saveCredentials: vi.fn() }));
-vi.mock("./saas-client", () => ({ fetchDevices: vi.fn().mockResolvedValue({ ok: true, data: [] }), fetchLayout: vi.fn(), patchDeviceModel: vi.fn() }));
+vi.mock("./saas-client", () => ({ fetchDevices: vi.fn().mockResolvedValue({ ok: true, data: [] }), fetchLayout: vi.fn(), patchDeviceModel: vi.fn(), saasBaseUrl: vi.fn().mockReturnValue("http://192.168.88.113:3300") }));
 vi.mock("./discovery/bambu-ssdp", () => ({ scanBambu: vi.fn().mockResolvedValue({ ok: true, printers: [] }) }));
 vi.mock("./discovery/moonraker-mdns", () => ({ scanMoonraker: vi.fn().mockResolvedValue([]) }));
 vi.mock("./startup", () => ({ reconcileDevices: vi.fn() }));
 vi.mock("./engine-manager", () => ({ startEngine: vi.fn() }));
 vi.mock("./layout-publisher", () => ({ publishLayout: vi.fn().mockResolvedValue({ published: true }) }));
+vi.mock("electron-log/main", () => ({
+  default: {
+    transports: { file: { getFile: () => ({ path: "/tmp/mock-agent.log" }) } },
+    error: vi.fn(),
+  },
+}));
+// Vitest's Node built-in module interop requires a "default" export alongside the named
+// ones (same pattern already used for "node:fs" in credential-store.test.ts/device-cache.
+// test.ts) -- without it, importing this mock throws at module-load time before any test
+// runs, not just the ones that touch stat/readFile.
+vi.mock("node:fs/promises", () => {
+  const stat = vi.fn();
+  const readFile = vi.fn();
+  return { stat, readFile, default: { stat, readFile } };
+});
 
 import { registerIpcHandlers } from "./ipc";
-import { ipcMain } from "electron";
-import { fetchDevices, patchDeviceModel } from "./saas-client";
+import { ipcMain, shell } from "electron";
+import { fetchDevices, patchDeviceModel, saasBaseUrl } from "./saas-client";
 import { loadCredentials, saveCredentials } from "./credential-store";
 import { reconcileDevices } from "./startup";
 import { startEngine } from "./engine-manager";
 import { publishLayout } from "./layout-publisher";
-import { getEngine, setEngine, setBrokerPort, setBrokerPin, getReporters, setReporters } from "./app-state";
+import { getEngine, setEngine, setBrokerPort, setBrokerPin, getReporters, setReporters, setUpdateAvailable } from "./app-state";
+import { stat, readFile } from "node:fs/promises";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("registerIpcHandlers", () => {
   it("daftarkan handler 'agent:activate'", () => {
@@ -337,5 +358,111 @@ describe("agent:printer-command", () => {
     expect(sendCommand).toHaveBeenCalledWith("mars", { kind: "setSpeedLevel", level: 3 });
     expect(result).toEqual({ ok: true });
     setEngine(null);
+  });
+});
+
+describe("agent:get-update-status", () => {
+  it("balikin updateAvailable TERKINI dari app-state, bukan snapshot beku", async () => {
+    registerIpcHandlers();
+    setUpdateAvailable(false);
+    expect(await handlers["agent:get-update-status"]()).toEqual({ updateAvailable: false });
+    setUpdateAvailable(true);
+    expect(await handlers["agent:get-update-status"]()).toEqual({ updateAvailable: true });
+    setUpdateAvailable(false);
+  });
+});
+
+describe("agent:open-download-page", () => {
+  it("panggil shell.openExternal dengan ${saasBaseUrl}/settings", async () => {
+    registerIpcHandlers();
+    await handlers["agent:open-download-page"]();
+    expect(shell.openExternal).toHaveBeenCalledWith("http://192.168.88.113:3300/settings");
+  });
+
+  it("saasBaseUrl kosong (build salah konfigurasi) -> no-op, TIDAK panggil shell.openExternal dengan URL rusak", async () => {
+    registerIpcHandlers();
+    (saasBaseUrl as any).mockReturnValueOnce("");
+    (shell.openExternal as any).mockClear();
+    await handlers["agent:open-download-page"]();
+    expect(shell.openExternal).not.toHaveBeenCalled();
+  });
+});
+
+describe("agent:send-logs", () => {
+  it("belum ada token -> {ok:false, reason:'no_token'}, TANPA baca file", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: null, devices: {} });
+
+    const result = await handlers["agent:send-logs"]();
+
+    expect(result).toEqual({ ok: false, reason: "no_token" });
+    expect(stat).not.toHaveBeenCalled();
+  });
+
+  it("stat() gagal (file log tak ada) -> {ok:false, reason:'read_failed'}", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
+    (stat as any).mockRejectedValueOnce(new Error("ENOENT"));
+
+    const result = await handlers["agent:send-logs"]();
+
+    expect(result).toEqual({ ok: false, reason: "read_failed" });
+  });
+
+  it("file log > 5MB -> {ok:false, reason:'too_large'}, TANPA baca isi file / fetch", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
+    (stat as any).mockResolvedValueOnce({ size: 6 * 1024 * 1024 });
+
+    const result = await handlers["agent:send-logs"]();
+
+    expect(result).toEqual({ ok: false, reason: "too_large" });
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
+  it("readFile() gagal setelah stat() sukses -> {ok:false, reason:'read_failed'}", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
+    (stat as any).mockResolvedValueOnce({ size: 100 });
+    (readFile as any).mockRejectedValueOnce(new Error("gagal baca"));
+
+    const result = await handlers["agent:send-logs"]();
+
+    expect(result).toEqual({ ok: false, reason: "read_failed" });
+  });
+
+  it("sukses: POST ke /api/agent/logs dengan isi file, balikin {ok:true}", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
+    (stat as any).mockResolvedValueOnce({ size: 100 });
+    (readFile as any).mockResolvedValueOnce(Buffer.from("log isi"));
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
+
+    const result = await handlers["agent:send-logs"]();
+
+    expect(result).toEqual({ ok: true });
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "http://192.168.88.113:3300/api/agent/logs",
+      expect.objectContaining({
+        method: "POST",
+        headers: { Authorization: "Bearer slz_ok", "Content-Type": "text/plain" },
+      })
+    );
+    globalThis.fetch = originalFetch;
+  });
+
+  it("upload gagal (fetch balikin !ok atau reject) -> {ok:false, reason:'upload_failed'}", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
+    (stat as any).mockResolvedValueOnce({ size: 100 });
+    (readFile as any).mockResolvedValueOnce(Buffer.from("log isi"));
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false });
+
+    const result = await handlers["agent:send-logs"]();
+
+    expect(result).toEqual({ ok: false, reason: "upload_failed" });
+    globalThis.fetch = originalFetch;
   });
 });

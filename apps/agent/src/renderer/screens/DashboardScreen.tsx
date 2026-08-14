@@ -80,6 +80,9 @@ export function DashboardScreen({
   const [snapshot, setSnapshot] = useState<PrintersPayload>({ payload: [] });
   const [brokerInfo, setBrokerInfo] = useState<{ ip: string; port: number | null; pin: string | null } | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({ kind: "idle" });
+  const [updateAvailable, setUpdateAvailable] = useState(false);
+  type LogSendStatus = { kind: "idle" } | { kind: "sending" } | { kind: "success" } | { kind: "error"; message: string };
+  const [logSendStatus, setLogSendStatus] = useState<LogSendStatus>({ kind: "idle" });
   const initialSyncStarted = useRef(false);
 
   useEffect(() => {
@@ -106,6 +109,38 @@ export function DashboardScreen({
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    const load = () => {
+      window.agentApi
+        .getUpdateStatus()
+        .then((s) => setUpdateAvailable(s.updateAvailable))
+        .catch((err) => console.error("[dashboard] gagal cek update", err));
+    };
+    load();
+    const timer = setInterval(load, 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  function logSendErrorMessage(reason: string | undefined): string {
+    if (reason === "too_large") return "Log terlalu besar";
+    return "Gagal mengirim log";
+  }
+
+  async function handleSendLogs() {
+    setLogSendStatus({ kind: "sending" });
+    try {
+      const result = await window.agentApi.sendLogs();
+      if (result.ok) {
+        setLogSendStatus({ kind: "success" });
+      } else {
+        setLogSendStatus({ kind: "error", message: logSendErrorMessage(result.reason) });
+      }
+    } catch (err) {
+      console.error("[dashboard] kirim log gagal", err);
+      setLogSendStatus({ kind: "error", message: "Gagal mengirim log — coba lagi." });
+    }
+  }
+
   async function handleSync() {
     setSyncStatus({ kind: "syncing" });
     try {
@@ -128,10 +163,38 @@ export function DashboardScreen({
         {/* Satu-satunya jalan balik ke PairingScreen -- dari sini user bisa Edit/Lupakan
             device yang salah access code-nya atau salah pasang ke slot yang keliru, tanpa
             harus tahu trik "refresh app". */}
-        <GlassButton onClick={onManageDevices} className="text-xs opacity-70">
-          Pengaturan
-        </GlassButton>
+        <div className="flex items-center gap-2">
+          {updateAvailable && (
+            <button
+              type="button"
+              onClick={() => window.agentApi.openDownloadPage().catch((err) => console.error("[dashboard] gagal buka halaman download", err))}
+              className="text-[11px] px-3 py-1.5 rounded-md g-btn-ghost"
+            >
+              Versi baru tersedia — klik untuk unduh
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={handleSendLogs}
+            disabled={logSendStatus.kind === "sending"}
+            className="text-[11px] px-3 py-1.5 rounded-md g-btn-ghost"
+          >
+            {logSendStatus.kind === "sending" ? "Mengirim..." : "Kirim log ke tim support"}
+          </button>
+          <GlassButton onClick={onManageDevices} className="text-xs opacity-70">
+            Pengaturan
+          </GlassButton>
+        </div>
       </div>
+      {logSendStatus.kind === "success" && (
+        <p className="g-success text-xs mb-2">Log terkirim ke tim support.</p>
+      )}
+      {logSendStatus.kind === "error" && (
+        <p role="alert" className="g-error text-xs mb-2">{logSendStatus.message}</p>
+      )}
+      <p className="g-t4 text-[11px] mb-3">
+        Log berisi info koneksi (IP lokal, ID printer) untuk membantu diagnosa — tidak berisi PIN atau kredensial.
+      </p>
       <div className="mb-3 flex items-center gap-3">
         <GlassButton onClick={handleSync} disabled={syncStatus.kind === "syncing"}>
           {syncStatus.kind === "syncing" ? "Sync..." : "Sync"}

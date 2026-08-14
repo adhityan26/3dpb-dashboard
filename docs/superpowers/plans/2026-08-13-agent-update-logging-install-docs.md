@@ -1139,9 +1139,9 @@ Add the handler inside `registerIpcHandlers()`, right after the `agent:open-down
     } catch {
       return { ok: false, reason: "read_failed" };
     }
-    // Cek di sisi client SEBELUM baca file, biar log kebesaran gagal cepat dengan pesan
-    // spesifik -- server independen menegakkan cap yang sama (Task 8), ini murni jalur UX
-    // yang lebih cepat/jelas.
+    // Check client-side before even reading the file, so an oversized log fails fast with
+    // a distinct message -- the server enforces the same cap independently (Task 8), this
+    // is purely a faster/clearer UX path.
     if (stats.size > MAX_LOG_BYTES) {
       return { ok: false, reason: "too_large" };
     }

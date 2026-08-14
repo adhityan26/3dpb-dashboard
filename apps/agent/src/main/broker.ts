@@ -1,6 +1,7 @@
 import Aedes from "aedes";
 import net from "node:net";
 import type { Socket } from "node:net";
+import log from "electron-log/main";
 
 export type BrokerStartResult =
   | { ok: true; port: number }
@@ -159,11 +160,11 @@ export async function startBroker(port = 1883, pin: string): Promise<BrokerStart
         settle({ ok: false, reason: "port_in_use" });
         return;
       }
-      console.error("[broker] gagal listen (bukan EADDRINUSE)", err);
+      log.error("[broker] gagal listen (bukan EADDRINUSE)", err);
       settle({ ok: false, reason: "listen_error" });
     });
     timer = setTimeout(() => {
-      console.error(`[broker] listen tak merespons dalam ${LISTEN_TIMEOUT_MS}ms — dianggap gagal`);
+      log.error(`[broker] listen tak merespons dalam ${LISTEN_TIMEOUT_MS}ms — dianggap gagal`);
       settle({ ok: false, reason: "listen_error" });
     }, LISTEN_TIMEOUT_MS);
     // Timer tak boleh menahan event loop kalau app mau keluar duluan.

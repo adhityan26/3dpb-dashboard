@@ -8,6 +8,9 @@ beforeEach(() => {
     getSnapshot: vi.fn().mockResolvedValue({ payload: [{ id: "abc1234567", name: "Printer A", type: "bambu", connector: "bambu", state: "running", progress: 45, remaining_min: 30, filename: "box.gcode", error_msg: "", last_seen: "2026-07-29T10:00:00Z", nozzle_temp: 219, bed_temp: 60 }] }),
     getBrokerInfo: vi.fn().mockResolvedValue({ ip: "192.168.1.100", port: 1883, pin: "0042" }),
     sync: vi.fn().mockResolvedValue({ ok: true, deviceCount: 1 }),
+    getUpdateStatus: vi.fn().mockResolvedValue({ updateAvailable: false }),
+    openDownloadPage: vi.fn().mockResolvedValue(undefined),
+    sendLogs: vi.fn().mockResolvedValue({ ok: true }),
   };
 });
 
@@ -230,5 +233,89 @@ describe("DashboardScreen polling", () => {
       await vi.advanceTimersByTimeAsync(5000);
     });
     expect((window as any).agentApi.getBrokerInfo).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("DashboardScreen update banner", () => {
+  it("getUpdateStatus updateAvailable:true -> banner tampil", async () => {
+    (window as any).agentApi.getUpdateStatus.mockResolvedValue({ updateAvailable: true });
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText(/versi baru tersedia/i)).toBeTruthy());
+  });
+
+  it("getUpdateStatus updateAvailable:false -> banner TIDAK tampil", async () => {
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /^sync$/i })).toBeTruthy());
+    expect(screen.queryByText(/versi baru tersedia/i)).toBeNull();
+  });
+
+  it("klik banner panggil openDownloadPage()", async () => {
+    (window as any).agentApi.getUpdateStatus.mockResolvedValue({ updateAvailable: true });
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText(/versi baru tersedia/i)).toBeTruthy());
+    fireEvent.click(screen.getByText(/versi baru tersedia/i));
+    expect((window as any).agentApi.openDownloadPage).toHaveBeenCalled();
+  });
+});
+
+describe("DashboardScreen update banner polling", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("getUpdateStatus() di-poll tiap 60 detik, bukan cuma sekali saat mount", async () => {
+    await act(async () => {
+      render(<DashboardScreen />);
+    });
+    expect((window as any).agentApi.getUpdateStatus).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect((window as any).agentApi.getUpdateStatus).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("DashboardScreen kirim log", () => {
+  it("klik 'Kirim log' panggil sendLogs(), tampilkan pesan sukses", async () => {
+    render(<DashboardScreen />);
+    await waitFor(() => screen.getByRole("button", { name: /kirim log/i }));
+    fireEvent.click(screen.getByRole("button", { name: /kirim log/i }));
+    await waitFor(() => expect((window as any).agentApi.sendLogs).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText(/log terkirim/i)).toBeTruthy());
+  });
+
+  it("sendLogs gagal reason:too_large -> pesan spesifik 'Log terlalu besar'", async () => {
+    (window as any).agentApi.sendLogs.mockResolvedValue({ ok: false, reason: "too_large" });
+    render(<DashboardScreen />);
+    await waitFor(() => screen.getByRole("button", { name: /kirim log/i }));
+    fireEvent.click(screen.getByRole("button", { name: /kirim log/i }));
+    await waitFor(() => expect(screen.getByText(/log terlalu besar/i)).toBeTruthy());
+  });
+
+  it("sendLogs gagal reason lain (mis. upload_failed) -> pesan generik 'Gagal mengirim log'", async () => {
+    (window as any).agentApi.sendLogs.mockResolvedValue({ ok: false, reason: "upload_failed" });
+    render(<DashboardScreen />);
+    await waitFor(() => screen.getByRole("button", { name: /kirim log/i }));
+    fireEvent.click(screen.getByRole("button", { name: /kirim log/i }));
+    await waitFor(() => expect(screen.getByText(/gagal mengirim log/i)).toBeTruthy());
+  });
+
+  it("caption disclosure tentang isi log selalu tampil di dekat tombol", async () => {
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText(/tidak berisi pin atau kredensial/i)).toBeTruthy());
+  });
+
+  it("sendLogs reject (IPC error) -> tidak macet di 'Mengirim...', pulih ke status error", async () => {
+    (window as any).agentApi.sendLogs.mockRejectedValue(new Error("ipc boom"));
+    render(<DashboardScreen />);
+    await waitFor(() => screen.getByRole("button", { name: /kirim log/i }));
+    fireEvent.click(screen.getByRole("button", { name: /kirim log/i }));
+    await waitFor(() => expect(screen.getByText(/gagal mengirim log/i)).toBeTruthy());
+    expect(screen.getByRole("button", { name: /kirim log/i })).toBeTruthy();
+    expect((screen.getByRole("button", { name: /kirim log/i }) as HTMLButtonElement).disabled).toBe(false);
   });
 });
