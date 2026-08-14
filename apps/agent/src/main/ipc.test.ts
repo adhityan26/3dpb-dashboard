@@ -3,9 +3,10 @@ import { describe, it, expect, vi } from "vitest";
 const handlers: Record<string, (...args: any[]) => any> = {};
 vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn((channel: string, fn: any) => { handlers[channel] = fn; }) },
+  shell: { openExternal: vi.fn() },
 }));
 vi.mock("./credential-store", () => ({ loadCredentials: vi.fn().mockResolvedValue({ agentToken: null, devices: {} }), saveCredentials: vi.fn() }));
-vi.mock("./saas-client", () => ({ fetchDevices: vi.fn().mockResolvedValue({ ok: true, data: [] }), fetchLayout: vi.fn(), patchDeviceModel: vi.fn() }));
+vi.mock("./saas-client", () => ({ fetchDevices: vi.fn().mockResolvedValue({ ok: true, data: [] }), fetchLayout: vi.fn(), patchDeviceModel: vi.fn(), saasBaseUrl: vi.fn().mockReturnValue("http://192.168.88.113:3300") }));
 vi.mock("./discovery/bambu-ssdp", () => ({ scanBambu: vi.fn().mockResolvedValue({ ok: true, printers: [] }) }));
 vi.mock("./discovery/moonraker-mdns", () => ({ scanMoonraker: vi.fn().mockResolvedValue([]) }));
 vi.mock("./startup", () => ({ reconcileDevices: vi.fn() }));
@@ -13,13 +14,13 @@ vi.mock("./engine-manager", () => ({ startEngine: vi.fn() }));
 vi.mock("./layout-publisher", () => ({ publishLayout: vi.fn().mockResolvedValue({ published: true }) }));
 
 import { registerIpcHandlers } from "./ipc";
-import { ipcMain } from "electron";
-import { fetchDevices, patchDeviceModel } from "./saas-client";
+import { ipcMain, shell } from "electron";
+import { fetchDevices, patchDeviceModel, saasBaseUrl } from "./saas-client";
 import { loadCredentials, saveCredentials } from "./credential-store";
 import { reconcileDevices } from "./startup";
 import { startEngine } from "./engine-manager";
 import { publishLayout } from "./layout-publisher";
-import { getEngine, setEngine, setBrokerPort, setBrokerPin, getReporters, setReporters } from "./app-state";
+import { getEngine, setEngine, setBrokerPort, setBrokerPin, getReporters, setReporters, setUpdateAvailable } from "./app-state";
 
 describe("registerIpcHandlers", () => {
   it("daftarkan handler 'agent:activate'", () => {
@@ -337,5 +338,32 @@ describe("agent:printer-command", () => {
     expect(sendCommand).toHaveBeenCalledWith("mars", { kind: "setSpeedLevel", level: 3 });
     expect(result).toEqual({ ok: true });
     setEngine(null);
+  });
+});
+
+describe("agent:get-update-status", () => {
+  it("balikin updateAvailable TERKINI dari app-state, bukan snapshot beku", async () => {
+    registerIpcHandlers();
+    setUpdateAvailable(false);
+    expect(await handlers["agent:get-update-status"]()).toEqual({ updateAvailable: false });
+    setUpdateAvailable(true);
+    expect(await handlers["agent:get-update-status"]()).toEqual({ updateAvailable: true });
+    setUpdateAvailable(false);
+  });
+});
+
+describe("agent:open-download-page", () => {
+  it("panggil shell.openExternal dengan ${saasBaseUrl}/settings", async () => {
+    registerIpcHandlers();
+    await handlers["agent:open-download-page"]();
+    expect(shell.openExternal).toHaveBeenCalledWith("http://192.168.88.113:3300/settings");
+  });
+
+  it("saasBaseUrl kosong (build salah konfigurasi) -> no-op, TIDAK panggil shell.openExternal dengan URL rusak", async () => {
+    registerIpcHandlers();
+    (saasBaseUrl as any).mockReturnValueOnce("");
+    (shell.openExternal as any).mockClear();
+    await handlers["agent:open-download-page"]();
+    expect(shell.openExternal).not.toHaveBeenCalled();
   });
 });

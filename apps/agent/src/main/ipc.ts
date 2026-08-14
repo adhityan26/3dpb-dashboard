@@ -1,9 +1,9 @@
-import { ipcMain } from "electron";
+import { ipcMain, shell } from "electron";
 import { loadCredentials, saveCredentials, type DeviceSecret } from "./credential-store";
-import { fetchDevices, patchDeviceModel, type SaasDevice } from "./saas-client";
+import { fetchDevices, patchDeviceModel, saasBaseUrl, type SaasDevice } from "./saas-client";
 import { scanBambu } from "./discovery/bambu-ssdp";
 import { scanMoonraker } from "./discovery/moonraker-mdns";
-import { getEngine, setEngine, getBrokerPort, getBrokerPin, getLocalIp, getReporters, setReporters } from "./app-state";
+import { getEngine, setEngine, getBrokerPort, getBrokerPin, getLocalIp, getReporters, setReporters, getUpdateAvailable } from "./app-state";
 import { reconcileDevices } from "./startup";
 import { startEngine } from "./engine-manager";
 import { publishLayout } from "./layout-publisher";
@@ -158,5 +158,15 @@ export function registerIpcHandlers(): void {
     const engine = getEngine();
     if (!engine) return { ok: false, message: "engine_not_running" };
     return engine.sendCommand(deviceId, cmd);
+  });
+
+  ipcMain.handle("agent:get-update-status", async () => {
+    return { updateAvailable: getUpdateAvailable() };
+  });
+
+  ipcMain.handle("agent:open-download-page", async () => {
+    const base = saasBaseUrl();
+    if (!base) return; // dev-config error sudah dicatat keras di startup (index.ts) -- no-op diam di sini, bukan jalur error kedua
+    await shell.openExternal(`${base}/settings`);
   });
 }
