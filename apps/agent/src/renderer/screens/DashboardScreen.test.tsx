@@ -308,4 +308,14 @@ describe("DashboardScreen kirim log", () => {
     render(<DashboardScreen />);
     await waitFor(() => expect(screen.getByText(/tidak berisi pin atau kredensial/i)).toBeTruthy());
   });
+
+  it("sendLogs reject (IPC error) -> tidak macet di 'Mengirim...', pulih ke status error", async () => {
+    (window as any).agentApi.sendLogs.mockRejectedValue(new Error("ipc boom"));
+    render(<DashboardScreen />);
+    await waitFor(() => screen.getByRole("button", { name: /kirim log/i }));
+    fireEvent.click(screen.getByRole("button", { name: /kirim log/i }));
+    await waitFor(() => expect(screen.getByText(/gagal mengirim log/i)).toBeTruthy());
+    expect(screen.getByRole("button", { name: /kirim log/i })).toBeTruthy();
+    expect((screen.getByRole("button", { name: /kirim log/i }) as HTMLButtonElement).disabled).toBe(false);
+  });
 });

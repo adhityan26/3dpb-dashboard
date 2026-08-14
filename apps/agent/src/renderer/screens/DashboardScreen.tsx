@@ -128,11 +128,16 @@ export function DashboardScreen({
 
   async function handleSendLogs() {
     setLogSendStatus({ kind: "sending" });
-    const result = await window.agentApi.sendLogs();
-    if (result.ok) {
-      setLogSendStatus({ kind: "success" });
-    } else {
-      setLogSendStatus({ kind: "error", message: logSendErrorMessage(result.reason) });
+    try {
+      const result = await window.agentApi.sendLogs();
+      if (result.ok) {
+        setLogSendStatus({ kind: "success" });
+      } else {
+        setLogSendStatus({ kind: "error", message: logSendErrorMessage(result.reason) });
+      }
+    } catch (err) {
+      console.error("[dashboard] kirim log gagal", err);
+      setLogSendStatus({ kind: "error", message: "Gagal mengirim log — coba lagi." });
     }
   }
 
