@@ -35,7 +35,7 @@ let isQuitting = false
 async function bootstrap(): Promise<void> {
   try {
     log.initialize()
-    log.errorHandler.startCatching() // exception tak tertangkap + rejection tanpa handler -> otomatis masuk file log
+    log.errorHandler.startCatching() // uncaught exceptions + unhandled rejections -> log file automatically
     // Diagnostik startup: base URL SaaS di-inject saat BUILD (define di
     // electron.vite.config.ts). Kalau kosong, SEMUA panggilan SaaS bakal balik
     // "network_error" generik yang mustahil dibedakan dari internet mati — jadi
