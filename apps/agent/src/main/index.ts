@@ -8,8 +8,8 @@ import { startEngine } from './engine-manager'
 import { publishLayout } from './layout-publisher'
 import { loadCredentials, ensureBrokerPin } from './credential-store'
 import { registerIpcHandlers } from './ipc'
-import { saasBaseUrl } from './saas-client'
-import { setEngine, setBrokerPort, setBrokerPin, setReporters, listLocalIpCandidates } from './app-state'
+import { saasBaseUrl, fetchLatestVersion } from './saas-client'
+import { setEngine, setBrokerPort, setBrokerPin, setReporters, setUpdateAvailable, listLocalIpCandidates } from './app-state'
 
 const gotLock = app.requestSingleInstanceLock()
 
@@ -82,6 +82,24 @@ async function bootstrap(): Promise<void> {
   }
 }
 
+/**
+ * Independen dari bootstrap() SENGAJA -- bootstrap() return early (index.ts, broker gagal
+ * start) dan cek update tetap harus jalan justru di kasus itu (pengguna paling butuh tahu
+ * ada fix). Dipanggil dari app.on('ready') SETELAH bootstrap(), bukan di dalamnya.
+ */
+async function startUpdateChecks(): Promise<void> {
+  const blob = await loadCredentials()
+  if (!blob.agentToken) return
+  const platform = process.platform === 'darwin' ? 'mac' : 'win'
+  const check = async () => {
+    const result = await fetchLatestVersion(blob.agentToken!, platform)
+    if (result.ok) setUpdateAvailable(result.data.updateAvailable)
+  }
+  await check()
+  const timer = setInterval(check, 6 * 60 * 60 * 1000)
+  timer.unref?.()
+}
+
 if (!gotLock) {
   app.quit()
 } else {
@@ -102,6 +120,7 @@ if (!gotLock) {
   app.on('ready', async () => {
     try {
       await bootstrap()
+      void startUpdateChecks().catch((err) => console.error('[agent] update check gagal', err))
     } catch (err) {
       // Pertahanan lapis kedua: bootstrap() sendiri sudah menangkap error internalnya
       // dan selalu registerIpcHandlers() di finally, tapi kalau registerIpcHandlers()
