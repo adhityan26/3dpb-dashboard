@@ -14,6 +14,8 @@ beforeEach(() => {
     sync: vi.fn().mockResolvedValue({ ok: true, deviceCount: 1 }),
     getSnapshot: vi.fn().mockResolvedValue({ payload: [] }),
     getBrokerInfo: vi.fn().mockResolvedValue({ ip: "192.168.1.100", port: 1883 }),
+    getUpdateStatus: vi.fn().mockResolvedValue({ updateAvailable: false }),
+    openDownloadPage: vi.fn().mockResolvedValue(undefined),
     // Default: belum pernah aktivasi -- mulai dari layar Aktivasi seperti sebelum Finding 2.
     getActivationState: vi.fn().mockResolvedValue({ hasToken: false, devices: [], pairedShortCodes: [] }),
   };
@@ -152,8 +154,8 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: /pengaturan/i }));
 
     await waitFor(() => expect(screen.getByText(/terpasang/i)).toBeTruthy());
-    expect(screen.getByRole("button", { name: /^edit$/i })).toBeTruthy();
-    expect(screen.getByRole("button", { name: /lupakan/i })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /^edit$/i })).toBeTruthy());
+    expect(screen.getByRole("button", { name: /lupakan/i })).toBeTruthy());
   });
 
   it("agent:get-activation-state gagal (IPC reject) -> fallback ke layar Aktivasi, tidak macet di loading", async () => {
