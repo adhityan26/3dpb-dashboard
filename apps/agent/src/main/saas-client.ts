@@ -120,3 +120,23 @@ export async function patchDeviceModel(token: string, shortCode: string, model: 
     return { ok: false, kind: "network_error" };
   }
 }
+
+export type FetchVersionResult =
+  | { ok: true; data: { updateAvailable: boolean } }
+  | { ok: false; kind: "invalid_token" | "entitlement_expired" | "network_error" };
+
+export async function fetchLatestVersion(token: string, platform: "win" | "mac"): Promise<FetchVersionResult> {
+  try {
+    const res = await fetch(`${saasBaseUrl()}/api/agent/version?platform=${platform}`, {
+      headers: { Authorization: `Bearer ${token}`, "X-Agent-Version": AGENT_BUILD_ID },
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (res.status === 401) return { ok: false, kind: "invalid_token" };
+    if (res.status === 403) return { ok: false, kind: "entitlement_expired" };
+    if (!res.ok) return { ok: false, kind: "network_error" };
+    const { commitHash } = (await res.json()) as { commitHash: string | null };
+    return { ok: true, data: { updateAvailable: commitHash !== null && commitHash !== AGENT_COMMIT_HASH } };
+  } catch {
+    return { ok: false, kind: "network_error" };
+  }
+}
