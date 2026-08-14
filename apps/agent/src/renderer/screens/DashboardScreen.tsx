@@ -80,6 +80,7 @@ export function DashboardScreen({
   const [snapshot, setSnapshot] = useState<PrintersPayload>({ payload: [] });
   const [brokerInfo, setBrokerInfo] = useState<{ ip: string; port: number | null; pin: string | null } | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({ kind: "idle" });
+  const [updateAvailable, setUpdateAvailable] = useState(false);
   const initialSyncStarted = useRef(false);
 
   useEffect(() => {
@@ -106,6 +107,18 @@ export function DashboardScreen({
     return () => clearInterval(timer);
   }, []);
 
+  useEffect(() => {
+    const load = () => {
+      window.agentApi
+        .getUpdateStatus()
+        .then((s) => setUpdateAvailable(s.updateAvailable))
+        .catch((err) => console.error("[dashboard] gagal cek update", err));
+    };
+    load();
+    const timer = setInterval(load, 60000);
+    return () => clearInterval(timer);
+  }, []);
+
   async function handleSync() {
     setSyncStatus({ kind: "syncing" });
     try {
@@ -128,9 +141,20 @@ export function DashboardScreen({
         {/* Satu-satunya jalan balik ke PairingScreen -- dari sini user bisa Edit/Lupakan
             device yang salah access code-nya atau salah pasang ke slot yang keliru, tanpa
             harus tahu trik "refresh app". */}
-        <GlassButton onClick={onManageDevices} className="text-xs opacity-70">
-          Pengaturan
-        </GlassButton>
+        <div className="flex items-center gap-2">
+          {updateAvailable && (
+            <button
+              type="button"
+              onClick={() => window.agentApi.openDownloadPage()}
+              className="text-[11px] px-3 py-1.5 rounded-md g-btn-ghost"
+            >
+              Versi baru tersedia — klik untuk unduh
+            </button>
+          )}
+          <GlassButton onClick={onManageDevices} className="text-xs opacity-70">
+            Pengaturan
+          </GlassButton>
+        </div>
       </div>
       <div className="mb-3 flex items-center gap-3">
         <GlassButton onClick={handleSync} disabled={syncStatus.kind === "syncing"}>

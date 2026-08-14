@@ -8,6 +8,8 @@ beforeEach(() => {
     getSnapshot: vi.fn().mockResolvedValue({ payload: [{ id: "abc1234567", name: "Printer A", type: "bambu", connector: "bambu", state: "running", progress: 45, remaining_min: 30, filename: "box.gcode", error_msg: "", last_seen: "2026-07-29T10:00:00Z", nozzle_temp: 219, bed_temp: 60 }] }),
     getBrokerInfo: vi.fn().mockResolvedValue({ ip: "192.168.1.100", port: 1883, pin: "0042" }),
     sync: vi.fn().mockResolvedValue({ ok: true, deviceCount: 1 }),
+    getUpdateStatus: vi.fn().mockResolvedValue({ updateAvailable: false }),
+    openDownloadPage: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -230,5 +232,48 @@ describe("DashboardScreen polling", () => {
       await vi.advanceTimersByTimeAsync(5000);
     });
     expect((window as any).agentApi.getBrokerInfo).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("DashboardScreen update banner", () => {
+  it("getUpdateStatus updateAvailable:true -> banner tampil", async () => {
+    (window as any).agentApi.getUpdateStatus.mockResolvedValue({ updateAvailable: true });
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText(/versi baru tersedia/i)).toBeTruthy());
+  });
+
+  it("getUpdateStatus updateAvailable:false -> banner TIDAK tampil", async () => {
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /^sync$/i })).toBeTruthy());
+    expect(screen.queryByText(/versi baru tersedia/i)).toBeNull();
+  });
+
+  it("klik banner panggil openDownloadPage()", async () => {
+    (window as any).agentApi.getUpdateStatus.mockResolvedValue({ updateAvailable: true });
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText(/versi baru tersedia/i)).toBeTruthy());
+    fireEvent.click(screen.getByText(/versi baru tersedia/i));
+    expect((window as any).agentApi.openDownloadPage).toHaveBeenCalled();
+  });
+});
+
+describe("DashboardScreen update banner polling", () => {
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("getUpdateStatus() di-poll tiap 60 detik, bukan cuma sekali saat mount", async () => {
+    await act(async () => {
+      render(<DashboardScreen />);
+    });
+    expect((window as any).agentApi.getUpdateStatus).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60000);
+    });
+    expect((window as any).agentApi.getUpdateStatus).toHaveBeenCalledTimes(2);
   });
 });
