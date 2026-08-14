@@ -10,6 +10,7 @@ import { loadCredentials, ensureBrokerPin } from './credential-store'
 import { registerIpcHandlers } from './ipc'
 import { saasBaseUrl, fetchLatestVersion } from './saas-client'
 import { setEngine, setBrokerPort, setBrokerPin, setReporters, setUpdateAvailable, listLocalIpCandidates } from './app-state'
+import log from 'electron-log/main'
 
 const gotLock = app.requestSingleInstanceLock()
 
@@ -33,6 +34,8 @@ let isQuitting = false
  */
 async function bootstrap(): Promise<void> {
   try {
+    log.initialize()
+    log.errorHandler.startCatching() // exception tak tertangkap + rejection tanpa handler -> otomatis masuk file log
     // Diagnostik startup: base URL SaaS di-inject saat BUILD (define di
     // electron.vite.config.ts). Kalau kosong, SEMUA panggilan SaaS bakal balik
     // "network_error" generik yang mustahil dibedakan dari internet mati — jadi
@@ -41,7 +44,7 @@ async function bootstrap(): Promise<void> {
     if (base) {
       console.log(`[agent] SaaS base URL: ${base}`)
     } else {
-      console.error(
+      log.error(
         '[agent] SAAS_BASE_URL KOSONG — build ini tak tahu harus menghubungi server Slizebiz yang mana. ' +
           'Aktivasi/sync/layout PASTI gagal ("network_error"). Rebuild dengan SAAS_BASE_URL=<url> di environment build.',
       )
@@ -57,7 +60,7 @@ async function bootstrap(): Promise<void> {
 
     const brokerResult = await startBroker(1883, brokerPin)
     if (!brokerResult.ok) {
-      console.error(
+      log.error(
         `[agent] broker MQTT lokal gagal start (${brokerResult.reason}) — monitoring lokal tak akan jalan`,
       )
       return
@@ -76,7 +79,7 @@ async function bootstrap(): Promise<void> {
       await publishLayout(blob.agentToken, brokerResult.port, "default", brokerPin)
     }
   } catch (err) {
-    console.error('[agent] bootstrap gagal di tengah jalan (broker/engine/layout) — IPC tetap didaftarkan biar renderer bisa recover', err)
+    log.error('[agent] bootstrap gagal di tengah jalan (broker/engine/layout) — IPC tetap didaftarkan biar renderer bisa recover', err)
   } finally {
     registerIpcHandlers()
   }
@@ -126,7 +129,7 @@ if (!gotLock) {
       // dan selalu registerIpcHandlers() di finally, tapi kalau registerIpcHandlers()
       // ITU SENDIRI yang throw (mis. re-registrasi channel), jangan sampai window juga
       // gagal muncul — window HARUS selalu dibuat.
-      console.error('[agent] bootstrap gagal total', err)
+      log.error('[agent] bootstrap gagal total', err)
     } finally {
       disableApplicationMenu()
       mainWindow = createWindow()

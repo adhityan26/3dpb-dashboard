@@ -3,6 +3,7 @@ import type { DeviceConfig, Connector } from "@3pb/printer-monitor-core";
 import type { DeviceSecret } from "./credential-store";
 import { hmsTable } from "./hms-table";
 import { CYD_TYPE_FALLBACK } from "./printer-model";
+import log from "electron-log/main";
 
 export interface PairedDevice {
   shortCode: string;
@@ -54,7 +55,7 @@ export async function startEngine(paired: PairedDevice[], brokerPort: number, pi
         p.printerType === "bambu" ? new BambuMqttConnector(device) : new MoonrakerConnector(device)
       );
     } catch (err) {
-      console.error(`[engine-manager] gagal bikin connector utk ${p.shortCode} (${p.printerType}) -- device ini TIDAK termonitor, device lain tetap jalan`, err);
+      log.error(`[engine-manager] gagal bikin connector utk ${p.shortCode} (${p.printerType}) -- device ini TIDAK termonitor, device lain tetap jalan`, err);
     }
   }
 
