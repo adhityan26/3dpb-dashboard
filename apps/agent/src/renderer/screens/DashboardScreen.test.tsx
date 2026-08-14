@@ -10,6 +10,7 @@ beforeEach(() => {
     sync: vi.fn().mockResolvedValue({ ok: true, deviceCount: 1 }),
     getUpdateStatus: vi.fn().mockResolvedValue({ updateAvailable: false }),
     openDownloadPage: vi.fn().mockResolvedValue(undefined),
+    sendLogs: vi.fn().mockResolvedValue({ ok: true }),
   };
 });
 
@@ -275,5 +276,36 @@ describe("DashboardScreen update banner polling", () => {
       await vi.advanceTimersByTimeAsync(60000);
     });
     expect((window as any).agentApi.getUpdateStatus).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("DashboardScreen kirim log", () => {
+  it("klik 'Kirim log' panggil sendLogs(), tampilkan pesan sukses", async () => {
+    render(<DashboardScreen />);
+    await waitFor(() => screen.getByRole("button", { name: /kirim log/i }));
+    fireEvent.click(screen.getByRole("button", { name: /kirim log/i }));
+    await waitFor(() => expect((window as any).agentApi.sendLogs).toHaveBeenCalled());
+    await waitFor(() => expect(screen.getByText(/log terkirim/i)).toBeTruthy());
+  });
+
+  it("sendLogs gagal reason:too_large -> pesan spesifik 'Log terlalu besar'", async () => {
+    (window as any).agentApi.sendLogs.mockResolvedValue({ ok: false, reason: "too_large" });
+    render(<DashboardScreen />);
+    await waitFor(() => screen.getByRole("button", { name: /kirim log/i }));
+    fireEvent.click(screen.getByRole("button", { name: /kirim log/i }));
+    await waitFor(() => expect(screen.getByText(/log terlalu besar/i)).toBeTruthy());
+  });
+
+  it("sendLogs gagal reason lain (mis. upload_failed) -> pesan generik 'Gagal mengirim log'", async () => {
+    (window as any).agentApi.sendLogs.mockResolvedValue({ ok: false, reason: "upload_failed" });
+    render(<DashboardScreen />);
+    await waitFor(() => screen.getByRole("button", { name: /kirim log/i }));
+    fireEvent.click(screen.getByRole("button", { name: /kirim log/i }));
+    await waitFor(() => expect(screen.getByText(/gagal mengirim log/i)).toBeTruthy());
+  });
+
+  it("caption disclosure tentang isi log selalu tampil di dekat tombol", async () => {
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText(/tidak berisi pin atau kredensial/i)).toBeTruthy());
   });
 });
