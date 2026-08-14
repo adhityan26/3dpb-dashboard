@@ -4,6 +4,12 @@ import { getReturnListForOrders, isReturnFinal } from "@/lib/shopee/returns"
 
 export const RETURN_MUTABLE_WINDOW_DAYS = 30
 export const MAX_ESCROW_FETCH_PER_REQUEST = 50
+// Hard wall-clock budget for the sync phase, independent of how many orders
+// need syncing — bounds request latency so /analisa never hangs waiting on
+// a burst of sequential Shopee calls (each individually has its own 8s
+// timeout, so even MAX_ESCROW_FETCH_PER_REQUEST orders could otherwise add
+// up to minutes). Deadline check happens between calls, not mid-call.
+export const ESCROW_SYNC_TIME_BUDGET_MS = 12_000
 
 export interface OrderEscrowRow {
   orderSn: string
@@ -83,12 +89,14 @@ export async function syncAndGetEscrowForOrders(
   const cachedBySn = new Map(cached.map((c) => [c.orderSn, c]))
 
   const result = new Map<string, OrderEscrowRow>()
+  const deadline = Date.now() + ESCROW_SYNC_TIME_BUDGET_MS
 
   // Tahap 1: isi cache yang kosong (dibatasi per request agar tidak timeout)
   const missing = completed
     .filter((o) => !cachedBySn.has(o.order_sn))
     .slice(0, MAX_ESCROW_FETCH_PER_REQUEST)
   for (const order of missing) {
+    if (Date.now() > deadline) break // ran out of time budget, rest retried next load
     const detail = await getEscrowDetail(order.order_sn)
     if (!detail) continue // skip on fetch failure, retried next load
     const row = await upsertFromEscrowDetail(
@@ -139,6 +147,10 @@ export async function syncAndGetEscrowForOrders(
       const cachedRow = cachedBySn.get(order.order_sn)!
       if (!finalReturnSns.has(order.order_sn)) {
         result.set(order.order_sn, toRow(cachedRow))
+        continue
+      }
+      if (Date.now() > deadline) {
+        result.set(order.order_sn, toRow(cachedRow)) // keep stale data, retry next load
         continue
       }
       const detail = await getEscrowDetail(order.order_sn)
