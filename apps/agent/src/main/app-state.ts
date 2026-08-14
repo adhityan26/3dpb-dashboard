@@ -20,6 +20,11 @@ export function getBrokerPin(): string | null { return brokerPin; }
 export function setReporters(r: MqttReporter[]): void { reporters = r; }
 export function getReporters(): MqttReporter[] { return reporters; }
 
+let updateAvailable = false;
+
+export function setUpdateAvailable(available: boolean): void { updateAvailable = available; }
+export function getUpdateAvailable(): boolean { return updateAvailable; }
+
 // Adapter virtual/VPN. IP-nya non-internal & IPv4 juga, jadi lolos filter naif "ambil yang
 // pertama" — dan di Windows dengan Hyper-V/WSL2 (`vEthernet (WSL)`), VirtualBox, atau VPN
 // aktif, adapter-adapter ini SERING muncul sebelum adapter LAN asli. Akibatnya user

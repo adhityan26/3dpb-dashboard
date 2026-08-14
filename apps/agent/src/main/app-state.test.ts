@@ -78,3 +78,14 @@ describe("getBrokerPin/setBrokerPin", () => {
     expect(getBrokerPin()).toBeNull();
   });
 });
+
+describe("getUpdateAvailable/setUpdateAvailable", () => {
+  it("default false, tersimpan+terbaca kembali persis seperti setBrokerPin/getBrokerPin", async () => {
+    const { setUpdateAvailable, getUpdateAvailable } = await import("./app-state");
+    expect(getUpdateAvailable()).toBe(false);
+    setUpdateAvailable(true);
+    expect(getUpdateAvailable()).toBe(true);
+    setUpdateAvailable(false);
+    expect(getUpdateAvailable()).toBe(false);
+  });
+});
