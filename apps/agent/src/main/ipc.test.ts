@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const handlers: Record<string, (...args: any[]) => any> = {};
 vi.mock("electron", () => ({
@@ -37,6 +37,10 @@ import { startEngine } from "./engine-manager";
 import { publishLayout } from "./layout-publisher";
 import { getEngine, setEngine, setBrokerPort, setBrokerPin, getReporters, setReporters, setUpdateAvailable } from "./app-state";
 import { stat, readFile } from "node:fs/promises";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("registerIpcHandlers", () => {
   it("daftarkan handler 'agent:activate'", () => {

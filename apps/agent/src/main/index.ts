@@ -36,6 +36,7 @@ async function bootstrap(): Promise<void> {
   try {
     log.initialize()
     log.errorHandler.startCatching() // uncaught exceptions + unhandled rejections -> log file automatically
+    Object.assign(console, log.functions) // route console.log/console.error/etc through electron-log too, so uploaded logs actually contain startup diagnostics (SaaS base URL, LAN IP candidates) instead of being near-empty
     // Diagnostik startup: base URL SaaS di-inject saat BUILD (define di
     // electron.vite.config.ts). Kalau kosong, SEMUA panggilan SaaS bakal balik
     // "network_error" generik yang mustahil dibedakan dari internet mati — jadi
@@ -86,9 +87,10 @@ async function bootstrap(): Promise<void> {
 }
 
 /**
- * Independen dari bootstrap() SENGAJA -- bootstrap() return early (index.ts, broker gagal
- * start) dan cek update tetap harus jalan justru di kasus itu (pengguna paling butuh tahu
- * ada fix). Dipanggil dari app.on('ready') SETELAH bootstrap(), bukan di dalamnya.
+ * Deliberately independent from bootstrap() -- bootstrap() returns early (index.ts, when the
+ * broker fails to start) and the update check must still run in exactly that case (the user
+ * most needs to know a fix might be available). Called from app.on('ready') AFTER bootstrap(),
+ * not from inside it.
  */
 async function startUpdateChecks(): Promise<void> {
   const blob = await loadCredentials()
@@ -123,7 +125,7 @@ if (!gotLock) {
   app.on('ready', async () => {
     try {
       await bootstrap()
-      void startUpdateChecks().catch((err) => console.error('[agent] update check gagal', err))
+      void startUpdateChecks().catch((err) => log.error('[agent] update check gagal', err))
     } catch (err) {
       // Pertahanan lapis kedua: bootstrap() sendiri sudah menangkap error internalnya
       // dan selalu registerIpcHandlers() di finally, tapi kalau registerIpcHandlers()

@@ -103,7 +103,7 @@ export function registerIpcHandlers(): void {
     // Tanpa ini, TIAP Sync yang restart Engine bikin 1 koneksi MQTT baru yang gak pernah
     // ditutup (leak — Task 13 review Important finding pasca fix-wave sebelumnya).
     for (const r of getReporters()) {
-      await r.close().catch((err) => console.error("[ipc] agent:sync gagal tutup reporter lama", err));
+      await r.close().catch((err) => log.error("[ipc] agent:sync gagal tutup reporter lama", err));
     }
     setReporters([]);
 
@@ -113,7 +113,7 @@ export function registerIpcHandlers(): void {
         setEngine(started.engine);
         setReporters(started.reporters);
       } catch (err) {
-        console.error("[ipc] agent:sync gagal restart engine dengan device terbaru", err);
+        log.error("[ipc] agent:sync gagal restart engine dengan device terbaru", err);
         setEngine(null);
         return { ok: false, kind: "engine_error" };
       }
@@ -124,7 +124,7 @@ export function registerIpcHandlers(): void {
     // Republish layout non-fatal -- kegagalannya gak boleh bikin seluruh Sync dianggap gagal
     // (device sudah kepasang duluan di atas), cukup dicatat.
     await publishLayout(blob.agentToken, brokerPort, "default", brokerPin).catch((err) => {
-      console.error("[ipc] agent:sync gagal republish layout (non-fatal)", err);
+      log.error("[ipc] agent:sync gagal republish layout (non-fatal)", err);
     });
 
     if (!fetchResult.ok) return fetchResult;
@@ -168,7 +168,7 @@ export function registerIpcHandlers(): void {
 
   ipcMain.handle("agent:open-download-page", async () => {
     const base = saasBaseUrl();
-    if (!base) return; // dev-config error sudah dicatat keras di startup (index.ts) -- no-op diam di sini, bukan jalur error kedua
+    if (!base) return; // dev-config error already logged loudly at startup (index.ts) -- silent no-op here, not a second error path
     await shell.openExternal(`${base}/settings`);
   });
 

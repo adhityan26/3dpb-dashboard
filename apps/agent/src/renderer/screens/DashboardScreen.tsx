@@ -167,7 +167,7 @@ export function DashboardScreen({
           {updateAvailable && (
             <button
               type="button"
-              onClick={() => window.agentApi.openDownloadPage()}
+              onClick={() => window.agentApi.openDownloadPage().catch((err) => console.error("[dashboard] gagal buka halaman download", err))}
               className="text-[11px] px-3 py-1.5 rounded-md g-btn-ghost"
             >
               Versi baru tersedia — klik untuk unduh
