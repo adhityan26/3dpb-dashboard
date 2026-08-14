@@ -94,3 +94,9 @@ export async function headBinary(key: string): Promise<BinaryMeta | null> {
     commitHash: res.headers.get("x-amz-meta-commit") ?? undefined,
   };
 }
+
+export async function putLog(key: string, body: ArrayBuffer): Promise<void> {
+  const { client, url } = clientAndUrl(key);
+  const res = await client.fetch(url, { method: "PUT", body, headers: { "Content-Type": "text/plain" } });
+  if (!res.ok) throw new Error(`r2_put_failed_${res.status}`);
+}

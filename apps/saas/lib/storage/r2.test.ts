@@ -5,7 +5,7 @@ vi.mock("aws4fetch", () => ({
   AwsClient: class { fetch = (...a: unknown[]) => fetchMock(...a); },
 }));
 
-import { r2Config, putProof, getProof, putBinary, getBinary, headBinary, R2NotConfigured } from "./r2";
+import { r2Config, putProof, getProof, putBinary, getBinary, headBinary, putLog, R2NotConfigured } from "./r2";
 
 const ENV = { ...process.env };
 beforeEach(() => {
@@ -173,5 +173,21 @@ describe("headBinary (metadata-only, tanpa download body -- dipakai halaman Sett
   it("binary lama (upload sebelum fitur commit-hash ada) -- tak ada metadata header sama sekali", async () => {
     fetchMock.mockResolvedValue({ ok: true, status: 200, headers: { get: () => null } });
     expect(await headBinary("agent/latest/win.exe")).toEqual({});
+  });
+});
+
+describe("putLog", () => {
+  it("PUT ke key agent-logs/... dg Content-Type text/plain", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200 });
+    await putLog("agent-logs/u1/1700000000000.log", new ArrayBuffer(10));
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("https://acc123.r2.cloudflarestorage.com/slizebiz-proofs/agent-logs/u1/1700000000000.log");
+    expect(init.method).toBe("PUT");
+    expect(init.headers["Content-Type"]).toBe("text/plain");
+  });
+
+  it("throw bila respons tak ok", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 500 });
+    await expect(putLog("k", new ArrayBuffer(0))).rejects.toThrow();
   });
 });
