@@ -1,4 +1,6 @@
 import { ipcMain, shell } from "electron";
+import { readFile, stat } from "node:fs/promises";
+import log from "electron-log/main";
 import { loadCredentials, saveCredentials, type DeviceSecret } from "./credential-store";
 import { fetchDevices, patchDeviceModel, saasBaseUrl, type SaasDevice } from "./saas-client";
 import { scanBambu } from "./discovery/bambu-ssdp";
@@ -168,5 +170,43 @@ export function registerIpcHandlers(): void {
     const base = saasBaseUrl();
     if (!base) return; // dev-config error sudah dicatat keras di startup (index.ts) -- no-op diam di sini, bukan jalur error kedua
     await shell.openExternal(`${base}/settings`);
+  });
+
+  const MAX_LOG_BYTES = 5 * 1024 * 1024;
+
+  ipcMain.handle("agent:send-logs", async (): Promise<{ ok: boolean; reason?: string }> => {
+    const blob = await loadCredentials();
+    if (!blob.agentToken) return { ok: false, reason: "no_token" };
+
+    const logPath = log.transports.file.getFile().path;
+    let stats;
+    try {
+      stats = await stat(logPath);
+    } catch {
+      return { ok: false, reason: "read_failed" };
+    }
+    // Check client-side before even reading the file, so an oversized log fails fast with
+    // a distinct message -- the server enforces the same cap independently (Task 8), this
+    // is purely a faster/clearer UX path.
+    if (stats.size > MAX_LOG_BYTES) {
+      return { ok: false, reason: "too_large" };
+    }
+
+    let content: Buffer;
+    try {
+      content = await readFile(logPath);
+    } catch {
+      return { ok: false, reason: "read_failed" };
+    }
+
+    const res = await fetch(`${saasBaseUrl()}/api/agent/logs`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${blob.agentToken}`, "Content-Type": "text/plain" },
+      // Cast needed: this TypeScript/@types-node combo types Buffer as Buffer<ArrayBufferLike>,
+      // which structurally no longer satisfies fetch's BodyInit -- Buffer is a real Uint8Array
+      // at runtime and Node's fetch accepts it directly, this is a type-level mismatch only.
+      body: content as unknown as BodyInit,
+    }).catch(() => null);
+    return res?.ok === true ? { ok: true } : { ok: false, reason: "upload_failed" };
   });
 }
