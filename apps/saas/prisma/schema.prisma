@@ -100,6 +100,24 @@ model MagicLinkRequest {
   windowStart DateTime @default(now())
 }
 
+// Lapis ke-2 & ke-3 proteksi /api/auth/wa/start (go-public audit Fable #2, item #2 sesi
+// ini) -- WaOtp di atas cuma batasi PER-NOMOR, orang bisa pakai nomor acak berbeda tiap
+// kali dan tetap lolos. WaOtpIpLimit = cap longgar per-IP (NAT kantor/rumah bisa dipakai
+// banyak orang jujur). WaOtpGlobalLimit = circuit-breaker keras satu baris (id="global"),
+// jaring pengaman terakhir kalau attacker rotasi IP -- lindungi kuota/reputasi akun WA
+// Omni terlepas dari sebaran IP-nya.
+model WaOtpIpLimit {
+  ip          String   @id
+  sentCount   Int      @default(0)
+  windowStart DateTime @default(now())
+}
+
+model WaOtpGlobalLimit {
+  id          String   @id
+  sentCount   Int      @default(0)
+  windowStart DateTime @default(now())
+}
+
 model Payment {
   id           String    @id @default(cuid())
   userId       String
