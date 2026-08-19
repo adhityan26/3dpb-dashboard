@@ -10,8 +10,8 @@ export function Footer() {
       </div>
       <div className="flex items-center gap-4 g-t4">
         <a href="/privasi" className="hover:g-t1">Privasi</a>
-        <span title="Segera hadir">Ketentuan <span className="g-t5">· segera</span></span>
-        <span title="Segera hadir">Refund <span className="g-t5">· segera</span></span>
+        <a href="/tos" className="hover:g-t1">Ketentuan</a>
+        <a href="/refund" className="hover:g-t1">Refund</a>
         <a href="mailto:halo@slizebiz.com" className="hover:g-t1">Kontak</a>
       </div>
     </footer>

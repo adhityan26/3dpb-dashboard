@@ -95,7 +95,10 @@ export function BeliCheckout({ displayPrice, refundCopy }: { displayPrice: strin
         </div>
       )}
       {msg && <p className="text-[12px] g-t3">{msg}</p>}
-      <p className="text-[11px] g-t5 mt-2">{refundCopy}</p>
+      <p className="text-[11px] g-t5 mt-2">
+        {refundCopy}{" "}
+        <a href="https://www.slizebiz.com/refund" className="underline" target="_blank" rel="noopener noreferrer">Kebijakan lengkap →</a>
+      </p>
     </div>
   );
 }

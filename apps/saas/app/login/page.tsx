@@ -92,6 +92,13 @@ export default function LoginPage() {
       )}
 
       {msg && <p className="text-[12px] mt-3" style={{ color: "#dc2626" }}>{msg}</p>}
+
+      <p className="text-[11px] g-t5 mt-6">
+        Dengan masuk, kamu setuju dengan{" "}
+        <a href="https://www.slizebiz.com/tos" className="underline" target="_blank" rel="noopener noreferrer">Ketentuan Layanan</a>
+        {" "}&amp;{" "}
+        <a href="https://www.slizebiz.com/privasi" className="underline" target="_blank" rel="noopener noreferrer">Kebijakan Privasi</a>.
+      </p>
     </main>
   );
 }
