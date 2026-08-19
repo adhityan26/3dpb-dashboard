@@ -89,6 +89,17 @@ model WaOtp {
   windowStart DateTime @default(now())
 }
 
+// Rate-limit bookkeeping untuk magic-link email (Resend/NextAuth) -- mirror WaOtp di atas,
+// tanpa codeHash/expires/attempts karena NextAuth sendiri yang kelola token verifikasi
+// (tabel VerificationToken bawaan @auth/prisma-adapter); tabel ini cuma jaga cooldown +
+// cap per-jam sebelum email benar-benar dikirim (go-public #10).
+model MagicLinkRequest {
+  email       String   @id
+  lastSentAt  DateTime @default(now())
+  sentCount   Int      @default(0)
+  windowStart DateTime @default(now())
+}
+
 model Payment {
   id           String    @id @default(cuid())
   userId       String

@@ -18,6 +18,16 @@ describe("LoginPage auto-detect", () => {
     expect(screen.getByText(/Cek inbox/i)).toBeTruthy();
   });
 
+  it("signIn resend balikin error (mis. kena rate limit magic-link) → TIDAK tampilkan 'cek inbox', tampilkan pesan gagal", async () => {
+    signInMock.mockResolvedValue({ ok: false, error: "EmailSignin", status: 302, url: null });
+    render(<LoginPage />);
+    fireEvent.change(screen.getByPlaceholderText(/Email atau nomor/i), { target: { value: "a@b.com" } });
+    fireEvent.click(screen.getByText("Lanjut"));
+    await waitFor(() => expect(signInMock).toHaveBeenCalled());
+    expect(screen.queryByText(/Cek inbox/i)).toBeNull();
+    expect(screen.getByText(/Gagal mengirim link/i)).toBeTruthy();
+  });
+
   it("input nomor → POST wa/start + tampil input kode", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true, json: async () => ({}) } as Response);
     render(<LoginPage />);
