@@ -49,27 +49,35 @@ file-manager/
 ### Renderer (`apps/agent/src/renderer/`)
 
 - `screens/DashboardScreen.tsx` — tambah drop-zone di level halaman (overlay saat file di-drag masuk)
-- `components/PrinterControls.tsx` (atau komponen device card yang setara) — tambah tab/panel baru: `FileManagerPanel.tsx`
+- `components/PrinterControls.tsx` (atau komponen device card yang setara) — tambah tab baru "Files"
 - Komponen baru:
-  - `components/FileManagerPanel.tsx` — list file, tombol upload/download/delete/rename, tombol "Browse Files"
-  - `components/PrintStartDialog.tsx` — plate picker (kalau multi-plate) + dialog konfirmasi print
+  - `components/FileManagerPanel.tsx` — **grid card** (bukan tabel), tiap card ada thumbnail (dari `Metadata/plate_N.png` di dalam `.gcode.3mf`), klik thumbnail buka lightbox zoom. Mode "Select" untuk multi-select (checkbox per card) dengan bar aksi bulk: Download (N) + Hapus (N), keduanya lewat dialog konfirmasi
+  - `components/PrintStartDialog.tsx` — **2 langkah**: (1) pilih plate + tampilkan AMS mapping read-only sebagai teks list (bukan visual AMS unit — sengaja teks-only karena nanti perlu dibedakan AMS Lite vs AMS reguler, ditunda ke fase saat itu jelas), (2) dialog konfirmasi final dengan warning eksplisit sebelum command MQTT dikirim
+  - `components/FileDropOverlay.tsx` — overlay dashed-border di atas card device saat drag aktif, pesan "Drop untuk kirim ke [nama printer]"
+
+Wireframe hasil brainstorming (grid+zoom, multi-select, print dialog 2-step, drop overlay) divalidasi via visual companion 2026-08-20, tersimpan di `.superpowers/brainstorm/` (tidak di-commit, sesuai konvensi skill).
 
 ## Data flow
 
 ### Browse & CRUD
 
-1. User buka tab File Manager di panel device → renderer panggil IPC `file:list`
-2. Main process ambil kredensial dari `credential-store.ts` → buka FTPS baru → list dir → tutup koneksi → return
-3. Tiap aksi lain (upload/download/delete/rename): pola sama — connect → aksi → disconnect. Tidak ada koneksi FTPS persisten yang di-reuse.
-4. Upload: validasi ukuran di renderer dulu (soft warn >500MB, hard block ≥4GB) sebelum kirim IPC.
+1. User buka tab "Files" di panel device → renderer panggil IPC `file:list` → tampil sebagai grid card
+2. Main process ambil kredensial dari `credential-store.ts` → buka FTPS baru → list dir → untuk tiap file `.gcode.3mf`, ekstrak `Metadata/plate_1.png` (thumbnail plate pertama) sebagai base64 → tutup koneksi → return. File `.gcode` polos: cek apakah ada thumbnail base64 di header komentar gcode (perlu diverifikasi saat implementasi — belum dipastikan Bambu firmware selalu menyertakan ini di plain gcode); kalau tidak ada, tampilkan ikon generik
+3. Klik thumbnail → lightbox zoom (modal overlay, tampilkan versi lebih besar)
+4. Tiap aksi (upload/download/delete/rename): pola sama — connect → aksi → disconnect. Tidak ada koneksi FTPS persisten yang di-reuse.
+5. Upload: validasi ukuran di renderer dulu (soft warn >500MB, hard block ≥4GB) sebelum kirim IPC.
+6. **Mode Select (multi-select)**: tombol "Select" toggle checkbox di tiap card. Bar aksi bulk muncul saat ≥1 file dipilih:
+   - **Download (N)**: native save-folder dialog Electron sekali, lalu `file:download` dipanggil berurutan per file (FTPS connect-per-file, tanpa zip)
+   - **Hapus (N)**: dialog konfirmasi sekali untuk semua file terpilih, lalu `file:delete` berurutan per file
 
 ### Print-start (via file browser)
 
 1. User klik "Print" pada file `.gcode.3mf` → IPC `file:parse-3mf`: download file ke temp lokal, buka sebagai ZIP (`jszip`), baca `Metadata/slice_info.config` (daftar plate + filament per plate) dan `Metadata/project_settings.config` (filament_map default)
-2. Renderer render `PrintStartDialog`: pilih plate (kalau multi-plate); AMS mapping ditampilkan read-only (ikut default file, TIDAK bisa di-override di v1 — lihat catatan di atas)
-3. User konfirmasi ("Yakin mulai print `X` di `[printer]`, plate N?") → IPC `file:start-print`
-4. Main process kirim command MQTT `project_file` (dengan `plate_idx` terpilih) lewat koneksi MQTT yang sudah dipegang `engine-manager.ts` untuk device tsb — bukan koneksi baru
-5. Tunggu ACK beberapa detik; kalau tidak dapat konfirmasi dari printer → tampilkan status "tidak yakin apakah print dimulai, cek langsung ke printer" (jangan klaim sukses tanpa bukti)
+2. **Langkah 1** — `PrintStartDialog` tampilkan pilihan plate (kalau multi-plate) + AMS mapping read-only sebagai teks list (ikut default file, TIDAK bisa di-override di v1)
+3. **Langkah 2** — dialog konfirmasi final terpisah: ringkasan file + plate terpilih + warning "aksi tidak bisa dibatalkan setelah dimulai" + tombol "Batal" / "Ya, Mulai Print"
+4. Konfirmasi final → IPC `file:start-print`
+5. Main process kirim command MQTT `project_file` (dengan `plate_idx` terpilih) lewat koneksi MQTT yang sudah dipegang `engine-manager.ts` untuk device tsb — bukan koneksi baru
+6. Tunggu ACK beberapa detik; kalau tidak dapat konfirmasi dari printer → tampilkan status "tidak yakin apakah print dimulai, cek langsung ke printer" (jangan klaim sukses tanpa bukti)
 
 ### Drag-and-drop (shortcut)
 
