@@ -36,6 +36,9 @@ function HeaderTextField({ value, onCommit }: { value: string; onCommit: (text: 
   const [text, setText] = useState(value);
 
   useEffect(() => {
+    // Resyncs local editable text when the committed `value` prop changes elsewhere;
+    // local state otherwise diverges freely while the user is typing (see file comment above).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setText(value);
   }, [value]);
 

@@ -21,6 +21,11 @@ export function RiwayatList({ userId }: { userId: string }) {
     listKalkulasi(userId).then((r) => { setRecords(r); setLoading(false); });
   };
 
+  // Standard fetch-on-mount/on-userId-change pattern; `load` closes only over `userId`
+  // (already in the dep array) and setLoading(true) at its start is the loading-flag
+  // half of the fetch, not a derived-render-value anti-pattern. Adding `load` itself to
+  // deps would refetch on every render (it's redefined each render, not memoized).
+  // eslint-disable-next-line react-hooks/set-state-in-effect, react-hooks/exhaustive-deps
   useEffect(() => { load(); }, [userId]);
   useEffect(() => { loadSettings(userId).then((s) => { setSettings(s); setSettingsReady(true); }); }, [userId]);
 

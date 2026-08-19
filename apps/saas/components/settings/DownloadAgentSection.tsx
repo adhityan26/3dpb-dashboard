@@ -56,6 +56,9 @@ export function DownloadAgentSection({ buildId }: { buildId?: string | null } = 
   const [showOther, setShowOther] = useState(false);
 
   useEffect(() => {
+    // OS detection needs navigator.userAgent, unavailable during SSR; must run once
+    // after mount (see file comment above -- deliberate hydration-safe pattern).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setDetected(detectOs());
     setMounted(true);
   }, []);
@@ -106,17 +109,17 @@ export function DownloadAgentSection({ buildId }: { buildId?: string | null } = 
           aplikasinya rusak/virus, padahal cuma belum ditandatangani. */}
       <p className="text-[11px] g-t4 mt-3 pt-3" style={{ borderTop: "1px solid var(--g-row-border)" }}>
         Installer belum ditandatangani (code signing) -- Windows/macOS bisa nampilin peringatan
-        "Unknown Publisher" atau "tak bisa dibuka". Ini aman, cuma karena sertifikat resmi belum
-        dipasang. Windows: klik "More info" lalu "Run anyway". macOS: buka System Settings &gt;
-        Privacy &amp; Security, lalu "Open Anyway".
+        &quot;Unknown Publisher&quot; atau &quot;tak bisa dibuka&quot;. Ini aman, cuma karena sertifikat resmi belum
+        dipasang. Windows: klik &quot;More info&quot; lalu &quot;Run anyway&quot;. macOS: buka System Settings &gt;
+        Privacy &amp; Security, lalu &quot;Open Anyway&quot;.
       </p>
 
       <p className="text-[11px] g-t4 mt-3 pt-3" style={{ borderTop: "1px solid var(--g-row-border)" }}>
-        Saat pertama dibuka, Windows mungkin menampilkan prompt "Windows Defender Firewall has
-        blocked some features" -- klik "Allow access" (centang jaringan privat/kerja kalau
+        Saat pertama dibuka, Windows mungkin menampilkan prompt &quot;Windows Defender Firewall has
+        blocked some features&quot; -- klik &quot;Allow access&quot; (centang jaringan privat/kerja kalau
         ditanya). Ini diperlukan supaya Agent bisa terhubung ke printer &amp; layar Mini Display di
-        jaringan lokal yang sama. Di macOS, sistem mungkin minta izin "Local Network" -- pilih
-        "Allow" saat muncul.
+        jaringan lokal yang sama. Di macOS, sistem mungkin minta izin &quot;Local Network&quot; -- pilih
+        &quot;Allow&quot; saat muncul.
       </p>
     </div>
   );

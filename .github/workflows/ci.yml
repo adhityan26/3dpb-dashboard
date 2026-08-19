@@ -32,6 +32,8 @@ jobs:
 
       - run: pnpm --filter shopee-dashboard lint
 
+      - run: pnpm --filter @3pb/saas lint
+
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -48,6 +50,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - run: pnpm --filter shopee-dashboard exec prisma generate
+
+      - run: pnpm --filter @3pb/saas exec prisma generate
 
       - run: pnpm turbo test
 

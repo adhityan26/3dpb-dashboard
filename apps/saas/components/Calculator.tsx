@@ -46,6 +46,8 @@ export function Calculator({ paidCore = false, userId = null, kalkulasiId }: { p
     if (paidCore && userId) loadSettings(userId).then(setSettings);
   }, [paidCore, userId]);
 
+  // Reads a localStorage preference, unavailable during SSR; must run once after mount.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setShowRincian(getRincianPref()); }, []);
 
   useEffect(() => {

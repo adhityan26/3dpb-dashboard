@@ -21,6 +21,9 @@ export function AppHeader({
 }) {
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  // Standard hydration-safe "mounted" flag: theme is unknown during SSR, this is the
+  // documented way to defer theme-dependent rendering until after the client mounts.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
   const isDark = !mounted || resolvedTheme !== "light";
 

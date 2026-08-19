@@ -38,6 +38,9 @@ function formatDurasiDisplay(jam: number): string {
 
 function DurasiInput({ value, onCommit, className }: { value: string; onCommit: (v: string) => void; className?: string }) {
   const [draft, setDraft] = useState(value);
+  // Resyncs local editable draft when the committed `value` prop changes elsewhere;
+  // draft otherwise diverges freely from the prop while the user is typing.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setDraft(value), [value]);
   const hint = formatDurasiDisplay(Number(value) || 0);
   return (
@@ -198,7 +201,6 @@ export function PlateInput({
     return (
       <div className="flex flex-col gap-1.5">
         {p.materials.map((m, mi) => {
-          const f = filaments.find((x) => x.id === m.filamentId);
           return (
             <div key={m.id} className="rounded-[5px] border border-[color:var(--g-row-border)] p-2 flex flex-col gap-1.5">
               <div className="flex items-center gap-1.5">
