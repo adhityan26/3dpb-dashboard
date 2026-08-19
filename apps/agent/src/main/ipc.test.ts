@@ -35,7 +35,7 @@ import { loadCredentials, saveCredentials } from "./credential-store";
 import { reconcileDevices } from "./startup";
 import { startEngine } from "./engine-manager";
 import { publishLayout } from "./layout-publisher";
-import { getEngine, setEngine, setBrokerPort, setBrokerPin, getReporters, setReporters, setUpdateAvailable } from "./app-state";
+import { getEngine, setEngine, setBrokerPort, setBrokerPin, getReporters, setReporters, setUpdateAvailable, setCredentialStoreDegraded } from "./app-state";
 import { stat, readFile } from "node:fs/promises";
 
 beforeEach(() => {
@@ -358,6 +358,17 @@ describe("agent:printer-command", () => {
     expect(sendCommand).toHaveBeenCalledWith("mars", { kind: "setSpeedLevel", level: 3 });
     expect(result).toEqual({ ok: true });
     setEngine(null);
+  });
+});
+
+describe("agent:get-credential-store-status", () => {
+  it("balikin degraded TERKINI dari app-state, bukan snapshot beku", async () => {
+    registerIpcHandlers();
+    setCredentialStoreDegraded(false);
+    expect(await handlers["agent:get-credential-store-status"]()).toEqual({ degraded: false });
+    setCredentialStoreDegraded(true);
+    expect(await handlers["agent:get-credential-store-status"]()).toEqual({ degraded: true });
+    setCredentialStoreDegraded(false);
   });
 });
 

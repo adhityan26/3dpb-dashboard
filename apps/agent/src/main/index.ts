@@ -6,10 +6,10 @@ import { startBroker } from './broker'
 import { buildPairedDevices } from './startup'
 import { startEngine } from './engine-manager'
 import { publishLayout } from './layout-publisher'
-import { loadCredentials, ensureBrokerPin } from './credential-store'
+import { loadCredentials, ensureBrokerPin, tryLoadCredentials } from './credential-store'
 import { registerIpcHandlers } from './ipc'
 import { saasBaseUrl, fetchLatestVersion } from './saas-client'
-import { setEngine, setBrokerPort, setBrokerPin, setReporters, setUpdateAvailable, listLocalIpCandidates } from './app-state'
+import { setEngine, setBrokerPort, setBrokerPin, setReporters, setUpdateAvailable, setCredentialStoreDegraded, listLocalIpCandidates } from './app-state'
 import log from 'electron-log/main'
 
 const gotLock = app.requestSingleInstanceLock()
@@ -53,6 +53,18 @@ async function bootstrap(): Promise<void> {
     // Alamat ini yang diketik user ke captive-portal WiFi CYD; catat SEMUA kandidat biar
     // kalau tebakan utama salah (adapter virtual/VPN) masih ada jejak buat support.
     console.log('[agent] kandidat IP LAN (urut prioritas):', listLocalIpCandidates().join(', ') || '(tidak ada)')
+
+    // Cek sekali di awal apakah penyimpanan kredensial lokal sehat (go-public #9) --
+    // {ok:false} berarti safeStorage tak tersedia ATAU file ada tapi gagal didekripsi.
+    // Kedua kasus bikin loadCredentials() di manapun selalu balik EMPTY_BLOB diam-diam
+    // (user seolah belum pernah aktivasi) DAN ensureBrokerPin() di bawah jatuh ke PIN
+    // session-only (berubah tiap restart) -- flag ini yang bikin AgentShell bisa kasih
+    // tahu user, bukan diam total seperti sebelumnya.
+    const credentialStoreOutcome = tryLoadCredentials()
+    setCredentialStoreDegraded(!credentialStoreOutcome.ok)
+    if (!credentialStoreOutcome.ok) {
+      log.error('[agent] penyimpanan kredensial lokal bermasalah (safeStorage tak tersedia atau file gagal didekripsi) -- PIN broker session-only, minta user restart/cek support')
+    }
 
     // PIN diresolusi SEBELUM broker start -- authenticate handler broker.ts butuh PIN final
     // di tangan pas server.listen() dipanggil, tak bisa dipasang belakangan.

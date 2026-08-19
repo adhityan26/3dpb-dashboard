@@ -13,7 +13,7 @@ vi.mock("node:fs", () => ({
   default: { existsSync: vi.fn(), readFileSync: vi.fn(), writeFileSync: vi.fn(), mkdirSync: vi.fn() },
 }));
 
-import { loadCredentials, saveCredentials, ensureBrokerPin, clearBrokerPin } from "./credential-store";
+import { loadCredentials, saveCredentials, ensureBrokerPin, clearBrokerPin, tryLoadCredentials } from "./credential-store";
 import { safeStorage } from "electron";
 
 beforeEach(() => {
@@ -114,6 +114,32 @@ describe("ensureBrokerPin", () => {
       (safeStorage.decryptString as any)((fs.writeFileSync as any).mock.calls[0][1])
     );
     expect(written).toEqual({ ...existing, brokerPin: pin });
+  });
+});
+
+describe("tryLoadCredentials", () => {
+  it("genuinely first run (no file, encryption available) -> {ok:true, blob:EMPTY_BLOB}", async () => {
+    (fs.existsSync as any).mockReturnValue(false);
+    expect(tryLoadCredentials()).toEqual({ ok: true, blob: { agentToken: null, devices: {} } });
+  });
+
+  it("file ada, decrypt sukses -> {ok:true, blob}", async () => {
+    const stored = { agentToken: "slz_abc", devices: {} };
+    (fs.existsSync as any).mockReturnValue(true);
+    (fs.readFileSync as any).mockReturnValue(Buffer.from(`ENC(${JSON.stringify(stored)})`));
+    expect(tryLoadCredentials()).toEqual({ ok: true, blob: stored });
+  });
+
+  it("safeStorage.isEncryptionAvailable() false -> {ok:false}", async () => {
+    (safeStorage.isEncryptionAvailable as any).mockReturnValueOnce(false);
+    expect(tryLoadCredentials()).toEqual({ ok: false });
+  });
+
+  it("file ada tapi decrypt gagal -> {ok:false}", async () => {
+    (fs.existsSync as any).mockReturnValue(true);
+    (fs.readFileSync as any).mockReturnValue(Buffer.from("corrupt"));
+    (safeStorage.decryptString as any).mockImplementationOnce(() => { throw new Error("DPAPI fail"); });
+    expect(tryLoadCredentials()).toEqual({ ok: false });
   });
 });
 

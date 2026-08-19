@@ -25,6 +25,11 @@ let updateAvailable = false;
 export function setUpdateAvailable(available: boolean): void { updateAvailable = available; }
 export function getUpdateAvailable(): boolean { return updateAvailable; }
 
+let credentialStoreDegraded = false;
+
+export function setCredentialStoreDegraded(degraded: boolean): void { credentialStoreDegraded = degraded; }
+export function getCredentialStoreDegraded(): boolean { return credentialStoreDegraded; }
+
 // Adapter virtual/VPN. IP-nya non-internal & IPv4 juga, jadi lolos filter naif "ambil yang
 // pertama" — dan di Windows dengan Hyper-V/WSL2 (`vEthernet (WSL)`), VirtualBox, atau VPN
 // aktif, adapter-adapter ini SERING muncul sebelum adapter LAN asli. Akibatnya user

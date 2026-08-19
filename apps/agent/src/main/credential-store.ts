@@ -51,16 +51,17 @@ function generatePin(): string {
 type LoadOutcome = { ok: true; blob: CredentialBlob } | { ok: false };
 
 /**
- * Sepupu loadCredentials() KHUSUS untuk ensureBrokerPin() -- beda dari loadCredentials(),
- * fungsi ini MEMBEDAKAN "file belum ada" (aman augment) dari "file ada tapi gagal
- * didekripsi" (data-loss risk, JANGAN pernah timpa). loadCredentials() sengaja melebur
- * keduanya jadi EMPTY_BLOB untuk pemanggil lama (pairing flow) yang memang tak butuh
- * bedanya -- TAPI ensureBrokerPin() butuh bedanya, karena kasus paling umum di dunia nyata
- * (user upgrade dari versi sebelum fitur PIN ada) punya file yang decrypt-nya SUKSES, cuma
- * belum ada field brokerPin -- itu 100% aman diaugment (data asli sudah di tangan), BUKAN
- * kasus corrupt yang harus di-skip.
+ * Sepupu loadCredentials() -- beda dari loadCredentials(), fungsi ini MEMBEDAKAN "file
+ * belum ada" (aman augment) dari "file ada tapi gagal didekripsi" (data-loss risk, JANGAN
+ * pernah timpa). loadCredentials() sengaja melebur keduanya jadi EMPTY_BLOB untuk pemanggil
+ * lama (pairing flow) yang memang tak butuh bedanya -- TAPI ensureBrokerPin() butuh
+ * bedanya, karena kasus paling umum di dunia nyata (user upgrade dari versi sebelum fitur
+ * PIN ada) punya file yang decrypt-nya SUKSES, cuma belum ada field brokerPin -- itu 100%
+ * aman diaugment (data asli sudah di tangan), BUKAN kasus corrupt yang harus di-skip.
+ * Diekspor juga untuk startup health-check (go-public #9) -- {ok:false} di keduanya berarti
+ * penyimpanan kredensial lokal bermasalah, layak diberi tahu ke user lewat UI.
  */
-function tryLoadCredentials(): LoadOutcome {
+export function tryLoadCredentials(): LoadOutcome {
   const filePath = credentialFilePath();
   if (!safeStorage.isEncryptionAvailable()) return { ok: false };
   if (!fs.existsSync(filePath)) return { ok: true, blob: EMPTY_BLOB }; // genuinely first run -- aman

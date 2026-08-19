@@ -18,6 +18,7 @@ beforeEach(() => {
     openDownloadPage: vi.fn().mockResolvedValue(undefined),
     // Default: belum pernah aktivasi -- mulai dari layar Aktivasi seperti sebelum Finding 2.
     getActivationState: vi.fn().mockResolvedValue({ hasToken: false, devices: [], pairedShortCodes: [] }),
+    getCredentialStoreStatus: vi.fn().mockResolvedValue({ degraded: false }),
   };
 });
 

@@ -5,7 +5,7 @@ import { loadCredentials, saveCredentials, type DeviceSecret } from "./credentia
 import { fetchDevices, patchDeviceModel, saasBaseUrl, type SaasDevice } from "./saas-client";
 import { scanBambu } from "./discovery/bambu-ssdp";
 import { scanMoonraker } from "./discovery/moonraker-mdns";
-import { getEngine, setEngine, getBrokerPort, getBrokerPin, getLocalIp, getReporters, setReporters, getUpdateAvailable } from "./app-state";
+import { getEngine, setEngine, getBrokerPort, getBrokerPin, getLocalIp, getReporters, setReporters, getUpdateAvailable, getCredentialStoreDegraded } from "./app-state";
 import { reconcileDevices } from "./startup";
 import { startEngine } from "./engine-manager";
 import { publishLayout } from "./layout-publisher";
@@ -160,6 +160,10 @@ export function registerIpcHandlers(): void {
     const engine = getEngine();
     if (!engine) return { ok: false, message: "engine_not_running" };
     return engine.sendCommand(deviceId, cmd);
+  });
+
+  ipcMain.handle("agent:get-credential-store-status", async () => {
+    return { degraded: getCredentialStoreDegraded() };
   });
 
   ipcMain.handle("agent:get-update-status", async () => {

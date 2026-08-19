@@ -4,7 +4,10 @@ import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { ActivationScreen } from "./ActivationScreen";
 
 beforeEach(() => {
-  (globalThis as any).window.agentApi = { activate: vi.fn() };
+  (globalThis as any).window.agentApi = {
+    activate: vi.fn(),
+    getCredentialStoreStatus: vi.fn().mockResolvedValue({ degraded: false }),
+  };
 });
 
 describe("ActivationScreen", () => {

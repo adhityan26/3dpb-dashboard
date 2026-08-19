@@ -33,6 +33,8 @@ const agentApi = {
   openDownloadPage: (): Promise<void> =>
     ipcRenderer.invoke("agent:open-download-page"),
   sendLogs: (): Promise<{ ok: boolean; reason?: string }> => ipcRenderer.invoke("agent:send-logs"),
+  getCredentialStoreStatus: (): Promise<{ degraded: boolean }> =>
+    ipcRenderer.invoke("agent:get-credential-store-status"),
 };
 
 export type AgentApi = typeof agentApi;

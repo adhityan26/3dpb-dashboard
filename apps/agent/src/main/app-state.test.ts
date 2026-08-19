@@ -89,3 +89,14 @@ describe("getUpdateAvailable/setUpdateAvailable", () => {
     expect(getUpdateAvailable()).toBe(false);
   });
 });
+
+describe("getCredentialStoreDegraded/setCredentialStoreDegraded", () => {
+  it("default false, tersimpan+terbaca kembali persis seperti flag lain di file ini", async () => {
+    const { setCredentialStoreDegraded, getCredentialStoreDegraded } = await import("./app-state");
+    expect(getCredentialStoreDegraded()).toBe(false);
+    setCredentialStoreDegraded(true);
+    expect(getCredentialStoreDegraded()).toBe(true);
+    setCredentialStoreDegraded(false);
+    expect(getCredentialStoreDegraded()).toBe(false);
+  });
+});

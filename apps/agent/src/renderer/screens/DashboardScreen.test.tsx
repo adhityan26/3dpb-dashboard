@@ -11,6 +11,7 @@ beforeEach(() => {
     getUpdateStatus: vi.fn().mockResolvedValue({ updateAvailable: false }),
     openDownloadPage: vi.fn().mockResolvedValue(undefined),
     sendLogs: vi.fn().mockResolvedValue({ ok: true }),
+    getCredentialStoreStatus: vi.fn().mockResolvedValue({ degraded: false }),
   };
 });
 
