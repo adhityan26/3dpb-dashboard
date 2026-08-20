@@ -2,6 +2,7 @@ import { ipcMain, shell } from "electron";
 import { readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { randomUUID } from "node:crypto";
 import log from "electron-log/main";
 import { loadCredentials, saveCredentials, type DeviceSecret } from "./credential-store";
 import { fetchDevices, patchDeviceModel, saasBaseUrl, type SaasDevice } from "./saas-client";
@@ -270,7 +271,7 @@ export function registerIpcHandlers(): void {
     async (_event, shortCode: string, remotePath: string): Promise<PlateInfo[]> => {
       const client = await getFileClientFor(shortCode);
       const fileName = remotePath.split("/").pop() ?? "download.gcode.3mf";
-      const tempPath = join(tmpdir(), `agent-3mf-${Date.now()}-${fileName}`);
+      const tempPath = join(tmpdir(), `agent-3mf-${Date.now()}-${randomUUID()}-${fileName}`);
       try {
         await client.download(remotePath, tempPath);
         const buffer = await readFile(tempPath);
