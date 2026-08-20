@@ -75,6 +75,21 @@ export class BambuMqttConnector implements Connector {
         if (![1, 2, 3, 4].includes(cmd.level)) return { ok: false, message: 'unsupported_command' }
         payload = { print: { sequence_id: '0', command: 'print_speed', param: String(cmd.level) } }
         break
+      case 'startPrint':
+        payload = {
+          print: {
+            sequence_id: '0',
+            command: 'project_file',
+            param: cmd.filename,
+            plate_idx: cmd.plateIndex,
+            use_ams: true, // ASUMSI SEMENTARA, BELUM DIVERIFIKASI — lihat task-5-brief.md Step 8:
+            // param `param` cukup path SD card atau butuh field `url` file:///sdcard/<path>
+            // terpisah, dan use_ams:true (bukan false) supaya AMS mapping ikut default file
+            // (spec: AMS mapping ikut default file). Konfirmasi dengan printer fisik / referensi
+            // Bambu Studio/OrcaSlicer/HA Bambu Lab sebelum PR ini di-merge.
+          },
+        }
+        break
       default:
         return { ok: false, message: 'unsupported_command' }
     }

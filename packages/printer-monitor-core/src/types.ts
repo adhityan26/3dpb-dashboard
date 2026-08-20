@@ -6,6 +6,7 @@ export type PrinterCommand =
   | { kind: 'stop' }
   | { kind: 'setSpeedLevel'; level: 1 | 2 | 3 | 4 }   // Bambu: Silent/Standard/Sport/Ludicrous
   | { kind: 'setSpeedPercent'; percent: number }       // Moonraker: free percentage via M220
+  | { kind: 'startPrint'; filename: string; plateIndex: number } // Bambu: print file dari SD card
 
 export type CommandResult = { ok: true } | { ok: false; message: string }
 
