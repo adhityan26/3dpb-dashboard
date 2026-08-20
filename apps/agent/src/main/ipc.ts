@@ -1,11 +1,14 @@
 import { ipcMain, shell } from "electron";
-import { readFile, stat } from "node:fs/promises";
+import { readFile, rm, stat } from "node:fs/promises";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import log from "electron-log/main";
 import { loadCredentials, saveCredentials, type DeviceSecret } from "./credential-store";
 import { fetchDevices, patchDeviceModel, saasBaseUrl, type SaasDevice } from "./saas-client";
 import { scanBambu } from "./discovery/bambu-ssdp";
 import { scanMoonraker } from "./discovery/moonraker-mdns";
 import { BambuFtpsClient } from "./file-manager/bambu-ftps-client";
+import { parseThreemf, type PlateInfo } from "./file-manager/threemf-parser";
 import type { PrinterFileEntry } from "./file-manager/types";
 import { getEngine, setEngine, getBrokerPort, getBrokerPin, getLocalIp, getReporters, setReporters, getUpdateAvailable, getCredentialStoreDegraded } from "./app-state";
 import { reconcileDevices } from "./startup";
@@ -254,6 +257,27 @@ export function registerIpcHandlers(): void {
     async (_event, shortCode: string, oldPath: string, newPath: string): Promise<void> => {
       const client = await getFileClientFor(shortCode);
       await client.rename(oldPath, newPath);
+    }
+  );
+
+  // Download file .gcode.3mf dari printer ke temp lokal, parse metadata plate/filament-nya,
+  // lalu hapus file temp -- dipakai PrintStartDialog (Task 7) buat tampilkan plate & filament
+  // sebelum user mulai print, dan FileDropOverlay (Task 8) buat auto-parse file yang di-drop.
+  // rm(...,{force:true}) di `finally` -- cleanup HARUS jalan baik parseThreemf sukses maupun
+  // gagal (mis. not_bambu_3mf), biar temp dir gak numpuk sisa download tiap kali parse gagal.
+  ipcMain.handle(
+    "agent:file-parse-3mf",
+    async (_event, shortCode: string, remotePath: string): Promise<PlateInfo[]> => {
+      const client = await getFileClientFor(shortCode);
+      const fileName = remotePath.split("/").pop() ?? "download.gcode.3mf";
+      const tempPath = join(tmpdir(), `agent-3mf-${Date.now()}-${fileName}`);
+      try {
+        await client.download(remotePath, tempPath);
+        const buffer = await readFile(tempPath);
+        return await parseThreemf(buffer);
+      } finally {
+        await rm(tempPath, { force: true });
+      }
     }
   );
 }

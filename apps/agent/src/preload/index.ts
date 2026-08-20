@@ -6,6 +6,7 @@ import type { DiscoveredMoonrakerPrinter } from "../main/discovery/moonraker-mdn
 import type { PrintersPayload, PrinterCommand, CommandResult } from "@3pb/printer-monitor-core";
 import type { ActivationState, SyncResult, UpdateDeviceModelResult } from "../main/ipc";
 import type { PrinterFileEntry } from "../main/file-manager/types";
+import type { PlateInfo } from "../main/file-manager/threemf-parser";
 
 // Tipe return tiap method di-anotasi EKSPLISIT (bukan cuma `typeof agentApi` inherit
 // `Promise<any>` dari `ipcRenderer.invoke`) — dan HARUS persis cocok dengan tipe return
@@ -46,6 +47,8 @@ const agentApi = {
     ipcRenderer.invoke("agent:file-delete", shortCode, remotePath),
   renameFile: (shortCode: string, oldPath: string, newPath: string): Promise<void> =>
     ipcRenderer.invoke("agent:file-rename", shortCode, oldPath, newPath),
+  parseThreemf: (shortCode: string, remotePath: string): Promise<PlateInfo[]> =>
+    ipcRenderer.invoke("agent:file-parse-3mf", shortCode, remotePath),
 };
 
 export type AgentApi = typeof agentApi;

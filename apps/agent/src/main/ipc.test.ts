@@ -25,8 +25,14 @@ vi.mock("electron-log/main", () => ({
 vi.mock("node:fs/promises", () => {
   const stat = vi.fn();
   const readFile = vi.fn();
-  return { stat, readFile, default: { stat, readFile } };
+  const rm = vi.fn().mockResolvedValue(undefined);
+  return { stat, readFile, rm, default: { stat, readFile, rm } };
 });
+
+const { mockParseThreemf } = vi.hoisted(() => ({ mockParseThreemf: vi.fn() }));
+vi.mock("./file-manager/threemf-parser", () => ({
+  parseThreemf: mockParseThreemf,
+}));
 
 const { mockFileClient, MockBambuFtpsClient } = vi.hoisted(() => {
   const mockFileClient = {
@@ -51,7 +57,7 @@ import { reconcileDevices } from "./startup";
 import { startEngine } from "./engine-manager";
 import { publishLayout } from "./layout-publisher";
 import { getEngine, setEngine, setBrokerPort, setBrokerPin, getReporters, setReporters, setUpdateAvailable, setCredentialStoreDegraded } from "./app-state";
-import { stat, readFile } from "node:fs/promises";
+import { stat, readFile, rm } from "node:fs/promises";
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -572,5 +578,46 @@ describe("agent:file-upload / agent:file-download / agent:file-delete / agent:fi
     );
     await expect(handlers["agent:file-delete"]({}, "UNKNOWN", "/remote")).rejects.toThrow("device_not_found");
     await expect(handlers["agent:file-rename"]({}, "UNKNOWN", "/old", "/new")).rejects.toThrow("device_not_found");
+  });
+});
+
+describe("agent:file-parse-3mf handler", () => {
+  const secret = { ip: "192.168.1.50", serial: "S1", accessCode: "999" };
+
+  it("download file ke temp, parse, lalu hapus file temp", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+    (readFile as any).mockResolvedValueOnce(Buffer.from("fake"));
+    mockParseThreemf.mockResolvedValueOnce([{ index: 1, filaments: [] }]);
+
+    const result = await handlers["agent:file-parse-3mf"]({}, "ABC123", "/model.gcode.3mf");
+
+    expect(mockFileClient.download).toHaveBeenCalledWith("/model.gcode.3mf", expect.stringContaining("model.gcode.3mf"));
+    expect(mockParseThreemf).toHaveBeenCalledWith(Buffer.from("fake"));
+    expect(rm).toHaveBeenCalledWith(expect.stringContaining("model.gcode.3mf"), { force: true });
+    expect(result).toEqual([{ index: 1, filaments: [] }]);
+  });
+
+  it("parseThreemf gagal (bukan file 3mf Bambu valid) -> file temp tetap dihapus (cleanup lewat finally)", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+    (readFile as any).mockResolvedValueOnce(Buffer.from("fake"));
+    mockParseThreemf.mockRejectedValueOnce(new Error("not_bambu_3mf"));
+
+    await expect(handlers["agent:file-parse-3mf"]({}, "ABC123", "/model.gcode.3mf")).rejects.toThrow(
+      "not_bambu_3mf"
+    );
+
+    expect(rm).toHaveBeenCalledWith(expect.stringContaining("model.gcode.3mf"), { force: true });
+  });
+
+  it("device tidak ditemukan -> reject device_not_found, TANPA panggil download", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: {} });
+
+    await expect(handlers["agent:file-parse-3mf"]({}, "UNKNOWN", "/model.gcode.3mf")).rejects.toThrow(
+      "device_not_found"
+    );
+    expect(mockFileClient.download).not.toHaveBeenCalled();
   });
 });
