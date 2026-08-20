@@ -1,8 +1,9 @@
-import { ipcMain, shell } from "electron";
+import { ipcMain, shell, dialog } from "electron";
 import { readFile, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { randomUUID } from "node:crypto";
+import JSZip from "jszip";
 import log from "electron-log/main";
 import { loadCredentials, saveCredentials, type DeviceSecret } from "./credential-store";
 import { fetchDevices, patchDeviceModel, saasBaseUrl, type SaasDevice } from "./saas-client";
@@ -281,4 +282,41 @@ export function registerIpcHandlers(): void {
       }
     }
   );
+
+  // Ekstrak thumbnail plate (Metadata/plate_1.png) dari file .gcode.3mf, dipakai
+  // FileManagerPanel (Task 6) buat render preview grid. Pola temp-file sama seperti
+  // agent:file-parse-3mf di atas -- randomUUID() disisipkan di nama file temp buat menghindari
+  // race collision antar panggilan bersamaan (carry-forward finding dari Task 4).
+  // Kegagalan apapun (bukan .gcode.3mf, download gagal, zip tak punya thumbnail, dll) balikin
+  // null -- BUKAN throw -- karena ini cuma preview kosmetik, bukan aksi kritikal seperti parse-3mf.
+  ipcMain.handle(
+    "agent:file-thumbnail",
+    async (_event, shortCode: string, remotePath: string): Promise<string | null> => {
+      if (!remotePath.endsWith(".gcode.3mf")) return null;
+      const client = await getFileClientFor(shortCode);
+      const fileName = remotePath.split("/").pop() ?? "thumb.gcode.3mf";
+      const tempPath = join(tmpdir(), `agent-thumb-${Date.now()}-${randomUUID()}-${fileName}`);
+      try {
+        await client.download(remotePath, tempPath);
+        const buffer = await readFile(tempPath);
+        const zip = await JSZip.loadAsync(buffer);
+        const png = zip.file("Metadata/plate_1.png");
+        if (!png) return null;
+        const base64 = await png.async("base64");
+        return `data:image/png;base64,${base64}`;
+      } catch {
+        return null;
+      } finally {
+        await rm(tempPath, { force: true });
+      }
+    }
+  );
+
+  // Native folder-picker dipakai FileManagerPanel (Task 6) buat bulk download -- user pilih
+  // folder tujuan sekali, dipakai buat semua file terpilih.
+  ipcMain.handle("agent:pick-download-folder", async (): Promise<string | null> => {
+    const result = await dialog.showOpenDialog({ properties: ["openDirectory"] });
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
+  });
 }

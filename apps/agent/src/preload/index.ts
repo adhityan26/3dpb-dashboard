@@ -49,6 +49,9 @@ const agentApi = {
     ipcRenderer.invoke("agent:file-rename", shortCode, oldPath, newPath),
   parseThreemf: (shortCode: string, remotePath: string): Promise<PlateInfo[]> =>
     ipcRenderer.invoke("agent:file-parse-3mf", shortCode, remotePath),
+  getFileThumbnail: (shortCode: string, remotePath: string): Promise<string | null> =>
+    ipcRenderer.invoke("agent:file-thumbnail", shortCode, remotePath),
+  pickDownloadFolder: (): Promise<string | null> => ipcRenderer.invoke("agent:pick-download-folder"),
 };
 
 export type AgentApi = typeof agentApi;

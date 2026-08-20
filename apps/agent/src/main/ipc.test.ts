@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const handlers: Record<string, (...args: any[]) => any> = {};
+const { mockShowOpenDialog } = vi.hoisted(() => ({ mockShowOpenDialog: vi.fn() }));
 vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn((channel: string, fn: any) => { handlers[channel] = fn; }) },
   shell: { openExternal: vi.fn() },
+  dialog: { showOpenDialog: mockShowOpenDialog },
 }));
 vi.mock("./credential-store", () => ({ loadCredentials: vi.fn().mockResolvedValue({ agentToken: null, devices: {} }), saveCredentials: vi.fn() }));
 vi.mock("./saas-client", () => ({ fetchDevices: vi.fn().mockResolvedValue({ ok: true, data: [] }), fetchLayout: vi.fn(), patchDeviceModel: vi.fn(), saasBaseUrl: vi.fn().mockReturnValue("http://192.168.88.113:3300") }));
@@ -49,8 +51,13 @@ vi.mock("./file-manager/bambu-ftps-client", () => ({
   BambuFtpsClient: MockBambuFtpsClient,
 }));
 
+const { mockJSZipLoadAsync } = vi.hoisted(() => ({ mockJSZipLoadAsync: vi.fn() }));
+vi.mock("jszip", () => ({
+  default: { loadAsync: mockJSZipLoadAsync },
+}));
+
 import { registerIpcHandlers } from "./ipc";
-import { ipcMain, shell } from "electron";
+import { ipcMain, shell, dialog } from "electron";
 import { fetchDevices, patchDeviceModel, saasBaseUrl } from "./saas-client";
 import { loadCredentials, saveCredentials } from "./credential-store";
 import { reconcileDevices } from "./startup";
@@ -619,5 +626,89 @@ describe("agent:file-parse-3mf handler", () => {
       "device_not_found"
     );
     expect(mockFileClient.download).not.toHaveBeenCalled();
+  });
+});
+
+describe("agent:file-thumbnail handler", () => {
+  const secret = { ip: "192.168.1.50", serial: "S1", accessCode: "999" };
+
+  it("path bukan .gcode.3mf -> balikin null TANPA download", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+
+    const result = await handlers["agent:file-thumbnail"]({}, "ABC123", "/model.gcode");
+
+    expect(result).toBeNull();
+    expect(mockFileClient.download).not.toHaveBeenCalled();
+  });
+
+  it("download temp, ekstrak Metadata/plate_1.png dari zip, balikin data URL base64, lalu hapus temp", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+    (readFile as any).mockResolvedValueOnce(Buffer.from("fake-zip"));
+    const mockPngFile = { async: vi.fn().mockResolvedValue("QUJD") };
+    mockJSZipLoadAsync.mockResolvedValueOnce({ file: vi.fn().mockReturnValue(mockPngFile) });
+
+    const result = await handlers["agent:file-thumbnail"]({}, "ABC123", "/model.gcode.3mf");
+
+    expect(mockFileClient.download).toHaveBeenCalledWith("/model.gcode.3mf", expect.stringContaining("model.gcode.3mf"));
+    expect(result).toBe("data:image/png;base64,QUJD");
+    expect(rm).toHaveBeenCalledWith(expect.stringContaining("model.gcode.3mf"), { force: true });
+  });
+
+  it("temp path pakai randomUUID (bukan cuma Date.now()) -- konsisten dengan pola agent:file-parse-3mf", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+    (readFile as any).mockResolvedValueOnce(Buffer.from("fake-zip"));
+    mockJSZipLoadAsync.mockResolvedValueOnce({ file: vi.fn().mockReturnValue(null) });
+
+    await handlers["agent:file-thumbnail"]({}, "ABC123", "/model.gcode.3mf");
+
+    const tempPathArg = mockFileClient.download.mock.calls[0][1] as string;
+    expect(tempPathArg).toMatch(/agent-thumb-\d+-[0-9a-f-]{36}-model\.gcode\.3mf$/);
+  });
+
+  it("zip tidak punya Metadata/plate_1.png -> balikin null, temp tetap dihapus", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+    (readFile as any).mockResolvedValueOnce(Buffer.from("fake-zip"));
+    mockJSZipLoadAsync.mockResolvedValueOnce({ file: vi.fn().mockReturnValue(null) });
+
+    const result = await handlers["agent:file-thumbnail"]({}, "ABC123", "/model.gcode.3mf");
+
+    expect(result).toBeNull();
+    expect(rm).toHaveBeenCalledWith(expect.stringContaining("model.gcode.3mf"), { force: true });
+  });
+
+  it("download/parse gagal -> balikin null (bukan throw), temp tetap dihapus", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+    mockFileClient.download.mockRejectedValueOnce(new Error("connection refused"));
+
+    const result = await handlers["agent:file-thumbnail"]({}, "ABC123", "/model.gcode.3mf");
+
+    expect(result).toBeNull();
+    expect(rm).toHaveBeenCalledWith(expect.stringContaining("model.gcode.3mf"), { force: true });
+  });
+});
+
+describe("agent:pick-download-folder handler", () => {
+  it("user pilih folder -> balikin filePaths[0]", async () => {
+    registerIpcHandlers();
+    mockShowOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: ["/home/user/Downloads"] });
+
+    const result = await handlers["agent:pick-download-folder"]();
+
+    expect(dialog.showOpenDialog).toHaveBeenCalledWith({ properties: ["openDirectory"] });
+    expect(result).toBe("/home/user/Downloads");
+  });
+
+  it("user batal dialog -> balikin null", async () => {
+    registerIpcHandlers();
+    mockShowOpenDialog.mockResolvedValueOnce({ canceled: true, filePaths: [] });
+
+    const result = await handlers["agent:pick-download-folder"]();
+
+    expect(result).toBeNull();
   });
 });
