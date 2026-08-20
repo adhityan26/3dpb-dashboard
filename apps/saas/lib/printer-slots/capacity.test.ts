@@ -51,6 +51,21 @@ describe("getCapacity", () => {
       expect.arrayContaining([{ validUntil: null }, expect.objectContaining({ validUntil: expect.any(Object) })])
     );
   });
+
+  it("excludes future-dated grants from the query window (validFrom not yet started)", async () => {
+    // The Prisma where-clause itself does this filtering; this test verifies
+    // getCapacity passes a validFrom filter referencing "now" to findMany.
+    mockPrisma.slotGrant.findMany.mockResolvedValue([]);
+    await getCapacity("u1");
+    const where = mockPrisma.slotGrant.findMany.mock.calls[0][0].where;
+    expect(where.AND).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          OR: expect.arrayContaining([{ validFrom: null }, expect.objectContaining({ validFrom: expect.any(Object) })])
+        })
+      ])
+    );
+  });
 });
 
 describe("getEligibleDevices", () => {
