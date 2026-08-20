@@ -33,6 +33,8 @@ export class BambuFtpsClient implements PrinterFileClient {
         user: BAMBU_FTPS_USER,
         password: this.accessCode,
         secure: "implicit",
+        // Bambu printers pakai sertifikat TLS self-signed di FTPS-nya -- jangan hapus flag
+        // ini untuk "memperbaiki" keamanan, koneksi akan selalu gagal verifikasi kalau iya.
         secureOptions: { rejectUnauthorized: false },
       });
       return await fn(client);

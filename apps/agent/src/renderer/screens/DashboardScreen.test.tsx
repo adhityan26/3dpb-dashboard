@@ -209,6 +209,23 @@ describe("DashboardScreen", () => {
     await waitFor(() => expect(screen.getByText(/pause — 30%/i)).toBeTruthy());
     expect(screen.getByText(/pause — 30%/i).className).toContain("g-info");
   });
+
+  it("connector bambu -> tombol File tampil (file manager berlaku)", async () => {
+    (window as any).agentApi.getSnapshot.mockResolvedValue({
+      payload: [{ id: "abc1234567", name: "Printer A", type: "P1S", connector: "bambu", state: "idle", progress: 0, remaining_min: 0, filename: "", error_msg: "", error_message: "", last_seen: null, nozzle_temp: 25, bed_temp: 25 }],
+    });
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /^file$/i })).toBeTruthy());
+  });
+
+  it("connector moonraker -> tombol File TIDAK tampil (file manager belum didukung utk Moonraker)", async () => {
+    (window as any).agentApi.getSnapshot.mockResolvedValue({
+      payload: [{ id: "abc1234567", name: "Printer A", type: "P1S", connector: "moonraker", state: "idle", progress: 0, remaining_min: 0, filename: "", error_msg: "", error_message: "", last_seen: null, nozzle_temp: 25, bed_temp: 25 }],
+    });
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByText("Printer A")).toBeTruthy());
+    expect(screen.queryByRole("button", { name: /^file$/i })).toBeNull();
+  });
 });
 
 describe("DashboardScreen polling", () => {

@@ -249,57 +249,72 @@ function DeviceCard({ p }: { p: PrintersPayload["payload"][number] }) {
   const [filesOpen, setFilesOpen] = useState(false);
   const [printDialogPath, setPrintDialogPath] = useState<string | null>(null);
 
+  const isBambu = p.connector === "bambu";
+
+  const cardBody = (
+    <>
+      <div className="flex items-center gap-3">
+        <PrinterThumb model={p.type} />
+        <div className="min-w-0 flex-1">
+          <div className="g-t1 text-sm font-medium truncate">{p.name}</div>
+          {/* Nama file yang lagi dicetak -- kosong kalau idle/tak ada job aktif, jangan
+              tampil baris kosong. */}
+          {p.filename && <div className="g-t3 text-xs truncate">{p.filename}</div>}
+        </div>
+        <span className={`flex-shrink-0 text-sm ${statusColorClass(p.error_message ? "error" : p.state)}`}>
+          {p.state} — {p.progress}%
+        </span>
+      </div>
+      <div className="mt-2 flex items-center justify-between">
+        {/* Suhu terakhir diketahui tetap ditampilkan walau printer OFFLINE (sama
+            seperti progress/filename -- payload.ts sengaja mempertahankan data
+            terakhir, bukan me-reset ke 0, kecuali memang belum pernah ada data sama
+            sekali). */}
+        <span className="g-t3 text-xs">
+          Nozzle {p.nozzle_temp}°C · Bed {p.bed_temp}°C
+        </span>
+      </div>
+      <PrinterControls deviceId={p.id} state={p.state} connector={p.connector} />
+      {/* Percaya error_message non-kosong SAJA (bukan p.state === "error") -- backend
+          (state-store.ts) sekarang isi error_message juga utk kasus state="pause" dgn
+          print_error non-zero (Bambu genuinely error tapi lapor state PAUSE, bukan
+          ERROR -- kasus nyata "Uranus" P1S). upsertFromStatus BANGUN ULANG row tiap
+          status masuk (bukan merge), jadi error_message otomatis kosong lagi begitu
+          printer pulih -- tak ada kekhawatiran pesan basi nyangkut. */}
+      {p.error_message && (
+        <p role="alert" className="g-error mt-2 text-xs">
+          {p.error_message}
+        </p>
+      )}
+      {/* File manager (browse/upload/print via FTPS) hanya berlaku untuk konektor Bambu --
+          Moonraker belum didukung (di luar scope task ini), lihat pola gating yang sama
+          di PrinterControls. */}
+      {isBambu && (
+        <>
+          <div className="mt-2">
+            <GlassButton onClick={() => setFilesOpen((v) => !v)} className="text-xs opacity-70">
+              {filesOpen ? "Tutup File" : "File"}
+            </GlassButton>
+          </div>
+          {filesOpen && (
+            <div className="mt-2">
+              <FileManagerPanel shortCode={p.id} onPrintRequested={(remotePath) => setPrintDialogPath(remotePath)} />
+            </div>
+          )}
+        </>
+      )}
+    </>
+  );
+
   return (
     <GlassCard className="p-4">
-      <FileDropOverlay
-        shortCode={p.id}
-        deviceLabel={p.name}
-        onUploaded={(remotePath) => setPrintDialogPath(remotePath)}
-      >
-        <div className="flex items-center gap-3">
-          <PrinterThumb model={p.type} />
-          <div className="min-w-0 flex-1">
-            <div className="g-t1 text-sm font-medium truncate">{p.name}</div>
-            {/* Nama file yang lagi dicetak -- kosong kalau idle/tak ada job aktif, jangan
-                tampil baris kosong. */}
-            {p.filename && <div className="g-t3 text-xs truncate">{p.filename}</div>}
-          </div>
-          <span className={`flex-shrink-0 text-sm ${statusColorClass(p.error_message ? "error" : p.state)}`}>
-            {p.state} — {p.progress}%
-          </span>
-        </div>
-        <div className="mt-2 flex items-center justify-between">
-          {/* Suhu terakhir diketahui tetap ditampilkan walau printer OFFLINE (sama
-              seperti progress/filename -- payload.ts sengaja mempertahankan data
-              terakhir, bukan me-reset ke 0, kecuali memang belum pernah ada data sama
-              sekali). */}
-          <span className="g-t3 text-xs">
-            Nozzle {p.nozzle_temp}°C · Bed {p.bed_temp}°C
-          </span>
-        </div>
-        <PrinterControls deviceId={p.id} state={p.state} connector={p.connector} />
-        {/* Percaya error_message non-kosong SAJA (bukan p.state === "error") -- backend
-            (state-store.ts) sekarang isi error_message juga utk kasus state="pause" dgn
-            print_error non-zero (Bambu genuinely error tapi lapor state PAUSE, bukan
-            ERROR -- kasus nyata "Uranus" P1S). upsertFromStatus BANGUN ULANG row tiap
-            status masuk (bukan merge), jadi error_message otomatis kosong lagi begitu
-            printer pulih -- tak ada kekhawatiran pesan basi nyangkut. */}
-        {p.error_message && (
-          <p role="alert" className="g-error mt-2 text-xs">
-            {p.error_message}
-          </p>
-        )}
-        <div className="mt-2">
-          <GlassButton onClick={() => setFilesOpen((v) => !v)} className="text-xs opacity-70">
-            {filesOpen ? "Tutup File" : "File"}
-          </GlassButton>
-        </div>
-        {filesOpen && (
-          <div className="mt-2">
-            <FileManagerPanel shortCode={p.id} onPrintRequested={(remotePath) => setPrintDialogPath(remotePath)} />
-          </div>
-        )}
-      </FileDropOverlay>
+      {isBambu ? (
+        <FileDropOverlay shortCode={p.id} deviceLabel={p.name} onUploaded={(remotePath) => setPrintDialogPath(remotePath)}>
+          {cardBody}
+        </FileDropOverlay>
+      ) : (
+        cardBody
+      )}
       {printDialogPath && (
         <PrintStartDialog
           shortCode={p.id}

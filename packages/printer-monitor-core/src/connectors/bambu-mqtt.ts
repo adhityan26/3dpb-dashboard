@@ -82,7 +82,7 @@ export class BambuMqttConnector implements Connector {
             command: 'project_file',
             param: cmd.filename,
             plate_idx: cmd.plateIndex,
-            use_ams: true, // ASUMSI SEMENTARA, BELUM DIVERIFIKASI — lihat task-5-brief.md Step 8:
+            use_ams: true, // ASUMSI SEMENTARA, BELUM DIVERIFIKASI — lihat docs/superpowers/plans/2026-08-20-agent-file-manager-print.md, Task 5 Step 8:
             // param `param` cukup path SD card atau butuh field `url` file:///sdcard/<path>
             // terpisah, dan use_ams:true (bukan false) supaya AMS mapping ikut default file
             // (spec: AMS mapping ikut default file). Konfirmasi dengan printer fisik / referensi

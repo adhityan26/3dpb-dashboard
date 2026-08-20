@@ -22,11 +22,13 @@ export function FileManagerPanel({ shortCode, onPrintRequested }: FileManagerPan
       const list = await window.agentApi.listFiles(shortCode, "/");
       setLoadError(null);
       setEntries(list);
+      // Sekuensial (bukan fire-and-forget paralel) -- tiap thumbnail = download seluruh
+      // file lewat koneksi FTPS baru (connect-per-operation), printer kemungkinan tak
+      // sanggup handle banyak sesi FTPS bersamaan.
       for (const entry of list) {
         if (entry.path.endsWith(".gcode.3mf")) {
-          window.agentApi.getFileThumbnail(shortCode, entry.path).then((thumb) => {
-            setThumbnails((prev) => ({ ...prev, [entry.path]: thumb }));
-          });
+          const thumb = await window.agentApi.getFileThumbnail(shortCode, entry.path);
+          setThumbnails((prev) => ({ ...prev, [entry.path]: thumb }));
         }
       }
     } catch {
@@ -80,6 +82,10 @@ export function FileManagerPanel({ shortCode, onPrintRequested }: FileManagerPan
     for (const path of selected) {
       const fileName = path.split("/").pop() ?? "download";
       try {
+        // Forward slash hardcoded (bukan node:path join()) sengaja -- ini renderer, tak ada
+        // "path" module natural di sini (tak ada precedent lain di renderer/ yg pakai
+        // node:path), dan Node's fs tetap toleransi forward slash di semua platform termasuk
+        // Windows.
         await window.agentApi.downloadFile(shortCode, path, `${targetFolder}/${fileName}`);
       } catch {
         failCount += 1;
