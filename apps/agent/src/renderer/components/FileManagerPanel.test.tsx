@@ -147,4 +147,75 @@ describe("FileManagerPanel", () => {
 
     expect(onPrintRequested).toHaveBeenCalledWith("/a.gcode.3mf");
   });
+
+  it("listFiles gagal -> tampil pesan error, klik Coba Lagi memanggil listFiles lagi", async () => {
+    mockListFiles.mockRejectedValueOnce(new Error("offline"));
+
+    render(<FileManagerPanel shortCode="ABC123" onPrintRequested={vi.fn()} />);
+
+    expect(await screen.findByText(/gagal memuat daftar file/i)).toBeTruthy();
+    expect(mockListFiles).toHaveBeenCalledTimes(1);
+
+    mockListFiles.mockResolvedValueOnce([
+      { name: "a.gcode.3mf", path: "/a.gcode.3mf", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: /coba lagi/i }));
+
+    await waitFor(() => expect(mockListFiles).toHaveBeenCalledTimes(2));
+    expect(await screen.findByText("a.gcode.3mf")).toBeTruthy();
+  });
+
+  it("bulk delete: satu file gagal dihapus -> lanjut ke file lain, state reset, pesan error tampil", async () => {
+    mockListFiles.mockResolvedValue([
+      { name: "a.gcode.3mf", path: "/a.gcode.3mf", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
+      { name: "b.gcode", path: "/b.gcode", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
+    ]);
+    mockDeleteFile.mockImplementation((_short: string, path: string) =>
+      path === "/a.gcode.3mf" ? Promise.reject(new Error("fail")) : Promise.resolve(undefined),
+    );
+
+    render(<FileManagerPanel shortCode="ABC123" onPrintRequested={vi.fn()} />);
+    await screen.findByText("a.gcode.3mf");
+
+    fireEvent.click(screen.getByRole("button", { name: /select/i }));
+    fireEvent.click(screen.getByLabelText("a.gcode.3mf"));
+    fireEvent.click(screen.getByLabelText("b.gcode"));
+    fireEvent.click(screen.getByRole("button", { name: /hapus \(2\)/i }));
+    fireEvent.click(screen.getByRole("button", { name: /ya, hapus/i }));
+
+    await waitFor(() => {
+      expect(mockDeleteFile).toHaveBeenCalledWith("ABC123", "/a.gcode.3mf");
+      expect(mockDeleteFile).toHaveBeenCalledWith("ABC123", "/b.gcode");
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByRole("dialog", { name: /konfirmasi hapus/i })).toBeNull();
+    });
+    expect(await screen.findByText(/1 dari 2 file berhasil dihapus, 1 gagal/i)).toBeTruthy();
+  });
+
+  it("bulk download: satu file gagal download -> lanjut ke file lain, pesan error tampil", async () => {
+    mockListFiles.mockResolvedValue([
+      { name: "a.gcode.3mf", path: "/a.gcode.3mf", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
+      { name: "b.gcode", path: "/b.gcode", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
+    ]);
+    mockDownloadFile.mockImplementation((_short: string, path: string) =>
+      path === "/a.gcode.3mf" ? Promise.reject(new Error("fail")) : Promise.resolve(undefined),
+    );
+
+    render(<FileManagerPanel shortCode="ABC123" onPrintRequested={vi.fn()} />);
+    await screen.findByText("a.gcode.3mf");
+
+    fireEvent.click(screen.getByRole("button", { name: /select/i }));
+    fireEvent.click(screen.getByLabelText("a.gcode.3mf"));
+    fireEvent.click(screen.getByLabelText("b.gcode"));
+    fireEvent.click(screen.getByRole("button", { name: /download \(2\)/i }));
+
+    await waitFor(() => {
+      expect(mockDownloadFile).toHaveBeenCalledWith("ABC123", "/a.gcode.3mf", "/tmp/downloads/a.gcode.3mf");
+      expect(mockDownloadFile).toHaveBeenCalledWith("ABC123", "/b.gcode", "/tmp/downloads/b.gcode");
+    });
+
+    expect(await screen.findByText(/1 dari 2 file berhasil didownload, 1 gagal/i)).toBeTruthy();
+  });
 });

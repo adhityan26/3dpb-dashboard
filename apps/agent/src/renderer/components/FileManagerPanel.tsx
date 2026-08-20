@@ -13,16 +13,24 @@ export function FileManagerPanel({ shortCode, onPrintRequested }: FileManagerPan
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirmingBulkDelete, setConfirmingBulkDelete] = useState(false);
   const [zoomedThumbnail, setZoomedThumbnail] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [bulkDeleteError, setBulkDeleteError] = useState<string | null>(null);
+  const [bulkDownloadError, setBulkDownloadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
-    const list = await window.agentApi.listFiles(shortCode, "/");
-    setEntries(list);
-    for (const entry of list) {
-      if (entry.path.endsWith(".gcode.3mf")) {
-        window.agentApi.getFileThumbnail(shortCode, entry.path).then((thumb) => {
-          setThumbnails((prev) => ({ ...prev, [entry.path]: thumb }));
-        });
+    try {
+      const list = await window.agentApi.listFiles(shortCode, "/");
+      setLoadError(null);
+      setEntries(list);
+      for (const entry of list) {
+        if (entry.path.endsWith(".gcode.3mf")) {
+          window.agentApi.getFileThumbnail(shortCode, entry.path).then((thumb) => {
+            setThumbnails((prev) => ({ ...prev, [entry.path]: thumb }));
+          });
+        }
       }
+    } catch {
+      setLoadError("Gagal memuat daftar file — printer mungkin offline");
     }
   }, [shortCode]);
 
@@ -45,20 +53,40 @@ export function FileManagerPanel({ shortCode, onPrintRequested }: FileManagerPan
   }
 
   async function confirmBulkDelete() {
+    setBulkDeleteError(null);
+    let failCount = 0;
+    const total = selected.size;
     for (const path of selected) {
-      await window.agentApi.deleteFile(shortCode, path);
+      try {
+        await window.agentApi.deleteFile(shortCode, path);
+      } catch {
+        failCount += 1;
+      }
     }
     setSelected(new Set());
     setConfirmingBulkDelete(false);
+    if (failCount > 0) {
+      setBulkDeleteError(`${total - failCount} dari ${total} file berhasil dihapus, ${failCount} gagal`);
+    }
     await load();
   }
 
   async function bulkDownload() {
     const targetFolder = await window.agentApi.pickDownloadFolder();
     if (!targetFolder) return; // user batal dialog folder
+    setBulkDownloadError(null);
+    let failCount = 0;
+    const total = selected.size;
     for (const path of selected) {
       const fileName = path.split("/").pop() ?? "download";
-      await window.agentApi.downloadFile(shortCode, path, `${targetFolder}/${fileName}`);
+      try {
+        await window.agentApi.downloadFile(shortCode, path, `${targetFolder}/${fileName}`);
+      } catch {
+        failCount += 1;
+      }
+    }
+    if (failCount > 0) {
+      setBulkDownloadError(`${total - failCount} dari ${total} file berhasil didownload, ${failCount} gagal`);
     }
   }
 
@@ -76,6 +104,9 @@ export function FileManagerPanel({ shortCode, onPrintRequested }: FileManagerPan
         </div>
       )}
 
+      {bulkDeleteError && <p role="alert">{bulkDeleteError}</p>}
+      {bulkDownloadError && <p role="alert">{bulkDownloadError}</p>}
+
       {confirmingBulkDelete && (
         <div role="dialog" aria-label="konfirmasi hapus">
           <p>Yakin hapus {selected.size} file? Aksi ini tidak bisa dibatalkan.</p>
@@ -87,6 +118,13 @@ export function FileManagerPanel({ shortCode, onPrintRequested }: FileManagerPan
       {zoomedThumbnail && (
         <div role="dialog" aria-label="thumbnail preview" onClick={() => setZoomedThumbnail(null)}>
           <img src={zoomedThumbnail} alt="preview besar" />
+        </div>
+      )}
+
+      {loadError && (
+        <div>
+          <p role="alert">{loadError}</p>
+          <button onClick={() => load()}>Coba Lagi</button>
         </div>
       )}
 
