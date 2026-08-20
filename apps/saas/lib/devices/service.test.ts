@@ -4,6 +4,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     device: { findMany: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn(), findUnique: vi.fn(), count: vi.fn() },
     entitlement: { findUnique: vi.fn() },
+    slotGrant: { findMany: vi.fn() },
     cydLayout: { findUnique: vi.fn(), update: vi.fn() },
     $transaction: vi.fn(),
     $queryRaw: vi.fn(),
@@ -32,12 +33,18 @@ describe("listDevices", () => {
 describe("createDevice", () => {
   // Hoisted (bukan dibuat & dibuang di dalam mockImplementation) supaya test bisa assert
   // langsung ke method-method tx-nya — termasuk urutan panggilan (lihat test row-lock di bawah).
-  function mockTx(count: number, limit: number | null) {
+  function mockTx(count: number, slotGrants: Array<{ quantity: number }> = []) {
     const tx = {
       $queryRaw: vi.fn().mockResolvedValue([]),
       $executeRaw: vi.fn().mockResolvedValue(1),
+      // Entitlement stub kept (no longer read by createDevice -- capacity is now computed from
+      // SlotGrant, see slotGrant below) so this tx shape doesn't change drastically in case other
+      // code later needs to read Entitlement through the same tx.
       entitlement: {
-        findUnique: vi.fn().mockResolvedValue({ printerSlots: limit }),
+        findUnique: vi.fn().mockResolvedValue(null),
+      },
+      slotGrant: {
+        findMany: vi.fn().mockResolvedValue(slotGrants),
       },
       device: {
         count: vi.fn().mockResolvedValue(count),
@@ -52,23 +59,22 @@ describe("createDevice", () => {
     await expect(createDevice("u1", { label: "X", printerType: "prusa" })).rejects.toThrow(InvalidPrinterType);
   });
 
-  it("berhasil create kalau count < limit (limit dari Entitlement)", async () => {
+  it("hitung capacity dari SlotGrant (baseline + grant aktif), bukan Entitlement.printerSlots", async () => {
     (generateUniqueShortCode as any).mockResolvedValue("abc1234567");
-    mockTx(0, 2);
+    (getConfigInt as any).mockResolvedValue(1); // baseline
+    const tx = mockTx(3, [{ quantity: 9 }]); // capacity = baseline 1 + grant 9 = 10, count 3 < 10 -> lolos
+
     const device = await createDevice("u1", { label: "Printer A", printerType: "bambu" });
+
     expect(device.id).toBe("new-d");
+    expect(tx.slotGrant.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ userId: "u1" }) }));
   });
 
-  it("tolak kalau count >= limit eksplisit (Entitlement.printerSlots set)", async () => {
-    mockTx(2, 2);
-    await expect(createDevice("u1", { label: "Printer A", printerType: "bambu" })).rejects.toThrow(SlotLimitExceeded);
-  });
+  it("tolak kalau count >= capacity ledger-computed (baseline saja, tanpa SlotGrant aktif)", async () => {
+    (getConfigInt as any).mockResolvedValue(1); // baseline = capacity kalau tak ada grant
+    mockTx(1, []); // count 1 >= capacity 1 -> reject
 
-  it("fallback ke Config kalau Entitlement.printerSlots null", async () => {
-    (getConfigInt as any).mockResolvedValue(1);
-    mockTx(1, null); // limit null di Entitlement -> harus fallback ke Config (1) -> count 1 >= 1 -> reject
     await expect(createDevice("u1", { label: "Printer A", printerType: "bambu" })).rejects.toThrow(SlotLimitExceeded);
-    expect(getConfigInt).toHaveBeenCalledWith("printer.defaultSlots", 1);
   });
 
   // Finding A (code review): mutation-testing membuktikan tanpa test ini, menghapus baris
@@ -76,7 +82,8 @@ describe("createDevice", () => {
   // BENAR-BENAR diambil (bukan cuma di-comment sebagai niat baik) dan diambil SEBELUM count.
   it("ambil row-lock (FOR UPDATE) sebelum COUNT devices", async () => {
     (generateUniqueShortCode as any).mockResolvedValue("abc1234567");
-    const tx = mockTx(0, 2);
+    (getConfigInt as any).mockResolvedValue(2);
+    const tx = mockTx(0, []);
 
     await createDevice("u1", { label: "Printer A", printerType: "bambu" });
 
@@ -100,7 +107,8 @@ describe("createDevice", () => {
   // try/catch. Verifikasi urutan: $executeRaw (upsert-nothing) SEBELUM row-lock diambil.
   it("pastikan baris Entitlement ADA (INSERT ... ON CONFLICT DO NOTHING) dulu sebelum ambil row-lock", async () => {
     (generateUniqueShortCode as any).mockResolvedValue("abc1234567");
-    const tx = mockTx(0, 2);
+    (getConfigInt as any).mockResolvedValue(2);
+    const tx = mockTx(0, []);
 
     await createDevice("u1", { label: "Printer A", printerType: "bambu" });
 
@@ -119,10 +127,10 @@ describe("createDevice", () => {
   // Finding D: getConfigInt lewat koneksi prisma global (bukan tx) — kalau dipanggil dari
   // DALAM transaksi yang sedang pegang FOR UPDATE, request lain yang antre di lock itu bisa
   // starvation di connection pool / P2028 timeout. Verifikasi dipanggil SEBELUM $transaction dibuka.
-  it("resolve fallback limit (getConfigInt) SEBELUM $transaction dibuka, bukan di dalamnya", async () => {
+  it("resolve baseline (getConfigInt) SEBELUM $transaction dibuka, bukan di dalamnya", async () => {
     (getConfigInt as any).mockResolvedValue(1);
-    mockTx(0, 2); // Entitlement.printerSlots di-set (2) supaya fallback tak dipakai buat limit,
-    // tapi getConfigInt tetap dipanggil unconditionally sebelum transaksi (lihat implementasi).
+    mockTx(0, []); // baseline is fetched unconditionally before the transaction opens (see
+    // createDevice) so the Config query doesn't sit behind the FOR UPDATE lock.
 
     await createDevice("u1", { label: "Printer A", printerType: "bambu" });
 
@@ -137,7 +145,8 @@ describe("createDevice", () => {
   // checkout koneksi kedua dari pool selagi row-lock Entitlement masih dipegang.
   it("oper `tx` ke generateUniqueShortCode (jangan checkout koneksi kedua saat pegang row-lock)", async () => {
     (generateUniqueShortCode as any).mockResolvedValue("abc1234567");
-    const tx = mockTx(0, 2);
+    (getConfigInt as any).mockResolvedValue(2);
+    const tx = mockTx(0, []);
 
     await createDevice("u1", { label: "Printer A", printerType: "bambu" });
 
@@ -146,7 +155,8 @@ describe("createDevice", () => {
 
   it("simpan model kalau diisi (trim dulu)", async () => {
     (generateUniqueShortCode as any).mockResolvedValue("abc1234567");
-    const tx = mockTx(0, 2);
+    (getConfigInt as any).mockResolvedValue(2);
+    const tx = mockTx(0, []);
     await createDevice("u1", { label: "Printer A", printerType: "bambu", model: "  P1S  " });
     expect(tx.device.create).toHaveBeenCalledWith({
       data: { userId: "u1", label: "Printer A", printerType: "bambu", shortCode: "abc1234567", model: "P1S" },
@@ -155,7 +165,8 @@ describe("createDevice", () => {
 
   it("model kosong/whitespace -> disimpan sebagai null", async () => {
     (generateUniqueShortCode as any).mockResolvedValue("abc1234567");
-    const tx = mockTx(0, 2);
+    (getConfigInt as any).mockResolvedValue(2);
+    const tx = mockTx(0, []);
     await createDevice("u1", { label: "Printer A", printerType: "bambu", model: "   " });
     expect(tx.device.create).toHaveBeenCalledWith({
       data: { userId: "u1", label: "Printer A", printerType: "bambu", shortCode: "abc1234567", model: null },
@@ -164,7 +175,8 @@ describe("createDevice", () => {
 
   it("model tak diisi sama sekali (undefined) -> tak masuk ke data create sebagai key eksplisit", async () => {
     (generateUniqueShortCode as any).mockResolvedValue("abc1234567");
-    const tx = mockTx(0, 2);
+    (getConfigInt as any).mockResolvedValue(2);
+    const tx = mockTx(0, []);
     await createDevice("u1", { label: "Printer A", printerType: "bambu" });
     expect(tx.device.create).toHaveBeenCalledWith({
       data: { userId: "u1", label: "Printer A", printerType: "bambu", shortCode: "abc1234567" },
@@ -178,7 +190,8 @@ describe("createDevice", () => {
 
   it("model persis 11 byte ASCII lolos, 12 byte ditolak (batas firmware char type[12])", async () => {
     (generateUniqueShortCode as any).mockResolvedValue("abc1234567");
-    mockTx(0, 2);
+    (getConfigInt as any).mockResolvedValue(2);
+    mockTx(0, []);
     await expect(createDevice("u1", { label: "X", printerType: "bambu", model: "12345678901" })).resolves.toBeTruthy();
     await expect(createDevice("u1", { label: "X", printerType: "bambu", model: "123456789012" })).rejects.toThrow(InvalidDeviceModel);
   });
@@ -190,14 +203,15 @@ describe("createDevice", () => {
 });
 
 describe("getDeviceLimit", () => {
-  it("pakai Entitlement.printerSlots kalau ada (tanpa nanya Config)", async () => {
-    (prisma.entitlement.findUnique as any).mockResolvedValue({ printerSlots: 5 });
-    expect(await getDeviceLimit("u1")).toBe(5);
-    expect(getConfigInt).not.toHaveBeenCalled();
+  it("hitung dari SlotGrant + baseline Config (bukan Entitlement.printerSlots)", async () => {
+    (prisma.slotGrant.findMany as any).mockResolvedValue([{ quantity: 3 }, { quantity: 2 }]);
+    (getConfigInt as any).mockResolvedValue(1);
+    expect(await getDeviceLimit("u1")).toBe(6); // baseline 1 + grants 3 + 2
+    expect(prisma.slotGrant.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ userId: "u1" }) }));
   });
 
-  it("fallback ke Config printer.defaultSlots kalau printerSlots null / user belum punya baris", async () => {
-    (prisma.entitlement.findUnique as any).mockResolvedValue(null);
+  it("pakai baseline Config printer.defaultSlots aja kalau user tak punya SlotGrant aktif", async () => {
+    (prisma.slotGrant.findMany as any).mockResolvedValue([]);
     (getConfigInt as any).mockResolvedValue(1);
     expect(await getDeviceLimit("u1")).toBe(1);
     expect(getConfigInt).toHaveBeenCalledWith("printer.defaultSlots", 1);
