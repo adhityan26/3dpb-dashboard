@@ -42,6 +42,29 @@ describe("PrintStartDialog", () => {
     });
   });
 
+  it("parseThreemf reject dengan error selain not_bambu_3mf: tampilkan pesan gagal koneksi, bukan format", async () => {
+    mockParseThreemf.mockRejectedValueOnce(new Error("network timeout"));
+
+    render(<PrintStartDialog shortCode="ABC123" deviceLabel="Bambu X1C" remotePath="/model.gcode.3mf" onClose={vi.fn()} />);
+
+    await screen.findByText(/gagal membaca file/i);
+    expect(screen.queryByText(/file bukan format bambu/i)).toBeNull();
+  });
+
+  it("sendPrinterCommand resolve {ok:false}: tampilkan pesan tidak yakin print dimulai", async () => {
+    mockParseThreemf.mockResolvedValue([{ index: 1, filaments: [] }]);
+    mockSendPrinterCommand.mockResolvedValue({ ok: false });
+
+    render(<PrintStartDialog shortCode="ABC123" deviceLabel="Bambu X1C" remotePath="/model.gcode.3mf" onClose={vi.fn()} />);
+
+    await screen.findByText(/plate 1/i);
+    fireEvent.click(screen.getByRole("button", { name: /lanjut/i }));
+    await screen.findByText(/yakin/i);
+    fireEvent.click(screen.getByRole("button", { name: /ya, mulai print/i }));
+
+    await screen.findByText(/tidak yakin apakah print dimulai/i);
+  });
+
   it("file .gcode polos: skip plate picker, langsung ke konfirmasi", async () => {
     mockSendPrinterCommand.mockResolvedValue({ ok: true });
 

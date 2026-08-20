@@ -36,7 +36,14 @@ export function PrintStartDialog({ shortCode, deviceLabel, remotePath, onClose }
         setSelectedIndex(result[0]?.index ?? null);
         setStep("pick-plate");
       })
-      .catch(() => setStep("error"));
+      .catch((error) => {
+        if (error instanceof Error && error.message === "not_bambu_3mf") {
+          setErrorMessage("File bukan format Bambu yang valid");
+        } else {
+          setErrorMessage("Gagal membaca file — periksa koneksi ke printer");
+        }
+        setStep("error");
+      });
   }, [shortCode, remotePath]);
 
   async function handleConfirm() {
