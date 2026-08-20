@@ -74,4 +74,37 @@ describe("BambuFtpsClient", () => {
     await expect(client.list("/")).rejects.toThrow("connection timeout");
     expect(mockClose).toHaveBeenCalledOnce();
   });
+
+  it("download panggil downloadTo dengan args yang benar, tutup koneksi", async () => {
+    const client = new BambuFtpsClient("192.168.1.50", "12345678");
+    await client.download("/remote.gcode", "/tmp/local.gcode");
+    expect(mockDownloadTo).toHaveBeenCalledWith("/tmp/local.gcode", "/remote.gcode");
+    expect(mockClose).toHaveBeenCalledOnce();
+  });
+
+  it("delete panggil remove dengan remotePath, tutup koneksi", async () => {
+    const client = new BambuFtpsClient("192.168.1.50", "12345678");
+    await client.delete("/old-file.gcode");
+    expect(mockRemove).toHaveBeenCalledWith("/old-file.gcode");
+    expect(mockClose).toHaveBeenCalledOnce();
+  });
+
+  it("rename panggil rename dengan oldPath dan newPath, tutup koneksi", async () => {
+    const client = new BambuFtpsClient("192.168.1.50", "12345678");
+    await client.rename("/old.gcode", "/new.gcode");
+    expect(mockRename).toHaveBeenCalledWith("/old.gcode", "/new.gcode");
+    expect(mockClose).toHaveBeenCalledOnce();
+  });
+
+  it("list dengan root path / tidak double-slash, path format benar", async () => {
+    mockList.mockResolvedValue([
+      { name: "file.gcode", size: 100, isDirectory: false, modifiedAt: new Date("2026-08-01T00:00:00Z") },
+    ]);
+    const client = new BambuFtpsClient("192.168.1.50", "12345678");
+
+    const entries = await client.list("/");
+
+    expect(entries[0].path).toBe("/file.gcode");
+    expect(entries[0].path).not.toMatch(/\/\//);
+  });
 });
