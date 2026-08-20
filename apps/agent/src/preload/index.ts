@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from "electron";
+import { contextBridge, ipcRenderer, webUtils } from "electron";
 import type { DeviceSecret } from "../main/credential-store";
 import type { FetchResult, SaasDevice } from "../main/saas-client";
 import type { ScanResult } from "../main/discovery/bambu-ssdp";
@@ -52,6 +52,10 @@ const agentApi = {
   getFileThumbnail: (shortCode: string, remotePath: string): Promise<string | null> =>
     ipcRenderer.invoke("agent:file-thumbnail", shortCode, remotePath),
   pickDownloadFolder: (): Promise<string | null> => ipcRenderer.invoke("agent:pick-download-folder"),
+  // `File.path` dihapus dari Electron sejak versi 32 -- webUtils.getPathForFile adalah
+  // pengganti resmi, dan HARUS dipanggil di preload (webUtils cuma tersedia di sini,
+  // bukan renderer biasa).
+  getPathForFile: (file: File): string => webUtils.getPathForFile(file),
 };
 
 export type AgentApi = typeof agentApi;
