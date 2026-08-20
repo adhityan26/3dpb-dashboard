@@ -46,3 +46,14 @@ export async function getEligibleDevices(userId: string, opts: CapacityOpts = {}
   });
   return devices.slice(0, capacity);
 }
+
+export async function getEligibleShortCodes(userId: string, opts: CapacityOpts = {}): Promise<Set<string>> {
+  const client = opts.client ?? prisma;
+  const capacity = await getCapacity(userId, opts);
+  const devices = await client.device.findMany({
+    where: { userId },
+    orderBy: { createdAt: "asc" },
+    select: { shortCode: true },
+  });
+  return new Set(devices.slice(0, capacity).map((d) => d.shortCode));
+}
