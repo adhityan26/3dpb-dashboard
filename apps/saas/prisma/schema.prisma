@@ -68,7 +68,6 @@ model Entitlement {
   subStartedAt        DateTime?
   subExpiresAt        DateTime?
   firstCloudMonthUsed Boolean   @default(false)
-  printerSlots        Int?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 }
@@ -89,24 +88,73 @@ model WaOtp {
   windowStart DateTime @default(now())
 }
 
-model Payment {
-  id           String    @id @default(cuid())
-  userId       String
-  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tier         String
-  displayPrice Int
-  amount       Int
-  uniqueCode   Int
-  qrPayload    String
-  status       String    @default("PENDING")
-  paidMarkedAt DateTime?
-  proofKey     String?
-  proofType    String?
-  verifiedAt   DateTime?
-  verifiedBy   String?
-  createdAt    DateTime  @default(now())
+// PRODUCTION DEPLOY NOTE (2026-08-20 printer-slot-ledger migration):
+// `db push` cannot detect a column rename — it will DROP `tier` and ADD
+// `productType` as empty, discarding existing values. Before running
+// `db:push` against production, run manually against the production DB:
+//   ALTER TABLE "Payment" RENAME COLUMN "tier" TO "productType";
+//   UPDATE "Payment" SET "productType" = 'BELI' WHERE "productType" = 'beli';
+// Then `db:push` will see the columns already match and add only the new
+// SlotGrant/CydVariant tables and Payment's new nullable columns.
 
+model Payment {
+  id              String    @id @default(cuid())
+  userId          String
+  user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productType     String    // "BELI" | "CYD" | "SLOT_PURCHASE" | "SUBSCRIBE"
+  quantity        Int?      // CYD units, or slot count; null for BELI/SUBSCRIBE
+  displayPrice    Int
+  amount          Int
+  uniqueCode      Int
+  qrPayload       String
+  status          String    @default("PENDING")
+  paidMarkedAt    DateTime?
+  proofKey        String?
+  proofType       String?
+  verifiedAt      DateTime?
+  verifiedBy      String?
+  shippingAddress String?
+  shippingCost    Int?
+  shippingStatus  String?
+  cydVariantId    String?
+  createdAt       DateTime  @default(now())
+
+  slotGrant  SlotGrant?
+  cydVariant CydVariant? @relation(fields: [cydVariantId], references: [id])
   @@index([status, createdAt])
+}
+
+model CydVariant {
+  id        String   @id @default(cuid())
+  label     String
+  price     Int
+  slotBonus Int      @default(10)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  payments Payment[]
+}
+
+enum SlotGrantSource {
+  CYD_PURCHASE
+  SLOT_PURCHASE
+  SUBSCRIBE
+  PROMO
+}
+
+model SlotGrant {
+  id         String          @id @default(cuid())
+  userId     String
+  source     SlotGrantSource
+  paymentId  String?         @unique
+  payment    Payment?        @relation(fields: [paymentId], references: [id])
+  quantity   Int
+  active     Boolean         @default(true)
+  validFrom  DateTime?
+  validUntil DateTime?
+  createdAt  DateTime        @default(now())
+
+  @@index([userId])
 }
 
 model Device {

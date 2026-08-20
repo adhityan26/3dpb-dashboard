@@ -91,6 +91,17 @@ describe("createOrReuseCheckout", () => {
     expect(r.amount).toBeLessThan(150000);
     expect(r.amount).toBe(150000 - 1000 + r.uniqueCode);
   });
+  it("creates a Payment with productType BELI", async () => {
+    (getEntitlement as any).mockResolvedValue({ lifetimeOwned: false });
+    (prisma.payment.findFirst as any).mockResolvedValue(null);
+    (prisma.payment.findMany as any).mockResolvedValue([]);
+    cfg({ "price.beli": "150000", "price.discountBuffer": "1000", "qris.static": "00020101021152...6304ABCD" });
+    (prisma.payment.create as any).mockImplementation(async ({ data }: any) => ({ id: "p-new", ...data }));
+    await createOrReuseCheckout("user-1", NOW);
+    expect(prisma.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ productType: "BELI" }) })
+    );
+  });
   it("pool kode habis (1000 pendents) → CodePoolExhausted", async () => {
     (getEntitlement as any).mockResolvedValue({ lifetimeOwned: false });
     (prisma.payment.findFirst as any).mockResolvedValue(null);

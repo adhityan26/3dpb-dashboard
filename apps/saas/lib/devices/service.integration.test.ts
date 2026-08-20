@@ -12,7 +12,7 @@ describe.skipIf(!hasDb)("createDevice — race condition (Postgres asli)", () =>
     ({ prisma } = await import("@/lib/db"));
     const user = await prisma.user.create({ data: { email: `race-test-${Date.now()}@test.local` } });
     userId = user.id;
-    await prisma.entitlement.create({ data: { userId, printerSlots: 1 } });
+    await prisma.entitlement.create({ data: { userId } });
   });
 
   afterAll(async () => {

@@ -46,7 +46,7 @@ export async function createOrReuseCheckout(userId: string, now = new Date()): P
   const qrPayload = generateDynamicQris(staticQ, amount);
 
   return prisma.payment.create({
-    data: { userId, tier: "beli", displayPrice: price, amount, uniqueCode: code, qrPayload, status: "PENDING" },
+    data: { userId, productType: "BELI", displayPrice: price, amount, uniqueCode: code, qrPayload, status: "PENDING" },
   });
 }
 
