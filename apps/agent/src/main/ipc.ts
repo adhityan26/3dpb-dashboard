@@ -5,6 +5,8 @@ import { loadCredentials, saveCredentials, type DeviceSecret } from "./credentia
 import { fetchDevices, patchDeviceModel, saasBaseUrl, type SaasDevice } from "./saas-client";
 import { scanBambu } from "./discovery/bambu-ssdp";
 import { scanMoonraker } from "./discovery/moonraker-mdns";
+import { BambuFtpsClient } from "./file-manager/bambu-ftps-client";
+import type { PrinterFileEntry } from "./file-manager/types";
 import { getEngine, setEngine, getBrokerPort, getBrokerPin, getLocalIp, getReporters, setReporters, getUpdateAvailable, getCredentialStoreDegraded } from "./app-state";
 import { reconcileDevices } from "./startup";
 import { startEngine } from "./engine-manager";
@@ -213,4 +215,45 @@ export function registerIpcHandlers(): void {
     }).catch(() => null);
     return res?.ok === true ? { ok: true } : { ok: false, reason: "upload_failed" };
   });
+
+  async function getFileClientFor(shortCode: string): Promise<BambuFtpsClient> {
+    const blob = await loadCredentials();
+    const secret = blob.devices[shortCode];
+    if (!secret) throw new Error("device_not_found");
+    return new BambuFtpsClient(secret.ip, secret.accessCode);
+  }
+
+  ipcMain.handle("agent:file-list", async (_event, shortCode: string, path: string): Promise<PrinterFileEntry[]> => {
+    const client = await getFileClientFor(shortCode);
+    return client.list(path);
+  });
+
+  ipcMain.handle(
+    "agent:file-upload",
+    async (_event, shortCode: string, localPath: string, remotePath: string): Promise<void> => {
+      const client = await getFileClientFor(shortCode);
+      await client.upload(localPath, remotePath);
+    }
+  );
+
+  ipcMain.handle(
+    "agent:file-download",
+    async (_event, shortCode: string, remotePath: string, localPath: string): Promise<void> => {
+      const client = await getFileClientFor(shortCode);
+      await client.download(remotePath, localPath);
+    }
+  );
+
+  ipcMain.handle("agent:file-delete", async (_event, shortCode: string, remotePath: string): Promise<void> => {
+    const client = await getFileClientFor(shortCode);
+    await client.delete(remotePath);
+  });
+
+  ipcMain.handle(
+    "agent:file-rename",
+    async (_event, shortCode: string, oldPath: string, newPath: string): Promise<void> => {
+      const client = await getFileClientFor(shortCode);
+      await client.rename(oldPath, newPath);
+    }
+  );
 }

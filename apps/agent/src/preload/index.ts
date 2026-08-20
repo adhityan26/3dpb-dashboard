@@ -5,6 +5,7 @@ import type { ScanResult } from "../main/discovery/bambu-ssdp";
 import type { DiscoveredMoonrakerPrinter } from "../main/discovery/moonraker-mdns";
 import type { PrintersPayload, PrinterCommand, CommandResult } from "@3pb/printer-monitor-core";
 import type { ActivationState, SyncResult, UpdateDeviceModelResult } from "../main/ipc";
+import type { PrinterFileEntry } from "../main/file-manager/types";
 
 // Tipe return tiap method di-anotasi EKSPLISIT (bukan cuma `typeof agentApi` inherit
 // `Promise<any>` dari `ipcRenderer.invoke`) — dan HARUS persis cocok dengan tipe return
@@ -35,6 +36,16 @@ const agentApi = {
   sendLogs: (): Promise<{ ok: boolean; reason?: string }> => ipcRenderer.invoke("agent:send-logs"),
   getCredentialStoreStatus: (): Promise<{ degraded: boolean }> =>
     ipcRenderer.invoke("agent:get-credential-store-status"),
+  listFiles: (shortCode: string, path: string): Promise<PrinterFileEntry[]> =>
+    ipcRenderer.invoke("agent:file-list", shortCode, path),
+  uploadFile: (shortCode: string, localPath: string, remotePath: string): Promise<void> =>
+    ipcRenderer.invoke("agent:file-upload", shortCode, localPath, remotePath),
+  downloadFile: (shortCode: string, remotePath: string, localPath: string): Promise<void> =>
+    ipcRenderer.invoke("agent:file-download", shortCode, remotePath, localPath),
+  deleteFile: (shortCode: string, remotePath: string): Promise<void> =>
+    ipcRenderer.invoke("agent:file-delete", shortCode, remotePath),
+  renameFile: (shortCode: string, oldPath: string, newPath: string): Promise<void> =>
+    ipcRenderer.invoke("agent:file-rename", shortCode, oldPath, newPath),
 };
 
 export type AgentApi = typeof agentApi;

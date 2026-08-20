@@ -28,6 +28,21 @@ vi.mock("node:fs/promises", () => {
   return { stat, readFile, default: { stat, readFile } };
 });
 
+const { mockFileClient, MockBambuFtpsClient } = vi.hoisted(() => {
+  const mockFileClient = {
+    list: vi.fn(),
+    upload: vi.fn(),
+    download: vi.fn(),
+    delete: vi.fn(),
+    rename: vi.fn(),
+  };
+  const MockBambuFtpsClient = vi.fn().mockImplementation(() => mockFileClient);
+  return { mockFileClient, MockBambuFtpsClient };
+});
+vi.mock("./file-manager/bambu-ftps-client", () => ({
+  BambuFtpsClient: MockBambuFtpsClient,
+}));
+
 import { registerIpcHandlers } from "./ipc";
 import { ipcMain, shell } from "electron";
 import { fetchDevices, patchDeviceModel, saasBaseUrl } from "./saas-client";
@@ -475,5 +490,87 @@ describe("agent:send-logs", () => {
 
     expect(result).toEqual({ ok: false, reason: "upload_failed" });
     globalThis.fetch = originalFetch;
+  });
+});
+
+describe("agent:file-list handler", () => {
+  it("ambil kredensial device lalu list file via BambuFtpsClient", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({
+      agentToken: "t",
+      devices: { ABC123: { ip: "192.168.1.50", serial: "S1", accessCode: "999" } },
+    });
+    mockFileClient.list.mockResolvedValueOnce([
+      { name: "a.gcode", path: "/a.gcode", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
+    ]);
+
+    const result = await handlers["agent:file-list"]({}, "ABC123", "/");
+
+    expect(MockBambuFtpsClient).toHaveBeenCalledWith("192.168.1.50", "999");
+    expect(mockFileClient.list).toHaveBeenCalledWith("/");
+    expect(result).toEqual([
+      { name: "a.gcode", path: "/a.gcode", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
+    ]);
+  });
+
+  it("balikin error terstruktur kalau device tidak ditemukan di credential store", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: {} });
+
+    await expect(handlers["agent:file-list"]({}, "UNKNOWN", "/")).rejects.toThrow("device_not_found");
+  });
+});
+
+describe("agent:file-upload / agent:file-download / agent:file-delete / agent:file-rename handlers", () => {
+  const secret = { ip: "192.168.1.50", serial: "S1", accessCode: "999" };
+
+  it("'agent:file-upload' ambil client device lalu panggil client.upload(localPath, remotePath)", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+
+    await handlers["agent:file-upload"]({}, "ABC123", "/local/a.gcode", "/a.gcode");
+
+    expect(mockFileClient.upload).toHaveBeenCalledWith("/local/a.gcode", "/a.gcode");
+  });
+
+  it("'agent:file-download' ambil client device lalu panggil client.download(remotePath, localPath)", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+
+    await handlers["agent:file-download"]({}, "ABC123", "/a.gcode", "/local/a.gcode");
+
+    expect(mockFileClient.download).toHaveBeenCalledWith("/a.gcode", "/local/a.gcode");
+  });
+
+  it("'agent:file-delete' ambil client device lalu panggil client.delete(remotePath)", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+
+    await handlers["agent:file-delete"]({}, "ABC123", "/a.gcode");
+
+    expect(mockFileClient.delete).toHaveBeenCalledWith("/a.gcode");
+  });
+
+  it("'agent:file-rename' ambil client device lalu panggil client.rename(oldPath, newPath)", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+
+    await handlers["agent:file-rename"]({}, "ABC123", "/a.gcode", "/b.gcode");
+
+    expect(mockFileClient.rename).toHaveBeenCalledWith("/a.gcode", "/b.gcode");
+  });
+
+  it("device tidak ditemukan -> semua handler reject device_not_found", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValue({ agentToken: "t", devices: {} });
+
+    await expect(handlers["agent:file-upload"]({}, "UNKNOWN", "/local", "/remote")).rejects.toThrow(
+      "device_not_found"
+    );
+    await expect(handlers["agent:file-download"]({}, "UNKNOWN", "/remote", "/local")).rejects.toThrow(
+      "device_not_found"
+    );
+    await expect(handlers["agent:file-delete"]({}, "UNKNOWN", "/remote")).rejects.toThrow("device_not_found");
+    await expect(handlers["agent:file-rename"]({}, "UNKNOWN", "/old", "/new")).rejects.toThrow("device_not_found");
   });
 });
