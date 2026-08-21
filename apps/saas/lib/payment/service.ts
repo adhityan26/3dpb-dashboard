@@ -178,7 +178,17 @@ export async function activate(id: string, ownerEmail: string, now = new Date())
         });
         break;
       }
-      // CYD_PURCHASE (sub-project 3) and SUBSCRIBE (sub-project 4) add their own case here.
+      case "CYD_PURCHASE": {
+        const variant = await tx.cydVariant.findUniqueOrThrow({ where: { id: p.cydVariantId! } });
+        if (!Number.isInteger(p.quantity) || p.quantity! <= 0) {
+          throw new Error(`activate() CYD_PURCHASE payment ${p.id} has invalid quantity: ${p.quantity}`);
+        }
+        await tx.slotGrant.create({
+          data: { userId: p.userId, source: "CYD_PURCHASE", paymentId: p.id, quantity: p.quantity! * variant.slotBonus },
+        });
+        break;
+      }
+      // SUBSCRIBE (sub-project 4) adds its own case here.
       default:
         throw new Error(`activate() called for unsupported productType: ${p.productType}`);
     }

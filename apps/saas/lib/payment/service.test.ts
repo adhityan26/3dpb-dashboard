@@ -5,7 +5,7 @@ vi.mock("@/lib/db", () => ({
     payment: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), findUnique: vi.fn() },
     entitlement: { update: vi.fn(), upsert: vi.fn() },
     slotGrant: { create: vi.fn() },
-    cydVariant: { findUnique: vi.fn() },
+    cydVariant: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -386,6 +386,20 @@ describe("activate", () => {
     (prisma.payment.update as any).mockResolvedValue({ id: "p1", status: "PAID", userId: "u1", productType: "SLOT_PURCHASE", quantity: null });
     await expect(activate("p1", "owner@x.com", NOW)).rejects.toThrow(/invalid quantity/);
     expect(prisma.slotGrant.create).not.toHaveBeenCalled();
+  });
+
+  it("productType CYD_PURCHASE → creates a SlotGrant with quantity = payment.quantity * variant.slotBonus", async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", status: "PENDING", userId: "u1", productType: "CYD_PURCHASE", quantity: 2, cydVariantId: "v1" });
+    (prisma.payment.update as any).mockResolvedValue({ id: "p1", status: "PAID", userId: "u1", productType: "CYD_PURCHASE", quantity: 2, cydVariantId: "v1" });
+    (prisma.cydVariant.findUniqueOrThrow as any).mockResolvedValue({ id: "v1", label: "CYD besar", price: 300000, slotBonus: 20, active: true });
+
+    const result = await activate("p1", "owner@x.com", NOW);
+
+    expect(prisma.slotGrant.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ userId: "u1", source: "CYD_PURCHASE", paymentId: "p1", quantity: 40 }) })
+    );
+    expect(prisma.entitlement.upsert).not.toHaveBeenCalled();
+    expect(result?.status).toBe("PAID");
   });
 });
 
