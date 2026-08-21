@@ -2,7 +2,12 @@
 import { useState } from "react";
 import { GlassButton } from "@3pb/ui";
 
-export type PendingRow = { id: string; amount: number; who: string; ageMin: number; marked: boolean; hasProof: boolean };
+export type PendingRow = { id: string; amount: number; who: string; ageMin: number; marked: boolean; hasProof: boolean; productType: string; quantity: number | null };
+
+function productLabel(r: { productType: string; quantity: number | null }): string {
+  if (r.productType === "SLOT_PURCHASE") return `Slot ×${r.quantity}`;
+  return "Pro (lifetime)";
+}
 
 export function PaymentQueue({ rows }: { rows: PendingRow[] }) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -21,11 +26,12 @@ export function PaymentQueue({ rows }: { rows: PendingRow[] }) {
       </p>
       <div className="overflow-x-auto">
       <table className="text-[12px] g-t2 w-full">
-        <thead><tr className="g-t4 text-left"><th className="pr-3">Nominal</th><th className="pr-3">User</th><th className="pr-3">Umur</th><th className="pr-3">Bukti</th><th>Aksi</th></tr></thead>
+        <thead><tr className="g-t4 text-left"><th className="pr-3">Nominal</th><th className="pr-3">Produk</th><th className="pr-3">User</th><th className="pr-3">Umur</th><th className="pr-3">Bukti</th><th>Aksi</th></tr></thead>
         <tbody>
           {rows.map((r) => (
             <tr key={r.id}>
               <td className="pr-3 font-medium">{"Rp" + r.amount.toLocaleString("id-ID")} {r.marked && <span className="text-[10px]" style={{ color: "#d97706" }} title="user meng-klik sudah bayar — belum diverifikasi">diklaim</span>}</td>
+              <td className="pr-3">{productLabel(r)}</td>
               <td className="pr-3">{r.who}</td>
               <td className="pr-3">{r.ageMin}m</td>
               <td className="pr-3 py-1">

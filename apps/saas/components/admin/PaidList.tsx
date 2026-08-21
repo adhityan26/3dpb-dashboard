@@ -1,7 +1,12 @@
 "use client";
 import { useState } from "react";
 
-export type PaidRow = { id: string; userId: string; amount: number; who: string; when: string };
+export type PaidRow = { id: string; userId: string; amount: number; who: string; when: string; productType: string; quantity: number | null };
+
+function productLabel(r: { productType: string; quantity: number | null }): string {
+  if (r.productType === "SLOT_PURCHASE") return `Slot ×${r.quantity}`;
+  return "Pro (lifetime)";
+}
 
 export function PaidList({ rows }: { rows: PaidRow[] }) {
   const [busy, setBusy] = useState<string | null>(null);
@@ -18,14 +23,17 @@ export function PaidList({ rows }: { rows: PaidRow[] }) {
   return (
     <div className="overflow-x-auto">
       <table className="text-[12px] g-t2 w-full">
-        <thead><tr className="g-t4 text-left"><th className="pr-3">Nominal</th><th className="pr-3">User</th><th className="pr-3">Tgl</th><th>Aksi</th></tr></thead>
+        <thead><tr className="g-t4 text-left"><th className="pr-3">Nominal</th><th className="pr-3">Produk</th><th className="pr-3">User</th><th className="pr-3">Tgl</th><th>Aksi</th></tr></thead>
         <tbody>
           {rows.map((r) => (
             <tr key={r.id}>
               <td className="pr-3">{"Rp" + r.amount.toLocaleString("id-ID")}</td>
+              <td className="pr-3">{productLabel(r)}</td>
               <td className="pr-3">{r.who}</td>
               <td className="pr-3">{r.when}</td>
-              <td><button onClick={() => deactivate(r.userId)} disabled={busy === r.userId} className="text-[11px] underline" style={{ color: "#dc2626" }}>Nonaktifkan</button></td>
+              <td>{r.productType === "BELI" && (
+                <button onClick={() => deactivate(r.userId)} disabled={busy === r.userId} className="text-[11px] underline" style={{ color: "#dc2626" }}>Nonaktifkan</button>
+              )}</td>
             </tr>
           ))}
         </tbody>

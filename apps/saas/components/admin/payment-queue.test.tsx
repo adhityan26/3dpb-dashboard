@@ -4,7 +4,7 @@ import { render, screen, fireEvent } from "@testing-library/react";
 import { PaymentQueue, type PendingRow } from "./PaymentQueue";
 
 const row = (o: Partial<PendingRow> = {}): PendingRow =>
-  ({ id: "p1", amount: 149000, who: "a@b.c", ageMin: 5, marked: true, hasProof: true, ...o });
+  ({ id: "p1", amount: 149000, who: "a@b.c", ageMin: 5, marked: true, hasProof: true, productType: "BELI", quantity: null, ...o });
 
 describe("PaymentQueue bukti", () => {
   it("hasProof → tampil img ke endpoint proof", () => {
@@ -26,5 +26,19 @@ describe("PaymentQueue bukti", () => {
     fireEvent.error(img);
     expect(screen.getByText(/kedaluwarsa/i)).toBeTruthy();
     expect(screen.queryByAltText(/bukti/i)).toBeNull();
+  });
+
+  it("shows a Produk column with quantity for a SLOT_PURCHASE row", () => {
+    render(<PaymentQueue rows={[
+      { id: "p1", amount: 30000, who: "u1", ageMin: 5, marked: false, hasProof: false, productType: "SLOT_PURCHASE", quantity: 3 },
+    ]} />);
+    expect(screen.getByText("Slot ×3")).toBeTruthy();
+  });
+
+  it("shows 'Pro (lifetime)' for a BELI row", () => {
+    render(<PaymentQueue rows={[
+      { id: "p2", amount: 150000, who: "u2", ageMin: 2, marked: false, hasProof: false, productType: "BELI", quantity: null },
+    ]} />);
+    expect(screen.getByText("Pro (lifetime)")).toBeTruthy();
   });
 });
