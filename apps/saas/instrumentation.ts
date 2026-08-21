@@ -6,5 +6,7 @@ export async function register() {
   const { startSubscribeReminderWorker } = await import("@/lib/queue/subscribe-reminders.worker");
 
   startSubscribeReminderWorker();
-  await scheduleSubscribeReminderSweep();
+  void scheduleSubscribeReminderSweep().catch((err) => {
+    console.error("[subscribe-reminders] gagal menjadwalkan sweep, reminder H-3 nonaktif untuk boot ini:", err);
+  });
 }

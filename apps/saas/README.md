@@ -7,7 +7,7 @@ App SaaS Slizebiz: kalkulator harga jual 3D print untuk user Free + admin-mini.
 export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH"
 pnpm --filter @3pb/saas dev   # http://localhost:3300
 ```
-Butuh `.env` (lihat `.env.deploy.example`): `DATABASE_URL`, `AUTH_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `OWNER_EMAILS`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`.
+Butuh `.env` (lihat `.env.deploy.example`): `DATABASE_URL`, `AUTH_SECRET`, `RESEND_API_KEY`, `EMAIL_FROM`, `OWNER_EMAILS`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`, `REDIS_URL` (opsional; absen = default `redis://light-generator-redis-1:6379`, reminder H-3 langganan).
 
 ## Arsitektur
 - **Layout halaman: ikuti `docs/ui-page-layout.md`** — semua halaman ber-auth dibungkus `PageShell` (`title` wajib); nav island + tema light/system/dark + background sudah di kerangka.

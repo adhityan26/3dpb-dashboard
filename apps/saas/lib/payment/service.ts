@@ -30,7 +30,7 @@ export async function createOrReuseCheckout(userId: string, now = new Date()): P
   if (ent.lifetimeOwned) throw new AlreadyOwned();
 
   const existing = await prisma.payment.findFirst({
-    where: { userId, status: "PENDING", createdAt: { gt: liveSince(now) } },
+    where: { userId, productType: "BELI", status: "PENDING", createdAt: { gt: liveSince(now) } },
     orderBy: { createdAt: "desc" },
   });
   if (existing) return existing;

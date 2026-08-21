@@ -60,6 +60,7 @@ docker run -d \
   -e R2_ACCESS_KEY_ID="${R2_ACCESS_KEY_ID:-}" \
   -e R2_SECRET_ACCESS_KEY="${R2_SECRET_ACCESS_KEY:-}" \
   -e R2_BUCKET="${R2_BUCKET:-}" \
+  -e REDIS_URL="${REDIS_URL:-}" \
   "$LOCAL_IMAGE"
 
 echo "⏳  Menunggu container ready..."
