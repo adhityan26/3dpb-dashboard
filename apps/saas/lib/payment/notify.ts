@@ -11,12 +11,16 @@ function messageFor(payment: ActivatedPayment): string {
   if (payment.productType === "CYD_PURCHASE") {
     return `Pembayaran terverifikasi — kapasitas monitoring printer kamu sudah bertambah sekarang. CYD kamu akan segera dikirim ke alamat yang kamu daftarkan. Terima kasih! 🎉`;
   }
+  if (payment.productType === "SUBSCRIBE") {
+    return `Pembayaran terverifikasi — langganan Slizebiz kamu aktif, kapasitas monitoring printer bertambah 5 slot 🎉 Terima kasih!`;
+  }
   return MSG_BELI;
 }
 
 function subjectFor(payment: ActivatedPayment): string {
   if (payment.productType === "SLOT_PURCHASE") return "Slot printer bertambah";
   if (payment.productType === "CYD_PURCHASE") return "Pembayaran CYD terverifikasi";
+  if (payment.productType === "SUBSCRIBE") return "Langganan Slizebiz aktif";
   return "Akun Slizebiz aktif";
 }
 

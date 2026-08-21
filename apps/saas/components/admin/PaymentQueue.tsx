@@ -8,6 +8,7 @@ function productLabel(r: { productType: string; quantity: number | null }): stri
   if (r.productType === "BELI") return "Pro (lifetime)";
   if (r.productType === "SLOT_PURCHASE") return `Slot ×${r.quantity}`;
   if (r.productType === "CYD_PURCHASE") return `CYD ×${r.quantity}`;
+  if (r.productType === "SUBSCRIBE") return "Subscribe bulanan";
   return r.productType;
 }
 

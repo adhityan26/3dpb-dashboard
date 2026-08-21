@@ -33,3 +33,10 @@ it("shows the CYD ×qty label and hides Nonaktifkan for a CYD_PURCHASE row", () 
   expect(screen.getByText("CYD ×2")).toBeTruthy();
   expect(screen.queryByRole("button", { name: /nonaktifkan/i })).toBeNull();
 });
+
+it("shows 'Subscribe bulanan' for a SUBSCRIBE row", () => {
+  render(<PaidList rows={[
+    { id: "p1", userId: "u1", amount: 50000, who: "u1", when: "2026-08-21", productType: "SUBSCRIBE", quantity: null },
+  ]} />);
+  expect(screen.getByText("Subscribe bulanan")).toBeTruthy();
+});

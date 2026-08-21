@@ -43,4 +43,9 @@ describe("notifyActivated", () => {
     expect(sendWA).toHaveBeenCalledWith("628111", expect.stringContaining("dikirim"));
     expect(sendWA).toHaveBeenCalledWith("628111", expect.not.stringContaining("akun Slizebiz kamu sudah aktif"));
   });
+  it("productType SUBSCRIBE -> pesan sebut langganan aktif, bukan pesan BELI generik", async () => {
+    await notifyActivated({ phone: "628111", email: null }, { productType: "SUBSCRIBE", quantity: null });
+    expect(sendWA).toHaveBeenCalledWith("628111", expect.stringContaining("langganan"));
+    expect(sendWA).toHaveBeenCalledWith("628111", expect.not.stringContaining("akun Slizebiz kamu sudah aktif"));
+  });
 });

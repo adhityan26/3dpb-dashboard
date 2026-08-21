@@ -56,4 +56,11 @@ describe("PaymentQueue bukti", () => {
     ]} />);
     expect(screen.getByText("CYD ×2")).toBeTruthy();
   });
+
+  it("shows 'Subscribe bulanan' for a SUBSCRIBE row", () => {
+    render(<PaymentQueue rows={[
+      { id: "p1", amount: 50000, who: "u1", ageMin: 5, marked: false, hasProof: false, productType: "SUBSCRIBE", quantity: null },
+    ]} />);
+    expect(screen.getByText("Subscribe bulanan")).toBeTruthy();
+  });
 });
