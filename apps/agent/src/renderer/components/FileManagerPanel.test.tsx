@@ -67,14 +67,31 @@ describe("FileManagerPanel", () => {
     });
   });
 
-  it("thumbnail muncul: klik gambar buka lightbox zoom, klik lightbox menutupnya", async () => {
+  it("thumbnail LAZY: tidak di-fetch otomatis saat list dimuat", async () => {
+    mockListFiles.mockResolvedValue([
+      { name: "a.gcode.3mf", path: "/a.gcode.3mf", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
+    ]);
+
+    render(<FileManagerPanel shortCode="ABC123" onPrintRequested={vi.fn()} />);
+    await screen.findByText("a.gcode.3mf");
+
+    // Direktori besar (puluhan file @beberapa-MB) tak boleh memicu download massal
+    // otomatis -- thumbnail cuma di-fetch kalau user klik placeholder-nya.
+    expect(mockGetFileThumbnail).not.toHaveBeenCalled();
+    expect(await screen.findByLabelText("load thumbnail a.gcode.3mf")).toBeTruthy();
+  });
+
+  it("klik placeholder thumbnail -> fetch lalu tampil gambar; klik gambar buka lightbox zoom, klik lightbox menutupnya", async () => {
     mockListFiles.mockResolvedValue([
       { name: "a.gcode.3mf", path: "/a.gcode.3mf", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
     ]);
     mockGetFileThumbnail.mockResolvedValueOnce("data:image/png;base64,QUJD");
 
     render(<FileManagerPanel shortCode="ABC123" onPrintRequested={vi.fn()} />);
-    await screen.findByText("a.gcode.3mf");
+    const placeholder = await screen.findByLabelText("load thumbnail a.gcode.3mf");
+    fireEvent.click(placeholder);
+
+    await waitFor(() => expect(mockGetFileThumbnail).toHaveBeenCalledWith("ABC123", "/a.gcode.3mf"));
 
     const thumb = await screen.findByLabelText("zoom a.gcode.3mf");
     fireEvent.click(thumb);
@@ -88,15 +105,26 @@ describe("FileManagerPanel", () => {
     });
   });
 
-  it("thumbnail juga di-fetch untuk file .gcode polos (bukan cuma .gcode.3mf)", async () => {
+  it("thumbnail placeholder klik juga berlaku untuk file .gcode polos (bukan cuma .gcode.3mf)", async () => {
     mockListFiles.mockResolvedValue([
       { name: "b.gcode", path: "/b.gcode", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
     ]);
 
     render(<FileManagerPanel shortCode="ABC123" onPrintRequested={vi.fn()} />);
-    await screen.findByText("b.gcode");
+    fireEvent.click(await screen.findByLabelText("load thumbnail b.gcode"));
 
     await waitFor(() => expect(mockGetFileThumbnail).toHaveBeenCalledWith("ABC123", "/b.gcode"));
+  });
+
+  it("file non-printable (bukan .gcode/.gcode.3mf) tidak punya placeholder thumbnail yang bisa diklik", async () => {
+    mockListFiles.mockResolvedValue([
+      { name: "readme.txt", path: "/readme.txt", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
+    ]);
+
+    render(<FileManagerPanel shortCode="ABC123" onPrintRequested={vi.fn()} />);
+    await screen.findByText("readme.txt");
+
+    expect(screen.queryByLabelText("load thumbnail readme.txt")).toBeNull();
   });
 
   it("mode select: bulk download memanggil pickDownloadFolder lalu downloadFile per file terpilih", async () => {
@@ -197,7 +225,7 @@ describe("FileManagerPanel", () => {
     fireEvent.click(within(menu).getByRole("menuitem", { name: /hapus/i }));
 
     const dialog = await screen.findByRole("dialog", { name: /konfirmasi hapus/i });
-    expect(within(dialog).getByText(/yakin hapus 1 file/i)).toBeTruthy();
+    expect(within(dialog).getByText(/hapus 1 file/i)).toBeTruthy();
     fireEvent.click(within(dialog).getByRole("button", { name: /ya, hapus/i }));
 
     await waitFor(() => expect(mockDeleteFile).toHaveBeenCalledWith("ABC123", "/a.gcode.3mf"));

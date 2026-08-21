@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { GlassCard, GlassButton } from "@3pb/ui";
 import type { PrinterFileEntry } from "../../main/file-manager/types";
 
 interface FileManagerPanelProps {
@@ -30,15 +31,24 @@ function joinPath(dir: string, name: string): string {
   return dir === "/" ? `/${name}` : `${dir}/${name}`;
 }
 
-// File yang bisa dikirim print & di-thumbnail-kan lewat agent:file-thumbnail (Task ipc fix
-// -- sekarang dukung .gcode polos juga, bukan cuma .gcode.3mf).
+// File yang bisa dikirim print & di-thumbnail-kan lewat agent:file-thumbnail.
 function isPrintable(path: string): boolean {
   return path.endsWith(".gcode.3mf") || path.endsWith(".gcode");
 }
 
+// Overlay modal standar di app ini (dipakai PrinterControls) -- z-50 supaya di atas
+// konten lain, bg gelap semi-transparan sebagai backdrop.
+const MODAL_OVERLAY = "fixed inset-0 bg-black/45 flex items-center justify-center z-50";
+
 export function FileManagerPanel({ shortCode, onPrintRequested }: FileManagerPanelProps) {
   const [entries, setEntries] = useState<PrinterFileEntry[]>([]);
+  // Thumbnail SENGAJA lazy (bukan auto-fetch semua file saat load) -- tiap thumbnail =
+  // download SELURUH file lewat FTPS (connect-per-operation) cuma buat ambil PNG kecil di
+  // dalamnya. Direktori berisi puluhan file @beberapa-puluh-MB bikin auto-fetch sekuensial
+  // makan waktu sangat lama / gak pernah selesai. User klik ikon placeholder buat load
+  // on-demand per file.
   const [thumbnails, setThumbnails] = useState<Record<string, string | null>>({});
+  const [loadingThumbnailFor, setLoadingThumbnailFor] = useState<Set<string>>(new Set());
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [pendingDelete, setPendingDelete] = useState<Set<string> | null>(null);
@@ -49,21 +59,13 @@ export function FileManagerPanel({ shortCode, onPrintRequested }: FileManagerPan
   const [menuOpenFor, setMenuOpenFor] = useState<string | null>(null);
   const [renaming, setRenaming] = useState<{ path: string; value: string } | null>(null);
   const [renameError, setRenameError] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
 
   const load = useCallback(async () => {
     try {
       const list = await window.agentApi.listFiles(shortCode, "/");
       setLoadError(null);
       setEntries(list);
-      // Sekuensial (bukan fire-and-forget paralel) -- tiap thumbnail = download seluruh
-      // file lewat koneksi FTPS baru (connect-per-operation), printer kemungkinan tak
-      // sanggup handle banyak sesi FTPS bersamaan.
-      for (const entry of list) {
-        if (isPrintable(entry.path)) {
-          const thumb = await window.agentApi.getFileThumbnail(shortCode, entry.path);
-          setThumbnails((prev) => ({ ...prev, [entry.path]: thumb }));
-        }
-      }
     } catch {
       setLoadError("Gagal memuat daftar file — printer mungkin offline");
     }
@@ -72,6 +74,34 @@ export function FileManagerPanel({ shortCode, onPrintRequested }: FileManagerPan
   useEffect(() => {
     load();
   }, [load]);
+
+  // Tutup menu aksi kalau klik di luar menu (menu tak punya backdrop sendiri, beda dari
+  // dialog konfirmasi/rename yang memang modal).
+  useEffect(() => {
+    if (!menuOpenFor) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpenFor(null);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpenFor]);
+
+  async function loadThumbnail(path: string) {
+    if (thumbnails[path] !== undefined || loadingThumbnailFor.has(path)) return;
+    setLoadingThumbnailFor((prev) => new Set(prev).add(path));
+    try {
+      const thumb = await window.agentApi.getFileThumbnail(shortCode, path);
+      setThumbnails((prev) => ({ ...prev, [path]: thumb }));
+    } finally {
+      setLoadingThumbnailFor((prev) => {
+        const next = new Set(prev);
+        next.delete(path);
+        return next;
+      });
+    }
+  }
 
   function toggleSelected(path: string) {
     setSelected((prev) => {
@@ -149,161 +179,232 @@ export function FileManagerPanel({ shortCode, onPrintRequested }: FileManagerPan
 
   return (
     <div>
-      <div>
-        <button onClick={toggleSelectMode}>{selectMode ? "Batal Select" : "Select"}</button>
+      <div className="flex items-center justify-between mb-2">
+        <GlassButton onClick={toggleSelectMode} className="text-xs opacity-70">
+          {selectMode ? "Batal Select" : "Select"}
+        </GlassButton>
+
+        {selectMode && selected.size > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="g-t3 text-xs">{selected.size} file dipilih</span>
+            <GlassButton onClick={() => downloadPaths(selected)} className="text-xs">
+              Download ({selected.size})
+            </GlassButton>
+            <GlassButton onClick={() => setPendingDelete(new Set(selected))} className="text-xs">
+              Hapus ({selected.size})
+            </GlassButton>
+          </div>
+        )}
       </div>
 
-      {selectMode && selected.size > 0 && (
-        <div>
-          <span>{selected.size} file dipilih</span>
-          <button onClick={() => downloadPaths(selected)}>Download ({selected.size})</button>
-          <button onClick={() => setPendingDelete(new Set(selected))}>Hapus ({selected.size})</button>
-        </div>
+      {deleteError && (
+        <p role="alert" className="g-error text-xs mb-2">
+          {deleteError}
+        </p>
+      )}
+      {downloadError && (
+        <p role="alert" className="g-error text-xs mb-2">
+          {downloadError}
+        </p>
       )}
 
-      {deleteError && <p role="alert">{deleteError}</p>}
-      {downloadError && <p role="alert">{downloadError}</p>}
-
       {pendingDelete && (
-        <div role="dialog" aria-label="konfirmasi hapus">
-          <p>Yakin hapus {pendingDelete.size} file? Aksi ini tidak bisa dibatalkan.</p>
-          <button onClick={performDelete}>Ya, Hapus</button>
-          <button onClick={() => setPendingDelete(null)}>Batal</button>
+        <div className={MODAL_OVERLAY} role="dialog" aria-label="konfirmasi hapus">
+          <GlassCard className="p-4 max-w-xs w-full mx-4">
+            <p className="g-t1 text-sm font-medium mb-1">Hapus {pendingDelete.size} file?</p>
+            <p className="g-t3 text-xs mb-4">Aksi ini tidak bisa dibatalkan.</p>
+            <div className="flex gap-2">
+              <GlassButton onClick={() => setPendingDelete(null)} className="flex-1 text-xs">
+                Batal
+              </GlassButton>
+              <GlassButton onClick={performDelete} className="flex-1 text-xs">
+                Ya, Hapus
+              </GlassButton>
+            </div>
+          </GlassCard>
         </div>
       )}
 
       {renaming && (
-        <div role="dialog" aria-label="rename file">
-          <p>Rename {renaming.path.split("/").pop()}</p>
-          <input
-            aria-label="nama baru"
-            value={renaming.value}
-            onChange={(e) => setRenaming({ ...renaming, value: e.target.value })}
-          />
-          {renameError && <p role="alert">{renameError}</p>}
-          <button onClick={performRename}>Simpan</button>
-          <button
-            onClick={() => {
-              setRenaming(null);
-              setRenameError(null);
-            }}
-          >
-            Batal
-          </button>
+        <div className={MODAL_OVERLAY} role="dialog" aria-label="rename file">
+          <GlassCard className="p-4 max-w-xs w-full mx-4">
+            <p className="g-t1 text-sm font-medium mb-2">Rename {renaming.path.split("/").pop()}</p>
+            <input
+              aria-label="nama baru"
+              value={renaming.value}
+              onChange={(e) => setRenaming({ ...renaming, value: e.target.value })}
+              className="glass-input rounded-[5px] px-2 h-8 text-xs w-full mb-2"
+            />
+            {renameError && (
+              <p role="alert" className="g-error text-xs mb-2">
+                {renameError}
+              </p>
+            )}
+            <div className="flex gap-2">
+              <GlassButton
+                onClick={() => {
+                  setRenaming(null);
+                  setRenameError(null);
+                }}
+                className="flex-1 text-xs"
+              >
+                Batal
+              </GlassButton>
+              <GlassButton onClick={performRename} className="flex-1 text-xs">
+                Simpan
+              </GlassButton>
+            </div>
+          </GlassCard>
         </div>
       )}
 
       {zoomedThumbnail && (
-        <div role="dialog" aria-label="thumbnail preview" onClick={() => setZoomedThumbnail(null)}>
-          <img src={zoomedThumbnail} alt="preview besar" />
+        <div className={MODAL_OVERLAY} role="dialog" aria-label="thumbnail preview" onClick={() => setZoomedThumbnail(null)}>
+          <img src={zoomedThumbnail} alt="preview besar" className="max-w-[80vw] max-h-[80vh] rounded-[10px]" />
         </div>
       )}
 
       {loadError && (
-        <div>
-          <p role="alert">{loadError}</p>
-          <button onClick={() => load()}>Coba Lagi</button>
+        <div className="mb-2">
+          <p role="alert" className="g-error text-xs mb-1">
+            {loadError}
+          </p>
+          <GlassButton onClick={() => load()} className="text-xs">
+            Coba Lagi
+          </GlassButton>
         </div>
       )}
 
-      <table>
-        <thead>
-          <tr>
-            {selectMode && <th></th>}
-            <th></th>
-            <th>Nama</th>
-            <th>Ukuran</th>
-            <th>Modified</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {entries.map((entry) => (
-            <tr key={entry.path}>
-              {selectMode && !entry.isDirectory && (
-                <td>
-                  <input
-                    type="checkbox"
-                    aria-label={entry.name}
-                    checked={selected.has(entry.path)}
-                    onChange={() => toggleSelected(entry.path)}
-                  />
-                </td>
-              )}
-              {selectMode && entry.isDirectory && <td />}
-              <td>
-                {thumbnails[entry.path] ? (
-                  <img
-                    src={thumbnails[entry.path] ?? undefined}
-                    alt=""
-                    role="button"
-                    aria-label={`zoom ${entry.name}`}
-                    onClick={() => setZoomedThumbnail(thumbnails[entry.path] ?? null)}
-                    style={{ cursor: "zoom-in", width: 40, height: 40, objectFit: "cover" }}
-                  />
-                ) : (
-                  <span aria-hidden>{entry.isDirectory ? "📁" : "🖼️"}</span>
-                )}
-              </td>
-              <td>{entry.name}</td>
-              <td>{entry.isDirectory ? "--" : formatSize(entry.size)}</td>
-              <td>{entry.isDirectory ? "--" : formatDate(entry.modifiedAt)}</td>
-              <td style={{ position: "relative" }}>
-                {!entry.isDirectory && (
-                  <>
-                    <button
-                      aria-label={`aksi ${entry.name}`}
-                      onClick={() => setMenuOpenFor((cur) => (cur === entry.path ? null : entry.path))}
-                    >
-                      ⋮
-                    </button>
-                    {menuOpenFor === entry.path && (
-                      <div role="menu" aria-label={`menu ${entry.name}`}>
-                        <button
-                          role="menuitem"
-                          onClick={() => {
-                            setMenuOpenFor(null);
-                            onPrintRequested(entry.path);
-                          }}
-                        >
-                          Print
-                        </button>
-                        <button
-                          role="menuitem"
-                          onClick={() => {
-                            setMenuOpenFor(null);
-                            downloadPaths(new Set([entry.path]));
-                          }}
-                        >
-                          Download
-                        </button>
-                        <button
-                          role="menuitem"
-                          onClick={() => {
-                            setMenuOpenFor(null);
-                            setRenaming({ path: entry.path, value: entry.name });
-                          }}
-                        >
-                          Rename
-                        </button>
-                        <button
-                          role="menuitem"
-                          onClick={() => {
-                            setMenuOpenFor(null);
-                            setPendingDelete(new Set([entry.path]));
-                          }}
-                        >
-                          Hapus
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-              </td>
+      <div className="g-inner rounded-[10px] overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-[var(--g-inner-border)]">
+              {selectMode && <th className="w-8 p-2"></th>}
+              <th className="w-12 p-2"></th>
+              <th className="text-left p-2 g-t3 font-normal">Nama</th>
+              <th className="text-right p-2 g-t3 font-normal whitespace-nowrap">Ukuran</th>
+              <th className="text-right p-2 g-t3 font-normal whitespace-nowrap">Modified</th>
+              <th className="w-8 p-2"></th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {entries.map((entry) => (
+              <tr key={entry.path} className="border-b border-[var(--g-inner-border)] last:border-0">
+                {selectMode && (
+                  <td className="p-2 align-middle">
+                    {!entry.isDirectory && (
+                      <input
+                        type="checkbox"
+                        aria-label={entry.name}
+                        checked={selected.has(entry.path)}
+                        onChange={() => toggleSelected(entry.path)}
+                      />
+                    )}
+                  </td>
+                )}
+                <td className="p-2 align-middle">
+                  {entry.isDirectory ? (
+                    <span aria-hidden className="text-lg">📁</span>
+                  ) : thumbnails[entry.path] ? (
+                    <img
+                      src={thumbnails[entry.path] ?? undefined}
+                      alt=""
+                      role="button"
+                      aria-label={`zoom ${entry.name}`}
+                      onClick={() => setZoomedThumbnail(thumbnails[entry.path] ?? null)}
+                      className="w-10 h-10 rounded-[6px] object-cover cursor-zoom-in"
+                    />
+                  ) : isPrintable(entry.path) ? (
+                    <button
+                      type="button"
+                      aria-label={`load thumbnail ${entry.name}`}
+                      onClick={() => loadThumbnail(entry.path)}
+                      className="w-10 h-10 rounded-[6px] g-btn-ghost flex items-center justify-center text-base"
+                      disabled={loadingThumbnailFor.has(entry.path)}
+                    >
+                      {loadingThumbnailFor.has(entry.path) ? "…" : "🖼️"}
+                    </button>
+                  ) : (
+                    <span aria-hidden className="text-lg">📄</span>
+                  )}
+                </td>
+                <td className="p-2 align-middle g-t1 max-w-xs truncate" title={entry.name}>
+                  {entry.name}
+                </td>
+                <td className="p-2 align-middle g-t3 text-right whitespace-nowrap">
+                  {entry.isDirectory ? "--" : formatSize(entry.size)}
+                </td>
+                <td className="p-2 align-middle g-t3 text-right whitespace-nowrap">
+                  {entry.isDirectory ? "--" : formatDate(entry.modifiedAt)}
+                </td>
+                <td className="p-2 align-middle relative">
+                  {!entry.isDirectory && (
+                    <>
+                      <button
+                        type="button"
+                        aria-label={`aksi ${entry.name}`}
+                        onClick={() => setMenuOpenFor((cur) => (cur === entry.path ? null : entry.path))}
+                        className="g-t2 px-2 rounded-[5px] hover:g-btn-ghost"
+                      >
+                        ⋮
+                      </button>
+                      {menuOpenFor === entry.path && (
+                        <div
+                          ref={menuRef}
+                          role="menu"
+                          aria-label={`menu ${entry.name}`}
+                          className="g-card absolute right-0 top-full mt-1 z-50 rounded-[8px] py-1 min-w-[120px] shadow-lg"
+                        >
+                          <button
+                            role="menuitem"
+                            className="g-t1 text-left w-full px-3 py-1.5 text-xs hover:g-btn-ghost"
+                            onClick={() => {
+                              setMenuOpenFor(null);
+                              onPrintRequested(entry.path);
+                            }}
+                          >
+                            Print
+                          </button>
+                          <button
+                            role="menuitem"
+                            className="g-t1 text-left w-full px-3 py-1.5 text-xs hover:g-btn-ghost"
+                            onClick={() => {
+                              setMenuOpenFor(null);
+                              downloadPaths(new Set([entry.path]));
+                            }}
+                          >
+                            Download
+                          </button>
+                          <button
+                            role="menuitem"
+                            className="g-t1 text-left w-full px-3 py-1.5 text-xs hover:g-btn-ghost"
+                            onClick={() => {
+                              setMenuOpenFor(null);
+                              setRenaming({ path: entry.path, value: entry.name });
+                            }}
+                          >
+                            Rename
+                          </button>
+                          <button
+                            role="menuitem"
+                            className="g-error text-left w-full px-3 py-1.5 text-xs hover:g-btn-ghost"
+                            onClick={() => {
+                              setMenuOpenFor(null);
+                              setPendingDelete(new Set([entry.path]));
+                            }}
+                          >
+                            Hapus
+                          </button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }
