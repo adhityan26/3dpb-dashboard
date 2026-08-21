@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 vi.mock("@/lib/db", () => ({
   prisma: {
     payment: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), findUnique: vi.fn() },
-    entitlement: { update: vi.fn(), upsert: vi.fn() },
+    entitlement: { update: vi.fn(), upsert: vi.fn(), findUnique: vi.fn() },
     slotGrant: { create: vi.fn() },
     cydVariant: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn() },
     $transaction: vi.fn(),
@@ -490,6 +490,56 @@ describe("activate", () => {
     );
     expect(prisma.entitlement.upsert).not.toHaveBeenCalled();
     expect(result?.status).toBe("PAID");
+  });
+
+  it("productType SUBSCRIBE, first-ever subscribe -> SlotGrant quantity 5, period starts now", async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", status: "PENDING", userId: "u1", productType: "SUBSCRIBE" });
+    (prisma.payment.update as any).mockResolvedValue({ id: "p1", status: "PAID", userId: "u1", productType: "SUBSCRIBE" });
+    (prisma.entitlement.findUnique as any).mockResolvedValue(null);
+
+    await activate("p1", "owner@x.com", NOW);
+
+    expect(prisma.slotGrant.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ userId: "u1", source: "SUBSCRIBE", paymentId: "p1", quantity: 5, validFrom: NOW }),
+      })
+    );
+    const call = (prisma.slotGrant.create as any).mock.calls[0][0].data;
+    expect(call.validUntil.getTime() - call.validFrom.getTime()).toBe(30 * 24 * 60 * 60 * 1000);
+    expect(prisma.entitlement.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        create: expect.objectContaining({ userId: "u1", subStatus: "ACTIVE", subStartedAt: NOW }),
+        update: expect.objectContaining({ subStatus: "ACTIVE" }),
+      })
+    );
+  });
+
+  it("productType SUBSCRIBE, renewal BEFORE lapse -> new period continues from the old subExpiresAt, no gap", async () => {
+    const oldExpiry = new Date(NOW.getTime() + 5 * 24 * 60 * 60 * 1000); // 5 hari lagi, belum lapse
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p2", status: "PENDING", userId: "u1", productType: "SUBSCRIBE" });
+    (prisma.payment.update as any).mockResolvedValue({ id: "p2", status: "PAID", userId: "u1", productType: "SUBSCRIBE" });
+    (prisma.entitlement.findUnique as any).mockResolvedValue({ userId: "u1", subStatus: "ACTIVE", subExpiresAt: oldExpiry, subStartedAt: new Date("2026-01-01") });
+
+    await activate("p2", "owner@x.com", NOW);
+
+    const call = (prisma.slotGrant.create as any).mock.calls[0][0].data;
+    expect(call.validFrom).toEqual(oldExpiry);
+    expect(call.validUntil.getTime()).toBe(oldExpiry.getTime() + 30 * 24 * 60 * 60 * 1000);
+    expect(prisma.entitlement.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: expect.not.objectContaining({ subStartedAt: expect.anything() }) })
+    );
+  });
+
+  it("productType SUBSCRIBE, renewal AFTER lapse -> new period starts from now, not the stale old expiry", async () => {
+    const oldExpiry = new Date(NOW.getTime() - 10 * 24 * 60 * 60 * 1000); // 10 hari lalu, sudah lapse
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p3", status: "PENDING", userId: "u1", productType: "SUBSCRIBE" });
+    (prisma.payment.update as any).mockResolvedValue({ id: "p3", status: "PAID", userId: "u1", productType: "SUBSCRIBE" });
+    (prisma.entitlement.findUnique as any).mockResolvedValue({ userId: "u1", subStatus: "ACTIVE", subExpiresAt: oldExpiry, subStartedAt: new Date("2026-01-01") });
+
+    await activate("p3", "owner@x.com", NOW);
+
+    const call = (prisma.slotGrant.create as any).mock.calls[0][0].data;
+    expect(call.validFrom).toEqual(NOW);
   });
 });
 

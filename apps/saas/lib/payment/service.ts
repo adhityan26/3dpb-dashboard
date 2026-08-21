@@ -7,6 +7,7 @@ import { generateDynamicQris } from "@/lib/qris/dynamic";
 import { AlreadyOwned, InvalidQuantity, InvalidShippingAddress, InvalidCydVariant, PriceNotSet, QrisNotSet, CodePoolExhausted } from "@/lib/payment/errors";
 
 export const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
+export const SUBSCRIBE_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
 
 export function liveSince(now: Date): Date {
   return new Date(now.getTime() - LIVE_WINDOW_MS);
@@ -214,7 +215,20 @@ export async function activate(id: string, ownerEmail: string, now = new Date())
         });
         break;
       }
-      // SUBSCRIBE (sub-project 4) adds its own case here.
+      case "SUBSCRIBE": {
+        const currentEnt = await tx.entitlement.findUnique({ where: { userId: p.userId } });
+        const periodStart = currentEnt?.subExpiresAt && currentEnt.subExpiresAt > now ? currentEnt.subExpiresAt : now;
+        const periodEnd = new Date(periodStart.getTime() + SUBSCRIBE_PERIOD_MS);
+        await tx.slotGrant.create({
+          data: { userId: p.userId, source: "SUBSCRIBE", paymentId: p.id, quantity: 5, validFrom: periodStart, validUntil: periodEnd },
+        });
+        await tx.entitlement.upsert({
+          where: { userId: p.userId },
+          create: { userId: p.userId, subStatus: "ACTIVE", subStartedAt: now, subExpiresAt: periodEnd },
+          update: { subStatus: "ACTIVE", subExpiresAt: periodEnd },
+        });
+        break;
+      }
       default:
         throw new Error(`activate() called for unsupported productType: ${p.productType}`);
     }
