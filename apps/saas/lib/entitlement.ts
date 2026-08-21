@@ -5,12 +5,17 @@ export type Capability = "paidCore" | "cloud";
 
 export interface EntitlementLike {
   lifetimeOwned: boolean;
-  subStatus: string; // NONE | ACTIVE | EXPIRED
+  subStatus: string; // NONE | ACTIVE -- "ACTIVE" cuma penanda historis ("pernah subscribe"),
+  // validitas SEKARANG selalu dicek live lewat subExpiresAt di bawah, bukan lewat status ini
+  // sendiri -- prinsip sama seperti getCapacity() live-cek validUntil grant (sub-project 1),
+  // supaya tidak butuh job terpisah buat "matiin" status pas lapse.
+  subExpiresAt: Date | null;
 }
 
-/** Kapabilitas turunan dari entitlement komposit (spec §6). */
-export function capabilities(ent: EntitlementLike): { paidCore: boolean; cloud: boolean } {
-  const active = ent.subStatus === "ACTIVE";
+/** Kapabilitas turunan dari entitlement komposit (spec §6). subExpiresAt null + ACTIVE dianggap
+ * aktif tanpa batas waktu -- default defensif untuk kasus admin set manual tanpa expiry. */
+export function capabilities(ent: EntitlementLike, now = new Date()): { paidCore: boolean; cloud: boolean } {
+  const active = ent.subStatus === "ACTIVE" && (ent.subExpiresAt === null || ent.subExpiresAt > now);
   return {
     paidCore: ent.lifetimeOwned || active,
     cloud: active,
