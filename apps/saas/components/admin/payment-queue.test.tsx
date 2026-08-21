@@ -44,9 +44,16 @@ describe("PaymentQueue bukti", () => {
 
   it("shows the raw productType for an unrecognized product, not 'Pro (lifetime)'", () => {
     render(<PaymentQueue rows={[
-      { id: "p3", amount: 99000, who: "u3", ageMin: 1, marked: false, hasProof: false, productType: "CYD_PURCHASE", quantity: null },
+      { id: "p3", amount: 99000, who: "u3", ageMin: 1, marked: false, hasProof: false, productType: "UNKNOWN_PRODUCT", quantity: null },
     ]} />);
-    expect(screen.getByText("CYD_PURCHASE")).toBeTruthy();
+    expect(screen.getByText("UNKNOWN_PRODUCT")).toBeTruthy();
     expect(screen.queryByText("Pro (lifetime)")).toBeNull();
+  });
+
+  it("shows a Produk column with quantity for a CYD_PURCHASE row", () => {
+    render(<PaymentQueue rows={[
+      { id: "p4", amount: 200000, who: "u4", ageMin: 3, marked: false, hasProof: false, productType: "CYD_PURCHASE", quantity: 2 },
+    ]} />);
+    expect(screen.getByText("CYD ×2")).toBeTruthy();
   });
 });

@@ -19,7 +19,7 @@ vi.mock("@/lib/qris/dynamic", () => ({ generateDynamicQris: vi.fn(() => "QRPAYLO
 import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { getEntitlement } from "@/lib/entitlement";
-import { allocUniqueCode, createOrReuseCheckout, createSlotCheckout, createOrReuseCydCheckout, markPaid, findClaimablePayment, listPending, activate, cancel, deactivate, listPaid } from "@/lib/payment/service";
+import { allocUniqueCode, createOrReuseCheckout, createSlotCheckout, createOrReuseCydCheckout, markPaid, findClaimablePayment, listPending, activate, cancel, deactivate, listPaid, listCydOrders, updateCydShipping } from "@/lib/payment/service";
 import { AlreadyOwned, InvalidQuantity, InvalidShippingAddress, InvalidCydVariant, PriceNotSet, QrisNotSet, CodePoolExhausted } from "@/lib/payment/errors";
 
 const NOW = new Date("2026-07-18T10:00:00Z");
@@ -400,6 +400,37 @@ describe("activate", () => {
     );
     expect(prisma.entitlement.upsert).not.toHaveBeenCalled();
     expect(result?.status).toBe("PAID");
+  });
+});
+
+describe("listCydOrders", () => {
+  it("returns only PAID CYD_PURCHASE payments", async () => {
+    (prisma.payment.findMany as any).mockResolvedValue([{ id: "p1", productType: "CYD_PURCHASE", status: "PAID" }]);
+    const rows = await listCydOrders();
+    expect(prisma.payment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { productType: "CYD_PURCHASE", status: "PAID" } })
+    );
+    expect(rows).toHaveLength(1);
+  });
+});
+
+describe("updateCydShipping", () => {
+  it("rejects an unknown shippingStatus value", async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", productType: "CYD_PURCHASE" });
+    await expect(updateCydShipping("p1", { shippingStatus: "LOST_IN_MAIL" })).rejects.toThrow(/invalid_shipping_status/);
+  });
+
+  it("rejects a non-CYD payment id", async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", productType: "BELI" });
+    await expect(updateCydShipping("p1", { shippingStatus: "PACKED" })).rejects.toThrow(/not_cyd_payment/);
+  });
+
+  it("updates shippingCost and/or shippingStatus for a valid CYD payment", async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", productType: "CYD_PURCHASE" });
+    (prisma.payment.update as any).mockResolvedValue({ id: "p1", shippingCost: 25000, shippingStatus: "SHIPPED" });
+    const updated = await updateCydShipping("p1", { shippingCost: 25000, shippingStatus: "SHIPPED" });
+    expect(prisma.payment.update).toHaveBeenCalledWith({ where: { id: "p1" }, data: { shippingCost: 25000, shippingStatus: "SHIPPED" } });
+    expect(updated.shippingStatus).toBe("SHIPPED");
   });
 });
 

@@ -207,3 +207,24 @@ export async function deactivate(userId: string): Promise<void> {
 export async function listPaid(limit = 20): Promise<Payment[]> {
   return prisma.payment.findMany({ where: { status: "PAID" }, orderBy: { verifiedAt: "desc" }, take: limit });
 }
+
+const SHIPPING_STATUSES = ["PACKED", "SHIPPED", "DELIVERED"] as const;
+
+export async function listCydOrders(): Promise<Payment[]> {
+  return prisma.payment.findMany({
+    where: { productType: "CYD_PURCHASE", status: "PAID" },
+    orderBy: { verifiedAt: "desc" },
+  });
+}
+
+export async function updateCydShipping(
+  id: string,
+  data: { shippingCost?: number; shippingStatus?: string }
+): Promise<Payment> {
+  const p = await prisma.payment.findUnique({ where: { id } });
+  if (!p || p.productType !== "CYD_PURCHASE") throw new Error("not_cyd_payment");
+  if (data.shippingStatus !== undefined && !SHIPPING_STATUSES.includes(data.shippingStatus as (typeof SHIPPING_STATUSES)[number])) {
+    throw new Error("invalid_shipping_status");
+  }
+  return prisma.payment.update({ where: { id }, data });
+}

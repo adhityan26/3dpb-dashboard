@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { isOwner } from "@/lib/owner";
 import { getAllConfig } from "@/lib/config";
 import { fetchWaitlist, type WaitlistRow } from "@/lib/waitlist/cloudflare";
-import { listPending, listPaid } from "@/lib/payment/service";
+import { listPending, listPaid, listCydOrders } from "@/lib/payment/service";
 import { prisma } from "@/lib/db";
 import { ConfigEditor } from "@/components/admin/ConfigEditor";
 import { WaitlistTable } from "@/components/admin/WaitlistTable";
@@ -12,6 +12,7 @@ import { PaymentQueue, type PendingRow } from "@/components/admin/PaymentQueue";
 import { PaidList, type PaidRow } from "@/components/admin/PaidList";
 import { UserList, type UserRow } from "@/components/admin/UserList";
 import { AdminTabs, type AdminTab } from "@/components/admin/AdminTabs";
+import { CydOrderList, type CydOrderRow } from "@/components/admin/CydOrderList";
 
 export const dynamic = "force-dynamic";
 
@@ -51,6 +52,12 @@ export default async function AdminPage() {
     id: p.id, userId: p.userId, amount: p.amount, who: whoOf(p.userId),
     when: p.verifiedAt ? p.verifiedAt.toISOString().slice(0, 10) : "",
     productType: p.productType, quantity: p.quantity,
+  }));
+
+  const cydOrders = await listCydOrders();
+  const cydOrderRows: CydOrderRow[] = cydOrders.map((p) => ({
+    id: p.id, who: whoOf(p.userId), quantity: p.quantity ?? 0,
+    shippingAddress: p.shippingAddress, shippingCost: p.shippingCost, shippingStatus: p.shippingStatus,
   }));
 
   // User aktif (semua user + status entitlement)
@@ -132,6 +139,7 @@ export default async function AdminPage() {
       ),
     },
     { key: "user", label: `User aktif (${userRows.length})`, node: <UserList rows={userRows} /> },
+    { key: "cyd", label: `Pesanan CYD (${cydOrderRows.length})`, node: <CydOrderList rows={cydOrderRows} /> },
   ];
 
   return (
