@@ -17,6 +17,11 @@
     "build:win": "node scripts/build-installer.mjs --win",
     "build:mac": "node scripts/build-installer.mjs --mac",
     "build:installers": "node scripts/build-installer.mjs --mac && node scripts/build-installer.mjs --win",
+    "build:win:upload": "node scripts/build-installer.mjs --win --upload",
+    "build:mac:upload": "node scripts/build-installer.mjs --mac --upload",
+    "build:installers:upload": "node scripts/build-installer.mjs --mac --upload && node scripts/build-installer.mjs --win --upload",
+    "upload:win": "node scripts/build-installer.mjs --win --upload-only",
+    "upload:mac": "node scripts/build-installer.mjs --mac --upload-only",
     "generate-icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
@@ -41,6 +46,8 @@
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
+    "aws4fetch": "^1.0.20",
+    "dotenv": "^17.4.2",
     "electron": "^43.0.0",
     "electron-builder": "^24.9.1",
     "electron-vite": "^2.3.0",
