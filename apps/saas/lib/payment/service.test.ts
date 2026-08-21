@@ -260,6 +260,32 @@ describe("createOrReuseCydCheckout", () => {
       expect.objectContaining({ data: expect.objectContaining({ quantity: 5 }) })
     );
   });
+
+  it("stores shippingAddress trimmed of leading/trailing whitespace", async () => {
+    (prisma.cydVariant.findUnique as any).mockResolvedValue({ id: "v1", label: "X", price: 100000, slotBonus: 10, active: true });
+    (prisma.payment.findFirst as any).mockResolvedValue(null);
+    (prisma.payment.findMany as any).mockResolvedValue([]);
+    (getConfig as any).mockImplementation(async (k: string) => ({ "qris.static": "STATICQR", "price.discountBuffer": "1000" })[k] ?? "");
+    (prisma.payment.create as any).mockImplementation(async ({ data }: any) => ({ id: "p-new", ...data }));
+
+    const p = await createOrReuseCydCheckout("u1", "v1", 1, "  Jl. Contoh 1  ", NOW);
+
+    expect(prisma.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ shippingAddress: "Jl. Contoh 1" }) })
+    );
+    expect(p.shippingAddress).toBe("Jl. Contoh 1");
+  });
+
+  it("reusing an existing PENDING payment with the same address modulo whitespace does not trigger an update", async () => {
+    const existing = { id: "p-existing", productType: "CYD_PURCHASE", cydVariantId: "v1", quantity: 2, shippingAddress: "Jl. Contoh 1", status: "PENDING" };
+    (prisma.cydVariant.findUnique as any).mockResolvedValue({ id: "v1", label: "X", price: 100000, slotBonus: 10, active: true });
+    (prisma.payment.findFirst as any).mockResolvedValue(existing);
+
+    const p = await createOrReuseCydCheckout("u1", "v1", 2, "  Jl. Contoh 1  ", NOW);
+
+    expect(prisma.payment.update).not.toHaveBeenCalled();
+    expect(p).toBe(existing);
+  });
 });
 
 describe("markPaid", () => {
@@ -404,13 +430,18 @@ describe("activate", () => {
 });
 
 describe("listCydOrders", () => {
-  it("returns only PAID CYD_PURCHASE payments", async () => {
-    (prisma.payment.findMany as any).mockResolvedValue([{ id: "p1", productType: "CYD_PURCHASE", status: "PAID" }]);
+  it("returns only PAID CYD_PURCHASE payments, including the variant label, capped at 50", async () => {
+    (prisma.payment.findMany as any).mockResolvedValue([{ id: "p1", productType: "CYD_PURCHASE", status: "PAID", cydVariant: { label: "CYD dengan casing" } }]);
     const rows = await listCydOrders();
     expect(prisma.payment.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: { productType: "CYD_PURCHASE", status: "PAID" } })
+      expect.objectContaining({
+        where: { productType: "CYD_PURCHASE", status: "PAID" },
+        take: 50,
+        include: { cydVariant: { select: { label: true } } },
+      })
     );
     expect(rows).toHaveLength(1);
+    expect(rows[0].cydVariant?.label).toBe("CYD dengan casing");
   });
 });
 
@@ -423,6 +454,12 @@ describe("updateCydShipping", () => {
   it("rejects a non-CYD payment id", async () => {
     (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", productType: "BELI" });
     await expect(updateCydShipping("p1", { shippingStatus: "PACKED" })).rejects.toThrow(/not_cyd_payment/);
+  });
+
+  it("rejects a non-number shippingCost without reaching prisma.payment.update", async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", productType: "CYD_PURCHASE" });
+    await expect(updateCydShipping("p1", { shippingCost: "abc" })).rejects.toThrow(/invalid_shipping_cost/);
+    expect(prisma.payment.update).not.toHaveBeenCalled();
   });
 
   it("updates shippingCost and/or shippingStatus for a valid CYD payment", async () => {

@@ -37,7 +37,8 @@ export default async function AdminPage() {
   // Pembayaran
   const pending = await listPending(now);
   const paid = await listPaid(20);
-  const payUserIds = [...new Set([...pending, ...paid].map((p) => p.userId))];
+  const cydOrders = await listCydOrders();
+  const payUserIds = [...new Set([...pending, ...paid, ...cydOrders].map((p) => p.userId))];
   const payUsers = await prisma.user.findMany({ where: { id: { in: payUserIds } }, select: { id: true, email: true, phone: true } });
   const whoOf = (uid: string) => {
     const u = payUsers.find((x: (typeof payUsers)[number]) => x.id === uid);
@@ -54,9 +55,8 @@ export default async function AdminPage() {
     productType: p.productType, quantity: p.quantity,
   }));
 
-  const cydOrders = await listCydOrders();
   const cydOrderRows: CydOrderRow[] = cydOrders.map((p) => ({
-    id: p.id, who: whoOf(p.userId), quantity: p.quantity ?? 0,
+    id: p.id, who: whoOf(p.userId), variant: p.cydVariant?.label ?? "?", quantity: p.quantity ?? 0,
     shippingAddress: p.shippingAddress, shippingCost: p.shippingCost, shippingStatus: p.shippingStatus,
   }));
 

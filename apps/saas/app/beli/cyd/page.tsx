@@ -14,7 +14,7 @@ export default async function BeliCydPage() {
   if (!session?.user?.id) redirect("/login");
   const ent = await getEntitlement(session.user.id);
   const paidCore = capabilities(ent).paidCore;
-  const variants = await prisma.cydVariant.findMany({ where: { active: true }, select: { id: true, label: true, price: true } });
+  const variants = await prisma.cydVariant.findMany({ where: { active: true }, orderBy: { createdAt: "asc" }, select: { id: true, label: true, price: true } });
   const refund = await getConfig("copy.refund");
   return (
     <PageShell title="Beli CYD" current="beli" owner={isOwner(session.user?.email)} userLabel={session.user?.email ?? undefined} narrow>

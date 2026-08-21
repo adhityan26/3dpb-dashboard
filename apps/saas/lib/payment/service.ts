@@ -84,7 +84,8 @@ export async function createOrReuseCydCheckout(
   now = new Date()
 ): Promise<Payment> {
   if (!Number.isInteger(quantity) || quantity <= 0) throw new InvalidQuantity();
-  if (!shippingAddress.trim()) throw new InvalidShippingAddress();
+  const trimmedAddress = shippingAddress.trim();
+  if (!trimmedAddress) throw new InvalidShippingAddress();
 
   const variant = await prisma.cydVariant.findUnique({ where: { id: cydVariantId } });
   if (!variant || !variant.active) throw new InvalidCydVariant();
@@ -94,8 +95,8 @@ export async function createOrReuseCydCheckout(
     orderBy: { createdAt: "desc" },
   });
   if (existing) {
-    if (existing.shippingAddress !== shippingAddress) {
-      return prisma.payment.update({ where: { id: existing.id }, data: { shippingAddress } });
+    if (existing.shippingAddress !== trimmedAddress) {
+      return prisma.payment.update({ where: { id: existing.id }, data: { shippingAddress: trimmedAddress } });
     }
     return existing;
   }
@@ -112,7 +113,7 @@ export async function createOrReuseCydCheckout(
 
   return prisma.payment.create({
     data: {
-      userId, productType: "CYD_PURCHASE", cydVariantId, quantity, shippingAddress,
+      userId, productType: "CYD_PURCHASE", cydVariantId, quantity, shippingAddress: trimmedAddress,
       displayPrice: price, amount, uniqueCode: code, qrPayload, status: "PENDING",
     },
   });
@@ -210,21 +211,34 @@ export async function listPaid(limit = 20): Promise<Payment[]> {
 
 const SHIPPING_STATUSES = ["PACKED", "SHIPPED", "DELIVERED"] as const;
 
-export async function listCydOrders(): Promise<Payment[]> {
+export async function listCydOrders(): Promise<(Payment & { cydVariant: { label: string } | null })[]> {
   return prisma.payment.findMany({
     where: { productType: "CYD_PURCHASE", status: "PAID" },
     orderBy: { verifiedAt: "desc" },
+    take: 50,
+    include: { cydVariant: { select: { label: true } } },
   });
 }
 
 export async function updateCydShipping(
   id: string,
-  data: { shippingCost?: number; shippingStatus?: string }
+  data: { shippingCost?: unknown; shippingStatus?: unknown }
 ): Promise<Payment> {
   const p = await prisma.payment.findUnique({ where: { id } });
   if (!p || p.productType !== "CYD_PURCHASE") throw new Error("not_cyd_payment");
-  if (data.shippingStatus !== undefined && !SHIPPING_STATUSES.includes(data.shippingStatus as (typeof SHIPPING_STATUSES)[number])) {
-    throw new Error("invalid_shipping_status");
+  const update: { shippingCost?: number; shippingStatus?: string } = {};
+  if (data.shippingCost !== undefined) {
+    if (typeof data.shippingCost !== "number" || !Number.isFinite(data.shippingCost)) {
+      throw new Error("invalid_shipping_cost");
+    }
+    update.shippingCost = data.shippingCost;
   }
-  return prisma.payment.update({ where: { id }, data });
+  if (data.shippingStatus !== undefined) {
+    const status = data.shippingStatus;
+    if (typeof status !== "string" || !SHIPPING_STATUSES.includes(status as (typeof SHIPPING_STATUSES)[number])) {
+      throw new Error("invalid_shipping_status");
+    }
+    update.shippingStatus = status;
+  }
+  return prisma.payment.update({ where: { id }, data: update });
 }

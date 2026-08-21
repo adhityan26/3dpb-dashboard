@@ -9,7 +9,7 @@ function messageFor(payment: ActivatedPayment): string {
     return `Pembayaran terverifikasi — kapasitas monitoring printer kamu bertambah ${payment.quantity} slot 🎉 Terima kasih!`;
   }
   if (payment.productType === "CYD_PURCHASE") {
-    return `Pembayaran terverifikasi — CYD kamu akan segera dikirim ke alamat yang kamu daftarkan. Kapasitas monitoring printer kamu bertambah begitu barang sampai. Terima kasih! 🎉`;
+    return `Pembayaran terverifikasi — kapasitas monitoring printer kamu sudah bertambah sekarang. CYD kamu akan segera dikirim ke alamat yang kamu daftarkan. Terima kasih! 🎉`;
   }
   return MSG_BELI;
 }
