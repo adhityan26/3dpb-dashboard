@@ -6,8 +6,8 @@ import { GlassButton, GlassCard } from "@3pb/ui";
 import { getPrinterImage } from "../lib/printer-images";
 import { PrinterControls } from "../components/PrinterControls";
 import { FileDropOverlay } from "../components/FileDropOverlay";
-import { FileManagerPanel } from "../components/FileManagerPanel";
 import { PrintStartDialog } from "../components/PrintStartDialog";
+import { FileBrowserScreen } from "./FileBrowserScreen";
 
 /** Thumbnail asli kalau model (`p.type`) dikenal, fallback emoji generik kalau tidak. */
 function PrinterThumb({ model }: { model: string }) {
@@ -81,6 +81,9 @@ export function DashboardScreen({
   onManageDevices = () => {},
 }: { initialSync?: boolean; onManageDevices?: () => void } = {}) {
   const [snapshot, setSnapshot] = useState<PrintersPayload>({ payload: [] });
+  // Device yang lagi dibuka halaman File-nya (halaman penuh, bukan panel inline di card --
+  // lihat FileBrowserScreen). null = tampilkan dashboard normal.
+  const [viewingFilesFor, setViewingFilesFor] = useState<{ shortCode: string; label: string } | null>(null);
   const [brokerInfo, setBrokerInfo] = useState<{ ip: string; port: number | null; pin: string | null } | null>(null);
   const [syncStatus, setSyncStatus] = useState<SyncStatus>({ kind: "idle" });
   const [updateAvailable, setUpdateAvailable] = useState(false);
@@ -159,6 +162,16 @@ export function DashboardScreen({
     }
   }
 
+  if (viewingFilesFor) {
+    return (
+      <FileBrowserScreen
+        shortCode={viewingFilesFor.shortCode}
+        deviceLabel={viewingFilesFor.label}
+        onBack={() => setViewingFilesFor(null)}
+      />
+    );
+  }
+
   return (
     <AgentShell>
       <div className="flex items-center justify-between mb-4">
@@ -233,7 +246,7 @@ export function DashboardScreen({
       )}
       <div className="space-y-3">
         {snapshot.payload.map((p) => (
-          <DeviceCard key={p.id} p={p} />
+          <DeviceCard key={p.id} p={p} onOpenFiles={() => setViewingFilesFor({ shortCode: p.id, label: p.name })} />
         ))}
       </div>
     </AgentShell>
@@ -242,11 +255,12 @@ export function DashboardScreen({
 
 /**
  * Satu card device -- diekstrak dari inline `.map()` supaya tiap device punya state
- * lokalnya sendiri (tab "Files" terbuka/tidak, path file yang lagi diproses lewat
- * `PrintStartDialog`) tanpa perlu Map/Record ber-keyed-id di parent.
+ * lokalnya sendiri (path file yang lagi diproses lewat `PrintStartDialog` dari drag-drop
+ * upload) tanpa perlu Map/Record ber-keyed-id di parent. Halaman File sendiri sekarang
+ * di parent (`viewingFilesFor` di DashboardScreen) -- lihat FileBrowserScreen -- bukan
+ * panel inline di sini lagi, jadi tombol "File" cuma memanggil `onOpenFiles`.
  */
-function DeviceCard({ p }: { p: PrintersPayload["payload"][number] }) {
-  const [filesOpen, setFilesOpen] = useState(false);
+function DeviceCard({ p, onOpenFiles }: { p: PrintersPayload["payload"][number]; onOpenFiles: () => void }) {
   const [printDialogPath, setPrintDialogPath] = useState<string | null>(null);
 
   const isBambu = p.connector === "bambu";
@@ -290,18 +304,11 @@ function DeviceCard({ p }: { p: PrintersPayload["payload"][number] }) {
           Moonraker belum didukung (di luar scope task ini), lihat pola gating yang sama
           di PrinterControls. */}
       {isBambu && (
-        <>
-          <div className="mt-2">
-            <GlassButton onClick={() => setFilesOpen((v) => !v)} className="text-xs opacity-70">
-              {filesOpen ? "Tutup File" : "File"}
-            </GlassButton>
-          </div>
-          {filesOpen && (
-            <div className="mt-2">
-              <FileManagerPanel shortCode={p.id} onPrintRequested={(remotePath) => setPrintDialogPath(remotePath)} />
-            </div>
-          )}
-        </>
+        <div className="mt-2">
+          <GlassButton onClick={onOpenFiles} className="text-xs opacity-70">
+            File
+          </GlassButton>
+        </div>
       )}
     </>
   );

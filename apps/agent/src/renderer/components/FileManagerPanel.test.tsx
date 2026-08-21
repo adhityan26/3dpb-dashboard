@@ -7,6 +7,7 @@ const mockDeleteFile = vi.fn();
 const mockGetFileThumbnail = vi.fn();
 const mockDownloadFile = vi.fn();
 const mockPickDownloadFolder = vi.fn();
+const mockRenameFile = vi.fn();
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -21,12 +22,19 @@ beforeEach(() => {
       downloadFile: mockDownloadFile,
       uploadFile: vi.fn(),
       pickDownloadFolder: mockPickDownloadFolder,
+      renameFile: mockRenameFile,
     },
   });
 });
 
+// Helper: buka menu aksi ("⋮") untuk satu baris file.
+async function openRowMenu(fileName: string) {
+  fireEvent.click(await screen.findByRole("button", { name: `aksi ${fileName}` }));
+  return screen.findByRole("menu", { name: `menu ${fileName}` });
+}
+
 describe("FileManagerPanel", () => {
-  it("render daftar file sebagai card setelah listFiles resolve", async () => {
+  it("render daftar file sebagai baris tabel setelah listFiles resolve", async () => {
     mockListFiles.mockResolvedValue([
       { name: "a.gcode.3mf", path: "/a.gcode.3mf", size: 2100000, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
     ]);
@@ -34,6 +42,7 @@ describe("FileManagerPanel", () => {
     render(<FileManagerPanel shortCode="ABC123" onPrintRequested={vi.fn()} />);
 
     expect(await screen.findByText("a.gcode.3mf")).toBeTruthy();
+    expect(screen.getByText("2.0 MB")).toBeTruthy();
   });
 
   it("mode select: centang 2 file lalu hapus bulk memanggil deleteFile 2 kali", async () => {
@@ -77,6 +86,17 @@ describe("FileManagerPanel", () => {
     await waitFor(() => {
       expect(screen.queryByRole("dialog", { name: /thumbnail preview/i })).toBeNull();
     });
+  });
+
+  it("thumbnail juga di-fetch untuk file .gcode polos (bukan cuma .gcode.3mf)", async () => {
+    mockListFiles.mockResolvedValue([
+      { name: "b.gcode", path: "/b.gcode", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
+    ]);
+
+    render(<FileManagerPanel shortCode="ABC123" onPrintRequested={vi.fn()} />);
+    await screen.findByText("b.gcode");
+
+    await waitFor(() => expect(mockGetFileThumbnail).toHaveBeenCalledWith("ABC123", "/b.gcode"));
   });
 
   it("mode select: bulk download memanggil pickDownloadFolder lalu downloadFile per file terpilih", async () => {
@@ -134,7 +154,7 @@ describe("FileManagerPanel", () => {
     expect(mockDeleteFile).not.toHaveBeenCalled();
   });
 
-  it("klik Print pada file memanggil onPrintRequested dengan remotePath", async () => {
+  it("klik ⋮ buka menu aksi, klik Print di menu memanggil onPrintRequested dengan remotePath", async () => {
     mockListFiles.mockResolvedValue([
       { name: "a.gcode.3mf", path: "/a.gcode.3mf", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
     ]);
@@ -143,9 +163,101 @@ describe("FileManagerPanel", () => {
     render(<FileManagerPanel shortCode="ABC123" onPrintRequested={onPrintRequested} />);
     await screen.findByText("a.gcode.3mf");
 
-    fireEvent.click(screen.getByRole("button", { name: /^print$/i }));
+    const menu = await openRowMenu("a.gcode.3mf");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /^print$/i }));
 
     expect(onPrintRequested).toHaveBeenCalledWith("/a.gcode.3mf");
+  });
+
+  it("menu aksi per-baris: Download memanggil pickDownloadFolder lalu downloadFile untuk file itu saja", async () => {
+    mockListFiles.mockResolvedValue([
+      { name: "a.gcode.3mf", path: "/a.gcode.3mf", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
+    ]);
+
+    render(<FileManagerPanel shortCode="ABC123" onPrintRequested={vi.fn()} />);
+    await screen.findByText("a.gcode.3mf");
+
+    const menu = await openRowMenu("a.gcode.3mf");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /^download$/i }));
+
+    await waitFor(() => {
+      expect(mockDownloadFile).toHaveBeenCalledWith("ABC123", "/a.gcode.3mf", "/tmp/downloads/a.gcode.3mf");
+    });
+  });
+
+  it("menu aksi per-baris: Hapus buka dialog konfirmasi untuk 1 file, konfirmasi memanggil deleteFile", async () => {
+    mockListFiles.mockResolvedValue([
+      { name: "a.gcode.3mf", path: "/a.gcode.3mf", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
+    ]);
+
+    render(<FileManagerPanel shortCode="ABC123" onPrintRequested={vi.fn()} />);
+    await screen.findByText("a.gcode.3mf");
+
+    const menu = await openRowMenu("a.gcode.3mf");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /hapus/i }));
+
+    const dialog = await screen.findByRole("dialog", { name: /konfirmasi hapus/i });
+    expect(within(dialog).getByText(/yakin hapus 1 file/i)).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: /ya, hapus/i }));
+
+    await waitFor(() => expect(mockDeleteFile).toHaveBeenCalledWith("ABC123", "/a.gcode.3mf"));
+  });
+
+  it("menu aksi per-baris: Rename buka dialog dengan nama lama, submit memanggil renameFile", async () => {
+    mockListFiles.mockResolvedValue([
+      { name: "a.gcode.3mf", path: "/a.gcode.3mf", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
+    ]);
+    mockRenameFile.mockResolvedValue(undefined);
+
+    render(<FileManagerPanel shortCode="ABC123" onPrintRequested={vi.fn()} />);
+    await screen.findByText("a.gcode.3mf");
+
+    const menu = await openRowMenu("a.gcode.3mf");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /rename/i }));
+
+    const dialog = await screen.findByRole("dialog", { name: /rename file/i });
+    const input = within(dialog).getByLabelText("nama baru") as HTMLInputElement;
+    expect(input.value).toBe("a.gcode.3mf");
+
+    fireEvent.change(input, { target: { value: "b.gcode.3mf" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /simpan/i }));
+
+    await waitFor(() => expect(mockRenameFile).toHaveBeenCalledWith("ABC123", "/a.gcode.3mf", "/b.gcode.3mf"));
+  });
+
+  it("rename: nama kosong tidak memanggil renameFile, tampil pesan error", async () => {
+    mockListFiles.mockResolvedValue([
+      { name: "a.gcode.3mf", path: "/a.gcode.3mf", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
+    ]);
+
+    render(<FileManagerPanel shortCode="ABC123" onPrintRequested={vi.fn()} />);
+    await screen.findByText("a.gcode.3mf");
+
+    const menu = await openRowMenu("a.gcode.3mf");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /rename/i }));
+    const dialog = await screen.findByRole("dialog", { name: /rename file/i });
+    fireEvent.change(within(dialog).getByLabelText("nama baru"), { target: { value: "   " } });
+    fireEvent.click(within(dialog).getByRole("button", { name: /simpan/i }));
+
+    expect(within(dialog).getByText(/nama tidak boleh kosong/i)).toBeTruthy();
+    expect(mockRenameFile).not.toHaveBeenCalled();
+  });
+
+  it("rename: batal menutup dialog tanpa memanggil renameFile", async () => {
+    mockListFiles.mockResolvedValue([
+      { name: "a.gcode.3mf", path: "/a.gcode.3mf", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
+    ]);
+
+    render(<FileManagerPanel shortCode="ABC123" onPrintRequested={vi.fn()} />);
+    await screen.findByText("a.gcode.3mf");
+
+    const menu = await openRowMenu("a.gcode.3mf");
+    fireEvent.click(within(menu).getByRole("menuitem", { name: /rename/i }));
+    const dialog = await screen.findByRole("dialog", { name: /rename file/i });
+    fireEvent.click(within(dialog).getByRole("button", { name: /^batal$/i }));
+
+    expect(screen.queryByRole("dialog", { name: /rename file/i })).toBeNull();
+    expect(mockRenameFile).not.toHaveBeenCalled();
   });
 
   it("listFiles gagal -> tampil pesan error, klik Coba Lagi memanggil listFiles lagi", async () => {

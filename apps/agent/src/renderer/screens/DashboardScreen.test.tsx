@@ -226,6 +226,27 @@ describe("DashboardScreen", () => {
     await waitFor(() => expect(screen.getByText("Printer A")).toBeTruthy());
     expect(screen.queryByRole("button", { name: /^file$/i })).toBeNull();
   });
+
+  it("klik File -> pindah ke halaman FileBrowserScreen penuh (bukan panel inline), klik Kembali balik ke dashboard", async () => {
+    (window as any).agentApi.getSnapshot.mockResolvedValue({
+      payload: [{ id: "abc1234567", name: "Printer A", type: "P1S", connector: "bambu", state: "idle", progress: 0, remaining_min: 0, filename: "", error_msg: "", error_message: "", last_seen: null, nozzle_temp: 25, bed_temp: 25 }],
+    });
+    (window as any).agentApi.listFiles = vi.fn().mockResolvedValue([]);
+    (window as any).agentApi.getFileThumbnail = vi.fn().mockResolvedValue(null);
+
+    render(<DashboardScreen />);
+    await waitFor(() => expect(screen.getByRole("button", { name: /^file$/i })).toBeTruthy());
+
+    fireEvent.click(screen.getByRole("button", { name: /^file$/i }));
+
+    await waitFor(() => expect(screen.getByText("File — Printer A")).toBeTruthy());
+    expect(screen.queryByText("Dashboard")).toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: /kembali/i }));
+
+    await waitFor(() => expect(screen.getByText("Dashboard")).toBeTruthy());
+    expect(screen.queryByText("File — Printer A")).toBeNull();
+  });
 });
 
 describe("DashboardScreen polling", () => {
