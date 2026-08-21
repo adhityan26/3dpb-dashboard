@@ -113,23 +113,27 @@ export async function listPending(now = new Date()): Promise<Payment[]> {
 export async function activate(id: string, ownerEmail: string, now = new Date()): Promise<Payment | null> {
   const p = await prisma.payment.findUnique({ where: { id } });
   if (!p || p.status !== "PENDING") return null;
-  // TODO(sub-project 2): activate() should dispatch by productType (see
-  // docs/superpowers/specs/2026-08-20-printer-slot-checkout-beli-slot-design.md
-  // for the full dispatch design). Until that lands, only BELI payments should
-  // ever reach here — guard against silently granting lifetimeOwned to a
-  // payment of any other product type.
-  if (p.productType !== "BELI") {
-    throw new Error(`activate() called for unsupported productType: ${p.productType}`);
-  }
   const updated = await prisma.payment.update({
     where: { id },
     data: { status: "PAID", verifiedAt: now, verifiedBy: ownerEmail },
   });
-  await prisma.entitlement.upsert({
-    where: { userId: p.userId },
-    create: { userId: p.userId, lifetimeOwned: true, lifetimePurchasedAt: now },
-    update: { lifetimeOwned: true, lifetimePurchasedAt: now },
-  });
+  switch (p.productType) {
+    case "BELI":
+      await prisma.entitlement.upsert({
+        where: { userId: p.userId },
+        create: { userId: p.userId, lifetimeOwned: true, lifetimePurchasedAt: now },
+        update: { lifetimeOwned: true, lifetimePurchasedAt: now },
+      });
+      break;
+    case "SLOT_PURCHASE":
+      await prisma.slotGrant.create({
+        data: { userId: p.userId, source: "SLOT_PURCHASE", paymentId: p.id, quantity: p.quantity ?? 0 },
+      });
+      break;
+    // CYD_PURCHASE (sub-project 3) and SUBSCRIBE (sub-project 4) add their own case here.
+    default:
+      throw new Error(`activate() called for unsupported productType: ${p.productType}`);
+  }
   return updated;
 }
 

@@ -4,6 +4,7 @@ vi.mock("@/lib/db", () => ({
   prisma: {
     payment: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), findUnique: vi.fn() },
     entitlement: { update: vi.fn(), upsert: vi.fn() },
+    slotGrant: { create: vi.fn() },
   },
 }));
 vi.mock("@/lib/config", async () => {
@@ -271,11 +272,22 @@ describe("activate", () => {
       update: { lifetimeOwned: true, lifetimePurchasedAt: NOW },
     }));
   });
-  it("productType selain BELI (mis. SLOT_PURCHASE) → throw, tidak menyentuh Entitlement", async () => {
-    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", status: "PENDING", userId: "u1", productType: "SLOT_PURCHASE" });
-    await expect(activate("p1", "owner@x.com", NOW)).rejects.toThrow(/unsupported productType/);
-    expect(prisma.payment.update).not.toHaveBeenCalled();
+  it("productType SLOT_PURCHASE → creates a SlotGrant, does not touch Entitlement", async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", status: "PENDING", userId: "u1", productType: "SLOT_PURCHASE", quantity: 4 });
+    (prisma.payment.update as any).mockResolvedValue({ id: "p1", status: "PAID", userId: "u1", productType: "SLOT_PURCHASE", quantity: 4 });
+
+    const result = await activate("p1", "owner@x.com", NOW);
+
+    expect(prisma.slotGrant.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ userId: "u1", source: "SLOT_PURCHASE", paymentId: "p1", quantity: 4 }) })
+    );
     expect(prisma.entitlement.upsert).not.toHaveBeenCalled();
+    expect(result).toEqual({ id: "p1", status: "PAID", userId: "u1", productType: "SLOT_PURCHASE", quantity: 4 });
+  });
+
+  it("productType outside the known set still throws (dispatch has a default case)", async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", status: "PENDING", userId: "u1", productType: "SOMETHING_UNKNOWN" });
+    await expect(activate("p1", "owner@x.com", NOW)).rejects.toThrow(/unsupported productType/);
   });
 });
 

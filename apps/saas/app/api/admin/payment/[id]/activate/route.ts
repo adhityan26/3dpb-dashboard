@@ -12,7 +12,7 @@ export async function PUT(_req: Request, ctx: { params: Promise<{ id: string }> 
   const p = await activate(id, session!.user!.email!);
   if (p) {
     const user = await prisma.user.findUnique({ where: { id: p.userId }, select: { phone: true, email: true } });
-    if (user) await notifyActivated(user);
+    if (user) await notifyActivated(user, p);
   }
   return NextResponse.json({ ok: true });
 }

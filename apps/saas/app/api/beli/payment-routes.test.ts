@@ -65,11 +65,14 @@ describe("admin activate", () => {
   it("owner → activate + notif + 200", async () => {
     (auth as any).mockResolvedValue({ user: { email: "owner@x.com" } });
     (isOwner as any).mockReturnValue(true);
-    (activate as any).mockResolvedValue({ id: "p1", userId: "u1" });
+    (activate as any).mockResolvedValue({ id: "p1", userId: "u1", productType: "BELI", quantity: null });
     (prisma.user.findUnique as any).mockResolvedValue({ phone: "628111", email: null });
     const res = await activatePUT(req(), ctx);
     expect(res.status).toBe(200);
-    expect(notifyActivated).toHaveBeenCalledWith({ phone: "628111", email: null });
+    expect(notifyActivated).toHaveBeenCalledWith(
+      { phone: "628111", email: null },
+      { id: "p1", userId: "u1", productType: "BELI", quantity: null },
+    );
   });
 });
 

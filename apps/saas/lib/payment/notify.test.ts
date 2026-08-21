@@ -10,18 +10,23 @@ afterEach(() => { process.env = { ...ENV }; vi.restoreAllMocks(); });
 describe("notifyActivated", () => {
   it("punya phone → sendWA (bukan email)", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    await notifyActivated({ phone: "628111", email: null });
+    await notifyActivated({ phone: "628111", email: null }, { productType: "BELI", quantity: null });
     expect(sendWA).toHaveBeenCalledWith("628111", expect.stringContaining("aktif"));
     expect(fetchSpy).not.toHaveBeenCalled();
   });
   it("tanpa phone tapi ada email → Resend REST", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue({ ok: true } as Response);
-    await notifyActivated({ phone: null, email: "a@b.com" });
+    await notifyActivated({ phone: null, email: "a@b.com" }, { productType: "BELI", quantity: null });
     expect(sendWA).not.toHaveBeenCalled();
     expect(fetchSpy.mock.calls[0][0]).toBe("https://api.resend.com/emails");
   });
   it("kegagalan notif tak dilempar (best-effort)", async () => {
     (sendWA as any).mockRejectedValue(new Error("down"));
-    await expect(notifyActivated({ phone: "628111", email: null })).resolves.toBeUndefined();
+    await expect(notifyActivated({ phone: "628111", email: null }, { productType: "BELI", quantity: null })).resolves.toBeUndefined();
+  });
+  it("productType SLOT_PURCHASE → pesan sebut jumlah slot, bukan 'akun aktif'", async () => {
+    await notifyActivated({ phone: "628111", email: null }, { productType: "SLOT_PURCHASE", quantity: 4 });
+    expect(sendWA).toHaveBeenCalledWith("628111", expect.stringContaining("4 slot"));
+    expect(sendWA).toHaveBeenCalledWith("628111", expect.not.stringContaining("akun Slizebiz kamu sudah aktif"));
   });
 });
