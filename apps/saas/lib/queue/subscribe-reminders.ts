@@ -34,8 +34,8 @@ export async function sweepSubscribeReminders(now = new Date()): Promise<number>
     const dateStr = ent.subExpiresAt!.toLocaleDateString("id-ID");
     const msg = `Langganan Slizebiz kamu berakhir ${dateStr} — perpanjang sebelum slot printer berkurang.`;
     try {
-      if (ent.user.email) await sendEmail(ent.user.email, msg, "Langganan Slizebiz segera berakhir");
-      else if (ent.user.phone) await sendWA(ent.user.phone, msg);
+      if (ent.user.phone) await sendWA(ent.user.phone, msg);
+      else if (ent.user.email) await sendEmail(ent.user.email, msg, "Langganan Slizebiz segera berakhir");
       else {
         console.warn(`[subscribe-reminder] user ${ent.userId} tak punya email maupun phone, dilewati`);
         continue;
