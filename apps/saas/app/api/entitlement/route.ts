@@ -14,10 +14,11 @@ export async function GET() {
     });
   }
   const ent = await getEntitlement(userId);
+  const cap = capabilities(ent);
   return NextResponse.json({
     authenticated: true,
     lifetimeOwned: ent.lifetimeOwned,
-    subActive: ent.subStatus === "ACTIVE",
-    can: capabilities(ent),
+    subActive: cap.cloud,
+    can: cap,
   });
 }
