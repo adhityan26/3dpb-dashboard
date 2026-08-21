@@ -12,7 +12,7 @@ describe.skipIf(!hasDb)("createDevice — race condition (Postgres asli)", () =>
     ({ prisma } = await import("@/lib/db"));
     const user = await prisma.user.create({ data: { email: `race-test-${Date.now()}@test.local` } });
     userId = user.id;
-    await prisma.entitlement.create({ data: { userId, printerSlots: 1 } });
+    await prisma.entitlement.create({ data: { userId } });
   });
 
   afterAll(async () => {
@@ -97,5 +97,98 @@ describe.skipIf(!hasDb)("createDevice — race condition SEM Entitlement row (Po
     // createDevice harus sudah memastikan baris Entitlement-nya ADA di sepanjang jalan.
     const after = await prisma.entitlement.findUnique({ where: { userId } });
     expect(after).not.toBeNull();
+  });
+});
+
+// Task 3: capacity sekarang dihitung dari SlotGrant (ledger), bukan Entitlement.printerSlots
+// (kolom itu sudah dihapus di migrasi Task 1). Test ini butuh Postgres asli karena inti yang
+// diverifikasi adalah row-lock (FOR UPDATE) di createDevice tetap benar-benar menyerialkan
+// createDevice paralel sekarang setelah capacity-nya ledger-derived -- bukan cuma bahwa
+// angka capacity-nya benar (itu sudah dicover unit test mocked di service.test.ts).
+describe.skipIf(!hasDb)("createDevice — capacity dari SlotGrant ledger (Postgres asli)", () => {
+  let prisma: typeof import("@/lib/db").prisma;
+  let userId: string;
+
+  beforeAll(async () => {
+    ({ prisma } = await import("@/lib/db"));
+    const user = await prisma.user.create({ data: { email: `race-test-slotgrant-${Date.now()}@test.local` } });
+    userId = user.id;
+    await prisma.entitlement.create({ data: { userId } });
+    // baseline printer.defaultSlots default = 1 (tak ada override Config di test ini) + grant
+    // aktif quantity 2, tanpa validFrom/validUntil (berlaku selamanya) -> capacity efektif = 3.
+    await prisma.slotGrant.create({
+      data: { userId, source: "PROMO", quantity: 2, active: true },
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.device.deleteMany({ where: { userId } });
+    await prisma.slotGrant.deleteMany({ where: { userId } });
+    await prisma.entitlement.deleteMany({ where: { userId } });
+    await prisma.user.delete({ where: { id: userId } });
+    await prisma.$disconnect();
+  });
+
+  it("mengizinkan create sampai baseline+SlotGrant (3), lalu menolak create ke-4 dengan SlotLimitExceeded", async () => {
+    const { createDevice } = await import("./service");
+    const { SlotLimitExceeded } = await import("./errors");
+
+    await createDevice(userId, { label: "A", printerType: "bambu" });
+    await createDevice(userId, { label: "B", printerType: "bambu" });
+    await createDevice(userId, { label: "C", printerType: "bambu" });
+
+    await expect(createDevice(userId, { label: "D", printerType: "bambu" })).rejects.toThrow(SlotLimitExceeded);
+
+    const finalCount = await prisma.device.count({ where: { userId } });
+    expect(finalCount).toBe(3);
+  });
+});
+
+describe.skipIf(!hasDb)("createDevice — race di slot terakhir dari capacity SlotGrant (Postgres asli)", () => {
+  let prisma: typeof import("@/lib/db").prisma;
+  let userId: string;
+
+  beforeAll(async () => {
+    ({ prisma } = await import("@/lib/db"));
+    const user = await prisma.user.create({ data: { email: `race-test-slotgrant-parallel-${Date.now()}@test.local` } });
+    userId = user.id;
+    await prisma.entitlement.create({ data: { userId } });
+    // baseline 1 + grant 2 = capacity 3. Habiskan 2 dulu (sequentially) supaya cuma 1 slot
+    // tersisa, lalu perlombakan 2 request paralel buat slot terakhir itu.
+    await prisma.slotGrant.create({
+      data: { userId, source: "PROMO", quantity: 2, active: true },
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.device.deleteMany({ where: { userId } });
+    await prisma.slotGrant.deleteMany({ where: { userId } });
+    await prisma.entitlement.deleteMany({ where: { userId } });
+    await prisma.user.delete({ where: { id: userId } });
+    await prisma.$disconnect();
+  });
+
+  it("2 create paralel di slot terakhir (capacity ledger-computed) — cuma 1 yang boleh sukses", async () => {
+    const { createDevice } = await import("./service");
+    const { SlotLimitExceeded } = await import("./errors");
+
+    // Membuktikan row-lock Entitlement masih menyerialkan createDevice dengan benar sekarang
+    // capacity-nya dihitung dari SlotGrant, bukan Entitlement.printerSlots.
+    await createDevice(userId, { label: "E", printerType: "bambu" });
+    await createDevice(userId, { label: "F", printerType: "bambu" });
+
+    const results = await Promise.allSettled([
+      createDevice(userId, { label: "G", printerType: "bambu" }),
+      createDevice(userId, { label: "H", printerType: "bambu" }),
+    ]);
+
+    const fulfilled = results.filter((r) => r.status === "fulfilled");
+    const rejected = results.filter((r) => r.status === "rejected");
+    expect(fulfilled).toHaveLength(1);
+    expect(rejected).toHaveLength(1);
+    expect((rejected[0] as PromiseRejectedResult).reason).toBeInstanceOf(SlotLimitExceeded);
+
+    const finalCount = await prisma.device.count({ where: { userId } });
+    expect(finalCount).toBe(3);
   });
 });

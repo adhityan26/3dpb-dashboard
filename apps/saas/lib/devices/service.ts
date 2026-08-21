@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { prisma } from "@/lib/db";
 import { generateUniqueShortCode } from "@/lib/id/short-code";
 import { getConfigInt } from "@/lib/config";
+import { getCapacity } from "@/lib/printer-slots/capacity";
 import { LAYOUT_LIMITS } from "@3pb/cyd-layout-schema";
 import { SlotLimitExceeded, InvalidPrinterType, InvalidDeviceModel, DeviceNotFound } from "./errors";
 import { PRINTER_TYPES, type PrinterType } from "./printer-types";
@@ -38,12 +39,11 @@ export async function listDevices(userId: string): Promise<Device[]> {
 /**
  * Batas slot printer efektif user — SATU sumber kebenaran, dipakai GET /api/devices (buat tampilan
  * "X/Y slot terpakai") supaya rumusnya tak diduplikasi dari createDevice. TIDAK dipakai createDevice
- * itu sendiri: di sana pembacaan Entitlement harus terjadi di dalam transaksi & di belakang row-lock
+ * itu sendiri: di sana penghitungan capacity harus terjadi di dalam transaksi & di belakang row-lock
  * (lihat komentar panjang di bawah), bukan lewat koneksi terpisah seperti helper read-only ini.
  */
 export async function getDeviceLimit(userId: string): Promise<number> {
-  const entitlement = await prisma.entitlement.findUnique({ where: { userId } });
-  return entitlement?.printerSlots ?? (await getConfigInt("printer.defaultSlots", 1));
+  return getCapacity(userId);
 }
 
 /**
@@ -98,15 +98,14 @@ export async function createDevice(
   assertValidPrinterType(input.printerType);
   const model = input.model !== undefined ? normalizeDeviceModel(input.model) : undefined;
 
-  const fallbackLimit = await getConfigInt("printer.defaultSlots", 1);
+  const baseline = await getConfigInt("printer.defaultSlots", 1);
 
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`INSERT INTO "Entitlement" ("id", "userId", "updatedAt") VALUES (${crypto.randomUUID()}, ${userId}, now()) ON CONFLICT ("userId") DO NOTHING`;
     await tx.$queryRaw`SELECT 1 FROM "Entitlement" WHERE "userId" = ${userId} FOR UPDATE`;
-    const entitlement = await tx.entitlement.findUnique({ where: { userId } });
-    const limit = entitlement?.printerSlots ?? fallbackLimit;
+    const capacity = await getCapacity(userId, { client: tx, baseline });
     const count = await tx.device.count({ where: { userId } });
-    if (count >= limit) throw new SlotLimitExceeded(limit);
+    if (count >= capacity) throw new SlotLimitExceeded(capacity);
 
     const shortCode = await generateUniqueShortCode(tx);
     return tx.device.create({
