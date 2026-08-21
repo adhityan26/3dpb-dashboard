@@ -25,3 +25,10 @@ export class CodePoolExhausted extends Error {
     this.name = "CodePoolExhausted";
   }
 }
+
+export class InvalidQuantity extends Error {
+  constructor() {
+    super("invalid_quantity");
+    this.name = "InvalidQuantity";
+  }
+}

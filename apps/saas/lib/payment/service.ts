@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { getConfig, parsePrice } from "@/lib/config";
 import { getEntitlement } from "@/lib/entitlement";
 import { generateDynamicQris } from "@/lib/qris/dynamic";
-import { AlreadyOwned, PriceNotSet, QrisNotSet, CodePoolExhausted } from "@/lib/payment/errors";
+import { AlreadyOwned, InvalidQuantity, PriceNotSet, QrisNotSet, CodePoolExhausted } from "@/lib/payment/errors";
 
 export const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
 
@@ -46,7 +46,33 @@ export async function createOrReuseCheckout(userId: string, now = new Date()): P
   const qrPayload = generateDynamicQris(staticQ, amount);
 
   return prisma.payment.create({
-    data: { userId, tier: "beli", displayPrice: price, amount, uniqueCode: code, qrPayload, status: "PENDING" },
+    data: { userId, productType: "BELI", displayPrice: price, amount, uniqueCode: code, qrPayload, status: "PENDING" },
+  });
+}
+
+export async function createSlotCheckout(userId: string, quantity: number, now = new Date()): Promise<Payment> {
+  if (!Number.isInteger(quantity) || quantity <= 0) throw new InvalidQuantity();
+
+  const existing = await prisma.payment.findFirst({
+    where: { userId, productType: "SLOT_PURCHASE", quantity, status: "PENDING", createdAt: { gt: liveSince(now) } },
+    orderBy: { createdAt: "desc" },
+  });
+  if (existing) return existing;
+
+  const unitPrice = parsePrice(await getConfig("price.slotPerUnit"));
+  if (unitPrice === null || unitPrice <= 0) throw new PriceNotSet();
+  const staticQ = (await getConfig("qris.static")).trim();
+  if (!staticQ) throw new QrisNotSet();
+  const buffer = Math.max(1000, parsePrice(await getConfig("price.discountBuffer")) ?? 1000);
+  const price = unitPrice * quantity;
+  if (price <= buffer) throw new PriceNotSet();
+
+  const code = await allocUniqueCode(now);
+  const amount = price - buffer + code;
+  const qrPayload = generateDynamicQris(staticQ, amount);
+
+  return prisma.payment.create({
+    data: { userId, productType: "SLOT_PURCHASE", quantity, displayPrice: price, amount, uniqueCode: code, qrPayload, status: "PENDING" },
   });
 }
 
@@ -87,6 +113,14 @@ export async function listPending(now = new Date()): Promise<Payment[]> {
 export async function activate(id: string, ownerEmail: string, now = new Date()): Promise<Payment | null> {
   const p = await prisma.payment.findUnique({ where: { id } });
   if (!p || p.status !== "PENDING") return null;
+  // TODO(sub-project 2): activate() should dispatch by productType (see
+  // docs/superpowers/specs/2026-08-20-printer-slot-checkout-beli-slot-design.md
+  // for the full dispatch design). Until that lands, only BELI payments should
+  // ever reach here — guard against silently granting lifetimeOwned to a
+  // payment of any other product type.
+  if (p.productType !== "BELI") {
+    throw new Error(`activate() called for unsupported productType: ${p.productType}`);
+  }
   const updated = await prisma.payment.update({
     where: { id },
     data: { status: "PAID", verifiedAt: now, verifiedBy: ownerEmail },

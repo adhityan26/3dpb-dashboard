@@ -16,8 +16,8 @@ vi.mock("@/lib/qris/dynamic", () => ({ generateDynamicQris: vi.fn(() => "QRPAYLO
 import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { getEntitlement } from "@/lib/entitlement";
-import { allocUniqueCode, createOrReuseCheckout, markPaid, findClaimablePayment, listPending, activate, cancel, deactivate, listPaid } from "@/lib/payment/service";
-import { AlreadyOwned, PriceNotSet, QrisNotSet, CodePoolExhausted } from "@/lib/payment/errors";
+import { allocUniqueCode, createOrReuseCheckout, createSlotCheckout, markPaid, findClaimablePayment, listPending, activate, cancel, deactivate, listPaid } from "@/lib/payment/service";
+import { AlreadyOwned, InvalidQuantity, PriceNotSet, QrisNotSet, CodePoolExhausted } from "@/lib/payment/errors";
 
 const NOW = new Date("2026-07-18T10:00:00Z");
 beforeEach(() => vi.clearAllMocks());
@@ -98,6 +98,72 @@ describe("createOrReuseCheckout", () => {
     const exhausted = Array.from({ length: 1000 }, (_, i) => ({ uniqueCode: i }));
     (prisma.payment.findMany as any).mockResolvedValue(exhausted);
     await expect(createOrReuseCheckout("u1", NOW)).rejects.toBeInstanceOf(CodePoolExhausted);
+  });
+});
+
+describe("createSlotCheckout", () => {
+  it("throws InvalidQuantity for zero, negative, or non-integer quantity", async () => {
+    await expect(createSlotCheckout("u1", 0)).rejects.toThrow(InvalidQuantity);
+    await expect(createSlotCheckout("u1", -1)).rejects.toThrow(InvalidQuantity);
+    await expect(createSlotCheckout("u1", 1.5)).rejects.toThrow(InvalidQuantity);
+  });
+
+  it("creates a Payment with productType SLOT_PURCHASE, quantity, and amount = quantity * unitPrice - buffer + code", async () => {
+    (getConfig as any).mockImplementation(async (k: string) =>
+      ({ "price.slotPerUnit": "10000", "qris.static": "STATICQR", "price.discountBuffer": "1000" })[k] ?? ""
+    );
+    (prisma.payment.findFirst as any).mockResolvedValue(null);
+    (prisma.payment.findMany as any).mockResolvedValue([]); // allocUniqueCode's live-pending scan
+    (prisma.payment.create as any).mockImplementation(async ({ data }: any) => ({ id: "p-new", ...data }));
+
+    const p = await createSlotCheckout("u1", 3, NOW);
+
+    expect(prisma.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ userId: "u1", productType: "SLOT_PURCHASE", quantity: 3, displayPrice: 30000 }),
+      })
+    );
+    expect(p.amount).toBe(30000 - 1000 + (p as any).uniqueCode);
+  });
+
+  it("reuses an existing PENDING payment with the same quantity within the live window", async () => {
+    const existing = { id: "p-existing", productType: "SLOT_PURCHASE", quantity: 5, status: "PENDING" };
+    (prisma.payment.findFirst as any).mockResolvedValue(existing);
+
+    const p = await createSlotCheckout("u1", 5, NOW);
+
+    expect(p).toBe(existing);
+    expect(prisma.payment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ userId: "u1", productType: "SLOT_PURCHASE", quantity: 5, status: "PENDING" }) })
+    );
+    expect(prisma.payment.create).not.toHaveBeenCalled();
+  });
+
+  it("creates a new payment when quantity differs from the existing PENDING one (findFirst filters by quantity, so a mismatch returns null and a new payment is created)", async () => {
+    (prisma.payment.findFirst as any).mockResolvedValue(null); // no PENDING row matches quantity: 7
+    (getConfig as any).mockImplementation(async (k: string) =>
+      ({ "price.slotPerUnit": "10000", "qris.static": "STATICQR", "price.discountBuffer": "1000" })[k] ?? ""
+    );
+    (prisma.payment.findMany as any).mockResolvedValue([]);
+    (prisma.payment.create as any).mockImplementation(async ({ data }: any) => ({ id: "p-new-2", ...data }));
+
+    await createSlotCheckout("u1", 7, NOW);
+
+    expect(prisma.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ quantity: 7 }) })
+    );
+  });
+
+  it("throws PriceNotSet when price.slotPerUnit is unset", async () => {
+    (prisma.payment.findFirst as any).mockResolvedValue(null);
+    (getConfig as any).mockImplementation(async () => "");
+    await expect(createSlotCheckout("u1", 1, NOW)).rejects.toThrow(PriceNotSet);
+  });
+
+  it("throws QrisNotSet when qris.static is unset", async () => {
+    (prisma.payment.findFirst as any).mockResolvedValue(null);
+    (getConfig as any).mockImplementation(async (k: string) => (k === "price.slotPerUnit" ? "10000" : ""));
+    await expect(createSlotCheckout("u1", 1, NOW)).rejects.toThrow(QrisNotSet);
   });
 });
 
@@ -184,7 +250,7 @@ describe("activate", () => {
     expect(prisma.payment.update).not.toHaveBeenCalled();
   });
   it("PENDING → set PAID + flip lifetimeOwned", async () => {
-    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", status: "PENDING", userId: "u1" });
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", status: "PENDING", userId: "u1", productType: "BELI" });
     (prisma.payment.update as any).mockResolvedValue({ id: "p1", userId: "u1", status: "PAID" });
     const r = await activate("p1", "owner@x.com", NOW);
     expect(r?.status).toBe("PAID");
@@ -193,6 +259,13 @@ describe("activate", () => {
       where: { userId: "u1" },
       update: { lifetimeOwned: true, lifetimePurchasedAt: NOW },
     }));
+  });
+
+  it("productType selain BELI (mis. SLOT_PURCHASE) → throw, tidak menyentuh Entitlement", async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", status: "PENDING", userId: "u1", productType: "SLOT_PURCHASE" });
+    await expect(activate("p1", "owner@x.com", NOW)).rejects.toThrow(/unsupported productType/);
+    expect(prisma.payment.update).not.toHaveBeenCalled();
+    expect(prisma.entitlement.upsert).not.toHaveBeenCalled();
   });
 });
 

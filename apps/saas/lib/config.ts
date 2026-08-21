@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 /** Default konstanta — dipakai bila key absen di DB (landing/teaser/modal tetap render). */
 export const DEFAULT_CONFIG: Record<string, string> = {
   "price.beli": "",              // TBA (angka pricing ditunda — funnel §3.7)
+  "price.slotPerUnit": "",       // TBA — harga per slot tambahan (checkout kuantitas bebas)
   "price.sub.owner": "",
   "price.sub.standalone": "",
   "price.discountBuffer": "1000",
