@@ -138,7 +138,7 @@ model Payment {
   id              String    @id @default(cuid())
   userId          String
   user            User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  productType     String // "BELI" | "CYD" | "SLOT_PURCHASE" | "SUBSCRIBE"
+  productType     String // "BELI" | "CYD_PURCHASE" | "SLOT_PURCHASE" | "SUBSCRIBE"
   quantity        Int? // CYD units, or slot count; null for BELI/SUBSCRIBE
   displayPrice    Int
   amount          Int

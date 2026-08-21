@@ -20,8 +20,16 @@ it("hides the Nonaktifkan button for a SLOT_PURCHASE row (deactivate is BELI-onl
 
 it("shows the raw productType for an unrecognized product, not 'Pro (lifetime)'", () => {
   render(<PaidList rows={[
-    { id: "p3", userId: "u3", amount: 99000, who: "u3", when: "2026-08-21", productType: "CYD_PURCHASE", quantity: null },
+    { id: "p3", userId: "u3", amount: 99000, who: "u3", when: "2026-08-21", productType: "UNKNOWN_PRODUCT", quantity: null },
   ]} />);
-  expect(screen.getByText("CYD_PURCHASE")).toBeTruthy();
+  expect(screen.getByText("UNKNOWN_PRODUCT")).toBeTruthy();
   expect(screen.queryByText("Pro (lifetime)")).toBeNull();
+});
+
+it("shows the CYD ×qty label and hides Nonaktifkan for a CYD_PURCHASE row", () => {
+  render(<PaidList rows={[
+    { id: "p4", userId: "u4", amount: 200000, who: "u4", when: "2026-08-21", productType: "CYD_PURCHASE", quantity: 2 },
+  ]} />);
+  expect(screen.getByText("CYD ×2")).toBeTruthy();
+  expect(screen.queryByRole("button", { name: /nonaktifkan/i })).toBeNull();
 });

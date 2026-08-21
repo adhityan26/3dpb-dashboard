@@ -4,7 +4,7 @@ import { prisma } from "@/lib/db";
 import { getConfig, parsePrice } from "@/lib/config";
 import { getEntitlement } from "@/lib/entitlement";
 import { generateDynamicQris } from "@/lib/qris/dynamic";
-import { AlreadyOwned, InvalidQuantity, PriceNotSet, QrisNotSet, CodePoolExhausted } from "@/lib/payment/errors";
+import { AlreadyOwned, InvalidQuantity, InvalidShippingAddress, InvalidCydVariant, PriceNotSet, QrisNotSet, CodePoolExhausted } from "@/lib/payment/errors";
 
 export const LIVE_WINDOW_MS = 3 * 60 * 60 * 1000;
 
@@ -76,6 +76,49 @@ export async function createSlotCheckout(userId: string, quantity: number, now =
   });
 }
 
+export async function createOrReuseCydCheckout(
+  userId: string,
+  cydVariantId: string,
+  quantity: number,
+  shippingAddress: string,
+  now = new Date()
+): Promise<Payment> {
+  if (!Number.isInteger(quantity) || quantity <= 0) throw new InvalidQuantity();
+  const trimmedAddress = shippingAddress.trim();
+  if (!trimmedAddress) throw new InvalidShippingAddress();
+
+  const variant = await prisma.cydVariant.findUnique({ where: { id: cydVariantId } });
+  if (!variant || !variant.active) throw new InvalidCydVariant();
+
+  const existing = await prisma.payment.findFirst({
+    where: { userId, productType: "CYD_PURCHASE", cydVariantId, quantity, status: "PENDING", createdAt: { gt: liveSince(now) } },
+    orderBy: { createdAt: "desc" },
+  });
+  if (existing) {
+    if (existing.shippingAddress !== trimmedAddress) {
+      return prisma.payment.update({ where: { id: existing.id }, data: { shippingAddress: trimmedAddress } });
+    }
+    return existing;
+  }
+
+  const staticQ = (await getConfig("qris.static")).trim();
+  if (!staticQ) throw new QrisNotSet();
+  const buffer = Math.max(1000, parsePrice(await getConfig("price.discountBuffer")) ?? 1000);
+  const price = variant.price * quantity;
+  if (price <= buffer) throw new PriceNotSet();
+
+  const code = await allocUniqueCode(now);
+  const amount = price - buffer + code;
+  const qrPayload = generateDynamicQris(staticQ, amount);
+
+  return prisma.payment.create({
+    data: {
+      userId, productType: "CYD_PURCHASE", cydVariantId, quantity, shippingAddress: trimmedAddress,
+      displayPrice: price, amount, uniqueCode: code, qrPayload, status: "PENDING",
+    },
+  });
+}
+
 export async function findClaimablePayment(id: string, userId: string, now = new Date()): Promise<Payment | null> {
   return prisma.payment.findFirst({
     where: { id, userId, status: "PENDING", createdAt: { gt: liveSince(now) } },
@@ -136,7 +179,17 @@ export async function activate(id: string, ownerEmail: string, now = new Date())
         });
         break;
       }
-      // CYD_PURCHASE (sub-project 3) and SUBSCRIBE (sub-project 4) add their own case here.
+      case "CYD_PURCHASE": {
+        const variant = await tx.cydVariant.findUniqueOrThrow({ where: { id: p.cydVariantId! } });
+        if (!Number.isInteger(p.quantity) || p.quantity! <= 0) {
+          throw new Error(`activate() CYD_PURCHASE payment ${p.id} has invalid quantity: ${p.quantity}`);
+        }
+        await tx.slotGrant.create({
+          data: { userId: p.userId, source: "CYD_PURCHASE", paymentId: p.id, quantity: p.quantity! * variant.slotBonus },
+        });
+        break;
+      }
+      // SUBSCRIBE (sub-project 4) adds its own case here.
       default:
         throw new Error(`activate() called for unsupported productType: ${p.productType}`);
     }
@@ -154,4 +207,38 @@ export async function deactivate(userId: string): Promise<void> {
 
 export async function listPaid(limit = 20): Promise<Payment[]> {
   return prisma.payment.findMany({ where: { status: "PAID" }, orderBy: { verifiedAt: "desc" }, take: limit });
+}
+
+const SHIPPING_STATUSES = ["PACKED", "SHIPPED", "DELIVERED"] as const;
+
+export async function listCydOrders(): Promise<(Payment & { cydVariant: { label: string } | null })[]> {
+  return prisma.payment.findMany({
+    where: { productType: "CYD_PURCHASE", status: "PAID" },
+    orderBy: { verifiedAt: "desc" },
+    take: 50,
+    include: { cydVariant: { select: { label: true } } },
+  });
+}
+
+export async function updateCydShipping(
+  id: string,
+  data: { shippingCost?: unknown; shippingStatus?: unknown }
+): Promise<Payment> {
+  const p = await prisma.payment.findUnique({ where: { id } });
+  if (!p || p.productType !== "CYD_PURCHASE") throw new Error("not_cyd_payment");
+  const update: { shippingCost?: number; shippingStatus?: string } = {};
+  if (data.shippingCost !== undefined) {
+    if (typeof data.shippingCost !== "number" || !Number.isFinite(data.shippingCost)) {
+      throw new Error("invalid_shipping_cost");
+    }
+    update.shippingCost = data.shippingCost;
+  }
+  if (data.shippingStatus !== undefined) {
+    const status = data.shippingStatus;
+    if (typeof status !== "string" || !SHIPPING_STATUSES.includes(status as (typeof SHIPPING_STATUSES)[number])) {
+      throw new Error("invalid_shipping_status");
+    }
+    update.shippingStatus = status;
+  }
+  return prisma.payment.update({ where: { id }, data: update });
 }

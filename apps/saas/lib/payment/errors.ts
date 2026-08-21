@@ -32,3 +32,17 @@ export class InvalidQuantity extends Error {
     this.name = "InvalidQuantity";
   }
 }
+
+export class InvalidShippingAddress extends Error {
+  constructor() {
+    super("invalid_shipping_address");
+    this.name = "InvalidShippingAddress";
+  }
+}
+
+export class InvalidCydVariant extends Error {
+  constructor() {
+    super("invalid_cyd_variant");
+    this.name = "InvalidCydVariant";
+  }
+}

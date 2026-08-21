@@ -5,6 +5,7 @@ vi.mock("@/lib/db", () => ({
     payment: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), findUnique: vi.fn() },
     entitlement: { update: vi.fn(), upsert: vi.fn() },
     slotGrant: { create: vi.fn() },
+    cydVariant: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn() },
     $transaction: vi.fn(),
   },
 }));
@@ -18,8 +19,8 @@ vi.mock("@/lib/qris/dynamic", () => ({ generateDynamicQris: vi.fn(() => "QRPAYLO
 import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { getEntitlement } from "@/lib/entitlement";
-import { allocUniqueCode, createOrReuseCheckout, createSlotCheckout, markPaid, findClaimablePayment, listPending, activate, cancel, deactivate, listPaid } from "@/lib/payment/service";
-import { AlreadyOwned, InvalidQuantity, PriceNotSet, QrisNotSet, CodePoolExhausted } from "@/lib/payment/errors";
+import { allocUniqueCode, createOrReuseCheckout, createSlotCheckout, createOrReuseCydCheckout, markPaid, findClaimablePayment, listPending, activate, cancel, deactivate, listPaid, listCydOrders, updateCydShipping } from "@/lib/payment/service";
+import { AlreadyOwned, InvalidQuantity, InvalidShippingAddress, InvalidCydVariant, PriceNotSet, QrisNotSet, CodePoolExhausted } from "@/lib/payment/errors";
 
 const NOW = new Date("2026-07-18T10:00:00Z");
 beforeEach(() => vi.clearAllMocks());
@@ -180,6 +181,113 @@ describe("createSlotCheckout", () => {
   });
 });
 
+describe("createOrReuseCydCheckout", () => {
+  it("throws InvalidQuantity for zero, negative, or non-integer quantity", async () => {
+    await expect(createOrReuseCydCheckout("u1", "variant-1", 0, "Jl. Contoh 1")).rejects.toThrow(InvalidQuantity);
+    await expect(createOrReuseCydCheckout("u1", "variant-1", -1, "Jl. Contoh 1")).rejects.toThrow(InvalidQuantity);
+    await expect(createOrReuseCydCheckout("u1", "variant-1", 1.5, "Jl. Contoh 1")).rejects.toThrow(InvalidQuantity);
+  });
+
+  it("throws InvalidShippingAddress for empty or whitespace-only address", async () => {
+    await expect(createOrReuseCydCheckout("u1", "variant-1", 1, "")).rejects.toThrow(InvalidShippingAddress);
+    await expect(createOrReuseCydCheckout("u1", "variant-1", 1, "   ")).rejects.toThrow(InvalidShippingAddress);
+  });
+
+  it("throws InvalidCydVariant when the variant doesn't exist or is inactive", async () => {
+    (prisma.cydVariant.findUnique as any).mockResolvedValue(null);
+    await expect(createOrReuseCydCheckout("u1", "missing-variant", 1, "Jl. Contoh 1")).rejects.toThrow(InvalidCydVariant);
+
+    (prisma.cydVariant.findUnique as any).mockResolvedValue({ id: "v1", label: "X", price: 100000, slotBonus: 10, active: false });
+    await expect(createOrReuseCydCheckout("u1", "v1", 1, "Jl. Contoh 1")).rejects.toThrow(InvalidCydVariant);
+  });
+
+  it("creates a Payment with productType CYD_PURCHASE, cydVariantId, quantity, shippingAddress, amount = quantity * variant.price - buffer + code", async () => {
+    (prisma.cydVariant.findUnique as any).mockResolvedValue({ id: "v1", label: "CYD dengan casing", price: 100000, slotBonus: 10, active: true });
+    (prisma.payment.findFirst as any).mockResolvedValue(null);
+    (prisma.payment.findMany as any).mockResolvedValue([]);
+    (getConfig as any).mockImplementation(async (k: string) => ({ "qris.static": "STATICQR", "price.discountBuffer": "1000" })[k] ?? "");
+    (prisma.payment.create as any).mockImplementation(async ({ data }: any) => ({ id: "p-new", ...data }));
+
+    const p = await createOrReuseCydCheckout("u1", "v1", 2, "Jl. Contoh 1", NOW);
+
+    expect(prisma.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          userId: "u1", productType: "CYD_PURCHASE", cydVariantId: "v1", quantity: 2,
+          shippingAddress: "Jl. Contoh 1", displayPrice: 200000,
+        }),
+      })
+    );
+    expect(p.amount).toBe(200000 - 1000 + (p as any).uniqueCode);
+  });
+
+  it("reuses an existing PENDING payment with the same variant and quantity, updating shippingAddress in place if it changed", async () => {
+    const existing = { id: "p-existing", productType: "CYD_PURCHASE", cydVariantId: "v1", quantity: 2, shippingAddress: "Old Address", status: "PENDING" };
+    (prisma.cydVariant.findUnique as any).mockResolvedValue({ id: "v1", label: "X", price: 100000, slotBonus: 10, active: true });
+    (prisma.payment.findFirst as any).mockResolvedValue(existing);
+    (prisma.payment.update as any).mockImplementation(async ({ data }: any) => ({ ...existing, ...data }));
+
+    const p = await createOrReuseCydCheckout("u1", "v1", 2, "New Address", NOW);
+
+    expect(prisma.payment.update).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: "p-existing" }, data: { shippingAddress: "New Address" } })
+    );
+    expect(p.shippingAddress).toBe("New Address");
+    expect(prisma.payment.create).not.toHaveBeenCalled();
+  });
+
+  it("reuses without updating when shippingAddress is unchanged", async () => {
+    const existing = { id: "p-existing", productType: "CYD_PURCHASE", cydVariantId: "v1", quantity: 2, shippingAddress: "Same Address", status: "PENDING" };
+    (prisma.cydVariant.findUnique as any).mockResolvedValue({ id: "v1", label: "X", price: 100000, slotBonus: 10, active: true });
+    (prisma.payment.findFirst as any).mockResolvedValue(existing);
+
+    const p = await createOrReuseCydCheckout("u1", "v1", 2, "Same Address", NOW);
+
+    expect(prisma.payment.update).not.toHaveBeenCalled();
+    expect(p).toBe(existing);
+  });
+
+  it("creates a new payment when quantity or variant differs from the existing PENDING one", async () => {
+    (prisma.cydVariant.findUnique as any).mockResolvedValue({ id: "v1", label: "X", price: 100000, slotBonus: 10, active: true });
+    (prisma.payment.findFirst as any).mockResolvedValue(null); // no PENDING row matches variant+quantity
+    (prisma.payment.findMany as any).mockResolvedValue([]);
+    (getConfig as any).mockImplementation(async (k: string) => ({ "qris.static": "STATICQR", "price.discountBuffer": "1000" })[k] ?? "");
+    (prisma.payment.create as any).mockImplementation(async ({ data }: any) => ({ id: "p-new-2", ...data }));
+
+    await createOrReuseCydCheckout("u1", "v1", 5, "Jl. Contoh 1", NOW);
+
+    expect(prisma.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ quantity: 5 }) })
+    );
+  });
+
+  it("stores shippingAddress trimmed of leading/trailing whitespace", async () => {
+    (prisma.cydVariant.findUnique as any).mockResolvedValue({ id: "v1", label: "X", price: 100000, slotBonus: 10, active: true });
+    (prisma.payment.findFirst as any).mockResolvedValue(null);
+    (prisma.payment.findMany as any).mockResolvedValue([]);
+    (getConfig as any).mockImplementation(async (k: string) => ({ "qris.static": "STATICQR", "price.discountBuffer": "1000" })[k] ?? "");
+    (prisma.payment.create as any).mockImplementation(async ({ data }: any) => ({ id: "p-new", ...data }));
+
+    const p = await createOrReuseCydCheckout("u1", "v1", 1, "  Jl. Contoh 1  ", NOW);
+
+    expect(prisma.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ shippingAddress: "Jl. Contoh 1" }) })
+    );
+    expect(p.shippingAddress).toBe("Jl. Contoh 1");
+  });
+
+  it("reusing an existing PENDING payment with the same address modulo whitespace does not trigger an update", async () => {
+    const existing = { id: "p-existing", productType: "CYD_PURCHASE", cydVariantId: "v1", quantity: 2, shippingAddress: "Jl. Contoh 1", status: "PENDING" };
+    (prisma.cydVariant.findUnique as any).mockResolvedValue({ id: "v1", label: "X", price: 100000, slotBonus: 10, active: true });
+    (prisma.payment.findFirst as any).mockResolvedValue(existing);
+
+    const p = await createOrReuseCydCheckout("u1", "v1", 2, "  Jl. Contoh 1  ", NOW);
+
+    expect(prisma.payment.update).not.toHaveBeenCalled();
+    expect(p).toBe(existing);
+  });
+});
+
 describe("markPaid", () => {
   it("set paidMarkedAt bila payment milik user & PENDING", async () => {
     (prisma.payment.findFirst as any).mockResolvedValue({ id: "p1" });
@@ -304,6 +412,62 @@ describe("activate", () => {
     (prisma.payment.update as any).mockResolvedValue({ id: "p1", status: "PAID", userId: "u1", productType: "SLOT_PURCHASE", quantity: null });
     await expect(activate("p1", "owner@x.com", NOW)).rejects.toThrow(/invalid quantity/);
     expect(prisma.slotGrant.create).not.toHaveBeenCalled();
+  });
+
+  it("productType CYD_PURCHASE → creates a SlotGrant with quantity = payment.quantity * variant.slotBonus", async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", status: "PENDING", userId: "u1", productType: "CYD_PURCHASE", quantity: 2, cydVariantId: "v1" });
+    (prisma.payment.update as any).mockResolvedValue({ id: "p1", status: "PAID", userId: "u1", productType: "CYD_PURCHASE", quantity: 2, cydVariantId: "v1" });
+    (prisma.cydVariant.findUniqueOrThrow as any).mockResolvedValue({ id: "v1", label: "CYD besar", price: 300000, slotBonus: 20, active: true });
+
+    const result = await activate("p1", "owner@x.com", NOW);
+
+    expect(prisma.slotGrant.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ userId: "u1", source: "CYD_PURCHASE", paymentId: "p1", quantity: 40 }) })
+    );
+    expect(prisma.entitlement.upsert).not.toHaveBeenCalled();
+    expect(result?.status).toBe("PAID");
+  });
+});
+
+describe("listCydOrders", () => {
+  it("returns only PAID CYD_PURCHASE payments, including the variant label, capped at 50", async () => {
+    (prisma.payment.findMany as any).mockResolvedValue([{ id: "p1", productType: "CYD_PURCHASE", status: "PAID", cydVariant: { label: "CYD dengan casing" } }]);
+    const rows = await listCydOrders();
+    expect(prisma.payment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { productType: "CYD_PURCHASE", status: "PAID" },
+        take: 50,
+        include: { cydVariant: { select: { label: true } } },
+      })
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].cydVariant?.label).toBe("CYD dengan casing");
+  });
+});
+
+describe("updateCydShipping", () => {
+  it("rejects an unknown shippingStatus value", async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", productType: "CYD_PURCHASE" });
+    await expect(updateCydShipping("p1", { shippingStatus: "LOST_IN_MAIL" })).rejects.toThrow(/invalid_shipping_status/);
+  });
+
+  it("rejects a non-CYD payment id", async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", productType: "BELI" });
+    await expect(updateCydShipping("p1", { shippingStatus: "PACKED" })).rejects.toThrow(/not_cyd_payment/);
+  });
+
+  it("rejects a non-number shippingCost without reaching prisma.payment.update", async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", productType: "CYD_PURCHASE" });
+    await expect(updateCydShipping("p1", { shippingCost: "abc" })).rejects.toThrow(/invalid_shipping_cost/);
+    expect(prisma.payment.update).not.toHaveBeenCalled();
+  });
+
+  it("updates shippingCost and/or shippingStatus for a valid CYD payment", async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", productType: "CYD_PURCHASE" });
+    (prisma.payment.update as any).mockResolvedValue({ id: "p1", shippingCost: 25000, shippingStatus: "SHIPPED" });
+    const updated = await updateCydShipping("p1", { shippingCost: 25000, shippingStatus: "SHIPPED" });
+    expect(prisma.payment.update).toHaveBeenCalledWith({ where: { id: "p1" }, data: { shippingCost: 25000, shippingStatus: "SHIPPED" } });
+    expect(updated.shippingStatus).toBe("SHIPPED");
   });
 });
 

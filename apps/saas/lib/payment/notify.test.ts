@@ -38,4 +38,9 @@ describe("notifyActivated", () => {
     expect(sendWA).toHaveBeenCalledWith("628111", expect.stringContaining("4 slot"));
     expect(sendWA).toHaveBeenCalledWith("628111", expect.not.stringContaining("akun Slizebiz kamu sudah aktif"));
   });
+  it("productType CYD_PURCHASE → pesan sebut pengiriman, bukan 'akun aktif'", async () => {
+    await notifyActivated({ phone: "628111", email: null }, { productType: "CYD_PURCHASE", quantity: 2 });
+    expect(sendWA).toHaveBeenCalledWith("628111", expect.stringContaining("dikirim"));
+    expect(sendWA).toHaveBeenCalledWith("628111", expect.not.stringContaining("akun Slizebiz kamu sudah aktif"));
+  });
 });

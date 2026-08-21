@@ -7,6 +7,7 @@ export type PendingRow = { id: string; amount: number; who: string; ageMin: numb
 function productLabel(r: { productType: string; quantity: number | null }): string {
   if (r.productType === "BELI") return "Pro (lifetime)";
   if (r.productType === "SLOT_PURCHASE") return `Slot ×${r.quantity}`;
+  if (r.productType === "CYD_PURCHASE") return `CYD ×${r.quantity}`;
   return r.productType;
 }
 

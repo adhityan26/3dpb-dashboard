@@ -6,6 +6,7 @@ export type PaidRow = { id: string; userId: string; amount: number; who: string;
 function productLabel(r: { productType: string; quantity: number | null }): string {
   if (r.productType === "BELI") return "Pro (lifetime)";
   if (r.productType === "SLOT_PURCHASE") return `Slot ×${r.quantity}`;
+  if (r.productType === "CYD_PURCHASE") return `CYD ×${r.quantity}`;
   return r.productType;
 }
 
