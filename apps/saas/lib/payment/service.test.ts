@@ -195,7 +195,7 @@ describe("activate", () => {
     expect(prisma.payment.update).not.toHaveBeenCalled();
   });
   it("PENDING → set PAID + flip lifetimeOwned", async () => {
-    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", status: "PENDING", userId: "u1" });
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", status: "PENDING", userId: "u1", productType: "BELI" });
     (prisma.payment.update as any).mockResolvedValue({ id: "p1", userId: "u1", status: "PAID" });
     const r = await activate("p1", "owner@x.com", NOW);
     expect(r?.status).toBe("PAID");
@@ -204,6 +204,12 @@ describe("activate", () => {
       where: { userId: "u1" },
       update: { lifetimeOwned: true, lifetimePurchasedAt: NOW },
     }));
+  });
+  it("productType selain BELI (mis. SLOT_PURCHASE) → throw, tidak menyentuh Entitlement", async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", status: "PENDING", userId: "u1", productType: "SLOT_PURCHASE" });
+    await expect(activate("p1", "owner@x.com", NOW)).rejects.toThrow(/unsupported productType/);
+    expect(prisma.payment.update).not.toHaveBeenCalled();
+    expect(prisma.entitlement.upsert).not.toHaveBeenCalled();
   });
 });
 

@@ -5,17 +5,17 @@ import type { Device, Prisma } from "@prisma/client";
 /** Client Prisma yang cukup buat fungsi di file ini -- `prisma` global ATAU `tx` interactive transaction. */
 type SlotGrantDbClient = Pick<Prisma.TransactionClient, "slotGrant" | "device">;
 
-interface CapacityOpts {
-  client?: SlotGrantDbClient;
-  /**
-   * Kalau dikasih, dipakai apa adanya TANPA query Config lagi -- WAJIB dipassing oleh caller
-   * yang manggil ini di dalam transaksi/row-lock (lihat createDevice di lib/devices/service.ts):
-   * query Config lewat client `prisma` global di dalam window row-lock berisiko starvation
-   * connection-pool, alasan yang sama persis kenapa getConfigInt di sana dipanggil SEBELUM
-   * $transaction dibuka.
-   */
-  baseline?: number;
-}
+/**
+ * Discriminated union, bukan shape optional-semua: kalau `client` dikasih (dipanggil di dalam
+ * transaksi/row-lock), `baseline` WAJIB ikut dipassing juga -- lihat createDevice di
+ * lib/devices/service.ts. Query Config lewat client `prisma` global di dalam window row-lock
+ * berisiko starvation connection-pool, alasan yang sama persis kenapa getConfigInt di sana
+ * dipanggil SEBELUM $transaction dibuka. Union ini menjadikannya compile error kalau caller masa
+ * depan mem-passing `client` tanpa `baseline`.
+ */
+type CapacityOpts =
+  | { client?: undefined; baseline?: number }
+  | { client: SlotGrantDbClient; baseline: number };
 
 async function resolveBaseline(opts: CapacityOpts): Promise<number> {
   if (opts.baseline !== undefined) return opts.baseline;
@@ -44,7 +44,7 @@ export async function getEligibleDevices(userId: string, opts: CapacityOpts = {}
     where: { userId },
     orderBy: { createdAt: "asc" },
   });
-  return devices.slice(0, capacity);
+  return devices.slice(0, Math.max(0, capacity));
 }
 
 export async function getEligibleShortCodes(userId: string, opts: CapacityOpts = {}): Promise<Set<string>> {
@@ -55,5 +55,5 @@ export async function getEligibleShortCodes(userId: string, opts: CapacityOpts =
     orderBy: { createdAt: "asc" },
     select: { shortCode: true },
   });
-  return new Set(devices.slice(0, capacity).map((d) => d.shortCode));
+  return new Set(devices.slice(0, Math.max(0, capacity)).map((d) => d.shortCode));
 }

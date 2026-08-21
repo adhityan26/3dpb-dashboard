@@ -784,6 +784,21 @@ to the real per-cell layout shape — documented inline), PROMO admin path
 3's plan, which is the first consumer of variant data — an empty catalog
 table is harmless until then.
 
+**Caveat on Task 4's "FIFO enforcement at the telemetry point":** this
+only covers `/api/agent/layout`, which controls what the CYD hardware
+screens render. It does NOT stop the Agent app's own monitoring engine —
+that engine is driven by a separate, unfiltered endpoint
+(`/api/agent/devices` → `listDevices` → apps/agent's own
+`reconcileDevices`/`engine-manager`), which has no eligibility gate. So
+today, when a device goes over-capacity (e.g. a promo expires), its CYD
+screen cell disappears, but the Agent app on the user's own computer
+keeps polling/monitoring that printer and showing its status in its own
+UI. Closing this requires an apps/agent-side change, which is explicitly
+out of scope for this sub-project (see the spec's "Out of Scope"
+section). Plainly: **full end-to-end FIFO enforcement is not yet
+achieved** — this is a known, tracked gap for a future sub-project, not
+something this sub-project silently missed.
+
 **Deviations from the spec, both discovered by reading the real code
 during planning rather than assumed:**
 1. The spec assumed `Entitlement.printerSlots` was inert; it is actually

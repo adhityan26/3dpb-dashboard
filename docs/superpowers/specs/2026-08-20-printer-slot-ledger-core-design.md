@@ -268,6 +268,13 @@ UI if variants start changing often enough to justify one).
 - Admin UI for managing `CydVariant` rows (seed script only, see above).
 - CYD shipping fulfillment UI (sub-project 3).
 - Any Agent-app-side changes — this sub-project only touches `apps/saas`.
+- Note: because Agent-app changes are out of scope, FIFO suspension is
+  currently only visible via the CYD layout display (`/api/agent/layout`,
+  filtered) — the Agent app's own monitoring engine (driven by the
+  unfiltered `/api/agent/devices`) continues running for over-capacity
+  devices until a follow-up apps/agent-side sub-project closes this gap.
+  Sub-projects 2-4 (checkout flows) should NOT assume full end-to-end
+  enforcement already exists.
 
 ## Related Open Item (not solved here)
 
