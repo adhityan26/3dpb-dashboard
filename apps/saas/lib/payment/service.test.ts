@@ -5,6 +5,7 @@ vi.mock("@/lib/db", () => ({
     payment: { findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), update: vi.fn(), findUnique: vi.fn() },
     entitlement: { update: vi.fn(), upsert: vi.fn() },
     slotGrant: { create: vi.fn() },
+    $transaction: vi.fn(),
   },
 }));
 vi.mock("@/lib/config", async () => {
@@ -256,6 +257,14 @@ describe("listPending", () => {
 });
 
 describe("activate", () => {
+  // activate() sekarang membungkus update+dispatch dalam satu prisma.$transaction; karena method
+  // tx yang dipakai (payment.update, entitlement.upsert, slotGrant.create) sama persis dengan yang
+  // ada di object prisma mock, tx bisa reuse object prisma itu sendiri (lihat pola serupa di
+  // lib/devices/service.test.ts / lib/cyd-layout/service.test.ts).
+  beforeEach(() => {
+    (prisma.$transaction as any).mockImplementation((fn: any) => fn(prisma));
+  });
+
   it("status bukan PENDING → no-op null (idempoten)", async () => {
     (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", status: "PAID" });
     expect(await activate("p1", "owner@x.com", NOW)).toBeNull();
@@ -288,6 +297,13 @@ describe("activate", () => {
   it("productType outside the known set still throws (dispatch has a default case)", async () => {
     (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", status: "PENDING", userId: "u1", productType: "SOMETHING_UNKNOWN" });
     await expect(activate("p1", "owner@x.com", NOW)).rejects.toThrow(/unsupported productType/);
+  });
+
+  it("SLOT_PURCHASE with null quantity → throws, does not create a SlotGrant", async () => {
+    (prisma.payment.findUnique as any).mockResolvedValue({ id: "p1", status: "PENDING", userId: "u1", productType: "SLOT_PURCHASE", quantity: null });
+    (prisma.payment.update as any).mockResolvedValue({ id: "p1", status: "PAID", userId: "u1", productType: "SLOT_PURCHASE", quantity: null });
+    await expect(activate("p1", "owner@x.com", NOW)).rejects.toThrow(/invalid quantity/);
+    expect(prisma.slotGrant.create).not.toHaveBeenCalled();
   });
 });
 

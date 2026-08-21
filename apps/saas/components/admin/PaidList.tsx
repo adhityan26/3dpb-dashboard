@@ -4,8 +4,9 @@ import { useState } from "react";
 export type PaidRow = { id: string; userId: string; amount: number; who: string; when: string; productType: string; quantity: number | null };
 
 function productLabel(r: { productType: string; quantity: number | null }): string {
+  if (r.productType === "BELI") return "Pro (lifetime)";
   if (r.productType === "SLOT_PURCHASE") return `Slot ×${r.quantity}`;
-  return "Pro (lifetime)";
+  return r.productType;
 }
 
 export function PaidList({ rows }: { rows: PaidRow[] }) {

@@ -113,28 +113,35 @@ export async function listPending(now = new Date()): Promise<Payment[]> {
 export async function activate(id: string, ownerEmail: string, now = new Date()): Promise<Payment | null> {
   const p = await prisma.payment.findUnique({ where: { id } });
   if (!p || p.status !== "PENDING") return null;
-  const updated = await prisma.payment.update({
-    where: { id },
-    data: { status: "PAID", verifiedAt: now, verifiedBy: ownerEmail },
+
+  return prisma.$transaction(async (tx) => {
+    const updated = await tx.payment.update({
+      where: { id },
+      data: { status: "PAID", verifiedAt: now, verifiedBy: ownerEmail },
+    });
+    switch (p.productType) {
+      case "BELI":
+        await tx.entitlement.upsert({
+          where: { userId: p.userId },
+          create: { userId: p.userId, lifetimeOwned: true, lifetimePurchasedAt: now },
+          update: { lifetimeOwned: true, lifetimePurchasedAt: now },
+        });
+        break;
+      case "SLOT_PURCHASE": {
+        if (!Number.isInteger(p.quantity) || p.quantity! <= 0) {
+          throw new Error(`activate() SLOT_PURCHASE payment ${p.id} has invalid quantity: ${p.quantity}`);
+        }
+        await tx.slotGrant.create({
+          data: { userId: p.userId, source: "SLOT_PURCHASE", paymentId: p.id, quantity: p.quantity! },
+        });
+        break;
+      }
+      // CYD_PURCHASE (sub-project 3) and SUBSCRIBE (sub-project 4) add their own case here.
+      default:
+        throw new Error(`activate() called for unsupported productType: ${p.productType}`);
+    }
+    return updated;
   });
-  switch (p.productType) {
-    case "BELI":
-      await prisma.entitlement.upsert({
-        where: { userId: p.userId },
-        create: { userId: p.userId, lifetimeOwned: true, lifetimePurchasedAt: now },
-        update: { lifetimeOwned: true, lifetimePurchasedAt: now },
-      });
-      break;
-    case "SLOT_PURCHASE":
-      await prisma.slotGrant.create({
-        data: { userId: p.userId, source: "SLOT_PURCHASE", paymentId: p.id, quantity: p.quantity ?? 0 },
-      });
-      break;
-    // CYD_PURCHASE (sub-project 3) and SUBSCRIBE (sub-project 4) add their own case here.
-    default:
-      throw new Error(`activate() called for unsupported productType: ${p.productType}`);
-  }
-  return updated;
 }
 
 export async function cancel(id: string): Promise<void> {

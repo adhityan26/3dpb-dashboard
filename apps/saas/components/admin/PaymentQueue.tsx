@@ -5,8 +5,9 @@ import { GlassButton } from "@3pb/ui";
 export type PendingRow = { id: string; amount: number; who: string; ageMin: number; marked: boolean; hasProof: boolean; productType: string; quantity: number | null };
 
 function productLabel(r: { productType: string; quantity: number | null }): string {
+  if (r.productType === "BELI") return "Pro (lifetime)";
   if (r.productType === "SLOT_PURCHASE") return `Slot ×${r.quantity}`;
-  return "Pro (lifetime)";
+  return r.productType;
 }
 
 export function PaymentQueue({ rows }: { rows: PendingRow[] }) {
