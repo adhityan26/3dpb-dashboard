@@ -20,7 +20,7 @@ function subjectFor(payment: ActivatedPayment): string {
   return "Akun Slizebiz aktif";
 }
 
-async function sendEmail(to: string, msg: string, subject: string): Promise<void> {
+export async function sendEmail(to: string, msg: string, subject: string): Promise<void> {
   const key = process.env.RESEND_API_KEY;
   const from = process.env.EMAIL_FROM;
   if (!key || !from) throw new Error("resend env absent");
