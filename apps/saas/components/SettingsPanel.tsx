@@ -66,6 +66,8 @@ export function SettingsPanel({ editable, userId }: { editable: boolean; userId:
   const [rincian, setRincian] = useState(false);
 
   useEffect(() => { if (editable && userId) loadSettings(userId).then(setS); }, [editable, userId]);
+  // Reads a localStorage preference, unavailable during SSR; must run once after mount.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setRincian(getRincianPref()); }, []);
 
   const toggleRincian = () => { const v = !rincian; setRincian(v); setRincianPref(v); };

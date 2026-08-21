@@ -5,6 +5,8 @@ import { GlassInput } from "@3pb/ui";
 import { InfoTip } from "./InfoTip";
 import { newId } from "@/lib/id";
 import { importSlicerFile } from "@/lib/kalkulator/import-3mf";
+import type { ImportDraft } from "@/lib/kalkulator/import-3mf/build-draft";
+import { mergeImportedPlates } from "@/lib/kalkulator/import-3mf/merge-plates";
 import type { FilamentEntry } from "@/lib/kalkulator/local-settings";
 
 // input type="color" HTML cuma nerima format #rrggbb persis 6 digit — beda dgn
@@ -36,6 +38,9 @@ function formatDurasiDisplay(jam: number): string {
 
 function DurasiInput({ value, onCommit, className }: { value: string; onCommit: (v: string) => void; className?: string }) {
   const [draft, setDraft] = useState(value);
+  // Resyncs local editable draft when the committed `value` prop changes elsewhere;
+  // draft otherwise diverges freely from the prop while the user is typing.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setDraft(value), [value]);
   const hint = formatDurasiDisplay(Number(value) || 0);
   return (
@@ -132,30 +137,42 @@ export function PlateInput({
   const [importWarnings, setImportWarnings] = useState<string[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImportFile = async (file: File) => {
+  const handleImportFiles = async (files: File[]) => {
     setImportError(null);
     setImportWarnings([]);
-    const draft = await importSlicerFile(file, filaments);
-    if (!draft) {
-      setImportError("File tidak dikenali — pastikan file .3mf/.gcode.3mf dari Bambu Studio/OrcaSlicer.");
-      return;
+    const drafts: ImportDraft[] = [];
+    const failed: string[] = [];
+    for (const file of files) {
+      const draft = await importSlicerFile(file, filaments);
+      if (draft) drafts.push(draft);
+      else failed.push(file.name);
     }
-    onPlatesChange(draft.plates.map((p) => ({
-      id: newId(),
-      nama: p.nama,
-      durasiJam: String(p.durasiJam),
-      materials: p.materials.map((m) => ({
+    if (failed.length > 0) {
+      setImportError(`File tidak dikenali: ${failed.join(", ")} — pastikan file .3mf/.gcode.3mf dari Bambu Studio/OrcaSlicer.`);
+    }
+    if (drafts.length === 0) return;
+    const importedRows: PlateRow[] = drafts.flatMap((draft) =>
+      draft.plates.map((p) => ({
         id: newId(),
-        filamentId: m.filamentId,
-        tipe: m.tipe,
-        gramasi: String(m.gramasi),
-        warnaHex: m.warnaHex,
+        nama: p.nama,
+        durasiJam: String(p.durasiJam),
+        materials: p.materials.map((m) => ({
+          id: newId(),
+          filamentId: m.filamentId,
+          tipe: m.tipe,
+          gramasi: String(m.gramasi),
+          warnaHex: m.warnaHex,
+        })),
       })),
-    })));
-    onBatchChange(String(draft.batch));
-    // Dedupe: 1 warning per material tak-match, jadi file dgn banyak plate ber-filament
-    // sama yg tak terkatalog bakal ulang persis — tampilkan sekali saja per pesan unik.
-    setImportWarnings([...new Set(draft.warnings)]);
+    );
+    // Append semantics: importing more files adds plates; pristine placeholder
+    // rows are dropped, and batch only follows the file when nothing was filled yet.
+    const { plates: merged, wasPristine } = mergeImportedPlates(plates, importedRows);
+    onPlatesChange(merged);
+    if (wasPristine) onBatchChange(String(drafts[0].batch));
+    // Dedupe: identical unmatched-filament warnings repeat across plates/files —
+    // show each unique message once.
+    setImportWarnings([...new Set(drafts.flatMap((d) => d.warnings))]);
   };
 
   const multiToggleBtn = (pi: number, isMulti: boolean) => (
@@ -184,7 +201,6 @@ export function PlateInput({
     return (
       <div className="flex flex-col gap-1.5">
         {p.materials.map((m, mi) => {
-          const f = filaments.find((x) => x.id === m.filamentId);
           return (
             <div key={m.id} className="rounded-[5px] border border-[color:var(--g-row-border)] p-2 flex flex-col gap-1.5">
               <div className="flex items-center gap-1.5">
@@ -284,11 +300,12 @@ export function PlateInput({
         ref={fileInputRef}
         type="file"
         accept=".3mf,.gcode.3mf"
+        multiple
         className="hidden"
         onChange={(e) => {
-          const file = e.target.files?.[0];
+          const files = Array.from(e.target.files ?? []);
           e.target.value = "";
-          if (file) void handleImportFile(file);
+          if (files.length > 0) void handleImportFiles(files);
         }}
       />
       <button type="button" onClick={() => fileInputRef.current?.click()}

@@ -1,4 +1,4 @@
-import type { DeviceConfig, NormalizedStatus, PrinterEvent, PrintersPayload } from './types'
+import type { CommandResult, DeviceConfig, NormalizedStatus, PrinterCommand, PrinterEvent, PrintersPayload } from './types'
 import { captureEvent } from './capture-event'
 import { StateStore } from './state-store'
 import { buildPrintersPayload, DEFAULT_STALE_AFTER_MS } from './payload'
@@ -8,6 +8,7 @@ export interface Connector {
   readonly deviceId: string
   start(onStatus: (s: NormalizedStatus) => void): void | Promise<void>
   stop(): void | Promise<void>
+  sendCommand(cmd: PrinterCommand): Promise<CommandResult>
 }
 export interface Reporter {
   publishStatus(p: PrintersPayload): void | Promise<void>
@@ -32,10 +33,18 @@ export class Engine {
   private store: StateStore
   private timer: ReturnType<typeof setInterval> | null = null
   private deviceById: Map<string, DeviceConfig>
+  private connectorById: Map<string, Connector>
   constructor(private opts: EngineOpts) {
     this.deviceById = new Map(opts.devices.map((d) => [d.id, d]))
+    this.connectorById = new Map(opts.connectors.map((c) => [c.deviceId, c]))
     this.hms = opts.hms ?? new HmsLookup()
     this.store = new StateStore(this.hms)
+  }
+
+  async sendCommand(deviceId: string, cmd: PrinterCommand): Promise<CommandResult> {
+    const connector = this.connectorById.get(deviceId)
+    if (!connector) return { ok: false, message: 'device_not_found' }
+    return connector.sendCommand(cmd)
   }
 
   snapshot(): PrintersPayload {

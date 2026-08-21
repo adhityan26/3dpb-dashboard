@@ -17,7 +17,9 @@ export default async function PrinterPage() {
   const paidCore = capabilities(ent).paidCore;
   // Palette layout dapat snapshot device dari server (bukan fetch sendiri di client) — cukup
   // field yang dipakai editor, jangan kirim kolom lain (userId dll) ke browser.
-  const devices = paidCore ? (await listDevices(userId)).map((d) => ({ shortCode: d.shortCode, label: d.label })) : [];
+  const devices = paidCore
+    ? (await listDevices(userId)).map((d) => ({ shortCode: d.shortCode, label: d.label, printerType: d.printerType, model: d.model }))
+    : [];
   return (
     <PageShell title="Printer" current="printer" owner={isOwner(session?.user?.email)} userLabel={session?.user?.email ?? undefined}>
       <DeviceList paidCore={paidCore} />

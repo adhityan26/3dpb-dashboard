@@ -5,6 +5,7 @@ import { AnalyticsKpiBar } from "@/components/analytics/AnalyticsKpiBar"
 import { SalesTrendChart } from "@/components/analytics/SalesTrendChart"
 import { TopProductsChart } from "@/components/analytics/TopProductsChart"
 import { ProfitCard } from "@/components/analytics/ProfitCard"
+import { IncomeBreakdownSection } from "@/components/analytics/IncomeBreakdownSection"
 import { DateRangeSelector } from "@/components/ui/DateRangeSelector"
 import { RefreshIndicator } from "@/components/layout/RefreshIndicator"
 import { useAnalytics } from "@/lib/hooks/use-analytics"
@@ -75,6 +76,8 @@ export default function AnalisaPage() {
           <TopProductsChart products={data.topProducts} />
           <ProfitCard kpi={data.kpi} />
         </div>
+
+        <IncomeBreakdownSection summary={data.incomeSummary} products={data.incomeByProduct} />
       </div>
     </PageShell>
   )

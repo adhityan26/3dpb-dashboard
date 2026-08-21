@@ -62,4 +62,25 @@ describe('describeError', () => {
     expect(describeError([{ attr: 0x0c000100, code: 65540 }], 117473285, l))
       .toBe('Print error (kode 117473285)')
   })
+
+  // Kasus nyata (sniff MQTT langsung ke printer, 2026-08-09, "AMS filament ran out" -- lihat
+  // screenshot Bambu Connect user): print_error SENDIRI meng-encode kode HMS dgn skema attr
+  // yang SAMA (upper16_lower16), TERPISAH dari array hms[] (yang saat itu berisi 1 entri LAIN
+  // yang tak terkait dgn alasan pause sebenarnya). describeError() sebelumnya CUMA coba
+  // translate hms[], print_error cuma dipakai sbg angka mentah di fallback -- makanya user
+  // lihat "Print error (kode 117473297)" padahal tabel kita PUNYA terjemahan yang persis sama
+  // dengan Bambu Connect utk kode itu (0x07008011 = "0700_8011").
+  it('print_error sendiri encode kode HMS valid (skema attr sama) -- tetap di-translate walau hms[] kosong', () => {
+    const l = new HmsLookup({ '0700_8011': 'AMS filament ran out. Please insert a new filament into the same AMS slot.' })
+    expect(describeError([], 117473297, l))
+      .toBe('[0700_8011] AMS filament ran out. Please insert a new filament into the same AMS slot.')
+  })
+
+  it('hms[] bawa entri LAIN yang tak ada di tabel (notice tak terkait) TAPI print_error cocok -- print_error yang dipakai, bukan berhenti di raw fallback hms', () => {
+    const l = new HmsLookup({ '0700_8011': 'AMS filament ran out.' })
+    // attr 0x07002100 (dari hms[] printer sungguhan) SENGAJA tak ada di tabel injeksi ini --
+    // mensimulasikan notice HMS lain yang aktif bersamaan, tak terkait alasan pause sebenarnya.
+    expect(describeError([{ attr: 0x07002100, code: 131073 }], 117473297, l))
+      .toBe('[0700_8011] AMS filament ran out.')
+  })
 })

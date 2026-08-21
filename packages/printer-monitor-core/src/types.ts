@@ -1,5 +1,15 @@
 export type ConnectorKind = 'bambu' | 'moonraker'
 
+export type PrinterCommand =
+  | { kind: 'pause' }
+  | { kind: 'resume' }
+  | { kind: 'stop' }
+  | { kind: 'setSpeedLevel'; level: 1 | 2 | 3 | 4 }   // Bambu: Silent/Standard/Sport/Ludicrous
+  | { kind: 'setSpeedPercent'; percent: number }       // Moonraker: free percentage via M220
+  | { kind: 'startPrint'; filename: string; plateIndex: number } // Bambu: print file dari SD card
+
+export type CommandResult = { ok: true } | { ok: false; message: string }
+
 export interface DeviceConfig {
   id: string            // slug unik, mis. 'mars'
   name: string          // tampil di payload, mis. 'Mars'
@@ -66,6 +76,7 @@ export interface PrinterRow {
   id: string
   name: string
   type: string
+  connector: ConnectorKind
   state: string             // PrinterState | 'OFFLINE'
   progress: number
   remaining_min: number

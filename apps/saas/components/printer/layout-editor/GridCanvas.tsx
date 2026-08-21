@@ -3,13 +3,50 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { motion, AnimatePresence } from "framer-motion";
-import type { LayoutPageOut, LayoutCellOut } from "@3pb/cyd-layout-schema";
+import type { LayoutPageOut, LayoutCellOut, FieldRow, FieldId } from "@3pb/cyd-layout-schema";
 
 // Warna layar = fidelitas firmware (display.h CYD) — JANGAN diubah. Warna "chrome" editor
 // (aksen indigo) boleh mengikuti tema app.
 const SCREEN_BG = "#0a0a0f";
 const DIM = "rgb(156,154,152)";
 const ACCENT = "#6366f1";
+
+// Fallback preview kalau page.fields kosong ("Bawaan firmware" -- CellSettingsPanel.tsx) --
+// dupliakt literal Ringkas dari FIELD_PRESETS di CellSettingsPanel.tsx SENGAJA (bukan import),
+// biar dua file sibling ini tak saling bergantung cuma buat 1 array kecil. Kalau firmware-nya
+// sendiri ternyata beda, ini himpunan dugaan terbaik -- lebih berguna daripada kosong sama sekali.
+const DEFAULT_PREVIEW_FIELDS: FieldRow[] = [["name"], ["state"]];
+
+// Nilai CONTOH per field -- SaaS tak punya data live printer (beda dari dashboard internal
+// yang punya /api/cyd-layout/printers), jadi preview ini menunjukkan TATA LETAK field yang
+// akan tampil di CYD sungguhan, bukan status real-time. "name" dikecualikan di sini karena
+// pakai label device ASLI (deviceLabels), bukan nilai contoh statis.
+const FIELD_MOCK_VALUES: Partial<Record<FieldId, string>> = {
+  type: "P1S",
+  state: "Mencetak",
+  progress: "45%",
+  progressBar: "▓▓▓▓▓░░░░░",
+  timeLeft: "1j 20m",
+  eta: "14:32",
+  filename: "box_v2.gcode",
+  error: "—",
+};
+
+/** Baris field efektif (cell.fields > page.fields > fallback Ringkas) jadi teks per baris,
+ * dengan nilai CONTOH kecuali "name" yang pakai label device sungguhan. */
+function previewFieldLines(fields: FieldRow[], deviceLabel: string): string[] {
+  const effective = fields.length > 0 ? fields : DEFAULT_PREVIEW_FIELDS;
+  return effective.map((row) =>
+    row
+      .map((entry) => {
+        const id: FieldId = typeof entry === "string" ? entry : entry.id;
+        const customLabel = typeof entry === "object" ? entry.label : undefined;
+        const value = id === "name" ? deviceLabel : (FIELD_MOCK_VALUES[id] ?? id);
+        return customLabel ? `${customLabel}: ${value}` : value;
+      })
+      .join(" · ")
+  );
+}
 
 interface GridCanvasProps {
   page: LayoutPageOut;
@@ -185,6 +222,7 @@ function FilledCell({
   index,
   isSelected,
   deviceLabels,
+  pageFields,
   onSelect,
   onUpdateCell,
   gridCols,
@@ -194,6 +232,7 @@ function FilledCell({
   index: number;
   isSelected: boolean;
   deviceLabels: Record<string, string>;
+  pageFields: FieldRow[];
   onSelect: () => void;
   onUpdateCell: (index: number, cell: LayoutCellOut) => void;
   gridCols: number;
@@ -254,9 +293,14 @@ function FilledCell({
     );
   }
 
-  // Tak ada data live di SaaS (beda dari dashboard yang punya /api/cyd-layout/printers):
-  // sel printer menampilkan label device + shortCode-nya, bukan state/progress realtime.
+  // Tak ada data live di SaaS (beda dari dashboard yang punya /api/cyd-layout/printers) --
+  // baris di bawah pakai NILAI CONTOH per field (lihat FIELD_MOCK_VALUES), cuma "name" yang
+  // pakai label device sungguhan. Tujuannya menunjukkan TATA LETAK field preset yang akan
+  // tampil di CYD (Ringkas/Detail, override per-sel vs default halaman), bukan status
+  // real-time -- device yang tak dikenal (shortCode basi/salah) tetap dapat peringatan lama,
+  // BUKAN preview field (menampilkan field contoh utk device yang gak valid cuma membingungkan).
   const label = deviceLabels[cell.printer];
+  const previewLines = label ? previewFieldLines(cell.fields ?? pageFields, label) : [];
   return (
     <motion.div
       data-cell-size
@@ -266,8 +310,18 @@ function FilledCell({
     >
       <div style={{ position: "absolute", left: 0, top: 0, width: 4, height: "100%", background: label ? "#00ff88" : "#ff0000" }} />
       <div style={{ paddingLeft: 10, paddingTop: 4, fontFamily: "monospace" }}>
-        <div style={{ color: "#fff", fontSize: 14 }}>{label ?? cell.printer}</div>
-        <div style={{ color: DIM, fontSize: 11 }}>{label ? cell.printer : "— printer tak dikenal —"}</div>
+        {label ? (
+          previewLines.map((line, i) => (
+            <div key={i} style={{ color: i === 0 ? "#fff" : DIM, fontSize: i === 0 ? 14 : 11 }}>
+              {line}
+            </div>
+          ))
+        ) : (
+          <>
+            <div style={{ color: "#fff", fontSize: 14 }}>{cell.printer}</div>
+            <div style={{ color: DIM, fontSize: 11 }}>— printer tak dikenal —</div>
+          </>
+        )}
       </div>
       {isSelected && <ResizeHandle onResize={handleResize} />}
     </motion.div>
@@ -412,6 +466,7 @@ export function GridCanvas({ page, deviceLabels, selectedCellIndex, onSelectCell
                     index={cellIndex}
                     isSelected={selectedCellIndex === cellIndex}
                     deviceLabels={deviceLabels}
+                    pageFields={page.fields}
                     onSelect={() => onSelectCell(cellIndex)}
                     onUpdateCell={onUpdateCell}
                     gridCols={page.grid.cols}
@@ -438,7 +493,7 @@ export function GridCanvas({ page, deviceLabels, selectedCellIndex, onSelectCell
       </div>
 
       <div className="mt-1.5 flex items-center justify-between px-1.5">
-        <span className="g-t4 font-mono text-[10px] uppercase tracking-widest">Preview CYD</span>
+        <span className="g-t4 font-mono text-[10px] uppercase tracking-widest">Preview Mini Display (data contoh, bukan live)</span>
         <span className="g-t4 font-mono text-[10px]">
           320×240 • grid {page.grid.cols}×{page.grid.rows}
         </span>

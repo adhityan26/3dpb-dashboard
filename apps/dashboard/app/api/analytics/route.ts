@@ -1,13 +1,9 @@
 import { auth } from "@/lib/auth"
-import { getAnalytics, type AnalyticsRange } from "@/lib/analytics/service"
+import { getAnalytics } from "@/lib/analytics/service"
+import { parseRangeFromSearchParams } from "@/lib/analytics/parse-range"
 import { NextRequest, NextResponse } from "next/server"
 
 const ALLOWED_ROLES = ["OWNER", "TEST_USER"]
-
-function parseRange(raw: string | null): AnalyticsRange {
-  if (raw === "30d") return "30d"
-  return "7d"
-}
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -18,7 +14,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 })
   }
 
-  const range = parseRange(req.nextUrl.searchParams.get("range"))
+  const range = parseRangeFromSearchParams(req.nextUrl.searchParams)
 
   try {
     const result = await getAnalytics(range)

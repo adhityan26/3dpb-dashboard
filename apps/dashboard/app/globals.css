@@ -1,6 +1,7 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "vanilla-jsoneditor/themes/jse-theme-dark.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -416,6 +417,24 @@
   0%   { opacity: 1; filter: blur(0px)  brightness(1);   transform: scale(1); }
   40%  { opacity: 0.6; filter: blur(6px) brightness(1.08); transform: scale(1.015); }
   100% { opacity: 0; filter: blur(16px) brightness(1.15); transform: scale(1.03); }
+}
+
+/* Slim, low-contrast scrollbar for dense scroll containers (LG editor v2
+   rail/inspector columns) — matches the dark studio mockup instead of the
+   OS default scrollbar clashing with the glass theme. */
+.scrollbar-slim {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(100 100 140 / 0.35) transparent;
+}
+.scrollbar-slim::-webkit-scrollbar {
+  width: 6px;
+}
+.scrollbar-slim::-webkit-scrollbar-thumb {
+  background: rgb(100 100 140 / 0.35);
+  border-radius: 3px;
+}
+.scrollbar-slim::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 /* ── GLASS UI: INPUTS (both login page and dashboard forms) ── */

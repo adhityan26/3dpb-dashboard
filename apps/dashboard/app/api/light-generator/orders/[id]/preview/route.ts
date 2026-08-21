@@ -2,10 +2,11 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import { downloadFromMinio } from "@/lib/lg-storage"
 import { stlPreview } from "@/lib/stl-service"
+import { MissingFlooringImageError, resolveFlooringImage } from "@/lib/light-generator/flooring-image"
 import { NextRequest, NextResponse } from "next/server"
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const session = await auth()
@@ -17,9 +18,32 @@ export async function POST(
 
   const imageBuffer = await downloadFromMinio(order.imagePath)
   const filename = order.imagePath.split("/").pop() ?? "input.png"
-  const configJson = JSON.parse(order.configJsonOperator ?? order.configJson) as object
 
-  const pngBytes = await stlPreview(imageBuffer, filename, configJson)
+  // v2 editor previews unsaved edits: an optional { config } body overrides
+  // the persisted config so the debounced preview reflects live edits before
+  // autosave commits them. v1 sends no body, so it keeps using the DB value.
+  const body = await req.json().catch(() => ({} as { config?: unknown }))
+  const configJson = (
+    body && typeof body === "object" && body.config && typeof body.config === "object"
+      ? body.config
+      : JSON.parse(order.configJsonOperator ?? order.configJson)
+  ) as object
+
+  let effectiveConfig: object
+  let flooringImage
+  try {
+    ;({ config: effectiveConfig, flooringImage } = await resolveFlooringImage(
+      configJson,
+      order.additionalImagePath,
+    ))
+  } catch (err) {
+    if (err instanceof MissingFlooringImageError) {
+      return NextResponse.json({ error: err.message }, { status: 400 })
+    }
+    throw err
+  }
+
+  const pngBytes = await stlPreview(imageBuffer, filename, effectiveConfig, flooringImage)
   return new NextResponse(new Uint8Array(pngBytes), {
     status: 200,
     headers: { "Content-Type": "image/png" },

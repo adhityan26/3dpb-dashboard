@@ -35,6 +35,7 @@ Smoothness approach (v4 improvement)
 All distances in millimetres.
 """
 
+import json
 import os
 import numpy as np
 import cv2
@@ -138,7 +139,164 @@ def apply_preview_mode_overrides(params: dict) -> dict:
 
 # ─── MASK PREPROCESSING (SDF-BASED) ──────────────────────────────────────────
 
-def load_silhouette_mask(image_path: str, invert: bool = False) -> np.ndarray:
+def auto_fit_canvas(raw: np.ndarray, margin: float = 0.95) -> np.ndarray:
+    """
+    Pad and recenter the input image so its CONTENT fits inside the inscribed
+    circle of a square canvas (content max radius = margin * inscribed radius).
+
+    Content detection happens BEFORE any invert/threshold so the drawn shape
+    is fitted regardless of invert_mask:
+      - RGBA: content = alpha > 127
+      - RGB/grey: content = dark pixels (Otsu on grayscale, dark side)
+    Padding uses transparent pixels for RGBA and white for RGB/grey, matching
+    each format's background convention. Returns the padded image (same dtype
+    and channel count; grey input is returned as grey).
+    No-op (returns input) when the image has no detectable content.
+    """
+    is_rgba = raw.ndim == 3 and raw.shape[2] == 4
+
+    if is_rgba:
+        content = raw[:, :, 3] > 127
+    else:
+        gray = cv2.cvtColor(raw, cv2.COLOR_BGR2GRAY) if raw.ndim == 3 else raw
+        _, dark_mask = cv2.threshold(
+            gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU
+        )
+        content = dark_mask > 0
+
+    ys, xs = np.where(content)
+    if len(xs) == 0:
+        return raw
+
+    cx = (xs.min() + xs.max()) / 2.0
+    cy = (ys.min() + ys.max()) / 2.0
+    r_content = float(np.sqrt((xs - cx) ** 2 + (ys - cy) ** 2).max())
+    if r_content <= 0:
+        return raw
+
+    side = int(np.ceil((2.0 * r_content) / margin))
+    side = max(side, 1)
+
+    if is_rgba:
+        canvas = np.zeros((side, side, 4), dtype=raw.dtype)
+    elif raw.ndim == 3:
+        canvas = np.full((side, side, raw.shape[2]), 255, dtype=raw.dtype)
+    else:
+        canvas = np.full((side, side), 255, dtype=raw.dtype)
+
+    # Offset so (cx, cy) in source lands at canvas center.
+    dst_cx, dst_cy = side / 2.0, side / 2.0
+    off_x = int(round(dst_cx - cx))
+    off_y = int(round(dst_cy - cy))
+
+    h, w = raw.shape[0], raw.shape[1]
+
+    # Source region that stays within bounds after applying the offset.
+    src_x0 = max(0, -off_x)
+    src_y0 = max(0, -off_y)
+    src_x1 = min(w, side - off_x)
+    src_y1 = min(h, side - off_y)
+
+    dst_x0 = max(0, off_x)
+    dst_y0 = max(0, off_y)
+    dst_x1 = dst_x0 + (src_x1 - src_x0)
+    dst_y1 = dst_y0 + (src_y1 - src_y0)
+
+    if src_x1 > src_x0 and src_y1 > src_y0:
+        canvas[dst_y0:dst_y1, dst_x0:dst_x1] = raw[src_y0:src_y1, src_x0:src_x1]
+
+    return canvas
+
+
+def pad_canvas(raw: np.ndarray, padding_pct: float) -> np.ndarray:
+    """
+    Uniformly pad the canvas on all sides by padding_pct% of max(h, w).
+
+    No-op (returns input) when padding_pct <= 0. Uses the same background
+    convention as auto_fit_canvas: transparent for RGBA, white for grey/BGR.
+    Unlike auto_fit_canvas, this does not detect or recenter content — it
+    just grows the canvas evenly around the existing image.
+    """
+    if padding_pct <= 0:
+        return raw
+
+    h, w = raw.shape[0], raw.shape[1]
+    pad = int(round(max(h, w) * padding_pct / 100.0))
+    if pad <= 0:
+        return raw
+
+    new_h, new_w = h + 2 * pad, w + 2 * pad
+    is_rgba = raw.ndim == 3 and raw.shape[2] == 4
+
+    # Same background-fill convention as auto_fit_canvas.
+    if is_rgba:
+        canvas = np.zeros((new_h, new_w, 4), dtype=raw.dtype)
+    elif raw.ndim == 3:
+        canvas = np.full((new_h, new_w, raw.shape[2]), 255, dtype=raw.dtype)
+    else:
+        canvas = np.full((new_h, new_w), 255, dtype=raw.dtype)
+
+    canvas[pad:pad + h, pad:pad + w] = raw
+    return canvas
+
+
+def adjust_image(raw: np.ndarray, brightness: float = 0.0, contrast: float = 0.0,
+                  saturation: float = 100.0) -> np.ndarray:
+    """
+    Pre-threshold image adjustments so colored inputs can be tuned into a
+    clean mask. brightness: -100..100 (additive, scaled to 0-255 range);
+    contrast: -100..100 (linear gain 1 + c/100 around mid-gray 127);
+    saturation: 0..200 (% — scales HSV S channel; no-op for grayscale/alpha).
+    Applied to the COLOR channels only; alpha channel (if any) is preserved
+    untouched. No-op when all three are at defaults.
+    """
+    if brightness == 0.0 and contrast == 0.0 and saturation == 100.0:
+        return raw
+
+    is_rgba = raw.ndim == 3 and raw.shape[2] == 4
+    is_color = raw.ndim == 3 and raw.shape[2] >= 3
+
+    if is_rgba:
+        alpha = raw[:, :, 3]
+        bgr = raw[:, :, :3]
+    elif is_color:
+        alpha = None
+        bgr = raw
+    else:
+        alpha = None
+        bgr = raw
+
+    out = bgr.astype(np.float64)
+
+    # Saturation (color images only — no-op for grayscale)
+    if is_color and saturation != 100.0:
+        hsv = cv2.cvtColor(out.astype(np.uint8), cv2.COLOR_BGR2HSV).astype(np.float64)
+        hsv[:, :, 1] = np.clip(hsv[:, :, 1] * (saturation / 100.0), 0, 255)
+        out = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2BGR).astype(np.float64)
+
+    # Contrast around mid-gray, then brightness (additive)
+    if contrast != 0.0 or brightness != 0.0:
+        out = (out - 127.0) * (1.0 + contrast / 100.0) + 127.0 + brightness * 2.55
+
+    out = np.clip(out, 0, 255).astype(np.uint8)
+
+    if is_rgba:
+        result = np.dstack([out, alpha])
+    else:
+        result = out
+
+    return result
+
+
+def load_silhouette_mask(
+    image_path: str,
+    invert: bool = False,
+    auto_fit: bool = False,
+    padding_pct: float = 0.0,
+    brightness: float = 0.0,
+    contrast: float = 0.0,
+    saturation: float = 100.0,
+) -> np.ndarray:
     """Load image → raw binary mask (255 = solid wall / blocks light, 0 = hole).
 
     Handles two cases:
@@ -158,10 +316,25 @@ def load_silhouette_mask(image_path: str, invert: bool = False) -> np.ndarray:
         If True, flip the mask polarity so that LIGHT pixels become solid.
         Useful for standard white-silhouette-on-black-background inputs where
         the customer expects the white shape to cast the shadow.
+    auto_fit : bool, default False
+        If True, pad and recenter the image (see auto_fit_canvas) so the
+        content fits inside the projectable inscribed circle before the mask
+        is derived — avoids clipping near the square's corners.
+    padding_pct : float, default 0.0
+        Extra uniform padding (see pad_canvas), applied AFTER auto_fit when
+        both are set. Shrinks the content further within the canvas.
     """
     raw = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
     if raw is None:
         raise FileNotFoundError(f"Cannot open: {image_path}")
+
+    raw = adjust_image(raw, brightness=brightness, contrast=contrast, saturation=saturation)
+
+    if auto_fit:
+        raw = auto_fit_canvas(raw)
+
+    if padding_pct > 0:
+        raw = pad_canvas(raw, padding_pct)
 
     if raw.ndim == 3 and raw.shape[2] == 4:
         # RGBA: use alpha channel as the mask
@@ -440,31 +613,64 @@ def resolve_flooring_shape(flooring_shape, outer_radius: float,
 
 # ─── STENCIL WALL ────────────────────────────────────────────────────────────
 
-def _bridge_floating_islands(stencil: np.ndarray,
-                              stem_width: int = 2) -> tuple[np.ndarray, int]:
+def _apply_bottom_frame(stencil: np.ndarray, frame_height_mm: float, dz: float) -> np.ndarray:
     """
-    Find solid cells that are NOT reachable from z=0 via 4-connected BFS
-    (θ wraps around), label them as connected components, and add one narrow
-    vertical stem (stem_width columns wide) from z=0 to each island's bottom.
+    Force the bottom rows of the stencil solid, forming a continuous band of
+    ~frame_height_mm at the base of the wall. Follows any footprint shape
+    since it operates in (theta, z) stencil space. Applied BEFORE island
+    bridging so the BFS connectivity accounts for the band.
+    """
+    if frame_height_mm <= 0 or dz <= 0:
+        return stencil
+    n_rows = min(int(np.ceil(frame_height_mm / dz)), stencil.shape[1])
+    out = stencil.copy()
+    out[:, :n_rows] = True
+    return out
+
+
+def find_floating_islands(stencil: np.ndarray, anchor: str = 'bottom') -> list[np.ndarray]:
+    """
+    Find solid cells that are NOT reachable from the structural anchor edge
+    via 4-connected BFS (θ wraps around), and label them into per-island
+    boolean masks.
+
+    anchor='bottom' (default): the structural edge is z=0 (the base) — BFS is
+      seeded from all solid cells at j=0. Matches cover_type='bottom'/'none'
+      where the wall's bottom sits on the base.
+
+    anchor='top': the structural edge is z=n_z-1 (the wall top, which adjoins
+      the closed cover) — BFS is seeded from all solid cells at j=n_z-1.
+      Matches cover_type='top', where the base is open and only the top is
+      structural.
 
     Why BFS instead of a per-column check:
-      A column can be solid at z=0 (background) yet have a disconnected island
-      higher up (e.g. the counter of 'O' inside a white letter stroke).
-      Per-column checks miss those; BFS from z=0 finds all unreachable cells.
+      A column can be solid at the anchor edge (background) yet have a
+      disconnected island elsewhere (e.g. the counter of 'O' inside a white
+      letter stroke). Per-column checks miss those; BFS from the anchor edge
+      finds all unreachable cells.
 
-    Returns (modified_stencil, n_islands).
+    Returns a list of (n_theta, n_z) boolean masks, one per floating
+    connected component. Empty list if nothing is floating.
+
+    Shared by `_bridge_floating_islands` (auto-stem generation) and the
+    `/check-islands` route (centroid reporting) so the two can never disagree
+    about what counts as floating.
     """
     from collections import deque
 
-    n_theta, n_z = stencil.shape
+    if anchor not in ('bottom', 'top'):
+        raise ValueError(f"anchor must be 'bottom' or 'top', got {anchor!r}")
 
-    # ── Step 1: BFS from every solid z=0 cell ────────────────────────────
+    n_theta, n_z = stencil.shape
+    seed_j = 0 if anchor == 'bottom' else n_z - 1
+
+    # ── Step 1: BFS from every solid cell on the anchor edge ─────────────
     connected = np.zeros_like(stencil, dtype=bool)
     q: deque = deque()
     for i in range(n_theta):
-        if stencil[i, 0]:
-            connected[i, 0] = True
-            q.append((i, 0))
+        if stencil[i, seed_j]:
+            connected[i, seed_j] = True
+            q.append((i, seed_j))
     while q:
         i, j = q.popleft()
         for di, dj in ((-1, 0), (1, 0), (0, -1), (0, 1)):
@@ -476,7 +682,7 @@ def _bridge_floating_islands(stencil: np.ndarray,
 
     floating = stencil & ~connected
     if not floating.any():
-        return stencil, 0
+        return []
 
     # ── Step 2: Label connected components of floating cells ─────────────
     labeled  = np.zeros(stencil.shape, dtype=np.int32)
@@ -498,19 +704,110 @@ def _bridge_floating_islands(stencil: np.ndarray,
                     labeled[ni, nj] = n_island
                     q.append((ni, nj))
 
-    # ── Step 3: One narrow stem per island ────────────────────────────────
+    return [labeled == c for c in range(1, n_island + 1)]
+
+
+def _bridge_floating_islands(stencil: np.ndarray,
+                              stem_width: int = 2,
+                              anchor: str = 'bottom') -> tuple[np.ndarray, int]:
+    """
+    Add one narrow vertical stem (stem_width columns wide) bridging each
+    floating island (see `find_floating_islands`) to the structural anchor
+    edge. Returns (modified_stencil, n_islands).
+    """
+    n_theta, n_z = stencil.shape
+    islands = find_floating_islands(stencil, anchor=anchor)
+    if not islands:
+        return stencil, 0
+
+    # ── One narrow stem per island ────────────────────────────────────────
     modified = stencil.copy()
-    for c in range(1, n_island + 1):
-        mask  = labeled == c
-        j_min = int(np.where(mask.any(axis=0))[0][0])   # lowest z of island
+    for mask in islands:
         # pick the θ column with the most island cells (thickest = best anchor)
         best_i = int(mask.sum(axis=1).argmax())
         half   = stem_width // 2
-        for k in range(stem_width):
-            bi = (best_i - half + k) % n_theta
-            modified[bi, :j_min] = True   # fill gap from z=0 up to island
+        if anchor == 'bottom':
+            j_min = int(np.where(mask.any(axis=0))[0][0])   # lowest z of island
+            for k in range(stem_width):
+                bi = (best_i - half + k) % n_theta
+                modified[bi, :j_min] = True   # fill gap from z=0 up to island
+        else:  # anchor == 'top'
+            j_max = int(np.where(mask.any(axis=0))[0][-1])  # highest z of island
+            for k in range(stem_width):
+                bi = (best_i - half + k) % n_theta
+                modified[bi, j_max + 1:] = True   # fill gap from island up to top edge
 
-    return modified, n_island
+    return modified, len(islands)
+
+
+def _apply_user_stems(stencil: np.ndarray,
+                       user_stems: list | None,
+                       stem_width: int,
+                       z_min_mm: float,
+                       z_max_mm: float,
+                       anchor: str = 'bottom') -> np.ndarray:
+    """
+    Rasterize manually-placed stems into the stencil (mutates a copy).
+
+    Each entry of `user_stems` is a dict with at least `theta_deg` and
+    `z_mm` (extra keys, e.g. a UI-side `id`, are ignored). Invalid entries
+    (missing/non-numeric fields) are skipped rather than raising, since this
+    runs on user-editable data mid-session.
+
+    Mapping:
+      theta_deg -> column: wraps at 360°, i.e. `theta_deg % 360`, then scaled
+        to [0, n_theta) the same way `np.linspace(0, 2π, n_theta, endpoint=False)`
+        divides the circle (theta=0 -> col 0, theta=180 -> col n_theta/2).
+      z_mm -> row: linearly mapped from [z_min_mm, z_max_mm] to [0, n_z-1].
+        Out-of-range z is clamped into that span rather than skipped, so a
+        stem placed slightly outside the current z-window (e.g. after a
+        param tweak shrinks the wall) still lands at the nearest valid row.
+
+    anchor='bottom': fill the stem's columns from row 0 up to (and
+      including) the stem's row — same "bridge to the base" semantics as
+      `_bridge_floating_islands`.
+    anchor='top': fill from the stem's row up to (and including) the last
+      row — "bridge to the wall top" semantics.
+
+    stem_width columns are filled, centred on the target column (wrapping
+    around 0/360°), matching `_bridge_floating_islands`'s stem shape.
+    """
+    if not user_stems:
+        return stencil
+
+    n_theta, n_z = stencil.shape
+    if n_theta == 0 or n_z == 0 or z_max_mm <= z_min_mm:
+        return stencil
+
+    modified = stencil.copy()
+    half = stem_width // 2
+    z_span = z_max_mm - z_min_mm
+
+    for entry in user_stems:
+        if not isinstance(entry, dict):
+            continue
+        theta = entry.get('theta_deg')
+        z_mm  = entry.get('z_mm')
+        if not isinstance(theta, (int, float)) or not isinstance(z_mm, (int, float)):
+            continue
+        if isinstance(theta, bool) or isinstance(z_mm, bool):
+            continue  # bool is an int subclass — reject explicitly
+
+        theta_wrapped = float(theta) % 360.0
+        col = int(round((theta_wrapped / 360.0) * n_theta)) % n_theta
+
+        z_clamped = min(max(float(z_mm), z_min_mm), z_max_mm)
+        row = int(round((z_clamped - z_min_mm) / z_span * (n_z - 1)))
+        row = min(max(row, 0), n_z - 1)
+
+        for k in range(stem_width):
+            bi = (col - half + k) % n_theta
+            if anchor == 'bottom':
+                modified[bi, :row + 1] = True
+            else:  # 'top'
+                modified[bi, row:] = True
+
+    return modified
 
 
 def _merge_column_runs(col: np.ndarray) -> list[tuple[int, int]]:
@@ -535,6 +832,9 @@ def build_stencil_wall(smooth_mask: np.ndarray,
                         shadow_offset_y: float = 0.0,
                         support_stems: bool = True,
                         stem_width: int = 2,
+                        stem_anchor: str = 'bottom',
+                        bottom_frame_height: float = 0.0,
+                        user_stems: list | None = None,
                         ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Build a perforated wall from the smooth SDF mask.
@@ -621,12 +921,26 @@ def build_stencil_wall(smooth_mask: np.ndarray,
     if n_solid == 0:
         raise RuntimeError("Stencil is empty — check mask or parameters")
 
+    # ── Bottom frame: force a solid band at the wall base ────────────
+    if bottom_frame_height > 0:
+        dz_bf = float(z_cents[1] - z_cents[0]) if n_z > 1 else 0.0
+        n_frame_rows = min(int(np.ceil(bottom_frame_height / dz_bf)), n_z) if dz_bf > 0 else 0
+        stencil = _apply_bottom_frame(stencil, bottom_frame_height, dz_bf)
+        if n_frame_rows:
+            print(f"  [stencil] bottom frame: {n_frame_rows} rows (~{bottom_frame_height:.1f}mm)")
+
     # ── Support stems: bridge floating islands to the base ───────────
     # Uses BFS from z=0 to find solid cells that are truly unreachable
     # (not just columns that happen to lack a z=0 cell), then adds the
     # minimum number of stems needed — one narrow stem per island.
+    # Manual stems (from the v2 editor) are rasterized in BEFORE auto-bridging,
+    # so the BFS in _bridge_floating_islands sees them as already-grounded and
+    # won't add a redundant auto stem next to a manual one.
+    if user_stems:
+        stencil = _apply_user_stems(stencil, user_stems, stem_width,
+                                     float(z_cents[0]), float(z_cents[-1]), anchor=stem_anchor)
     if support_stems:
-        stencil, n_islands = _bridge_floating_islands(stencil, stem_width)
+        stencil, n_islands = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
         if n_islands:
             print(f"  [stencil] bridged {n_islands} floating island(s) "
                   f"with {stem_width}-column stems")
@@ -717,6 +1031,9 @@ def build_stencil_wall_marching_cubes(
         transition_width: float = 3.0,
         support_stems: bool = True,
         stem_width: int = 2,
+        stem_anchor: str = 'bottom',
+        bottom_frame_height: float = 0.0,
+                        user_stems: list | None = None,
 ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Build stencil wall using marching cubes on a 3D volume field.
@@ -814,12 +1131,33 @@ def build_stencil_wall_marching_cubes(
     PY_i = PY_c.astype(np.int32)
     stencil = (smooth_mask[PY_i, PX_i] > 0)
     stencil[R_fl > floor_half * 1.02] = False
+    if bottom_frame_height > 0:
+        dz_bf = float(z_cents[1] - z_cents[0]) if n_z > 1 else 0.0
+        n_frame_rows = min(int(np.ceil(bottom_frame_height / dz_bf)), n_z) if dz_bf > 0 else 0
+        stencil_pre = stencil
+        stencil = _apply_bottom_frame(stencil, bottom_frame_height, dz_bf)
+        frame_cells = stencil & ~stencil_pre
+        thickness_frac[frame_cells] = 1.0
+        if n_frame_rows:
+            print(f"  [stencil] bottom frame: {n_frame_rows} rows (~{bottom_frame_height:.1f}mm)")
+    # Manual stems (from the v2 editor) are rasterized in BEFORE auto-bridging,
+    # so the BFS in _bridge_floating_islands sees them as already-grounded and
+    # won't add a redundant auto stem next to a manual one.
+    if user_stems:
+        stencil = _apply_user_stems(stencil, user_stems, stem_width,
+                                     float(z_cents[0]), float(z_cents[-1]), anchor=stem_anchor)
     if support_stems:
-        stencil, n_isl = _bridge_floating_islands(stencil, stem_width)
+        stencil, n_isl = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
         if n_isl:
             print(f"  [stencil] bridged {n_isl} floating island(s)")
-        stem_cells = stencil & (thickness_frac < 0.5)
-        thickness_frac[stem_cells] = 1.0
+    # Force full thickness for ANY stencil cell not already reflected in the
+    # continuous thickness field — covers both auto-bridged stems (above) and
+    # manual user_stems (rasterized in earlier), independent of support_stems.
+    # Without this, manual stems on an otherwise-empty column would flip the
+    # binary stencil bit (used for shadow sim) but leave thickness_frac ~0,
+    # so the mesh builder below emits no faces for that column at all.
+    stem_cells = stencil & (thickness_frac < 0.5)
+    thickness_frac[stem_cells] = 1.0
 
     n_solid = int((thickness_frac > 0.01).sum())
     print(f"  [stencil] grid {n_theta}×{n_z},  solid {n_solid}/{n_theta*n_z} "
@@ -942,6 +1280,9 @@ def build_stencil_wall_sdf_surface(
         min_bridge_mm: float = 0.0,     # 0=off. Dilate solid regions to ensure thin bridges survive printing.
         support_stems: bool = True,
         stem_width: int = 2,
+        stem_anchor: str = 'bottom',
+        bottom_frame_height: float = 0.0,
+                        user_stems: list | None = None,
 ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Build stencil wall as a continuous surface with SDF-based thickness.
@@ -1072,12 +1413,34 @@ def build_stencil_wall_sdf_surface(
     stencil = (smooth_mask[PY_i, PX_i] > 0)
     stencil[R_fl > floor_half * 1.02] = False
 
+    if bottom_frame_height > 0:
+        dz_bf = float(z_cents[1] - z_cents[0]) if n_z > 1 else 0.0
+        n_frame_rows = min(int(np.ceil(bottom_frame_height / dz_bf)), n_z) if dz_bf > 0 else 0
+        stencil_pre = stencil
+        stencil = _apply_bottom_frame(stencil, bottom_frame_height, dz_bf)
+        frame_cells = stencil & ~stencil_pre
+        thickness_frac[frame_cells] = 1.0
+        if n_frame_rows:
+            print(f"  [stencil] bottom frame: {n_frame_rows} rows (~{bottom_frame_height:.1f}mm)")
+
+    # Manual stems (from the v2 editor) are rasterized in BEFORE auto-bridging,
+    # so the BFS in _bridge_floating_islands sees them as already-grounded and
+    # won't add a redundant auto stem next to a manual one.
+    if user_stems:
+        stencil = _apply_user_stems(stencil, user_stems, stem_width,
+                                     float(z_cents[0]), float(z_cents[-1]), anchor=stem_anchor)
     if support_stems:
-        stencil, n_islands = _bridge_floating_islands(stencil, stem_width)
+        stencil, n_islands = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
         if n_islands:
             print(f"  [stencil] bridged {n_islands} floating island(s)")
-        stem_cells = stencil & (thickness_frac < 0.5)
-        thickness_frac[stem_cells] = 1.0
+    # Force full thickness for ANY stencil cell not already reflected in the
+    # continuous thickness field — covers both auto-bridged stems (above) and
+    # manual user_stems (rasterized in earlier), independent of support_stems.
+    # Without this, manual stems on an otherwise-empty column would flip the
+    # binary stencil bit (used for shadow sim) but leave thickness_frac ~0,
+    # so the mesh builder below emits no faces for that column at all.
+    stem_cells = stencil & (thickness_frac < 0.5)
+    thickness_frac[stem_cells] = 1.0
 
     # ── 2D Gaussian blur on thickness field → smooth hole edges ──
     # This is the key to eliminating staircase WITHOUT increasing n_theta.
@@ -1222,6 +1585,9 @@ def build_stencil_wall_merged(
         n_z: int,
         support_stems: bool = True,
         stem_width: int = 2,
+        stem_anchor: str = 'bottom',
+        bottom_frame_height: float = 0.0,
+                        user_stems: list | None = None,
 ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Best-of-both-worlds stencil wall builder: column merging (small file)
@@ -1247,9 +1613,21 @@ def build_stencil_wall_merged(
     if n_solid == 0:
         raise RuntimeError("Stencil is empty — check mask or parameters")
 
+    if bottom_frame_height > 0:
+        n_frame_rows = min(int(np.ceil(bottom_frame_height / dz)), n_z) if dz > 0 else 0
+        stencil = _apply_bottom_frame(stencil, bottom_frame_height, dz)
+        if n_frame_rows:
+            print(f"  [stencil] bottom frame: {n_frame_rows} rows (~{bottom_frame_height:.1f}mm)")
+
     # Bridge floating islands
+    # Manual stems (from the v2 editor) are rasterized in BEFORE auto-bridging,
+    # so the BFS in _bridge_floating_islands sees them as already-grounded and
+    # won't add a redundant auto stem next to a manual one.
+    if user_stems:
+        stencil = _apply_user_stems(stencil, user_stems, stem_width,
+                                     float(z_cents[0]), float(z_cents[-1]), anchor=stem_anchor)
     if support_stems:
-        stencil, n_islands = _bridge_floating_islands(stencil, stem_width)
+        stencil, n_islands = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
         if n_islands:
             print(f"  [stencil] bridged {n_islands} floating island(s)")
 
@@ -1363,6 +1741,9 @@ def build_stencil_wall_smooth(
         shadow_offset_y: float = 0.0,
         support_stems: bool = True,
         stem_width: int = 2,
+        stem_anchor: str = 'bottom',
+        bottom_frame_height: float = 0.0,
+                        user_stems: list | None = None,
 ) -> tuple[trimesh.Trimesh, np.ndarray, np.ndarray]:
     """
     Drop-in replacement for build_stencil_wall() that generates a smooth surface.
@@ -1428,8 +1809,20 @@ def build_stencil_wall_smooth(
     if n_solid == 0:
         raise RuntimeError("Stencil is empty — check mask or parameters")
 
+    if bottom_frame_height > 0:
+        n_frame_rows = min(int(np.ceil(bottom_frame_height / dz)), n_z) if dz > 0 else 0
+        stencil = _apply_bottom_frame(stencil, bottom_frame_height, dz)
+        if n_frame_rows:
+            print(f"  [stencil] bottom frame: {n_frame_rows} rows (~{bottom_frame_height:.1f}mm)")
+
+    # Manual stems (from the v2 editor) are rasterized in BEFORE auto-bridging,
+    # so the BFS in _bridge_floating_islands sees them as already-grounded and
+    # won't add a redundant auto stem next to a manual one.
+    if user_stems:
+        stencil = _apply_user_stems(stencil, user_stems, stem_width,
+                                     float(z_cents[0]), float(z_cents[-1]), anchor=stem_anchor)
     if support_stems:
-        stencil, n_islands = _bridge_floating_islands(stencil, stem_width)
+        stencil, n_islands = _bridge_floating_islands(stencil, stem_width, anchor=stem_anchor)
         if n_islands:
             print(f"  [stencil] bridged {n_islands} floating island(s) "
                   f"with {stem_width}-column stems")
@@ -1880,6 +2273,110 @@ def build_led_holder(start_z: float,
           f'∅{pillar_outer_r*2:.0f}mm outer  '
           f'z={start_z:.1f}→{z_light:.1f}mm  faces={len(pillar.faces)}')
     return pillar
+
+
+# ────────────────────────────────────────────────────────────────────────────
+def build_top_cover(
+    wall_top: float,
+    cover_thickness: float,
+    recess_r: float,
+    recess_depth: float,
+    light_x: float,
+    light_y: float,
+    casing_poly,
+    base_radius: float,
+    n_circ: int = 96,
+) -> trimesh.Trimesh:
+    """
+    Solid cover plate closing the TOP of the stencil wall ('top' cover mode).
+
+    The LED puck sits in a circular blind recess on the underside, centred on
+    the light position, so the light hangs from the cover shining down — same
+    optics as the pillar variant, different mechanical mount. Built from two
+    stacked 2D extrusions (ring layer + roof layer) so no 3D boolean engine
+    is needed; the coplanar interface is handled by concatenate, same pattern
+    as the floor-plate + pillar join.
+    """
+    from shapely.geometry import Polygon as _ShapelyPoly
+
+    # Recess depth rule:
+    #   depth <  cover_thickness → blind recess, capped so >= 0.8mm roof remains
+    #   depth >= cover_thickness → intentional THROUGH-HOLE (LED puck inserted
+    #                              from above / cable passage) — no roof layer.
+    MIN_ROOF_MM = 0.8
+    through_hole = recess_depth >= cover_thickness
+    if through_hole:
+        eff_depth = cover_thickness
+    else:
+        eff_depth = max(0.0, min(recess_depth, cover_thickness - MIN_ROOF_MM))
+
+    if casing_poly is not None:
+        slab_poly = casing_poly
+    else:
+        _a = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
+        slab_poly = _ShapelyPoly(list(zip(base_radius * np.cos(_a),
+                                          base_radius * np.sin(_a))))
+
+    if eff_depth > 0:
+        _a = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
+        recess_poly = _ShapelyPoly(list(zip(light_x + recess_r * np.cos(_a),
+                                            light_y + recess_r * np.sin(_a))))
+        if not recess_poly.within(slab_poly):
+            raise ValueError(
+                "top cover recess is not fully inside the cover footprint — "
+                "move light_x/light_y or shrink pillar_outer_r (recess radius)")
+
+    parts = []
+    if eff_depth > 0:
+        ring_poly = slab_poly.difference(recess_poly)
+        if not ring_poly.is_valid:
+            ring_poly = ring_poly.buffer(0)
+        if ring_poly.geom_type != "Polygon":
+            raise ValueError(
+                "recess splits the top cover footprint into multiple pieces "
+                f"(got {ring_poly.geom_type}) — move light_x/light_y or shrink "
+                "pillar_outer_r (recess radius)")
+        # NOTE on the ring/roof seam: unlike the wall/cover seam (which had a
+        # real floating gap without overlap), the ring's top face and the
+        # roof's bottom face are an EXACT coincident-polygon match (both the
+        # annulus at z = wall_top + eff_depth) — two independently watertight
+        # solids touching, not overlapping. A slicer unions coincident
+        # geometry per layer without a gap, so this is not the same defect
+        # as an unsupported floating slab. A forced 0.5mm interpenetration
+        # here was evaluated and rejected: because the annulus is usually
+        # most of the footprint, it inflates cover volume by ~15-20% for
+        # typical recess/footprint ratios — a worse tradeoff than the
+        # current coincident-but-watertight joint.
+        ring = trimesh.creation.extrude_polygon(ring_poly, eff_depth)
+        ring.apply_translation([0.0, 0.0, wall_top])
+        trimesh.repair.fix_normals(ring)
+        parts.append(ring)
+
+        if through_hole:
+            print(f'  [C] top cover recess is a THROUGH-HOLE '
+                  f'(requested {recess_depth:.1f}mm >= cover {cover_thickness:.1f}mm)')
+        else:
+            roof = trimesh.creation.extrude_polygon(slab_poly,
+                                                    cover_thickness - eff_depth)
+            roof.apply_translation([0.0, 0.0, wall_top + eff_depth])
+            trimesh.repair.fix_normals(roof)
+            parts.append(roof)
+
+            if recess_depth > eff_depth:
+                print(f'  [C] WARNING: top cover recess capped — requested '
+                      f'{recess_depth:.1f}mm, effective {eff_depth:.1f}mm '
+                      f'(min roof {MIN_ROOF_MM:.1f}mm enforced)')
+    else:
+        slab = trimesh.creation.extrude_polygon(slab_poly, cover_thickness)
+        slab.apply_translation([0.0, 0.0, wall_top])
+        trimesh.repair.fix_normals(slab)
+        parts.append(slab)
+
+    cover = trimesh.util.concatenate(parts) if len(parts) > 1 else parts[0]
+    print(f'  [C] top cover    — recess ∅{recess_r*2:.1f}mm × {eff_depth:.1f}mm '
+          f'at ({light_x:.1f},{light_y:.1f})  z={wall_top:.1f}→'
+          f'{wall_top + cover_thickness:.1f}mm  faces={len(cover.faces)}')
+    return cover
 
 
 def enforce_min_wall_thickness(
@@ -2601,16 +3098,25 @@ def run(
     taubin_nu            = TAUBIN_NU,
     # NEW parameters for refactored pipeline
     invert_mask          = False,
+    auto_fit_mask        = False,
+    mask_padding_pct     = 0.0,
+    img_brightness       = 0.0,    # -100..100, additive brightness applied pre-threshold
+    img_contrast         = 0.0,    # -100..100, linear gain around mid-gray applied pre-threshold
+    img_saturation       = 100.0,  # 0..200 %, HSV saturation scale applied pre-threshold
     preview_mode         = False,
     contour_builder      = False,   # disabled: contour pipeline loses detail on complex silhouettes
     merged_builder       = False,  # v2: column merging + correct normals, small files
     min_wall_mm          = 0.0,    # disabled: 3mm was too aggressive, removed fine features
     skip_led_pillar      = False,
+    cover_type           = 'bottom',  # 'bottom' = floor plate + pillar (default), 'top' = closed top cover with LED recess, open bottom
+    bottom_frame         = False,  # solid stencil band at the wall base that catches nearby islands so they fuse with the wall
+    bottom_frame_height  = 5.0,    # mm — height of the bottom frame band, when bottom_frame=True
     add_watermark        = False,
     decimate_ratio       = 0.0,    # 0=off, 0.8=keep 20% of faces (quadric decimation)
     led_socket_height    = 10.0,    # mm — height of LED mount above pillar top
     min_bridge_mm        = 1.2,    # minimum feature width on FLOOR plane (mm); guarantees ~0.3mm wall after anamorphic compression
     edge_blur_sigma      = 1.0,    # grid-cell blur on thickness field; smooths the staircase introduced by the min-thickness floor
+    user_stems           = None,   # list of {"theta_deg": float, "z_mm": float} manual stems (v2 editor); merged in before auto-bridging
 ):
     """
     Build shadow casing — three components:
@@ -2680,6 +3186,18 @@ def run(
     z_max_stencil = z_light * (1.0 - r_min / floor_half_size)
     r_at_top = r_min / (1.0 - min(z_max_stencil, wall_top) / z_light)
 
+    # Effective wall top after the same ray-limit clamp the wall builders
+    # apply (see z_max_s in the contour-builder branch below). If this binds,
+    # the stencil wall actually stops short of `wall_top` — any mount that
+    # sits at `wall_top` (e.g. the top cover) must follow it down or it ends
+    # up floating above a gap.
+    effective_wall_top = min(wall_top, z_max_stencil)
+    if effective_wall_top < wall_top - 1e-6:
+        print(f'[generator] WARNING: shell_height reduced by ray limit — '
+              f'wall top clamped from {wall_top:.1f}mm to {effective_wall_top:.1f}mm '
+              f'(floor_half_size/outer_radius/shell_height combination hits the '
+              f'light-ray cutoff)')
+
     # ── Parameter summary ─────────────────────────────────────────────
     print('── Parameter summary ────────────────────────────────────────────')
     print(f'  Shadow image         : {input_image}')
@@ -2700,8 +3218,12 @@ def run(
     print(f'  Stencil grid         : {n_stencil_theta} × {n_stencil_z}')
     print(f'  SDF smooth σ         : {edge_smooth_sigma:.1f} px  (×{mask_upsample} upsample)')
     print(f'  SDF threshold        : {shadow_threshold:.1f}')
-    print(f'  LED pillar           : ∅{pillar_inner_r*2:.0f}mm cable / '
-          f'∅{pillar_outer_r*2:.0f}mm outer  z={base_z:.1f}→{z_light:.1f}mm')
+    if cover_type == 'top':
+        print(f'  LED recess (in cover): ∅{pillar_outer_r*2:.0f}mm × '
+              f'{led_socket_height:.1f}mm  at ({light_x:.1f}, {light_y:.1f})')
+    else:
+        print(f'  LED pillar           : ∅{pillar_inner_r*2:.0f}mm cable / '
+              f'∅{pillar_outer_r*2:.0f}mm outer  z={base_z:.1f}→{z_light:.1f}mm')
     _summary_builder = 'contour' if contour_builder else ('continuous (smooth)' if smooth_builder else 'legacy pillar')
     print(f'  Mesh builder         : {_summary_builder}')
     if taubin_iterations > 0:
@@ -2710,7 +3232,10 @@ def run(
 
     # ── 2. Load + smooth shadow mask via SDF ─────────────────────────
     print('\n[generator] loading and smoothing silhouette mask …')
-    raw_mask = load_silhouette_mask(input_image, invert=invert_mask)
+    raw_mask = load_silhouette_mask(
+        input_image, invert=invert_mask, auto_fit=auto_fit_mask, padding_pct=mask_padding_pct,
+        brightness=img_brightness, contrast=img_contrast, saturation=img_saturation,
+    )
     smooth_mask, sdf = prepare_sdf_mask(raw_mask, edge_smooth_sigma,
                                          shadow_threshold, mask_upsample)
     raw_pct    = 100 * (raw_mask    > 0).mean()
@@ -2745,6 +3270,15 @@ def run(
                     else 'smooth-v5' if smooth_builder
                     else 'legacy')
     print(f'[generator] building stencil wall ({_builder_lbl}) …')
+
+    # For a closed top cover (open bottom), the wall's structural anchor is
+    # its top edge (adjoins the cover), not the base — so floating-island
+    # support stems must bridge upward instead of down to z=0.
+    stem_anchor = 'top' if cover_type == 'top' else 'bottom'
+
+    # Effective bottom-frame height passed to builders — 0 (off) unless the
+    # bottom_frame toggle is enabled.
+    effective_bottom_frame_height = bottom_frame_height if bottom_frame else 0.0
 
     if contour_builder:
         # Compute the raw stencil binary from the smooth mask
@@ -2793,10 +3327,27 @@ def run(
             min_wall_mm=min_wall_mm,
         )
 
+        # Bottom frame: force a solid band at the wall base (before bridging,
+        # so BFS connectivity accounts for it)
+        if effective_bottom_frame_height > 0:
+            dz_s = float(z_cents_s[1] - z_cents_s[0]) if n_stencil_z > 1 else 0.0
+            n_frame_rows = min(int(np.ceil(effective_bottom_frame_height / dz_s)), n_stencil_z) if dz_s > 0 else 0
+            stencil_cleaned = _apply_bottom_frame(stencil_cleaned, effective_bottom_frame_height, dz_s)
+            if n_frame_rows:
+                print(f"  [stencil] bottom frame: {n_frame_rows} rows (~{effective_bottom_frame_height:.1f}mm)")
+
+        # Manual stems merged in BEFORE auto-bridging, same order as every
+        # other builder — so BFS treats them as already-grounded.
+        if user_stems:
+            stencil_cleaned = _apply_user_stems(
+                stencil_cleaned, user_stems, stem_width,
+                float(z_cents_s[0]), float(z_cents_s[-1]), anchor=stem_anchor,
+            )
+
         # Bridge floating islands if requested
         if support_stems:
             stencil_cleaned, n_islands = _bridge_floating_islands(
-                stencil_cleaned, stem_width=stem_width
+                stencil_cleaned, stem_width=stem_width, anchor=stem_anchor
             )
             if n_islands:
                 print(f"  [stencil] bridged {n_islands} floating island(s)")
@@ -2830,6 +3381,9 @@ def run(
             edge_blur_sigma=edge_blur_sigma,
             support_stems=support_stems,
             stem_width=stem_width,
+            stem_anchor=stem_anchor,
+            bottom_frame_height=effective_bottom_frame_height,
+            user_stems=user_stems,
         )
     elif smooth_builder:
         # ── SMOOTH BUILDER (v5) — per-cell, large files, reliable ──
@@ -2841,6 +3395,9 @@ def run(
             shadow_offset_y=shadow_offset_y,
             support_stems=support_stems,
             stem_width=stem_width,
+            stem_anchor=stem_anchor,
+            bottom_frame_height=effective_bottom_frame_height,
+            user_stems=user_stems,
         )
     else:
         wall_mesh, stencil, z_cents = build_stencil_wall(
@@ -2851,6 +3408,9 @@ def run(
             shadow_offset_y=shadow_offset_y,
             support_stems=support_stems,
             stem_width=stem_width,
+            stem_anchor=stem_anchor,
+            bottom_frame_height=effective_bottom_frame_height,
+            user_stems=user_stems,
         )
     print(f'  [A] stencil wall — faces: {len(wall_mesh.faces)}')
 
@@ -2865,50 +3425,72 @@ def run(
         )
         print(f'  [A] after Taubin — faces: {len(wall_mesh.faces)}')
 
-    # ── 4. Raised floor plate with cable hole ────────────────────────
-    # Punch a hole of pillar_inner_r through the base plate centre so the
-    # LED cable can pass from the electronics chamber up into the pillar.
-    from shapely.geometry import Polygon as _ShapelyPoly
+    # ── 4/5. Mount geometry — bottom (floor plate + pillar) or top cover ──
+    base       = None
+    led_holder = None
+    top_cover  = None
 
-    _hole_a    = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
-    _hole_poly = _ShapelyPoly(list(zip(pillar_inner_r * np.cos(_hole_a),
-                                        pillar_inner_r * np.sin(_hole_a))))
-
-    if casing_poly is not None:
-        _base_poly = casing_poly.difference(_hole_poly)
-        base_desc  = 'custom shape'
+    if cover_type == 'top':
+        # Open bottom, closed top: LED puck hangs from a recess in the cover.
+        if not preview_mode:
+            # Footprint radius: when there's no custom casing_poly, the cover
+            # must cap the wall — which sits at outer_radius, not base_radius
+            # (a CLI top-mode run without --base-radius would otherwise
+            # produce a disk smaller than the wall it's supposed to close).
+            _cover_footprint_r = outer_radius if casing_poly is None else base_radius
+            if casing_poly is None:
+                print(f'  [C] top cover footprint radius: {_cover_footprint_r:.1f}mm '
+                      f'(= outer_radius, caps the wall)')
+            top_cover = build_top_cover(
+                # Interpenetrate the wall by 0.5mm for a manifold join, same
+                # pattern as the pillar's `start_z = base_z - 0.5` below, and
+                # sit on the ray-limit-clamped effective wall top so the
+                # cover never floats above a shortened wall.
+                wall_top        = effective_wall_top - 0.5,
+                cover_thickness = base_thickness,
+                recess_r        = pillar_outer_r,
+                recess_depth    = led_socket_height,
+                light_x         = light_x,
+                light_y         = light_y,
+                casing_poly     = casing_poly,
+                base_radius     = _cover_footprint_r,
+                n_circ          = n_circ,
+            )
     else:
-        _outer_a    = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
-        _outer_poly = _ShapelyPoly(list(zip(base_radius * np.cos(_outer_a),
-                                             base_radius * np.sin(_outer_a))))
-        _base_poly  = _outer_poly.difference(_hole_poly)
-        base_desc   = f'circle r={base_radius:.1f}mm'
+        # Punch a hole of pillar_inner_r through the base plate centre so the
+        # LED cable can pass from the electronics chamber up into the pillar.
+        from shapely.geometry import Polygon as _ShapelyPoly
+        _hole_a    = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
+        _hole_poly = _ShapelyPoly(list(zip(pillar_inner_r * np.cos(_hole_a),
+                                            pillar_inner_r * np.sin(_hole_a))))
+        if casing_poly is not None:
+            _base_poly = casing_poly.difference(_hole_poly)
+            base_desc  = 'custom shape'
+        else:
+            _outer_a    = np.linspace(0, 2 * np.pi, n_circ, endpoint=False)
+            _outer_poly = _ShapelyPoly(list(zip(base_radius * np.cos(_outer_a),
+                                                 base_radius * np.sin(_outer_a))))
+            _base_poly  = _outer_poly.difference(_hole_poly)
+            base_desc   = f'circle r={base_radius:.1f}mm'
+        if not _base_poly.is_valid:
+            _base_poly = _base_poly.buffer(0)
+        base = trimesh.creation.extrude_polygon(_base_poly, base_thickness)
+        base.apply_translation([0.0, 0.0, floor_z])
+        trimesh.repair.fix_normals(base)
+        print(f'  [B] floor plate  — {base_desc} + cable hole ∅{pillar_inner_r*2:.1f}mm'
+              f'  z={floor_z:.1f}→{base_z:.1f}mm  faces={len(base.faces)}')
 
-    if not _base_poly.is_valid:
-        _base_poly = _base_poly.buffer(0)
-
-    base = trimesh.creation.extrude_polygon(_base_poly, base_thickness)
-    base.apply_translation([0.0, 0.0, floor_z])
-    trimesh.repair.fix_normals(base)
-    print(f'  [B] floor plate  — {base_desc} + cable hole ∅{pillar_inner_r*2:.1f}mm'
-          f'  z={floor_z:.1f}→{base_z:.1f}mm  faces={len(base.faces)}')
-
-    # ── 5. LED holder pillar ──────────────────────────────────────────
-    if skip_led_pillar:
-        led_holder = None
-    else:
-        led_holder = build_led_holder(
-            start_z        = max(base_z - 0.5, 0.0),  # interpenetrate base for manifold join
-            z_light        = z_light - led_socket_height,
-            pillar_outer_r = pillar_outer_r,
-            pillar_inner_r = pillar_inner_r,
-            n_circ         = n_circ,
-        )
+        if not skip_led_pillar:
+            led_holder = build_led_holder(
+                start_z        = max(base_z - 0.5, 0.0),  # interpenetrate base for manifold join
+                z_light        = z_light - led_socket_height,
+                pillar_outer_r = pillar_outer_r,
+                pillar_inner_r = pillar_inner_r,
+                n_circ         = n_circ,
+            )
 
     # ── 6. Combine ────────────────────────────────────────────────────
-    parts = [wall_mesh, base]
-    if led_holder is not None:
-        parts.append(led_holder)
+    parts = [wall_mesh] + [m for m in (base, led_holder, top_cover) if m is not None]
     combined = trimesh.util.concatenate(parts)
     print('\n[generator] combined mesh:')
     validate_mesh(combined)
@@ -2999,6 +3581,12 @@ if __name__ == '__main__':
                    help='Disable automatic support stems for floating wall islands')
     p.add_argument('--stem-width',       type=int,   default=2,
                    help='Number of angular columns per support stem (default 2 ≈ 1 mm at r=40mm)')
+    p.add_argument('--bottom-frame',     action='store_true', default=False,
+                   help='Solid stencil band at the wall base that catches nearby islands so they fuse with the wall')
+    p.add_argument('--bottom-frame-height', type=float, default=5.0,
+                   help='Height of the bottom frame band in mm (default 5.0; used when --bottom-frame is set)')
+    p.add_argument('--user-stems',       type=str,   default=None,
+                   help='JSON list of manual stems: \'[{"theta_deg": 90, "z_mm": 20}, ...]\'')
 
     # Smoothness — SDF
     p.add_argument('--smooth-sigma',   type=float, default=EDGE_SMOOTH_SIGMA,
@@ -3027,6 +3615,25 @@ if __name__ == '__main__':
                    help='Outer radius of LED holder pillar (mm)')
     p.add_argument('--pillar-inner-r', type=float, default=PILLAR_INNER_R,
                    help='Inner radius of pillar = cable channel (mm)')
+    p.add_argument('--led-socket-height', type=float, default=10.0,
+                   help='LED socket height above pillar top (bottom mode) / recess depth (top mode) (mm)')
+    p.add_argument('--cover-type', choices=['bottom', 'top'], default='bottom',
+                   help='bottom = floor plate + LED pillar (default); '
+                        'top = closed top cover with LED recess, open bottom')
+    p.add_argument('--invert-shadow', action='store_true', default=False,
+                   help='Invert the silhouette mask (swap solid/hole regions)')
+    p.add_argument('--auto-fit-mask', action='store_true', default=False,
+                   help='Pad & recenter the silhouette so it fits the projectable '
+                        'inscribed circle (avoids corner clipping)')
+    p.add_argument('--mask-padding-pct', type=float, default=0.0,
+                   help='Extra uniform padding around the silhouette, as a percent '
+                        'of max(width, height) (default 0.0; applied after --auto-fit-mask)')
+    p.add_argument('--img-brightness', type=float, default=0.0,
+                   help='Pre-threshold image brightness adjustment, -100..100 (default 0.0)')
+    p.add_argument('--img-contrast', type=float, default=0.0,
+                   help='Pre-threshold image contrast adjustment, -100..100 (default 0.0)')
+    p.add_argument('--img-saturation', type=float, default=100.0,
+                   help='Pre-threshold image saturation adjustment percent, 0..200 (default 100.0)')
 
     # Casing lift (compensation for external electronics chamber)
     p.add_argument('--casing-lift', type=float, default=CASING_LIFT,
@@ -3047,6 +3654,8 @@ if __name__ == '__main__':
 
     a = p.parse_args()
 
+    user_stems_arg = json.loads(a.user_stems) if a.user_stems else None
+
     run(
         input_image          = a.input,
         output_stl           = a.output,
@@ -3063,6 +3672,9 @@ if __name__ == '__main__':
         shadow_offset_y      = a.shadow_y,
         support_stems        = not a.no_support_stems,
         stem_width           = a.stem_width,
+        bottom_frame         = a.bottom_frame,
+        bottom_frame_height  = a.bottom_frame_height,
+        user_stems           = user_stems_arg,
         edge_smooth_sigma    = a.smooth_sigma,
         shadow_threshold     = a.threshold,
         n_stencil_theta      = a.n_theta,
@@ -3075,4 +3687,12 @@ if __name__ == '__main__':
         taubin_iterations    = a.taubin_iter,
         taubin_lambda        = a.taubin_lambda,
         taubin_nu            = a.taubin_nu,
+        led_socket_height    = a.led_socket_height,
+        cover_type           = a.cover_type,
+        invert_mask          = a.invert_shadow,
+        auto_fit_mask        = a.auto_fit_mask,
+        mask_padding_pct     = a.mask_padding_pct,
+        img_brightness       = a.img_brightness,
+        img_contrast         = a.img_contrast,
+        img_saturation       = a.img_saturation,
     )

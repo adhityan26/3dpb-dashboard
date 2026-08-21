@@ -16,7 +16,12 @@ export class StateStore {
       last_task_id: s.taskId,
       last_filename: s.file,
       last_error_code: s.errorDetails,
-      last_error_message: s.state === 'error' ? describeError(s.hms, s.printError, this.hms) : '',
+      // Bukan cuma `state === 'error'` literal -- Bambu kadang lapor gcode_state=PAUSE walau
+      // print_error-nya non-zero (genuinely error, bukan pause manual biasa; kasus nyata:
+      // printer "Uranus" P1S, relay dari sesi firmware CYD 2026-08-09). `state` di payload TAK
+      // diubah paksa jadi 'error' -- itu keputusan tampilan firmware CYD sendiri; di sini cuma
+      // memastikan error_message terisi supaya ADA teks buat firmware tampilkan.
+      last_error_message: s.state === 'error' || s.printError !== 0 ? describeError(s.hms, s.printError, this.hms) : '',
       last_seen_at: s.eventTime,
       last_nozzle_temp: s.nozzleTemp,
       last_bed_temp: s.bedTemp,

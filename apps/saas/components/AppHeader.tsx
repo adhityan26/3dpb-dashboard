@@ -4,22 +4,9 @@ import Link from "next/link";
 import { useTheme } from "next-themes";
 import { ThemeToggle } from "./ThemeToggle";
 import { LogoutButton } from "./LogoutButton";
+import { TABS, type NavKey } from "./nav-tabs";
 
-export type NavKey = "kalkulator" | "setting" | "admin" | "beli" | "printer";
-
-type Tab = { key: string; href?: string; icon: string; label: string; soon?: boolean; ownerOnly?: boolean };
-
-/** Peta modul. Yang belum dibangun TIDAK dilinkkan (badge "soon") — tak ada nav buntu.
- *  Tambahkan `href` + hapus `soon` saat modulnya benar-benar jadi. */
-const TABS: Tab[] = [
-  { key: "kalkulator", href: "/", icon: "🧮", label: "Kalkulator" },
-  { key: "invoice", icon: "🧾", label: "Invoice", soon: true },
-  { key: "po", icon: "📦", label: "PO", soon: true },
-  { key: "filamen", icon: "🧵", label: "Filamen", soon: true },
-  { key: "printer", href: "/printer", icon: "🖨️", label: "Printer" },
-  { key: "setting", href: "/settings", icon: "⚙️", label: "Setting" },
-  { key: "admin", href: "/admin", icon: "🛠️", label: "Admin", ownerOnly: true },
-];
+export type { NavKey };
 
 export function AppHeader({
   authenticated = true,
@@ -34,6 +21,9 @@ export function AppHeader({
 }) {
   const { resolvedTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
+  // Standard hydration-safe "mounted" flag: theme is unknown during SSR, this is the
+  // documented way to defer theme-dependent rendering until after the client mounts.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => setMounted(true), []);
   const isDark = !mounted || resolvedTheme !== "light";
 
@@ -94,7 +84,11 @@ export function AppHeader({
 
       {authenticated && (
         <>
-          <div className="flex-1 flex justify-center overflow-x-auto">
+          {/* hidden di mobile (<768px) -- MobileBottomNav (PageShell) sudah jadi nav di sana,
+              dulu nav-island ini malah ikut tampil (scroll horizontal) di atas MobileBottomNav
+              = tab nav dobel. md:flex = breakpoint SAMA persis dgn MobileBottomNav (md:hidden
+              di sisinya), jadi persis satu nav yang tampil di tiap ukuran layar. */}
+          <div className="hidden md:flex flex-1 justify-center overflow-x-auto">
             <div className="relative rounded-[48px] flex flex-shrink-0" style={{ ...islandStyle, padding: "8px 10px" }}>
               {visible.map((t) => {
                 const active = t.key === current;
@@ -137,7 +131,10 @@ export function AppHeader({
             </div>
           </div>
 
-          <div className="flex items-center gap-1 flex-shrink-0 rounded-[28px] p-[5px]" style={controlStyle}>
+          {/* ml-auto: dorong ke kanan sendiri di mobile (nav-island di atas hidden -> tak ada
+              flex-1 lain yang mendorongnya). Tak berpengaruh di desktop (nav-island yang flex-1
+              sudah mendorong duluan). */}
+          <div className="flex items-center gap-1 flex-shrink-0 rounded-[28px] p-[5px] ml-auto md:ml-0" style={controlStyle}>
             <ThemeToggle />
             <div className="w-px h-[18px] mx-[2px]" style={{ background: dividerColor }} />
             {initials && (

@@ -278,3 +278,35 @@ export interface ShopeeAddItemPayload {
 export interface ShopeeAddItemResult {
   item_id: number
 }
+
+// ===== Shop Category (etalase/showcase) API types =====
+
+export interface ShopeeShopCategory {
+  shop_category_id: number
+  name: string
+  status?: number
+  sort_weight?: number
+}
+
+export interface ShopeeShopCategoryListResponse {
+  response: {
+    // Shopee's official field name is misspelled ("shop_categorys"). Some
+    // API versions/docs use "shop_category_list" instead — accept both.
+    shop_categorys?: ShopeeShopCategory[]
+    shop_category_list?: ShopeeShopCategory[]
+    more?: boolean
+    total_count?: number
+  }
+  error?: string
+  message?: string
+}
+
+export interface ShopeeShopCategoryItemListResponse {
+  response: {
+    item_list?: number[]
+    total_count?: number
+    more?: boolean
+  }
+  error?: string
+  message?: string
+}

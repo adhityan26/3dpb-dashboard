@@ -1,7 +1,22 @@
-import { BrowserWindow } from 'electron'
+import { BrowserWindow, Menu } from 'electron'
 import { fileURLToPath } from 'url'
 import path from 'path'
 import { isDev } from './utils'
+
+/**
+ * Hilangkan menu bar bawaan Electron (File/Edit/View/Window/Help) -- app ini punya nav sendiri
+ * di dalam window, menu bar OS itu cuma noise buat user awam.
+ *
+ * Efek samping yang DITERIMA: shortcut Cmd+Q/Cmd+W (mac) ikut hilang karena biasanya dipasok
+ * lewat item menu bawaan -- tapi app ini SUDAH sengaja tak quit lewat close window
+ * (attachHideOnClose di index.ts, quit sungguhan cuma dari "Keluar" di tray), jadi kehilangan
+ * Cmd+W justru selaras, bukan regresi. Copy/paste (Cmd+C/Cmd+V dll) di field teks form
+ * pairing TETAP jalan -- itu perilaku native Chromium buat elemen `<input>` fokus, independen
+ * dari Menu aplikasi Electron.
+ */
+export function disableApplicationMenu(): void {
+  Menu.setApplicationMenu(null)
+}
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)

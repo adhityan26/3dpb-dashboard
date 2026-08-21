@@ -29,12 +29,18 @@ export async function issueOtp(phone: string, now = new Date()): Promise<{ code:
   const inWindow = existing ? now.getTime() - existing.windowStart.getTime() <= HOUR_MS : false;
   const windowStart = inWindow ? existing!.windowStart : now;
   const sentCount = (inWindow ? existing!.sentCount : 0) + 1;
+  // attempts nempel ke JENDELA rate-limit per-nomor (sama seperti sentCount), BUKAN ke kode
+  // individual -- kirim ulang (re-issue) dalam jendela yang sama TIDAK memberi jatah tebak
+  // baru. Tanpa ini, attacker yang kena lockout (5x salah) tinggal minta kode baru untuk
+  // reset attempts ke 0 dan tebak lagi -- lockout jadi tak berarti. Direset ke 0 HANYA
+  // saat jendela genuinely baru (>1 jam) atau baris genuinely baru sama sekali.
+  const attempts = inWindow ? existing!.attempts : 0;
   const codeHash = hashCode(phone, code);
   const expires = new Date(now.getTime() + EXPIRY_MS);
   await prisma.waOtp.upsert({
     where: { phone },
     create: { phone, codeHash, expires, attempts: 0, lastSentAt: now, sentCount: 1, windowStart: now },
-    update: { codeHash, expires, attempts: 0, lastSentAt: now, sentCount, windowStart },
+    update: { codeHash, expires, attempts, lastSentAt: now, sentCount, windowStart },
   });
   return { code };
 }

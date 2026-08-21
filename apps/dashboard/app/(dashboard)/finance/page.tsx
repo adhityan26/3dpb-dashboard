@@ -1,10 +1,13 @@
 "use client"
 
-import { Suspense } from "react"
+import { Suspense, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { POTab } from "@/components/po/POTab"
 import { InvoiceClientPage } from "@/components/invoice/InvoiceClientPage"
+import { GopayTab } from "@/components/gopay/GopayTab"
 import { PageShell } from "@/components/layout/PageShell"
+import { SidebarDrawerShell } from "@/components/layout/SidebarDrawerShell"
+import { FinanceSidebar, type FinanceTab } from "@/components/finance/FinanceSidebar"
 
 export default function FinancePage() {
   return (
@@ -14,56 +17,49 @@ export default function FinancePage() {
   )
 }
 
-const VALID_TABS = ["po", "invoice"] as const
-type FinanceTab = typeof VALID_TABS[number]
+const VALID_TABS: FinanceTab[] = ["po", "invoice", "gopay"]
 
 /** Judul PageShell mengikuti tab aktif, supaya selalu menggambarkan yang dilihat. */
 const TAB_HEADING: Record<FinanceTab, { title: string; description: string }> = {
   po:      { title: "Purchase Order", description: "Kelola pembelian filament dari vendor" },
   invoice: { title: "Invoice",        description: "Kelola quotation dan invoice untuk buyer" },
+  gopay:   { title: "GoPay Login",    description: "Login OTP GoPay/GoBiz Merchant untuk mengaktifkan monitoring transaksi" },
 }
 
 function FinancePageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const rawTab = searchParams.get("tab") ?? "po"
-  const activeTab: FinanceTab = (VALID_TABS as readonly string[]).includes(rawTab)
+  const activeTab: FinanceTab = VALID_TABS.includes(rawTab as FinanceTab)
     ? (rawTab as FinanceTab)
     : "po"
+
+  const [sidebarOpen, setSidebarOpen] = useState(false)
 
   function setTab(tab: FinanceTab) {
     const params = new URLSearchParams(searchParams.toString())
     params.set("tab", tab)
     router.replace(`?${params.toString()}`, { scroll: false })
+    setSidebarOpen(false)
   }
 
   const heading = TAB_HEADING[activeTab]
 
   return (
-    <PageShell title={heading.title} description={heading.description}>
-      <div className="space-y-4">
-        {/* Sub-tab nav */}
-        <div className="flex border-b border-gray-200 dark:border-white/10 flex-wrap">
-          {([
-            ["po",      "📋 PO"],
-            ["invoice", "📄 Invoice"],
-          ] as [FinanceTab, string][]).map(([key, label]) => (
-            <button
-              key={key}
-              onClick={() => setTab(key)}
-              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                activeTab === key
-                  ? "border-indigo-500 dark:border-indigo-400 text-indigo-600 dark:text-indigo-400"
-                  : "border-transparent text-gray-500 dark:text-slate-400 hover:text-gray-700 dark:hover:text-slate-200"
-              }`}
-            >
-              {label}
-            </button>
-          ))}
-        </div>
+    <div className="flex min-h-screen -mx-4 -mt-4 md:-mx-6 md:-mt-6">
+      <SidebarDrawerShell
+        open={sidebarOpen}
+        onOpen={() => setSidebarOpen(true)}
+        onClose={() => setSidebarOpen(false)}
+      >
+        <FinanceSidebar active={activeTab} onChange={setTab} />
+      </SidebarDrawerShell>
 
-        {activeTab === "po" ? <POTab /> : <InvoiceClientPage />}
+      <div className="flex-1 overflow-auto p-4 md:p-6">
+        <PageShell title={heading.title} description={heading.description}>
+          {activeTab === "po" ? <POTab /> : activeTab === "invoice" ? <InvoiceClientPage /> : <GopayTab />}
+        </PageShell>
       </div>
-    </PageShell>
+    </div>
   )
 }

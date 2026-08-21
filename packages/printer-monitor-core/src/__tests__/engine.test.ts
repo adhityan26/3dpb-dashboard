@@ -76,11 +76,13 @@ describe('Engine', () => {
       deviceId: 'mars',
       start: () => { throw new Error('bambu device mars butuh serial+accessCode') },
       stop: async () => {},
+      sendCommand: async () => ({ ok: true as const }),
     }
     const goodConnector = {
       deviceId: 'jupiter',
       start: async () => { startedIds.push('jupiter') },
       stop: async () => {},
+      sendCommand: async () => ({ ok: true as const }),
     }
     const reporter: Reporter = { publishStatus: () => {}, emitEvent: () => {} }
     const engine = new Engine({
@@ -133,6 +135,32 @@ describe('Engine', () => {
       hms: [{ attr: 0x12018007, code: 66 }] } }))
     expect(published.at(-1)!.payload[0]).toMatchObject({
       state: 'error', error_message: '[1201_8007] Extruder clogged.',
+    })
+  })
+
+  describe('sendCommand', () => {
+    it('delegasikan ke connector yang cocok deviceId', async () => {
+      const calls: unknown[] = []
+      const connector = {
+        deviceId: 'mars',
+        start: async () => {},
+        stop: async () => {},
+        sendCommand: async (cmd: unknown) => { calls.push(cmd); return { ok: true as const } },
+      }
+      const reporter: Reporter = { publishStatus: () => {}, emitEvent: () => {} }
+      const engine = new Engine({ devices: [mars], connectors: [connector], reporters: [reporter] })
+      const result = await engine.sendCommand('mars', { kind: 'pause' })
+      expect(result).toEqual({ ok: true })
+      expect(calls).toEqual([{ kind: 'pause' }])
+    })
+
+    it("device tak dimonitor -> {ok:false, message:'device_not_found'}, tak panggil connector mana pun", async () => {
+      const connector = { deviceId: 'mars', start: async () => {}, stop: async () => {}, sendCommand: vi.fn() }
+      const reporter: Reporter = { publishStatus: () => {}, emitEvent: () => {} }
+      const engine = new Engine({ devices: [mars], connectors: [connector], reporters: [reporter] })
+      const result = await engine.sendCommand('unknown-device', { kind: 'stop' })
+      expect(result).toEqual({ ok: false, message: 'device_not_found' })
+      expect(connector.sendCommand).not.toHaveBeenCalled()
     })
   })
 })

@@ -57,4 +57,20 @@ describe("resolveToken", () => {
     expect(result).toEqual({ userId: "u1" });
     expect(prisma.agentToken.update).toHaveBeenCalledWith({ where: { id: "t1" }, data: { lastUsedAt: expect.any(Date) } });
   });
+
+  it("agentVersion dikirim -> ikut disimpan bareng lastUsedAt", async () => {
+    (prisma.agentToken.findUnique as any).mockResolvedValue({ id: "t1", userId: "u1", revokedAt: null });
+    await resolveToken("slz_valid", "0.3.1");
+    expect(prisma.agentToken.update).toHaveBeenCalledWith({
+      where: { id: "t1" },
+      data: { lastUsedAt: expect.any(Date), agentVersion: "0.3.1" },
+    });
+  });
+
+  it("agentVersion tak dikirim (undefined/null) -> field itu TIDAK ikut di-update (jangan timpa versi lama dgn kosong)", async () => {
+    (prisma.agentToken.findUnique as any).mockResolvedValue({ id: "t1", userId: "u1", revokedAt: null });
+    await resolveToken("slz_valid", null);
+    const data = (prisma.agentToken.update as any).mock.calls[0][0].data;
+    expect(data).not.toHaveProperty("agentVersion");
+  });
 });

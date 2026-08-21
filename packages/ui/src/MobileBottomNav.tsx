@@ -19,13 +19,16 @@ export interface MobileBottomNavProps {
   /** Badge count per tab, keyed by `href` tanpa slash awal (mis. "order" untuk href "/order"). */
   badges?: Record<string, number>
   userName?: string
-  /** Route logout. Default "/api/auth/logout". */
+  /** Route logout (link `<a>` polos). Default "/api/auth/logout". Diabaikan kalau `onLogout` diisi. */
   logoutHref?: string
+  /** Handler logout client-side (mis. app yang perlu bersih-bersih sebelum signOut, bukan
+   *  cuma navigasi ke route) — kalau diisi, tombol power jadi `<button>` bukan `<a href={logoutHref}>`. */
+  onLogout?: () => void
   /** Slot tambahan di baris bawah sheet "More" (mis. ThemeToggle) — di kiri avatar/logout. */
   extra?: ReactNode
 }
 
-export function MobileBottomNav({ tabs, badges = {}, userName = "A", logoutHref = "/api/auth/logout", extra }: MobileBottomNavProps) {
+export function MobileBottomNav({ tabs, badges = {}, userName = "A", logoutHref = "/api/auth/logout", onLogout, extra }: MobileBottomNavProps) {
   const pathname = usePathname()
   const [sheetOpen, setSheetOpen] = useState(false)
 
@@ -186,14 +189,26 @@ export function MobileBottomNav({ tabs, badges = {}, userName = "A", logoutHref 
                     {userName.trim().charAt(0).toUpperCase() || "A"}
                   </div>
                 </div>
-                <a
-                  href={logoutHref}
-                  className="w-[32px] h-[32px] rounded-full flex items-center justify-center text-sm"
-                  style={{ color: "rgba(255,255,255,0.3)" }}
-                  aria-label="Logout"
-                >
-                  ⏻
-                </a>
+                {onLogout ? (
+                  <button
+                    type="button"
+                    onClick={onLogout}
+                    className="w-[32px] h-[32px] rounded-full flex items-center justify-center text-sm"
+                    style={{ color: "rgba(255,255,255,0.3)" }}
+                    aria-label="Logout"
+                  >
+                    ⏻
+                  </button>
+                ) : (
+                  <a
+                    href={logoutHref}
+                    className="w-[32px] h-[32px] rounded-full flex items-center justify-center text-sm"
+                    style={{ color: "rgba(255,255,255,0.3)" }}
+                    aria-label="Logout"
+                  >
+                    ⏻
+                  </a>
+                )}
               </div>
             </div>
           </div>

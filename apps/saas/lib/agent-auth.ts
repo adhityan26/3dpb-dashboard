@@ -12,7 +12,8 @@ export async function requireAgentToken(req: Request): Promise<{ userId: string 
   const match = /^Bearer (.+)$/.exec(authHeader);
   if (!match) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
 
-  const resolved = await resolveToken(match[1]);
+  const agentVersion = req.headers.get("X-Agent-Version");
+  const resolved = await resolveToken(match[1], agentVersion);
   if (!resolved) return NextResponse.json({ error: "invalid_token" }, { status: 401 });
 
   const ent = await getEntitlement(resolved.userId);

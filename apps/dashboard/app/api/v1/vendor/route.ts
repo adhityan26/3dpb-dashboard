@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { requireApiV1Token } from '@/lib/api-v1/auth'
 
 function toResponse(v: { id: number; name: string; comment: string; emptySpoolWeight: number | null; externalId: string | null; createdAt: Date }) {
   return {
@@ -15,6 +16,7 @@ function toResponse(v: { id: number; name: string; comment: string; emptySpoolWe
 
 // GET /api/v1/vendor?name={name}
 export async function GET(req: NextRequest) {
+  if (!requireApiV1Token(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const name = req.nextUrl.searchParams.get('name')
   const vendors = await prisma.spoolmanVendor.findMany({
     where: name ? { name: { contains: name } } : undefined,
@@ -25,6 +27,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/v1/vendor
 export async function POST(req: NextRequest) {
+  if (!requireApiV1Token(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json()
   const vendor = await prisma.spoolmanVendor.upsert({
     where: { name: body.name },

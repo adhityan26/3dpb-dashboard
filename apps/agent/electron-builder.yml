@@ -7,7 +7,10 @@ directories:
   output: release
 win:
   target: nsis
-  artifactName: ${productName}-Setup-${version}.${ext}
+  # ${env.COMMIT_HASH} diisi scripts/build-installer.mjs (satu-satunya jalan resmi build
+  # installer) -- selama staging versi tak naik tiap rebuild, jadi commit hash bawaan nama
+  # file ini yang bedain build satu ke lain (lihat CLAUDE.md soal aturan bump versi).
+  artifactName: ${productName}-Setup-${version}-${env.COMMIT_HASH}.${ext}
 nsis:
   oneClick: false
   # SENGAJA false (sebelumnya true): kalau user (atau kita sendiri, waktu testing) install ke
@@ -22,7 +25,7 @@ nsis:
   guid: 04F84627-6088-42AF-9F62-8045052DA997
 mac:
   target: dmg
-  artifactName: ${productName}-${version}.${ext}
+  artifactName: ${productName}-${version}-${env.COMMIT_HASH}.${ext}
 files:
   - out/**/*
   - package.json

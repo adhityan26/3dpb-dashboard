@@ -46,6 +46,43 @@ describe("issueOtp", () => {
     expect(arg.update.sentCount).toBe(1);
     expect(arg.update.windowStart).toBe(NOW);
   });
+
+  it("baris baru (genuinely first-ever issue) -> attempts 0, wajar", async () => {
+    (prisma.waOtp.findUnique as any).mockResolvedValue(null);
+    await issueOtp("628111", NOW);
+    const arg = (prisma.waOtp.upsert as any).mock.calls[0][0];
+    expect(arg.create.attempts).toBe(0);
+  });
+
+  it("kirim ulang DALAM jendela yang sama, sudah 5x salah tebak -> attempts TETAP 5, TIDAK direset (tutup celah bypass lockout via re-issue)", async () => {
+    const existingWindowStart = new Date(NOW.getTime() - 10 * 60_000);
+    (prisma.waOtp.findUnique as any).mockResolvedValue({
+      phone: "628111", windowStart: existingWindowStart, sentCount: 2, attempts: 5,
+    });
+    await issueOtp("628111", NOW);
+    const arg = (prisma.waOtp.upsert as any).mock.calls[0][0];
+    expect(arg.update.attempts).toBe(5);
+  });
+
+  it("kirim ulang DALAM jendela yang sama, attempts sebagian (mis. 2) -> tetap dipertahankan apa adanya, bukan direset ke 0", async () => {
+    const existingWindowStart = new Date(NOW.getTime() - 10 * 60_000);
+    (prisma.waOtp.findUnique as any).mockResolvedValue({
+      phone: "628111", windowStart: existingWindowStart, sentCount: 2, attempts: 2,
+    });
+    await issueOtp("628111", NOW);
+    const arg = (prisma.waOtp.upsert as any).mock.calls[0][0];
+    expect(arg.update.attempts).toBe(2);
+  });
+
+  it("jendela SUDAH LEWAT 1 jam -> attempts ikut direset ke 0 (fresh window, fresh budget), sama seperti sentCount", async () => {
+    const oldWindowStart = new Date(NOW.getTime() - 2 * 60 * 60_000);
+    (prisma.waOtp.findUnique as any).mockResolvedValue({
+      phone: "628111", windowStart: oldWindowStart, sentCount: 5, attempts: 5,
+    });
+    await issueOtp("628111", NOW);
+    const arg = (prisma.waOtp.upsert as any).mock.calls[0][0];
+    expect(arg.update.attempts).toBe(0);
+  });
 });
 
 describe("verifyOtp", () => {

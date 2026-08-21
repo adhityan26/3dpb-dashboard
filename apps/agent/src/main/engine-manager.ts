@@ -3,6 +3,7 @@ import type { DeviceConfig, Connector } from "@3pb/printer-monitor-core";
 import type { DeviceSecret } from "./credential-store";
 import { hmsTable } from "./hms-table";
 import { CYD_TYPE_FALLBACK } from "./printer-model";
+import log from "electron-log/main";
 
 export interface PairedDevice {
   shortCode: string;
@@ -23,7 +24,7 @@ export interface StartedEngine {
   reporters: MqttReporter[];
 }
 
-export async function startEngine(paired: PairedDevice[], brokerPort: number): Promise<StartedEngine> {
+export async function startEngine(paired: PairedDevice[], brokerPort: number, pin: string): Promise<StartedEngine> {
   const devices: DeviceConfig[] = [];
   const connectors: Connector[] = [];
 
@@ -54,13 +55,14 @@ export async function startEngine(paired: PairedDevice[], brokerPort: number): P
         p.printerType === "bambu" ? new BambuMqttConnector(device) : new MoonrakerConnector(device)
       );
     } catch (err) {
-      console.error(`[engine-manager] gagal bikin connector utk ${p.shortCode} (${p.printerType}) -- device ini TIDAK termonitor, device lain tetap jalan`, err);
+      log.error(`[engine-manager] gagal bikin connector utk ${p.shortCode} (${p.printerType}) -- device ini TIDAK termonitor, device lain tetap jalan`, err);
     }
   }
 
   const reporter = new MqttReporter({
     url: `mqtt://127.0.0.1:${brokerPort}`,
     statusTopic: "3dpb/printers", // WAJIB override — default reporter "3dpb/printers-v2" salah buat kontrak CYD
+    password: pin,
   });
   await reporter.connect();
 

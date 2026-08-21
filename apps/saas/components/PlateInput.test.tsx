@@ -191,9 +191,23 @@ describe("1b-6a multi-material di plate", () => {
   });
 });
 
-describe("1b-6b import file slicer", () => {
+describe("1b-6b import file slicer (multi-file append)", () => {
   const mockImport = importSlicerFile as unknown as ReturnType<typeof vi.fn>;
   beforeEach(() => { mockImport.mockReset(); });
+
+  const draftA = {
+    nama: "PrintA", batch: 2, isSliced: true, warnings: ["Filament X belum ada di katalog — pakai tarif default"],
+    plates: [{ nama: "Plate A1", durasiJam: 1, materials: [{ tipe: "FDM", gramasi: 10 }] }],
+  };
+  const draftB = {
+    nama: "PrintB", batch: 3, isSliced: true, warnings: [],
+    plates: [
+      { nama: "Plate B1", durasiJam: 2, materials: [{ tipe: "FDM", gramasi: 20 }] },
+      { nama: "Plate B2", durasiJam: 3, materials: [{ tipe: "FDM", gramasi: 30 }] },
+    ],
+  };
+  const pristinePlates = [{ id: "p1", nama: "", durasiJam: "", materials: [{ id: "m1", tipe: "FDM" as const, gramasi: "" }] }];
+  const fileInput = () => document.querySelector('input[type="file"]') as HTMLInputElement;
 
   it("tombol import muncul untuk Pro, tidak untuk Free", () => {
     const { rerender } = render(<PlateInput {...base} locked={false} />);
@@ -202,34 +216,73 @@ describe("1b-6b import file slicer", () => {
     expect(screen.queryByText(/Import file slicer/)).toBeNull();
   });
 
-  it("pilih file valid → onPlatesChange/onBatchChange terpanggil + warning tampil", async () => {
-    mockImport.mockResolvedValue({
-      nama: "Print", batch: 2, isSliced: true, warnings: ["Filament X belum ada di katalog — pakai tarif default"],
-      plates: [{ nama: "Plate 1", durasiJam: 1, materials: [{ tipe: "FDM", gramasi: 10 }] }],
-    });
+  it("input file punya atribut multiple", () => {
+    render(<PlateInput {...base} locked={false} />);
+    expect(fileInput().multiple).toBe(true);
+  });
+
+  it("state pristine → plate kosong diganti hasil import + batch di-set dari file pertama", async () => {
+    mockImport.mockResolvedValue(draftA);
     const onP = vi.fn();
     const onB = vi.fn();
-    render(<PlateInput {...base} locked={false} onPlatesChange={onP} onBatchChange={onB} />);
-    const file = new File(["dummy"], "print.3mf");
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    fireEvent.change(input, { target: { files: [file] } });
+    render(<PlateInput {...base} plates={pristinePlates} locked={false} onPlatesChange={onP} onBatchChange={onB} />);
+    fireEvent.change(fileInput(), { target: { files: [new File(["d"], "a.gcode.3mf")] } });
     await waitFor(() => expect(onP).toHaveBeenCalled());
     expect(onP.mock.calls[0][0]).toHaveLength(1);
-    expect(onP.mock.calls[0][0][0]).toMatchObject({ nama: "Plate 1", durasiJam: "1" });
-    expect(onP.mock.calls[0][0][0].materials[0]).toMatchObject({ tipe: "FDM", gramasi: "10" });
+    expect(onP.mock.calls[0][0][0]).toMatchObject({ nama: "Plate A1", durasiJam: "1" });
     expect(onB).toHaveBeenCalledWith("2");
     expect(await screen.findByText(/Filament X belum ada di katalog/)).toBeTruthy();
   });
 
-  it("file tidak dikenali → error inline tampil, plates tak berubah", async () => {
+  it("state terisi → hasil import di-APPEND, batch TIDAK diubah", async () => {
+    mockImport.mockResolvedValue(draftB);
+    const onP = vi.fn();
+    const onB = vi.fn();
+    // base.plates = 1 plate terisi (durasiJam "3", gramasi "50")
+    render(<PlateInput {...base} locked={false} onPlatesChange={onP} onBatchChange={onB} />);
+    fireEvent.change(fileInput(), { target: { files: [new File(["d"], "b.gcode.3mf")] } });
+    await waitFor(() => expect(onP).toHaveBeenCalled());
+    expect(onP.mock.calls[0][0]).toHaveLength(3); // 1 lama + 2 baru
+    expect(onP.mock.calls[0][0][1]).toMatchObject({ nama: "Plate B1" });
+    expect(onP.mock.calls[0][0][2]).toMatchObject({ nama: "Plate B2" });
+    expect(onB).not.toHaveBeenCalled();
+  });
+
+  it("multi-select 2 file sekaligus → semua plate masuk berurutan", async () => {
+    mockImport.mockResolvedValueOnce(draftA).mockResolvedValueOnce(draftB);
+    const onP = vi.fn();
+    render(<PlateInput {...base} plates={pristinePlates} locked={false} onPlatesChange={onP} />);
+    fireEvent.change(fileInput(), { target: { files: [new File(["d"], "a.gcode.3mf"), new File(["d"], "b.gcode.3mf")] } });
+    await waitFor(() => expect(onP).toHaveBeenCalled());
+    expect(mockImport).toHaveBeenCalledTimes(2);
+    expect(onP.mock.calls[0][0].map((p: { nama: string }) => p.nama)).toEqual(["Plate A1", "Plate B1", "Plate B2"]);
+  });
+
+  it("1 file gagal + 1 file valid → yang valid tetap masuk, error menyebut nama file gagal", async () => {
+    mockImport.mockResolvedValueOnce(null).mockResolvedValueOnce(draftB);
+    const onP = vi.fn();
+    render(<PlateInput {...base} plates={pristinePlates} locked={false} onPlatesChange={onP} />);
+    fireEvent.change(fileInput(), { target: { files: [new File(["d"], "bad.zip"), new File(["d"], "b.gcode.3mf")] } });
+    expect(await screen.findByText(/bad\.zip/)).toBeTruthy();
+    await waitFor(() => expect(onP).toHaveBeenCalled());
+    expect(onP.mock.calls[0][0]).toHaveLength(2);
+  });
+
+  it("semua file tidak dikenali → error inline tampil, plates tak berubah", async () => {
     mockImport.mockResolvedValue(null);
     const onP = vi.fn();
     render(<PlateInput {...base} locked={false} onPlatesChange={onP} />);
-    const file = new File(["dummy"], "bad.zip");
-    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
-    fireEvent.change(input, { target: { files: [file] } });
+    fireEvent.change(fileInput(), { target: { files: [new File(["d"], "bad.zip")] } });
     expect(await screen.findByText(/tidak dikenali/)).toBeTruthy();
     expect(onP).not.toHaveBeenCalled();
+  });
+
+  it("warnings duplikat lintas file di-dedupe", async () => {
+    mockImport.mockResolvedValueOnce(draftA).mockResolvedValueOnce({ ...draftB, warnings: draftA.warnings });
+    render(<PlateInput {...base} plates={pristinePlates} locked={false} onPlatesChange={vi.fn()} />);
+    fireEvent.change(fileInput(), { target: { files: [new File(["d"], "a.gcode.3mf"), new File(["d"], "b.gcode.3mf")] } });
+    const warns = await screen.findAllByText(/Filament X belum ada di katalog/);
+    expect(warns).toHaveLength(1);
   });
 });
 

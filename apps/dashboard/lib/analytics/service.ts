@@ -4,6 +4,8 @@ import { prisma } from "@/lib/db"
 import { generateMockAnalytics } from "./mock"
 import type { AnalyticsData, DailyPoint, TopProduct } from "./types"
 import { resolveRange, type FlexRange } from "@/lib/dateRange"
+import { syncAndGetEscrowForOrders, allocateFeePerProduct, type OrderEscrowRow } from "./income"
+import type { IncomeBreakdownSummary, ProductIncomeBreakdown } from "./types"
 
 export type AnalyticsRange = FlexRange  // backwards-compatible alias
 
@@ -168,6 +170,60 @@ export async function getAnalytics(
     }
   }
 
+  // Income breakdown: sync escrow cache, allocate fees per product
+  const nowSec = Math.floor(Date.now() / 1000)
+  let escrowByOrderSn = new Map<string, OrderEscrowRow>()
+  try {
+    escrowByOrderSn = await syncAndGetEscrowForOrders(orders, nowSec)
+  } catch (err) {
+    console.error("[analytics] escrow sync failed, income breakdown will show as not-final:", err)
+  }
+  const feeByOrderSn = allocateFeePerProduct(orders, escrowByOrderSn)
+
+  const incomeByProductMap = new Map<string, ProductIncomeBreakdown>()
+  for (const order of orders) {
+    const lines = feeByOrderSn.get(order.order_sn) ?? []
+    for (let i = 0; i < order.item_list.length; i++) {
+      const item = order.item_list[i]
+      const line = lines[i]
+      if (!line) continue
+      const existing = incomeByProductMap.get(item.item_name) ?? {
+        productName: item.item_name,
+        qty: 0,
+        buyerPayment: 0,
+        shopeePrice: 0,
+        adminFee: line.adminFee !== null ? 0 : null,
+        received: line.received !== null ? 0 : null,
+        hasReturn: false,
+      }
+      existing.qty += item.model_quantity_purchased
+      existing.shopeePrice += item.model_discounted_price * item.model_quantity_purchased
+      existing.buyerPayment +=
+        line.buyerPayment !== null
+          ? line.buyerPayment
+          : item.model_discounted_price * item.model_quantity_purchased
+      if (line.adminFee !== null) {
+        existing.adminFee = (existing.adminFee ?? 0) + line.adminFee
+      }
+      if (line.received !== null) {
+        existing.received = (existing.received ?? 0) + line.received
+      }
+      existing.hasReturn = existing.hasReturn || line.hasReturn
+      incomeByProductMap.set(item.item_name, existing)
+    }
+  }
+  const incomeByProduct = Array.from(incomeByProductMap.values())
+
+  const completedOrderCount = orders.filter((o) => o.order_status === "COMPLETED").length
+  const incomeSummary: IncomeBreakdownSummary = {
+    totalBuyerPayment: incomeByProduct.reduce((s, p) => s + p.buyerPayment, 0),
+    totalShopeePrice: incomeByProduct.reduce((s, p) => s + p.shopeePrice, 0),
+    totalAdminFee: incomeByProduct.reduce((s, p) => s + (p.adminFee ?? 0), 0),
+    totalReceived: incomeByProduct.reduce((s, p) => s + (p.received ?? 0), 0),
+    completedOrderCount,
+    totalOrderCount: orders.length,
+  }
+
   // Aggregate ads spend
   let totalAdSpend = 0
   for (const row of adsRows) {
@@ -214,5 +270,7 @@ export async function getAnalytics(
     },
     daily,
     topProducts,
+    incomeSummary,
+    incomeByProduct,
   }
 }

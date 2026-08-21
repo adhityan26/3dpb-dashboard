@@ -13,7 +13,7 @@ vi.mock("node:fs", () => ({
   default: { existsSync: vi.fn(), readFileSync: vi.fn(), writeFileSync: vi.fn(), mkdirSync: vi.fn() },
 }));
 
-import { loadCredentials, saveCredentials } from "./credential-store";
+import { loadCredentials, saveCredentials, ensureBrokerPin, clearBrokerPin, tryLoadCredentials } from "./credential-store";
 import { safeStorage } from "electron";
 
 beforeEach(() => {
@@ -59,5 +59,95 @@ describe("saveCredentials", () => {
     expect(fs.mkdirSync).toHaveBeenCalledWith("/fake/userdata", { recursive: true });
     expect(safeStorage.encryptString).toHaveBeenCalledWith(JSON.stringify(blob));
     expect(fs.writeFileSync).toHaveBeenCalled();
+  });
+});
+
+describe("ensureBrokerPin", () => {
+  it("genuinely first run (no file, encryption available) -> generate PIN 4-digit dan persist", async () => {
+    (fs.existsSync as any).mockReturnValue(false);
+    const pin = await ensureBrokerPin();
+    expect(pin).toMatch(/^\d{4}$/);
+    expect(fs.writeFileSync).toHaveBeenCalled();
+    const written = JSON.parse(
+      (safeStorage.decryptString as any)((fs.writeFileSync as any).mock.calls[0][1])
+    );
+    expect(written.brokerPin).toBe(pin);
+  });
+
+  it("blob sudah punya brokerPin -> pakai yang tersimpan, TIDAK generate baru / TIDAK saveCredentials lagi", async () => {
+    (fs.existsSync as any).mockReturnValue(true);
+    (fs.readFileSync as any).mockReturnValue(
+      Buffer.from(`ENC(${JSON.stringify({ agentToken: null, devices: {}, brokerPin: "0042" })})`)
+    );
+    const pin = await ensureBrokerPin();
+    expect(pin).toBe("0042");
+    expect(fs.writeFileSync).not.toHaveBeenCalled();
+  });
+
+  it("file ADA tapi decrypt gagal -> PIN in-memory-only, TIDAK PERNAH panggil saveCredentials (data-loss guard)", async () => {
+    (fs.existsSync as any).mockReturnValue(true);
+    (fs.readFileSync as any).mockReturnValue(Buffer.from("corrupt"));
+    (safeStorage.decryptString as any).mockImplementationOnce(() => {
+      throw new Error("DPAPI fail");
+    });
+    const pin = await ensureBrokerPin();
+    expect(pin).toMatch(/^\d{4}$/);
+    expect(fs.writeFileSync).not.toHaveBeenCalled();
+  });
+
+  it("genuinely first run TAPI safeStorage.isEncryptionAvailable() false -> PIN in-memory-only, TIDAK PERNAH panggil saveCredentials", async () => {
+    (fs.existsSync as any).mockReturnValue(false);
+    (safeStorage.isEncryptionAvailable as any).mockReturnValueOnce(false);
+    const pin = await ensureBrokerPin();
+    expect(pin).toMatch(/^\d{4}$/);
+    expect(fs.writeFileSync).not.toHaveBeenCalled();
+  });
+
+  it("upgrade case: file ADA, decrypt SUKSES, tapi belum ada brokerPin (blob pra-fitur ini) -> PIN di-generate DAN dipersist, agentToken/devices lama TETAP UTUH", async () => {
+    const existing = { agentToken: "slz_existing_user", devices: { abc1234567: { ip: "192.168.1.5", serial: "S1", accessCode: "1234" } } };
+    (fs.existsSync as any).mockReturnValue(true);
+    (fs.readFileSync as any).mockReturnValue(Buffer.from(`ENC(${JSON.stringify(existing)})`));
+    const pin = await ensureBrokerPin();
+    expect(pin).toMatch(/^\d{4}$/);
+    expect(fs.writeFileSync).toHaveBeenCalled();
+    const written = JSON.parse(
+      (safeStorage.decryptString as any)((fs.writeFileSync as any).mock.calls[0][1])
+    );
+    expect(written).toEqual({ ...existing, brokerPin: pin });
+  });
+});
+
+describe("tryLoadCredentials", () => {
+  it("genuinely first run (no file, encryption available) -> {ok:true, blob:EMPTY_BLOB}", async () => {
+    (fs.existsSync as any).mockReturnValue(false);
+    expect(tryLoadCredentials()).toEqual({ ok: true, blob: { agentToken: null, devices: {} } });
+  });
+
+  it("file ada, decrypt sukses -> {ok:true, blob}", async () => {
+    const stored = { agentToken: "slz_abc", devices: {} };
+    (fs.existsSync as any).mockReturnValue(true);
+    (fs.readFileSync as any).mockReturnValue(Buffer.from(`ENC(${JSON.stringify(stored)})`));
+    expect(tryLoadCredentials()).toEqual({ ok: true, blob: stored });
+  });
+
+  it("safeStorage.isEncryptionAvailable() false -> {ok:false}", async () => {
+    (safeStorage.isEncryptionAvailable as any).mockReturnValueOnce(false);
+    expect(tryLoadCredentials()).toEqual({ ok: false });
+  });
+
+  it("file ada tapi decrypt gagal -> {ok:false}", async () => {
+    (fs.existsSync as any).mockReturnValue(true);
+    (fs.readFileSync as any).mockReturnValue(Buffer.from("corrupt"));
+    (safeStorage.decryptString as any).mockImplementationOnce(() => { throw new Error("DPAPI fail"); });
+    expect(tryLoadCredentials()).toEqual({ ok: false });
+  });
+});
+
+describe("clearBrokerPin", () => {
+  it("hapus brokerPin dari blob, sisa field (agentToken/devices) tak tersentuh -- pure function, no I/O", () => {
+    const blob = { agentToken: "slz_x", devices: { a: { ip: "1.1.1.1", serial: "S", accessCode: "1234" } }, brokerPin: "0042" };
+    const result = clearBrokerPin(blob);
+    expect(result).toEqual({ agentToken: "slz_x", devices: blob.devices, brokerPin: undefined });
+    expect(fs.writeFileSync).not.toHaveBeenCalled();
   });
 });

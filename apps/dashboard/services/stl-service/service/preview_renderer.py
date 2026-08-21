@@ -24,6 +24,7 @@ if str(_SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS_DIR))
 
 from generate_shadow_casing import (  # noqa: E402
+    _apply_user_stems,
     _bridge_floating_islands,
     load_silhouette_mask,
     prepare_sdf_mask,
@@ -52,6 +53,11 @@ _PREVIEW_DEFAULTS: dict = {
     "shadow_threshold":  0.0,
     "mask_upsample":     4,
     "invert_mask":       False,
+    "auto_fit_mask":     False,
+    "mask_padding_pct":  0.0,
+    "img_brightness":    0.0,
+    "img_contrast":      0.0,
+    "img_saturation":    100.0,
     "n_stencil_theta":   512,
     "n_stencil_z":       128,
     "flooring_shape":    None,
@@ -62,13 +68,31 @@ _PREVIEW_DEFAULTS: dict = {
 }
 
 
+def _to_physical_polarity(shadow_gray: np.ndarray) -> np.ndarray:
+    """Remap simulate_shadow's semantic values to physical brightness.
+
+    simulate_shadow returns 255 = shadow (blocked), 128 = casing footprint,
+    0 = lit floor. Rendering that raw shows the shadow as WHITE, which reads
+    backwards next to the printed result. Remap so the preview looks like the
+    real lamp: lit floor bright, shadow dark, footprint mid-gray.
+    """
+    out = np.full_like(shadow_gray, 235)   # lit floor → bright
+    out[shadow_gray == 128] = 90           # casing footprint → mid-gray
+    out[shadow_gray == 255] = 20           # shadow → dark
+    return out
+
+
 def _draw_casing_outline(
     shadow_gray: np.ndarray,
     r_wall_arr: np.ndarray,
     floor_half: float,
+    light_x: float = 0.0,
+    light_y: float = 0.0,
 ) -> np.ndarray:
     """Overlay a cyan polyline of the casing footprint on the shadow image.
 
+    The amber cross marks the LIGHT position (light_x, light_y) in mm —
+    screen y is inverted (down = -y), same convention as the projection.
     Returns a BGR image (3-channel uint8) ready for PNG encoding.
     """
     bgr = cv2.cvtColor(shadow_gray, cv2.COLOR_GRAY2BGR)
@@ -84,14 +108,56 @@ def _draw_casing_outline(
     pts = np.column_stack([out_x, out_y]).reshape((-1, 1, 2))
 
     cv2.polylines(bgr, [pts], isClosed=True, color=(255, 255, 0), thickness=2)
+    light_px = int(round(cx_img + light_x * pix_per_mm))
+    light_py = int(round(cx_img - light_y * pix_per_mm))
     cv2.drawMarker(
-        bgr, (cx_img, cx_img),
+        bgr, (light_px, light_py),
         color=(0, 200, 255),
         markerType=cv2.MARKER_CROSS,
         markerSize=10,
         thickness=2,
     )
     return bgr
+
+
+def _render_wall_unwrap(
+    stencil: np.ndarray, z_min_mm: float, z_max_mm: float, r_wall_arr: np.ndarray,
+) -> bytes:
+    """Render the (θ,z) stencil grid itself as an unwrap PNG — the "Wall" tab
+    placement surface for manual stems, as opposed to the "Shadow" tab's
+    floor-projected radial view.
+
+    Mapping (documented for the dashboard, which derives it independently
+    rather than reading it from the PNG):
+      x_px / width  * 360        = theta_deg   (0 = column 0, wraps at width)
+      row 0                      = z_max_mm    (TOP of the wall)
+      row (height-1)             = z_min_mm    (BOTTOM of the wall)
+      (linear in between)
+
+    Polarity matches the Shadow tab: solid stencil cells (material, blocks
+    light) render dark (20); holes (light passes through) render bright
+    (235) — same convention as `_to_physical_polarity`.
+    """
+    n_theta, n_z = stencil.shape
+    # (n_z, n_theta) grid, row j == z_cents[j] (ascending: row 0 = z_min)
+    grid = np.where(stencil.T, 20, 235).astype(np.uint8)
+    # Flip so row 0 = TOP = z_max, matching the documented mapping.
+    grid = grid[::-1, :]
+
+    width = 1024
+    r_mean = float(r_wall_arr.mean()) if r_wall_arr.size else 0.0
+    circumference = 2.0 * np.pi * r_mean
+    z_range = max(float(z_max_mm - z_min_mm), 0.0)
+    height = int(round(width * (z_range / circumference))) if circumference > 0 else width
+    height = min(max(height, 128), width)
+
+    resized = cv2.resize(grid, (width, height), interpolation=cv2.INTER_NEAREST)
+    bgr = cv2.cvtColor(resized, cv2.COLOR_GRAY2BGR)
+
+    ok, buf = cv2.imencode(".png", bgr)
+    if not ok:
+        raise RuntimeError("PNG encoding failed")
+    return bytes(buf)
 
 
 def render_shadow_preview(image_path: str, config: dict | None = None) -> bytes:
@@ -123,7 +189,15 @@ def render_shadow_preview(image_path: str, config: dict | None = None) -> bytes:
     if "shell_height" not in p or p["shell_height"] is None:
         p["shell_height"] = float(p["light_z_offset"]) * (float(p["floor_half_size"]) / float(p["outer_radius"]) - 1)
 
-    raw_mask = load_silhouette_mask(image_path, invert=bool(p["invert_mask"]))
+    raw_mask = load_silhouette_mask(
+        image_path,
+        invert=bool(p["invert_mask"]),
+        auto_fit=bool(p["auto_fit_mask"]),
+        padding_pct=float(p["mask_padding_pct"]),
+        brightness=float(p["img_brightness"]),
+        contrast=float(p["img_contrast"]),
+        saturation=float(p["img_saturation"]),
+    )
     if raw_mask is None or raw_mask.size == 0:
         raise ValueError(f"Could not load silhouette image: {image_path}")
 
@@ -199,14 +273,34 @@ def render_shadow_preview(image_path: str, config: dict | None = None) -> bytes:
         stencil = (smooth_mask[PY, PX] > 0)
     stencil[R_fl > floor_half * 1.02] = False
 
+    stem_anchor = "top" if str(p.get("cover_type", "bottom")) == "top" else "bottom"
+
+    # Manual stems (v2 editor) merge in BEFORE auto-bridging, same order as
+    # the generator itself, so BFS treats them as already-grounded.
+    user_stems = p.get("user_stems")
+    if user_stems:
+        stencil = _apply_user_stems(
+            stencil, user_stems, int(p["stem_width"]), z_min_s, z_max_s, anchor=stem_anchor,
+        )
+
     if bool(p["support_stems"]):
-        stencil, _n_islands = _bridge_floating_islands(stencil, int(p["stem_width"]))
+        stencil, _n_islands = _bridge_floating_islands(
+            stencil, int(p["stem_width"]), anchor=stem_anchor,
+        )
+
+    if str(p.get("preview_view", "floor")) == "wall":
+        return _render_wall_unwrap(stencil, z_min_s, z_max_s, r_wall_arr)
 
     shadow_gray = simulate_shadow(
         stencil, z_cents, light_pos, r_wall_arr, floor_half, res=int(p["shadow_res"])
     )
 
-    bgr = _draw_casing_outline(shadow_gray, r_wall_arr, floor_half)
+    display_gray = _to_physical_polarity(shadow_gray)
+
+    bgr = _draw_casing_outline(
+        display_gray, r_wall_arr, floor_half,
+        light_x=float(p["light_x"]), light_y=float(p["light_y"]),
+    )
 
     ok, buf = cv2.imencode(".png", bgr)
     if not ok:

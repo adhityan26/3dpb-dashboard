@@ -20,6 +20,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
+import {
+  type ParamDef,
+  SECTIONS,
+  RECESS_PARAMS,
+  SHAPE_OPTIONS,
+  COVER_OPTIONS,
+} from "./config-params"
 
 interface LgConfigEditorProps {
   orderId: string
@@ -27,93 +34,9 @@ interface LgConfigEditorProps {
   operatorConfig: Record<string, unknown> | null
   onConfigChange?: (config: Record<string, unknown>) => void
   onReset?: () => void
+  /** Whether the order already has a floor-insert image (order.additionalImagePath). */
+  hasFlooringImage?: boolean
 }
-
-interface ParamDef {
-  key: string
-  label: string
-  help: string
-  type: "number" | "boolean"
-  min?: number
-  max?: number
-  step?: number
-  autoable?: boolean
-}
-
-const SHAPE_OPTIONS = [
-  { value: "circle",   label: "Circle" },
-  { value: "square",   label: "Square" },
-  { value: "triangle", label: "Triangle" },
-  { value: "rect",     label: "Rectangle" },
-  { value: "oval",     label: "Oval" },
-]
-
-const SECTIONS: { title: string; params: ParamDef[] }[] = [
-  {
-    title: "Size / Geometry",
-    params: [
-      { key: "outer_radius",    label: "Outer radius (mm)",    help: "Radius of the casing wall",                                  type: "number", min: 10,  max: 300,  step: 0.5 },
-      { key: "base_radius",     label: "Base radius (mm)",     help: "Radius of the floor plate (ignored for non-circle)",          type: "number", min: 10,  max: 300,  step: 0.5 },
-      { key: "shell_height",    label: "Shell height (mm)",    help: "Total height of the stencil wall",                            type: "number", min: 5,   max: 200,  step: 0.5, autoable: true },
-      { key: "shell_thickness", label: "Wall thickness (mm)",  help: "Thickness of the perforated wall",                            type: "number", min: 0.5, max: 10,   step: 0.1 },
-      { key: "base_thickness",  label: "Base thickness (mm)",  help: "Thickness of the raised floor plate",                         type: "number", min: 0.5, max: 10,   step: 0.1 },
-      { key: "casing_lift",     label: "Casing lift (mm)",     help: "Float casing above z=0 for external electronics chamber",     type: "number", min: 0,   max: 100,  step: 0.5 },
-    ],
-  },
-  {
-    title: "Shadow / Projection",
-    params: [
-      { key: "floor_half_size",  label: "Floor half-size (mm)", help: "Half-width of the shadow projection area",          type: "number", min: 50,   max: 2000, step: 5 },
-      { key: "shadow_offset_x",  label: "Shadow X offset (mm)", help: "Shift shadow on floor without distortion",          type: "number", min: -500, max: 500,  step: 1 },
-      { key: "shadow_offset_y",  label: "Shadow Y offset (mm)", help: "Shift shadow on floor without distortion",          type: "number", min: -500, max: 500,  step: 1 },
-    ],
-  },
-  {
-    title: "Light Position",
-    params: [
-      { key: "light_x",        label: "Light X (mm)",        help: "Moves the light physically — causes distortion", type: "number", min: -50, max: 50, step: 0.5 },
-      { key: "light_y",        label: "Light Y (mm)",        help: "Moves the light physically — causes distortion", type: "number", min: -50, max: 50, step: 0.5 },
-      { key: "light_z_offset", label: "Light Z offset (mm)", help: "Height above wall top",                          type: "number", min: 0,   max: 50, step: 0.5 },
-    ],
-  },
-  {
-    title: "Smoothness",
-    params: [
-      { key: "edge_smooth_sigma", label: "Smooth sigma (px)", help: "Higher = smoother silhouette edges",     type: "number", min: 0,   max: 30, step: 0.5 },
-      { key: "shadow_threshold",  label: "SDF threshold",     help: "+ erodes silhouette, - dilates it",     type: "number", min: -20, max: 20, step: 0.5 },
-    ],
-  },
-  {
-    title: "Resolution",
-    params: [
-      { key: "n_stencil_theta", label: "n_theta (angular)", help: "Angular segments. 2048 recommended", type: "number", min: 64,  max: 8192, step: 64 },
-      { key: "n_stencil_z",     label: "n_z (vertical)",    help: "Vertical layers. 64 is sweet spot",  type: "number", min: 8,   max: 1024, step: 8 },
-    ],
-  },
-  {
-    title: "LED Pillar",
-    params: [
-      { key: "pillar_outer_r",   label: "Pillar outer radius (mm)", help: "Outer radius of LED holder tube",  type: "number",  min: 1,   max: 30, step: 0.5 },
-      { key: "pillar_inner_r",   label: "Pillar inner radius (mm)", help: "Cable channel radius",              type: "number",  min: 0.5, max: 20, step: 0.5 },
-      { key: "led_socket_height",label: "LED socket height (mm)",   help: "Height of LED mount above pillar top", type: "number", min: 0, max: 50, step: 0.5 },
-      { key: "skip_led_pillar",  label: "Skip LED pillar",          help: "Omit the pillar entirely",          type: "boolean" },
-    ],
-  },
-  {
-    title: "Printability",
-    params: [
-      { key: "support_stems",  label: "Support stems",            help: "Bridge floating islands to base",                      type: "boolean" },
-      { key: "stem_width",     label: "Stem width (columns)",     help: "2 ~ 1mm at r=40mm",                                   type: "number", min: 1, max: 10, step: 1 },
-      { key: "min_bridge_mm",  label: "Min bridge width (mm)",    help: "Dilate thin features for printability. 0 = off",       type: "number", min: 0, max: 10, step: 0.1 },
-    ],
-  },
-  {
-    title: "Mesh Post-processing",
-    params: [
-      { key: "decimate_ratio", label: "Decimation ratio", help: "0 = off. 0.7 = remove 70% of faces", type: "number", min: 0, max: 0.95, step: 0.05 },
-    ],
-  },
-]
 
 function parseShape(raw: unknown): { base: string; w: string; h: string } {
   const s = typeof raw === "string" ? raw : ""
@@ -126,7 +49,7 @@ function parseShape(raw: unknown): { base: string; w: string; h: string } {
   return { base: s || "circle", w: "3", h: "4" }
 }
 
-export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConfigChange, onReset }: LgConfigEditorProps) {
+export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConfigChange, onReset, hasFlooringImage = false }: LgConfigEditorProps) {
   const merged = { ...customerConfig, ...(operatorConfig ?? {}) }
   const [values, setValues] = useState<Record<string, unknown>>(merged)
 
@@ -136,10 +59,41 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
   const [ratioH, setRatioH] = useState(shapeParsed.h)
 
   const [showJson, setShowJson] = useState(false)
+  const [jsonDraft, setJsonDraft] = useState("")
+  const [jsonError, setJsonError] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
   const [feedback, setFeedback] = useState<string | null>(null)
+  const [flooringUploaded, setFlooringUploaded] = useState(hasFlooringImage)
+  const [flooringUploadPending, setFlooringUploadPending] = useState(false)
+  const [flooringUploadError, setFlooringUploadError] = useState<string | null>(null)
 
   const needsRatio = shapeBase === "rect" || shapeBase === "oval"
+  const isCustomShape = shapeBase === "custom"
+
+  async function handleFlooringImageUpload(file: File) {
+    setFlooringUploadError(null)
+    setFlooringUploadPending(true)
+    try {
+      const form = new FormData()
+      form.append("file", file)
+      const res = await fetch(`/api/light-generator/orders/${orderId}/additional`, {
+        method: "PUT",
+        body: form,
+      })
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setFlooringUploadError(body.error ?? res.statusText)
+        return
+      }
+      setFlooringUploaded(true)
+    } catch (err) {
+      setFlooringUploadError(String(err))
+    } finally {
+      setFlooringUploadPending(false)
+    }
+  }
+
+  const coverType = values.cover_type === "top" ? "top" : "bottom"
 
   function notifyChange(nextValues: Record<string, unknown>, nextBase: string, nextW: string, nextH: string) {
     if (!onConfigChange) return
@@ -152,6 +106,10 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
         }
       }
     }
+    config.cover_type = nextValues.cover_type === "top" ? "top" : "bottom"
+    config.invert_mask = !!nextValues.invert_mask
+    config.bottom_frame = !!nextValues.bottom_frame
+    config.bottom_frame_height = Number(nextValues.bottom_frame_height) || 5
     const needsR = nextBase === "rect" || nextBase === "oval"
     config.flooring_shape = !nextBase || nextBase === "circle"
       ? "circle"
@@ -184,11 +142,40 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
         }
       }
     }
+    config.cover_type = values.cover_type === "top" ? "top" : "bottom"
+    config.invert_mask = !!values.invert_mask
+    config.bottom_frame = !!values.bottom_frame
+    config.bottom_frame_height = Number(values.bottom_frame_height) || 5
     const needsR = shapeBase === "rect" || shapeBase === "oval"
     config.flooring_shape = !shapeBase || shapeBase === "circle"
       ? "circle"
       : needsR ? `${shapeBase}:${ratioW}:${ratioH}` : shapeBase
     return config
+  }
+
+  function applyJsonDraft() {
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(jsonDraft)
+    } catch (err) {
+      setJsonError(`JSON tidak valid: ${err instanceof Error ? err.message : String(err)}`)
+      return
+    }
+    if (parsed === null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      setJsonError("JSON harus berupa object { … }")
+      return
+    }
+    const incoming = parsed as Record<string, unknown>
+    // Merge over current values so a partial paste only overrides given keys
+    const next = { ...values, ...incoming }
+    setValues(next)
+    const sp = parseShape(next.flooring_shape)
+    setShapeBase(sp.base)
+    setRatioW(sp.w)
+    setRatioH(sp.h)
+    notifyChange(next, sp.base, sp.w, sp.h)
+    setJsonError(null)
+    setFeedback("✅ JSON applied — review lalu Save untuk menyimpan")
   }
 
   async function saveConfig(): Promise<boolean> {
@@ -292,12 +279,101 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
                   </div>
                 </div>
               )}
+              {isCustomShape && (
+                <div className="space-y-2 pt-1">
+                  <p className="text-muted-foreground text-[11px]">
+                    Hitam = footprint casing. Order customer dengan floor insert image sudah otomatis terisi.
+                  </p>
+                  {flooringUploaded ? (
+                    <p className="text-xs text-green-600">✓ gambar flooring tersedia</p>
+                  ) : (
+                    <p className="text-xs text-amber-600">Belum ada gambar flooring untuk order ini</p>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="file"
+                      accept="image/png,image/jpeg"
+                      className="h-8 text-xs"
+                      disabled={flooringUploadPending}
+                      onChange={(e) => {
+                        const file = e.currentTarget.files?.[0]
+                        if (file) void handleFlooringImageUpload(file)
+                      }}
+                    />
+                  </div>
+                  {flooringUploadPending && <p className="text-muted-foreground text-[11px]">Mengupload...</p>}
+                  {flooringUploadError && <p className="text-xs text-red-500">❌ {flooringUploadError}</p>}
+                </div>
+              )}
             </div>
           </div>
         </div>
 
+        {/* Cover section */}
+        <div className="space-y-4">
+          <h4 className="text-sm font-semibold border-b pb-2">Cover</h4>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label>Cover type</Label>
+              <Select
+                value={coverType}
+                onValueChange={(v) => { if (v) setValue("cover_type", v) }}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {COVER_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-muted-foreground text-[11px]">
+                Bottom: floor plate + LED pillar, open top. Top: closed cover with LED recess, open bottom.
+              </p>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label className="text-sm">Invert shadow</Label>
+                <p className="text-muted-foreground text-[11px]">Swap solid/hole regions of the silhouette</p>
+              </div>
+              <Switch checked={getBool("invert_mask")} onCheckedChange={(c) => setValue("invert_mask", c)} />
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <Label className="text-sm">Bottom frame</Label>
+                <p className="text-muted-foreground text-[11px]">Solid band at the wall base that catches islands near the bottom — follows the footprint shape; blocks the outermost shadow zone</p>
+              </div>
+              <Switch checked={getBool("bottom_frame")} onCheckedChange={(c) => setValue("bottom_frame", c)} />
+            </div>
+            {getBool("bottom_frame") && (
+              <div className="space-y-2">
+                <div className="flex items-baseline justify-between">
+                  <Label className="text-sm">Bottom frame height (mm)</Label>
+                  <span className="text-muted-foreground text-xs tabular-nums">{getNum("bottom_frame_height") || 5}</span>
+                </div>
+                <Slider
+                  value={[getNum("bottom_frame_height") || 5]}
+                  min={1} max={30} step={0.5}
+                  onValueChange={(val) => { const v = Array.isArray(val) ? val[0] : (val as number); if (v !== undefined) setValue("bottom_frame_height", v) }}
+                />
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="number"
+                    value={getNum("bottom_frame_height") || 5}
+                    min={1} max={30} step={0.5}
+                    onChange={(e) => setValue("bottom_frame_height", e.currentTarget.value)}
+                    className="h-8 w-24 text-sm"
+                  />
+                  <p className="text-muted-foreground text-[11px] flex-1">Height of the solid band at the wall base</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Parameter sections */}
-        {SECTIONS.map((section) => (
+        {SECTIONS
+          .filter((section) => !(coverType === "top" && section.title === "LED Pillar"))
+          .map((section) => (
           <div key={section.title} className="space-y-4">
             <h4 className="text-sm font-semibold border-b pb-2">{section.title}</h4>
             <div className="grid gap-5 sm:grid-cols-2">
@@ -366,6 +442,37 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
           </div>
         ))}
 
+        {coverType === "top" && (
+          <div className="space-y-4">
+            <h4 className="text-sm font-semibold border-b pb-2">LED Recess</h4>
+            <div className="grid gap-5 sm:grid-cols-2">
+              {RECESS_PARAMS.map((p) => (
+                <div key={p.key} className="space-y-2">
+                  <div className="flex items-baseline justify-between">
+                    <Label className="text-sm">{p.label}</Label>
+                    <span className="text-muted-foreground text-xs tabular-nums">{getNum(p.key)}</span>
+                  </div>
+                  <Slider
+                    value={[getNum(p.key)]}
+                    min={p.min} max={p.max} step={p.step}
+                    onValueChange={(val) => { const v = Array.isArray(val) ? val[0] : (val as number); if (v !== undefined) setValue(p.key, v) }}
+                  />
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      value={getNum(p.key)}
+                      min={p.min} max={p.max} step={p.step}
+                      onChange={(e) => setValue(p.key, e.currentTarget.value)}
+                      className="h-8 w-24 text-sm"
+                    />
+                    <p className="text-muted-foreground text-[11px] flex-1">{p.help}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {feedback && <p className="text-sm">{feedback}</p>}
 
         <div className="flex items-center gap-3 border-t pt-4">
@@ -375,15 +482,39 @@ export function LgConfigEditor({ orderId, customerConfig, operatorConfig, onConf
           <Button variant="outline" size="sm" onClick={handleReset} disabled={isPending}>
             Reset to customer defaults
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setShowJson(!showJson)}>
-            {showJson ? "Hide JSON" : "Show raw JSON"}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (!showJson) setJsonDraft(JSON.stringify(buildCurrentConfig(), null, 2))
+              setJsonError(null)
+              setShowJson(!showJson)
+            }}
+          >
+            {showJson ? "Hide JSON" : "Edit raw JSON"}
           </Button>
         </div>
 
         {showJson && (
-          <pre className="bg-muted overflow-auto rounded-lg p-3 text-xs">
-            {JSON.stringify(buildCurrentConfig(), null, 2)}
-          </pre>
+          <div className="space-y-2">
+            <textarea
+              value={jsonDraft}
+              onChange={(e) => { setJsonDraft(e.currentTarget.value); setJsonError(null) }}
+              spellCheck={false}
+              rows={Math.min(24, jsonDraft.split("\n").length + 1)}
+              className="bg-muted w-full resize-y overflow-auto rounded-lg p-3 font-mono text-xs"
+              aria-label="Raw config JSON"
+            />
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={applyJsonDraft}>
+                Apply JSON
+              </Button>
+              <p className="text-muted-foreground text-[11px]">
+                Paste a full or partial config — known parameter keys override the form values above.
+              </p>
+            </div>
+            {jsonError && <p className="text-sm text-red-500">❌ {jsonError}</p>}
+          </div>
         )}
       </CardContent>
     </Card>

@@ -14,6 +14,7 @@ beforeEach(() => {
     pairDevice: vi.fn().mockResolvedValue(undefined),
     forgetDevice: vi.fn().mockResolvedValue(undefined),
     updateDeviceModel: vi.fn().mockResolvedValue({ ok: true }),
+    getCredentialStoreStatus: vi.fn().mockResolvedValue({ degraded: false }),
   };
 });
 

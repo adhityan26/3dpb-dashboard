@@ -4,6 +4,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const constructorOptions: Record<string, unknown>[] = [];
+// vi.mock factory di bawah di-hoist ke atas file -- setApplicationMenu harus lewat vi.hoisted()
+// biar tersedia saat factory jalan (pola sama tray.test.ts).
+const { setApplicationMenu } = vi.hoisted(() => ({ setApplicationMenu: vi.fn() }));
 
 vi.mock("electron", () => ({
   BrowserWindow: class {
@@ -13,9 +16,10 @@ vi.mock("electron", () => ({
     }
     loadURL = vi.fn();
   },
+  Menu: { setApplicationMenu },
 }));
 
-import { createWindow } from "./window";
+import { createWindow, disableApplicationMenu } from "./window";
 
 type WebPreferences = {
   preload: string;
@@ -26,6 +30,14 @@ type WebPreferences = {
 
 beforeEach(() => {
   constructorOptions.length = 0;
+  setApplicationMenu.mockClear();
+});
+
+describe("disableApplicationMenu", () => {
+  it("panggil Menu.setApplicationMenu(null) -- hilangkan menu bar bawaan (File/Edit/View/dst)", () => {
+    disableApplicationMenu();
+    expect(setApplicationMenu).toHaveBeenCalledWith(null);
+  });
 });
 
 describe("createWindow webPreferences", () => {

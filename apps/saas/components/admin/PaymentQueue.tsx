@@ -17,7 +17,7 @@ export function PaymentQueue({ rows }: { rows: PendingRow[] }) {
   return (
     <div className="flex flex-col gap-2">
       <p className="text-[11px]" style={{ color: "#dc2626" }}>
-        ⚠️ "Diklaim" cuma tanda user meng-klik sudah bayar — <b>bukan bukti</b>. Cek mutasi bank untuk nominal <b>PERSIS</b> sebelum Aktifkan.
+        ⚠️ &quot;Diklaim&quot; cuma tanda user meng-klik sudah bayar — <b>bukan bukti</b>. Cek mutasi bank untuk nominal <b>PERSIS</b> sebelum Aktifkan.
       </p>
       <div className="overflow-x-auto">
       <table className="text-[12px] g-t2 w-full">

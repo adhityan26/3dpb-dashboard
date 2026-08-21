@@ -16,6 +16,7 @@ import { KalkulatorV2SettingsCard } from "@/components/settings/kalkulator-v2/Ka
 import { ShopeeFeeAnalyticsCard } from "@/components/settings/ShopeeFeeAnalyticsCard"
 import { InvoiceMethodsCard } from "@/components/settings/InvoiceMethodsCard"
 import { TokopediaSessionCard } from "@/components/settings/TokopediaSessionCard"
+import { GopayStatusCard } from "@/components/settings/GopayStatusCard"
 import { FilamentAliasCard } from "@/components/settings/FilamentAliasCard"
 import { CydDeviceCard } from "@/components/settings/CydDeviceCard"
 import { CydFieldPresetCard } from "@/components/settings/CydFieldPresetCard"
@@ -154,6 +155,7 @@ function SettingsPageInner() {
         {activeTab === "lainnya" && (
           <div className="space-y-4">
             <InvoiceMethodsCard />
+            <GopayStatusCard />
             <TokopediaSessionCard />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FilamenCatalogCard lastCatalogSync={filamenSettings?.lastCatalogSync ?? null} />

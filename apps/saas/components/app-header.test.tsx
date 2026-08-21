@@ -57,4 +57,11 @@ describe("AppHeader nav island", () => {
     expect(screen.queryByText("Kalkulator")).toBeNull();
     expect(screen.queryByLabelText("Keluar")).toBeNull();
   });
+
+  it("nav-island desktop hidden di mobile -- MobileBottomNav (PageShell) sudah jadi nav di sana, dulu keduanya tampil bareng (nav dobel)", () => {
+    render(<AppHeader owner={false} current="kalkulator" />);
+    const island = screen.getByText("Kalkulator").closest("div.hidden");
+    expect(island).toBeTruthy();
+    expect(island?.className).toContain("md:flex");
+  });
 });

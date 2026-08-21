@@ -42,8 +42,15 @@ export class HmsLookup {
 export const MAX_ERROR_MESSAGE_LEN = 240
 
 export function describeError(hms: HmsEntry[], printError: number, lookup: HmsLookup): string {
-  const translated = lookup.translate(hms)
-  const hit = translated[0]?.startsWith('[') ? translated[0] : undefined
+  const hmsHit = lookup.translate(hms).find((t) => t.startsWith('['))
+  // print_error SENDIRI kadang meng-encode kode HMS dgn skema attr yang SAMA (upper16_lower16),
+  // TERPISAH dari array hms[] -- kasus nyata (sniff MQTT langsung, 2026-08-09, "AMS filament
+  // ran out"): hms[] cuma berisi 1 notice LAIN yang tak terkait alasan pause sebenarnya,
+  // sementara print_error=117473297 (0x07008011) persis kunci "0700_8011" di tabel kita
+  // (terjemahannya sama persis dgn yang ditampilkan Bambu Connect). Tanpa ini, print_error
+  // cuma dipakai sbg ANGKA mentah di fallback di bawah, tak pernah dicoba di-translate.
+  const printErrorHit = printError !== 0 ? lookup.translate([{ attr: printError, code: 0 }])[0] : undefined
+  const hit = hmsHit ?? (printErrorHit?.startsWith('[') ? printErrorHit : undefined)
   const raw = hit ?? (printError !== 0 ? `Print error (kode ${printError})` : 'Print error')
   return raw.length > MAX_ERROR_MESSAGE_LEN ? raw.slice(0, MAX_ERROR_MESSAGE_LEN - 1) + '…' : raw
 }

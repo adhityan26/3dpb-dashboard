@@ -3,7 +3,10 @@
 const rupiah = (n: number) => "Rp" + n.toLocaleString("id-ID");
 
 export type UserPayment = { id: string; amount: number; when: string; hasProof: boolean };
-export type UserRow = { who: string; status: string; joined: string; payment?: UserPayment };
+/** version/lastSeen null = belum pernah tercatat konek (agentVersion field baru diisi mulai
+ * apps/agent versi yang kirim header X-Agent-Version -- lihat lib/agent-tokens/service.ts). */
+export type UserAgent = { version: string | null; lastSeen: string | null };
+export type UserRow = { who: string; status: string; joined: string; payment?: UserPayment; agent?: UserAgent };
 
 export function UserList({ rows }: { rows: UserRow[] }) {
   if (rows.length === 0) return <p className="text-[12px] g-t4">Belum ada user.</p>;
@@ -15,6 +18,7 @@ export function UserList({ rows }: { rows: UserRow[] }) {
             <th className="pr-4">User</th>
             <th className="pr-4">Status</th>
             <th className="pr-4">Daftar</th>
+            <th className="pr-4">Agent</th>
             <th>Pembayaran</th>
           </tr>
         </thead>
@@ -24,6 +28,16 @@ export function UserList({ rows }: { rows: UserRow[] }) {
               <td className="pr-4">{r.who}</td>
               <td className="pr-4">{r.status}</td>
               <td className="pr-4">{r.joined}</td>
+              <td className="pr-4">
+                {r.agent?.version ? (
+                  <span>
+                    v{r.agent.version}
+                    {r.agent.lastSeen && <span className="g-t5"> · {r.agent.lastSeen}</span>}
+                  </span>
+                ) : (
+                  <span className="g-t5">—</span>
+                )}
+              </td>
               <td>
                 {r.payment ? (
                   <span className="inline-flex items-center gap-2 flex-wrap">

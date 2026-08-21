@@ -18,8 +18,14 @@ export default function LoginPage() {
     setMsg(""); setPending(true);
     const channel = detectChannel(input);
     if (channel === "email") {
-      await signIn("resend", { email: input.trim(), redirect: false, callbackUrl: "/" });
-      setStep("email_sent"); setPending(false); return;
+      const result = await signIn("resend", { email: input.trim(), redirect: false, callbackUrl: "/" });
+      setPending(false);
+      // signIn() dengan redirect:false balikin {error} kalau sendVerificationRequest
+      // men-throw (mis. kena rate limit magic-link, lib/email/send-verification-request.ts)
+      // -- sebelumnya hasil ini tak pernah dicek sama sekali, jadi UI selalu bilang "terkirim"
+      // walau sebenarnya gagal.
+      if (result?.error) { setMsg("Gagal mengirim link, coba lagi nanti."); return; }
+      setStep("email_sent"); return;
     }
     if (channel === "phone") {
       const res = await fetch("/api/auth/wa/start", {
@@ -86,6 +92,13 @@ export default function LoginPage() {
       )}
 
       {msg && <p className="text-[12px] mt-3" style={{ color: "#dc2626" }}>{msg}</p>}
+
+      <p className="text-[11px] g-t5 mt-6">
+        Dengan masuk, kamu setuju dengan{" "}
+        <a href="https://www.slizebiz.com/tos" className="underline" target="_blank" rel="noopener noreferrer">Ketentuan Layanan</a>
+        {" "}&amp;{" "}
+        <a href="https://www.slizebiz.com/privasi" className="underline" target="_blank" rel="noopener noreferrer">Kebijakan Privasi</a>.
+      </p>
     </main>
   );
 }

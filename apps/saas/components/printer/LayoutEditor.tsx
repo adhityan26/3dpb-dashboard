@@ -36,6 +36,9 @@ function HeaderTextField({ value, onCommit }: { value: string; onCommit: (text: 
   const [text, setText] = useState(value);
 
   useEffect(() => {
+    // Resyncs local editable text when the committed `value` prop changes elsewhere;
+    // local state otherwise diverges freely while the user is typing (see file comment above).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setText(value);
   }, [value]);
 
@@ -312,7 +315,7 @@ export function LayoutEditor({ devices }: { devices: PaletteDevice[] }) {
     <div className="g-card p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h3 className="text-[14px] font-semibold">Layout CYD</h3>
+          <h3 className="text-[14px] font-semibold">Layout Mini Display</h3>
           <p className="g-t4 text-[11px]">Susun halaman, tarik printer ke grid, atur ukuran sel & baris.</p>
         </div>
         <motion.button
@@ -329,7 +332,7 @@ export function LayoutEditor({ devices }: { devices: PaletteDevice[] }) {
         </motion.button>
       </div>
 
-      {status === "saved" && !message && <p className="mb-2 text-[12px] text-emerald-600 dark:text-emerald-400">Layout tersimpan. CYD ambil versi baru saat sinkron berikutnya.</p>}
+      {status === "saved" && !message && <p className="mb-2 text-[12px] text-emerald-600 dark:text-emerald-400">Layout tersimpan. Mini Display ambil versi baru saat sinkron berikutnya.</p>}
       {message && <p className={`mb-2 text-[12px] ${status === "error" ? "text-red-500" : "g-t4"}`}>{message}</p>}
 
       <div className="mb-3">

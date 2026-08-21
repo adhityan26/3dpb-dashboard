@@ -31,6 +31,7 @@ export interface LgOrder {
   stlPath: string | null
   notesOperator: string | null
   additionalImagePath: string | null
+  generatedConfigHash: string | null
   createdAt: string
   updatedAt: string
 }
@@ -84,4 +85,16 @@ export const DEFAULT_LG_CONFIG = {
   support_stems: true,
   stem_width: 2,
   min_bridge_mm: 1.2,
+  cover_type: "bottom",
+  bottom_frame: false,
+  bottom_frame_height: 5,
+  invert_mask: false,
+  auto_fit_mask: false,
+  mask_padding_pct: 0,
+  img_brightness: 0,
+  img_contrast: 0,
+  img_saturation: 100,
+  pillar_outer_r: 4,
+  pillar_inner_r: 2.5,
+  led_socket_height: 10,
 } as const

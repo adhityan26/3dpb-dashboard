@@ -68,7 +68,6 @@ model Entitlement {
   subStartedAt        DateTime?
   subExpiresAt        DateTime?
   firstCloudMonthUsed Boolean   @default(false)
-  printerSlots        Int?
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 }
@@ -88,6 +87,52 @@ model WaOtp {
   sentCount   Int      @default(0)
   windowStart DateTime @default(now())
 }
+
+// Rate-limit bookkeeping untuk magic-link email (Resend/NextAuth) -- mirror WaOtp di atas,
+// tanpa codeHash/expires/attempts karena NextAuth sendiri yang kelola token verifikasi
+// (tabel VerificationToken bawaan @auth/prisma-adapter); tabel ini cuma jaga cooldown +
+// cap per-jam sebelum email benar-benar dikirim (go-public #10).
+model MagicLinkRequest {
+  email       String   @id
+  lastSentAt  DateTime @default(now())
+  sentCount   Int      @default(0)
+  windowStart DateTime @default(now())
+}
+
+// Lapis ke-2 & ke-3 proteksi /api/auth/wa/start (go-public audit Fable #2, item #2 sesi
+// ini) -- WaOtp di atas cuma batasi PER-NOMOR, orang bisa pakai nomor acak berbeda tiap
+// kali dan tetap lolos. WaOtpIpLimit = cap longgar per-IP (NAT kantor/rumah bisa dipakai
+// banyak orang jujur). WaOtpGlobalLimit = circuit-breaker keras satu baris (id="global"),
+// jaring pengaman terakhir kalau attacker rotasi IP -- lindungi kuota/reputasi akun WA
+// Omni terlepas dari sebaran IP-nya.
+model WaOtpIpLimit {
+  ip          String   @id
+  sentCount   Int      @default(0)
+  windowStart DateTime @default(now())
+}
+
+model WaOtpGlobalLimit {
+  id          String   @id
+  sentCount   Int      @default(0)
+  windowStart DateTime @default(now())
+}
+
+// PRODUCTION DEPLOY NOTE (2026-08-20 printer-slot-ledger migration):
+// `db push` cannot detect a column rename — it will DROP `tier` and ADD
+// `productType` as empty, discarding existing values. Before running
+// `db:push` against production, run manually against the production DB:
+//   ALTER TABLE "Payment" RENAME COLUMN "tier" TO "productType";
+//   UPDATE "Payment" SET "productType" = 'BELI' WHERE "productType" = 'beli';
+// Then `db:push` will see the columns already match and add only the new
+// SlotGrant/CydVariant tables and Payment's new nullable columns.
+//
+// This migration also DROPS Entitlement."printerSlots" (superseded by SlotGrant).
+// `db:push` (no --accept-data-loss) will prompt or fail on this destructive change --
+// run this pre-flight check first and backfill any non-null value before dropping:
+//   SELECT "userId", "printerSlots" FROM "Entitlement" WHERE "printerSlots" IS NOT NULL;
+// If any rows are returned, insert a matching SlotGrant row per user first
+// (source 'PROMO', quantity = printerSlots, no paymentId) so that user's capacity
+// doesn't silently drop on deploy, THEN run db:push (accepting the printerSlots drop).
 
 model Payment {
   id              String    @id @default(cuid())
@@ -117,37 +162,15 @@ model Payment {
   @@index([status, createdAt])
 }
 
-model Device {
-  id          String   @id @default(cuid())
-  shortCode   String   @unique
-  userId      String
-  label       String
-  printerType String
-  model       String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+model CydVariant {
+  id        String   @id @default(cuid())
+  label     String
+  price     Int
+  slotBonus Int      @default(10)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
 
-  @@index([userId])
-}
-
-model CydLayout {
-  userId    String   @id
-  config    Json
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
-
-model AgentToken {
-  id         String    @id @default(cuid())
-  userId     String
-  tokenHash  String    @unique
-  createdAt  DateTime  @default(now())
-  revokedAt  DateTime?
-  lastUsedAt DateTime?
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
+  payments Payment[]
 }
 
 enum SlotGrantSource {
@@ -172,13 +195,39 @@ model SlotGrant {
   @@index([userId])
 }
 
-model CydVariant {
-  id        String   @id @default(cuid())
-  label     String
-  price     Int
-  slotBonus Int      @default(10)
-  active    Boolean  @default(true)
-  createdAt DateTime @default(now())
+model Device {
+  id          String   @id @default(cuid())
+  shortCode   String   @unique
+  userId      String
+  label       String
+  printerType String
+  model       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  payments Payment[]
+  @@index([userId])
+}
+
+model CydLayout {
+  userId    String   @id
+  config    Json
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AgentToken {
+  id           String    @id @default(cuid())
+  userId       String
+  tokenHash    String    @unique
+  createdAt    DateTime  @default(now())
+  revokedAt    DateTime?
+  lastUsedAt   DateTime?
+  // Versi apps/agent (package.json) yang terakhir konek pakai token ini -- dikirim lewat
+  // header X-Agent-Version di tiap request /api/agent/*, dicatat bareng lastUsedAt. Dipakai
+  // admin (UserList) buat tahu user yang komplain pakai versi lama atau tidak.
+  agentVersion String?
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }

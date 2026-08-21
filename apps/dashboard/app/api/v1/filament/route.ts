@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/db'
+import { requireApiV1Token } from '@/lib/api-v1/auth'
 
 function toResponse(f: {
   id: number; externalId: string | null; name: string; material: string
@@ -40,6 +41,7 @@ function toResponse(f: {
 
 // GET /api/v1/filament?external_id={id}
 export async function GET(req: NextRequest) {
+  if (!requireApiV1Token(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const externalId = req.nextUrl.searchParams.get('external_id')
   const filaments = await prisma.spoolmanFilament.findMany({
     where: externalId ? { externalId } : undefined,
@@ -51,6 +53,7 @@ export async function GET(req: NextRequest) {
 
 // POST /api/v1/filament
 export async function POST(req: NextRequest) {
+  if (!requireApiV1Token(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await req.json()
   const filament = await prisma.spoolmanFilament.create({
     data: {

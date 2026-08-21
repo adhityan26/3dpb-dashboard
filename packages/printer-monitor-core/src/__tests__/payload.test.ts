@@ -17,8 +17,13 @@ describe('StateStore + buildPrintersPayload', () => {
       id: 'mars',
       name: 'Mars', type: 'P1P', state: 'OFFLINE', progress: 0,
       remaining_min: 0, filename: '', error_msg: '', error_message: '', last_seen: null,
-      nozzle_temp: 0, bed_temp: 0,
+      nozzle_temp: 0, bed_temp: 0, connector: 'bambu',
     }])
+  })
+
+  it('connector mengalir dari DeviceConfig.connector -- moonraker device tampil connector:"moonraker"', () => {
+    const p = buildPrintersPayload([gany], new StateStore(), T0)
+    expect(p.payload[0].connector).toBe('moonraker')
   })
 
   it('fresh → state tersimpan; stale >10 menit → OFFLINE tapi field lain dipertahankan', () => {
@@ -97,6 +102,28 @@ describe('StateStore + buildPrintersPayload', () => {
   it('error_message kosong kalau state bukan error', () => {
     const store = new StateStore()
     const s = normalizeBambu('mars', { print: { gcode_state: 'RUNNING', mc_percent: 50 } })
+    store.upsertFromStatus(mars, s, null)
+    const p = buildPrintersPayload([mars], store, T0)
+    expect(p.payload[0].error_message).toBe('')
+  })
+
+  // Kasus nyata (relay dari sesi firmware CYD, printer "Uranus" P1S, 2026-08-09): Bambu
+  // kadang lapor gcode_state=PAUSE walau print_error-nya non-zero (genuinely error, bukan
+  // pause manual biasa) -- state==='error' literal saja TIDAK menangkap ini, error_message
+  // jadi kosong padahal firmware CYD sudah siap tampilkan pesannya kalau field-nya terisi.
+  it('state PAUSE tapi print_error non-zero -> tetap dianggap error, error_message terisi', () => {
+    const store = new StateStore(new HmsLookup({}))
+    const s = normalizeBambu('mars', { print: {
+      gcode_state: 'PAUSE', print_error: 117473297, mc_print_error_code: '0', hms: [] } })
+    store.upsertFromStatus(mars, s, null)
+    const p = buildPrintersPayload([mars], store, T0)
+    expect(p.payload[0].state).toBe('pause') // state APA ADANYA dari Bambu, tak diubah paksa
+    expect(p.payload[0].error_message).toBe('Print error (kode 117473297)')
+  })
+
+  it('state PAUSE dgn print_error=0 (pause manual biasa) -> error_message TETAP kosong (bukan regresi)', () => {
+    const store = new StateStore()
+    const s = normalizeBambu('mars', { print: { gcode_state: 'PAUSE', print_error: 0 } })
     store.upsertFromStatus(mars, s, null)
     const p = buildPrintersPayload([mars], store, T0)
     expect(p.payload[0].error_message).toBe('')

@@ -2,20 +2,32 @@
 
 import { useDraggable } from "@dnd-kit/core";
 import { motion } from "framer-motion";
+import { getPrinterImage } from "@/lib/devices/printer-images";
 
 /**
  * Sumber data palette = `Device` SaaS (prop dari server component), BUKAN fetch
  * `/api/cyd-layout/printers` seperti versi dashboard: identitas printer di layout SaaS adalah
  * `device.shortCode` (dipakai firmware & divalidasi ulang di PUT /api/cyd-layout), bukan
- * `printer.slug` internal. `id`/`printerType` opsional supaya row Device utuh maupun bentuk
- * ringkasnya sama-sama bisa dioper.
+ * `printer.slug` internal. `id`/`printerType`/`model` opsional supaya row Device utuh maupun
+ * bentuk ringkasnya sama-sama bisa dioper.
  */
 export type PaletteDevice = {
   id?: string;
   shortCode: string;
   label: string;
   printerType?: string;
+  model?: string | null;
 };
+
+/** Thumbnail asli kalau model dikenal (lihat printer-images.ts), fallback emoji generik. */
+function PrinterThumb({ device }: { device: PaletteDevice }) {
+  const src = getPrinterImage(device.printerType, device.model);
+  if (!src) return <span aria-hidden="true">🖨️</span>;
+  return (
+    // eslint-disable-next-line @next/next/no-img-element -- aset statis kecil (public/printers), next/image tak dipakai di app ini
+    <img src={src} alt="" className="inline-block h-4 w-4 rounded-sm object-cover align-[-3px]" />
+  );
+}
 
 /**
  * Preview statis: dipakai kartu asli di palette DAN oleh `<DragOverlay>` di LayoutEditor.
@@ -32,7 +44,10 @@ export function DeviceCardPreview({ device }: { device: PaletteDevice }) {
         cursor: "grabbing",
       }}
     >
-      <span className="g-t1 block truncate text-xs font-medium">🖨️ {device.label}</span>
+      <span className="g-t1 flex items-center gap-1.5 truncate text-xs font-medium">
+        <PrinterThumb device={device} />
+        {device.label}
+      </span>
       <span className="g-t4 font-mono text-[10px]">{device.shortCode}</span>
     </div>
   );
@@ -68,7 +83,10 @@ function DraggableDeviceCard({ device, disabled }: { device: PaletteDevice; disa
         }`}
         title={disabled ? "Sudah dipakai di halaman ini" : "Tarik ke grid"}
       >
-        <span className="g-t1 block truncate text-xs font-medium">🖨️ {device.label}</span>
+        <span className="g-t1 flex items-center gap-1.5 truncate text-xs font-medium">
+          <PrinterThumb device={device} />
+          {device.label}
+        </span>
         <span className="g-t4 font-mono text-[10px]">{device.shortCode}</span>
       </motion.div>
     </div>

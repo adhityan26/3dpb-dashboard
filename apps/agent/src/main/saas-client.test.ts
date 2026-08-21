@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fetchDevices, fetchLayout, patchDeviceModel, saasBaseUrl } from "./saas-client";
+import { fetchDevices, fetchLayout, patchDeviceModel, fetchLatestVersion, saasBaseUrl } from "./saas-client";
 
 const fetchMock = vi.fn();
 beforeEach(() => {
@@ -38,8 +38,18 @@ describe("fetchDevices", () => {
     expect(result).toEqual({ ok: true, data: [{ id: "d1", shortCode: "abc1234567", userId: "u1", label: "A", printerType: "bambu", createdAt: "x", updatedAt: "y" }] });
     expect(fetchMock).toHaveBeenCalledWith(
       "http://192.168.88.113:3300/api/agent/devices",
-      expect.objectContaining({ headers: { Authorization: "Bearer slz_valid" }, signal: expect.any(AbortSignal) })
+      expect.objectContaining({ headers: { Authorization: "Bearer slz_valid", "X-Agent-Version": "0.0.0+nogit" }, signal: expect.any(AbortSignal) })
     );
+  });
+
+  it("kirim header X-Agent-Version = versi+commit hash (gaya semver build-metadata) -- server catat build persis yang lagi konek (diagnosa komplain user, bedain build staging satu ke lain tanpa naikkan versi)", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => [] });
+    await fetchDevices("slz_valid");
+    const [, options] = fetchMock.mock.calls[0];
+    // "0.0.0+nogit" di test = __AGENT_VERSION__/__AGENT_COMMIT_HASH__ tak ter-define (cuma
+    // di-inject saat build sungguhan via electron.vite.config.ts, sama pola dgn
+    // __SAAS_BASE_URL__/saasBaseUrl di atas).
+    expect(options.headers["X-Agent-Version"]).toBe("0.0.0+nogit");
   });
 
   it("pakai AbortSignal buat timeout — cegah TCP connect hang (captive portal/DNS blackhole)", async () => {
@@ -127,5 +137,48 @@ describe("patchDeviceModel", () => {
   it("kind:network_error kalau 400 dengan body error lain (bukan invalid_device_model)", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 400, json: async () => ({ error: "something_else" }) });
     expect(await patchDeviceModel("slz_valid", "abc1234567", "P1S")).toEqual({ ok: false, kind: "network_error" });
+  });
+});
+
+describe("fetchLatestVersion", () => {
+  it("commitHash beda dari AGENT_COMMIT_HASH build ini ('nogit' di test) -> updateAvailable:true", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ commitHash: "a3f9c21" }) });
+    const result = await fetchLatestVersion("slz_valid", "win");
+    expect(result).toEqual({ ok: true, data: { updateAvailable: true } });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://192.168.88.113:3300/api/agent/version?platform=win",
+      expect.objectContaining({ headers: { Authorization: "Bearer slz_valid", "X-Agent-Version": "0.0.0+nogit" }, signal: expect.any(AbortSignal) })
+    );
+  });
+
+  it("commitHash SAMA dengan AGENT_COMMIT_HASH build ini -> updateAvailable:false", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ commitHash: "nogit" }) });
+    const result = await fetchLatestVersion("slz_valid", "win");
+    expect(result).toEqual({ ok: true, data: { updateAvailable: false } });
+  });
+
+  it("commitHash:null (belum pernah admin upload) -> updateAvailable:false, JANGAN pernah 'update available' palsu", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, json: async () => ({ commitHash: null }) });
+    const result = await fetchLatestVersion("slz_valid", "mac");
+    expect(result).toEqual({ ok: true, data: { updateAvailable: false } });
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://192.168.88.113:3300/api/agent/version?platform=mac",
+      expect.anything()
+    );
+  });
+
+  it("kind:invalid_token kalau 401", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 401, json: async () => ({ error: "invalid_token" }) });
+    expect(await fetchLatestVersion("slz_bad", "win")).toEqual({ ok: false, kind: "invalid_token" });
+  });
+
+  it("kind:entitlement_expired kalau 403", async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 403, json: async () => ({ error: "entitlement_expired" }) });
+    expect(await fetchLatestVersion("slz_valid", "win")).toEqual({ ok: false, kind: "entitlement_expired" });
+  });
+
+  it("kind:network_error kalau fetch throw", async () => {
+    fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
+    expect(await fetchLatestVersion("slz_valid", "win")).toEqual({ ok: false, kind: "network_error" });
   });
 });

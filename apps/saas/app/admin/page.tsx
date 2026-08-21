@@ -67,8 +67,19 @@ export default async function AdminPage() {
   const latestPay = new Map<string, (typeof verified)[number]>();
   for (const p of verified) if (!latestPay.has(p.userId)) latestPay.set(p.userId, p);
 
+  // AgentToken non-revoked terakhir kelihatan per user (lastUsedAt desc) -- buat kolom Agent
+  // di tab User aktif (diagnosa "user komplain bug X, ternyata masih versi lama").
+  const agentTokens = await prisma.agentToken.findMany({
+    where: { userId: { in: allUsers.map((u: (typeof allUsers)[number]) => u.id) }, revokedAt: null },
+    orderBy: { lastUsedAt: "desc" },
+    select: { userId: true, agentVersion: true, lastUsedAt: true },
+  });
+  const latestAgent = new Map<string, (typeof agentTokens)[number]>();
+  for (const a of agentTokens) if (!latestAgent.has(a.userId)) latestAgent.set(a.userId, a);
+
   const userRows: UserRow[] = allUsers.map((u: (typeof allUsers)[number]) => {
     const p = latestPay.get(u.id);
+    const a = latestAgent.get(u.id);
     return {
       who: u.email ?? u.phone ?? u.id.slice(0, 6),
       status: u.entitlement?.lifetimeOwned ? "Pro" : u.entitlement?.subStatus === "ACTIVE" ? "Subscribe" : "Free",
@@ -80,6 +91,14 @@ export default async function AdminPage() {
               amount: p.amount,
               when: p.verifiedAt ? p.verifiedAt.toISOString().slice(0, 10) : "",
               hasProof: !!p.proofKey,
+            },
+          }
+        : {}),
+      ...(a
+        ? {
+            agent: {
+              version: a.agentVersion,
+              lastSeen: a.lastUsedAt ? a.lastUsedAt.toISOString().slice(0, 10) : null,
             },
           }
         : {}),

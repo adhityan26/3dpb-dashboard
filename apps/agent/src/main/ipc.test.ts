@@ -1,25 +1,74 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 
 const handlers: Record<string, (...args: any[]) => any> = {};
+const { mockShowOpenDialog } = vi.hoisted(() => ({ mockShowOpenDialog: vi.fn() }));
 vi.mock("electron", () => ({
   ipcMain: { handle: vi.fn((channel: string, fn: any) => { handlers[channel] = fn; }) },
+  shell: { openExternal: vi.fn() },
+  dialog: { showOpenDialog: mockShowOpenDialog },
 }));
 vi.mock("./credential-store", () => ({ loadCredentials: vi.fn().mockResolvedValue({ agentToken: null, devices: {} }), saveCredentials: vi.fn() }));
-vi.mock("./saas-client", () => ({ fetchDevices: vi.fn().mockResolvedValue({ ok: true, data: [] }), fetchLayout: vi.fn(), patchDeviceModel: vi.fn() }));
+vi.mock("./saas-client", () => ({ fetchDevices: vi.fn().mockResolvedValue({ ok: true, data: [] }), fetchLayout: vi.fn(), patchDeviceModel: vi.fn(), saasBaseUrl: vi.fn().mockReturnValue("http://192.168.88.113:3300") }));
 vi.mock("./discovery/bambu-ssdp", () => ({ scanBambu: vi.fn().mockResolvedValue({ ok: true, printers: [] }) }));
 vi.mock("./discovery/moonraker-mdns", () => ({ scanMoonraker: vi.fn().mockResolvedValue([]) }));
 vi.mock("./startup", () => ({ reconcileDevices: vi.fn() }));
 vi.mock("./engine-manager", () => ({ startEngine: vi.fn() }));
 vi.mock("./layout-publisher", () => ({ publishLayout: vi.fn().mockResolvedValue({ published: true }) }));
+vi.mock("electron-log/main", () => ({
+  default: {
+    transports: { file: { getFile: () => ({ path: "/tmp/mock-agent.log" }) } },
+    error: vi.fn(),
+  },
+}));
+// Vitest's Node built-in module interop requires a "default" export alongside the named
+// ones (same pattern already used for "node:fs" in credential-store.test.ts/device-cache.
+// test.ts) -- without it, importing this mock throws at module-load time before any test
+// runs, not just the ones that touch stat/readFile.
+vi.mock("node:fs/promises", () => {
+  const stat = vi.fn();
+  const readFile = vi.fn();
+  const rm = vi.fn().mockResolvedValue(undefined);
+  return { stat, readFile, rm, default: { stat, readFile, rm } };
+});
+
+const { mockParseThreemf } = vi.hoisted(() => ({ mockParseThreemf: vi.fn() }));
+vi.mock("./file-manager/threemf-parser", () => ({
+  parseThreemf: mockParseThreemf,
+}));
+
+const { mockFileClient, MockBambuFtpsClient } = vi.hoisted(() => {
+  const mockFileClient = {
+    list: vi.fn(),
+    upload: vi.fn(),
+    download: vi.fn(),
+    delete: vi.fn(),
+    rename: vi.fn(),
+  };
+  const MockBambuFtpsClient = vi.fn().mockImplementation(() => mockFileClient);
+  return { mockFileClient, MockBambuFtpsClient };
+});
+vi.mock("./file-manager/bambu-ftps-client", () => ({
+  BambuFtpsClient: MockBambuFtpsClient,
+}));
+
+const { mockJSZipLoadAsync } = vi.hoisted(() => ({ mockJSZipLoadAsync: vi.fn() }));
+vi.mock("jszip", () => ({
+  default: { loadAsync: mockJSZipLoadAsync },
+}));
 
 import { registerIpcHandlers } from "./ipc";
-import { ipcMain } from "electron";
-import { fetchDevices, patchDeviceModel } from "./saas-client";
+import { ipcMain, shell, dialog } from "electron";
+import { fetchDevices, patchDeviceModel, saasBaseUrl } from "./saas-client";
 import { loadCredentials, saveCredentials } from "./credential-store";
 import { reconcileDevices } from "./startup";
 import { startEngine } from "./engine-manager";
 import { publishLayout } from "./layout-publisher";
-import { getEngine, setEngine, setBrokerPort, getReporters, setReporters } from "./app-state";
+import { getEngine, setEngine, setBrokerPort, setBrokerPin, getReporters, setReporters, setUpdateAvailable, setCredentialStoreDegraded } from "./app-state";
+import { stat, readFile, rm } from "node:fs/promises";
+
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe("registerIpcHandlers", () => {
   it("daftarkan handler 'agent:activate'", () => {
@@ -68,15 +117,18 @@ describe("registerIpcHandlers", () => {
     setEngine(null);
   });
 
-  it("'agent:get-broker-info' baca getBrokerPort() TERKINI tiap dipanggil", async () => {
+  it("'agent:get-broker-info' baca getBrokerPort() dan getBrokerPin() TERKINI tiap dipanggil", async () => {
     registerIpcHandlers();
     setBrokerPort(1883);
-    expect((await handlers["agent:get-broker-info"]()).port).toBe(1883);
+    setBrokerPin("0042");
+    expect(await handlers["agent:get-broker-info"]()).toEqual({ ip: expect.any(String), port: 1883, pin: "0042" });
 
     setBrokerPort(9999);
-    expect((await handlers["agent:get-broker-info"]()).port).toBe(9999);
+    setBrokerPin(null);
+    expect(await handlers["agent:get-broker-info"]()).toEqual({ ip: expect.any(String), port: 9999, pin: null });
 
     setBrokerPort(null);
+    setBrokerPin(null);
   });
 });
 
@@ -109,19 +161,21 @@ describe("agent:sync", () => {
     const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S1", accessCode: "1234" } }];
     (reconcileDevices as any).mockResolvedValueOnce({ fetchResult: { ok: true, data: [] }, devices: [], paired });
     setBrokerPort(1883);
+    setBrokerPin("0042");
     const fakeEngine = { snapshot: () => ({ payload: [] }), stop: vi.fn() } as any;
     const fakeReporter = { close: vi.fn().mockResolvedValue(undefined) } as any;
     (startEngine as any).mockResolvedValueOnce({ engine: fakeEngine, reporters: [fakeReporter] });
 
     const result = await handlers["agent:sync"]();
 
-    expect(startEngine).toHaveBeenCalledWith(paired, 1883);
-    expect(publishLayout).toHaveBeenCalledWith("slz_ok", 1883);
+    expect(startEngine).toHaveBeenCalledWith(paired, 1883, "0042");
+    expect(publishLayout).toHaveBeenCalledWith("slz_ok", 1883, "default", "0042");
     expect(result).toEqual({ ok: true, deviceCount: 1 });
     expect(getEngine()).toBe(fakeEngine);
     expect(getReporters()).toEqual([fakeReporter]);
 
     setBrokerPort(null);
+    setBrokerPin(null);
     setEngine(null);
     setReporters([]);
   });
@@ -132,15 +186,17 @@ describe("agent:sync", () => {
     const paired = [{ shortCode: "abc1234567", label: "Printer A (cache)", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S1", accessCode: "1234" } }];
     (reconcileDevices as any).mockResolvedValueOnce({ fetchResult: { ok: false, kind: "network_error" }, devices: [], paired });
     setBrokerPort(1883);
+    setBrokerPin("0042");
     const fakeEngine = { snapshot: () => ({ payload: [] }), stop: vi.fn() } as any;
     (startEngine as any).mockResolvedValueOnce({ engine: fakeEngine, reporters: [] });
 
     const result = await handlers["agent:sync"]();
 
-    expect(startEngine).toHaveBeenCalledWith(paired, 1883);
+    expect(startEngine).toHaveBeenCalledWith(paired, 1883, "0042");
     expect(result).toEqual({ ok: false, kind: "network_error" });
 
     setBrokerPort(null);
+    setBrokerPin(null);
     setEngine(null);
     setReporters([]);
   });
@@ -151,6 +207,7 @@ describe("agent:sync", () => {
     const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S1", accessCode: "1234" } }];
     (reconcileDevices as any).mockResolvedValueOnce({ fetchResult: { ok: true, data: [] }, devices: [], paired });
     setBrokerPort(1883);
+    setBrokerPin("0042");
     (startEngine as any).mockRejectedValueOnce(new Error("boom"));
 
     const result = await handlers["agent:sync"]();
@@ -158,6 +215,7 @@ describe("agent:sync", () => {
     expect(result).toEqual({ ok: false, kind: "engine_error" });
 
     setBrokerPort(null);
+    setBrokerPin(null);
     setEngine(null);
   });
 
@@ -167,6 +225,7 @@ describe("agent:sync", () => {
     const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S1", accessCode: "1234" } }];
     (reconcileDevices as any).mockResolvedValueOnce({ fetchResult: { ok: true, data: [] }, devices: [], paired });
     setBrokerPort(1883);
+    setBrokerPin("0042");
 
     const callOrder: string[] = [];
     const oldEngine = { snapshot: () => ({ payload: [] }), stop: vi.fn().mockImplementation(async () => { callOrder.push("old-engine-stopped"); }) } as any;
@@ -184,6 +243,7 @@ describe("agent:sync", () => {
     expect(getEngine()).toBe(newEngine); // Engine lama BENAR-BENAR diganti, bukan cuma di-stop lalu dibiarkan
 
     setBrokerPort(null);
+    setBrokerPin(null);
     setEngine(null);
   });
 
@@ -193,6 +253,7 @@ describe("agent:sync", () => {
     const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S1", accessCode: "1234" } }];
     (reconcileDevices as any).mockResolvedValueOnce({ fetchResult: { ok: true, data: [] }, devices: [], paired });
     setBrokerPort(1883);
+    setBrokerPin("0042");
 
     const oldEngine = { snapshot: () => ({ payload: [] }), stop: vi.fn().mockResolvedValue(undefined) } as any;
     const oldReporter = { close: vi.fn().mockResolvedValue(undefined) } as any;
@@ -214,6 +275,7 @@ describe("agent:sync", () => {
     expect(getReporters()).toEqual([newReporter]);
 
     setBrokerPort(null);
+    setBrokerPin(null);
     setEngine(null);
     setReporters([]);
   });
@@ -224,6 +286,7 @@ describe("agent:sync", () => {
     const paired = [{ shortCode: "abc1234567", label: "Printer A", printerType: "bambu", secret: { ip: "1.2.3.4", serial: "S1", accessCode: "1234" } }];
     (reconcileDevices as any).mockResolvedValueOnce({ fetchResult: { ok: true, data: [] }, devices: [], paired });
     setBrokerPort(1883);
+    setBrokerPin("0042");
 
     setEngine(null);
     setReporters([{ close: vi.fn().mockRejectedValue(new Error("socket sudah putus")) } as any]);
@@ -235,6 +298,7 @@ describe("agent:sync", () => {
     expect(result).toEqual({ ok: true, deviceCount: 1 });
 
     setBrokerPort(null);
+    setBrokerPin(null);
     setEngine(null);
     setReporters([]);
   });
@@ -303,5 +367,348 @@ describe("agent:update-device-model", () => {
     const result = await handlers["agent:update-device-model"]({}, "abc1234567", "TerlaluPanjangUntukFirmware");
 
     expect(result).toEqual({ ok: false, kind: "invalid_model" });
+  });
+});
+
+describe("agent:printer-command", () => {
+  it("engine belum jalan -> {ok:false, message:'engine_not_running'}", async () => {
+    registerIpcHandlers();
+    setEngine(null);
+    const result = await handlers["agent:printer-command"]({}, "mars", { kind: "pause" });
+    expect(result).toEqual({ ok: false, message: "engine_not_running" });
+  });
+
+  it("delegasikan ke Engine.sendCommand dengan deviceId+cmd yang dioper apa adanya", async () => {
+    registerIpcHandlers();
+    const sendCommand = vi.fn().mockResolvedValue({ ok: true });
+    setEngine({ snapshot: () => ({ payload: [] }), sendCommand } as any);
+    const result = await handlers["agent:printer-command"]({}, "mars", { kind: "setSpeedLevel", level: 3 });
+    expect(sendCommand).toHaveBeenCalledWith("mars", { kind: "setSpeedLevel", level: 3 });
+    expect(result).toEqual({ ok: true });
+    setEngine(null);
+  });
+});
+
+describe("agent:get-credential-store-status", () => {
+  it("balikin degraded TERKINI dari app-state, bukan snapshot beku", async () => {
+    registerIpcHandlers();
+    setCredentialStoreDegraded(false);
+    expect(await handlers["agent:get-credential-store-status"]()).toEqual({ degraded: false });
+    setCredentialStoreDegraded(true);
+    expect(await handlers["agent:get-credential-store-status"]()).toEqual({ degraded: true });
+    setCredentialStoreDegraded(false);
+  });
+});
+
+describe("agent:get-update-status", () => {
+  it("balikin updateAvailable TERKINI dari app-state, bukan snapshot beku", async () => {
+    registerIpcHandlers();
+    setUpdateAvailable(false);
+    expect(await handlers["agent:get-update-status"]()).toEqual({ updateAvailable: false });
+    setUpdateAvailable(true);
+    expect(await handlers["agent:get-update-status"]()).toEqual({ updateAvailable: true });
+    setUpdateAvailable(false);
+  });
+});
+
+describe("agent:open-download-page", () => {
+  it("panggil shell.openExternal dengan ${saasBaseUrl}/settings", async () => {
+    registerIpcHandlers();
+    await handlers["agent:open-download-page"]();
+    expect(shell.openExternal).toHaveBeenCalledWith("http://192.168.88.113:3300/settings");
+  });
+
+  it("saasBaseUrl kosong (build salah konfigurasi) -> no-op, TIDAK panggil shell.openExternal dengan URL rusak", async () => {
+    registerIpcHandlers();
+    (saasBaseUrl as any).mockReturnValueOnce("");
+    (shell.openExternal as any).mockClear();
+    await handlers["agent:open-download-page"]();
+    expect(shell.openExternal).not.toHaveBeenCalled();
+  });
+});
+
+describe("agent:send-logs", () => {
+  it("belum ada token -> {ok:false, reason:'no_token'}, TANPA baca file", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: null, devices: {} });
+
+    const result = await handlers["agent:send-logs"]();
+
+    expect(result).toEqual({ ok: false, reason: "no_token" });
+    expect(stat).not.toHaveBeenCalled();
+  });
+
+  it("stat() gagal (file log tak ada) -> {ok:false, reason:'read_failed'}", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
+    (stat as any).mockRejectedValueOnce(new Error("ENOENT"));
+
+    const result = await handlers["agent:send-logs"]();
+
+    expect(result).toEqual({ ok: false, reason: "read_failed" });
+  });
+
+  it("file log > 5MB -> {ok:false, reason:'too_large'}, TANPA baca isi file / fetch", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
+    (stat as any).mockResolvedValueOnce({ size: 6 * 1024 * 1024 });
+
+    const result = await handlers["agent:send-logs"]();
+
+    expect(result).toEqual({ ok: false, reason: "too_large" });
+    expect(readFile).not.toHaveBeenCalled();
+  });
+
+  it("readFile() gagal setelah stat() sukses -> {ok:false, reason:'read_failed'}", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
+    (stat as any).mockResolvedValueOnce({ size: 100 });
+    (readFile as any).mockRejectedValueOnce(new Error("gagal baca"));
+
+    const result = await handlers["agent:send-logs"]();
+
+    expect(result).toEqual({ ok: false, reason: "read_failed" });
+  });
+
+  it("sukses: POST ke /api/agent/logs dengan isi file, balikin {ok:true}", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
+    (stat as any).mockResolvedValueOnce({ size: 100 });
+    (readFile as any).mockResolvedValueOnce(Buffer.from("log isi"));
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true });
+
+    const result = await handlers["agent:send-logs"]();
+
+    expect(result).toEqual({ ok: true });
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      "http://192.168.88.113:3300/api/agent/logs",
+      expect.objectContaining({
+        method: "POST",
+        headers: { Authorization: "Bearer slz_ok", "Content-Type": "text/plain" },
+      })
+    );
+    globalThis.fetch = originalFetch;
+  });
+
+  it("upload gagal (fetch balikin !ok atau reject) -> {ok:false, reason:'upload_failed'}", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "slz_ok", devices: {} });
+    (stat as any).mockResolvedValueOnce({ size: 100 });
+    (readFile as any).mockResolvedValueOnce(Buffer.from("log isi"));
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: false });
+
+    const result = await handlers["agent:send-logs"]();
+
+    expect(result).toEqual({ ok: false, reason: "upload_failed" });
+    globalThis.fetch = originalFetch;
+  });
+});
+
+describe("agent:file-list handler", () => {
+  it("ambil kredensial device lalu list file via BambuFtpsClient", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({
+      agentToken: "t",
+      devices: { ABC123: { ip: "192.168.1.50", serial: "S1", accessCode: "999" } },
+    });
+    mockFileClient.list.mockResolvedValueOnce([
+      { name: "a.gcode", path: "/a.gcode", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
+    ]);
+
+    const result = await handlers["agent:file-list"]({}, "ABC123", "/");
+
+    expect(MockBambuFtpsClient).toHaveBeenCalledWith("192.168.1.50", "999");
+    expect(mockFileClient.list).toHaveBeenCalledWith("/");
+    expect(result).toEqual([
+      { name: "a.gcode", path: "/a.gcode", size: 1, isDirectory: false, modifiedAt: "2026-08-01T00:00:00.000Z" },
+    ]);
+  });
+
+  it("balikin error terstruktur kalau device tidak ditemukan di credential store", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: {} });
+
+    await expect(handlers["agent:file-list"]({}, "UNKNOWN", "/")).rejects.toThrow("device_not_found");
+  });
+});
+
+describe("agent:file-upload / agent:file-download / agent:file-delete / agent:file-rename handlers", () => {
+  const secret = { ip: "192.168.1.50", serial: "S1", accessCode: "999" };
+
+  it("'agent:file-upload' ambil client device lalu panggil client.upload(localPath, remotePath)", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+
+    await handlers["agent:file-upload"]({}, "ABC123", "/local/a.gcode", "/a.gcode");
+
+    expect(mockFileClient.upload).toHaveBeenCalledWith("/local/a.gcode", "/a.gcode");
+  });
+
+  it("'agent:file-download' ambil client device lalu panggil client.download(remotePath, localPath)", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+
+    await handlers["agent:file-download"]({}, "ABC123", "/a.gcode", "/local/a.gcode");
+
+    expect(mockFileClient.download).toHaveBeenCalledWith("/a.gcode", "/local/a.gcode");
+  });
+
+  it("'agent:file-delete' ambil client device lalu panggil client.delete(remotePath)", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+
+    await handlers["agent:file-delete"]({}, "ABC123", "/a.gcode");
+
+    expect(mockFileClient.delete).toHaveBeenCalledWith("/a.gcode");
+  });
+
+  it("'agent:file-rename' ambil client device lalu panggil client.rename(oldPath, newPath)", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+
+    await handlers["agent:file-rename"]({}, "ABC123", "/a.gcode", "/b.gcode");
+
+    expect(mockFileClient.rename).toHaveBeenCalledWith("/a.gcode", "/b.gcode");
+  });
+
+  it("device tidak ditemukan -> semua handler reject device_not_found", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValue({ agentToken: "t", devices: {} });
+
+    await expect(handlers["agent:file-upload"]({}, "UNKNOWN", "/local", "/remote")).rejects.toThrow(
+      "device_not_found"
+    );
+    await expect(handlers["agent:file-download"]({}, "UNKNOWN", "/remote", "/local")).rejects.toThrow(
+      "device_not_found"
+    );
+    await expect(handlers["agent:file-delete"]({}, "UNKNOWN", "/remote")).rejects.toThrow("device_not_found");
+    await expect(handlers["agent:file-rename"]({}, "UNKNOWN", "/old", "/new")).rejects.toThrow("device_not_found");
+  });
+});
+
+describe("agent:file-parse-3mf handler", () => {
+  const secret = { ip: "192.168.1.50", serial: "S1", accessCode: "999" };
+
+  it("download file ke temp, parse, lalu hapus file temp", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+    (readFile as any).mockResolvedValueOnce(Buffer.from("fake"));
+    mockParseThreemf.mockResolvedValueOnce([{ index: 1, filaments: [] }]);
+
+    const result = await handlers["agent:file-parse-3mf"]({}, "ABC123", "/model.gcode.3mf");
+
+    expect(mockFileClient.download).toHaveBeenCalledWith("/model.gcode.3mf", expect.stringContaining("model.gcode.3mf"));
+    expect(mockParseThreemf).toHaveBeenCalledWith(Buffer.from("fake"));
+    expect(rm).toHaveBeenCalledWith(expect.stringContaining("model.gcode.3mf"), { force: true });
+    expect(result).toEqual([{ index: 1, filaments: [] }]);
+  });
+
+  it("parseThreemf gagal (bukan file 3mf Bambu valid) -> file temp tetap dihapus (cleanup lewat finally)", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+    (readFile as any).mockResolvedValueOnce(Buffer.from("fake"));
+    mockParseThreemf.mockRejectedValueOnce(new Error("not_bambu_3mf"));
+
+    await expect(handlers["agent:file-parse-3mf"]({}, "ABC123", "/model.gcode.3mf")).rejects.toThrow(
+      "not_bambu_3mf"
+    );
+
+    expect(rm).toHaveBeenCalledWith(expect.stringContaining("model.gcode.3mf"), { force: true });
+  });
+
+  it("device tidak ditemukan -> reject device_not_found, TANPA panggil download", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: {} });
+
+    await expect(handlers["agent:file-parse-3mf"]({}, "UNKNOWN", "/model.gcode.3mf")).rejects.toThrow(
+      "device_not_found"
+    );
+    expect(mockFileClient.download).not.toHaveBeenCalled();
+  });
+});
+
+describe("agent:file-thumbnail handler", () => {
+  const secret = { ip: "192.168.1.50", serial: "S1", accessCode: "999" };
+
+  it("path bukan .gcode.3mf -> balikin null TANPA download", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+
+    const result = await handlers["agent:file-thumbnail"]({}, "ABC123", "/model.gcode");
+
+    expect(result).toBeNull();
+    expect(mockFileClient.download).not.toHaveBeenCalled();
+  });
+
+  it("download temp, ekstrak Metadata/plate_1.png dari zip, balikin data URL base64, lalu hapus temp", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+    (readFile as any).mockResolvedValueOnce(Buffer.from("fake-zip"));
+    const mockPngFile = { async: vi.fn().mockResolvedValue("QUJD") };
+    mockJSZipLoadAsync.mockResolvedValueOnce({ file: vi.fn().mockReturnValue(mockPngFile) });
+
+    const result = await handlers["agent:file-thumbnail"]({}, "ABC123", "/model.gcode.3mf");
+
+    expect(mockFileClient.download).toHaveBeenCalledWith("/model.gcode.3mf", expect.stringContaining("model.gcode.3mf"));
+    expect(result).toBe("data:image/png;base64,QUJD");
+    expect(rm).toHaveBeenCalledWith(expect.stringContaining("model.gcode.3mf"), { force: true });
+  });
+
+  it("temp path pakai randomUUID (bukan cuma Date.now()) -- konsisten dengan pola agent:file-parse-3mf", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+    (readFile as any).mockResolvedValueOnce(Buffer.from("fake-zip"));
+    mockJSZipLoadAsync.mockResolvedValueOnce({ file: vi.fn().mockReturnValue(null) });
+
+    await handlers["agent:file-thumbnail"]({}, "ABC123", "/model.gcode.3mf");
+
+    const tempPathArg = mockFileClient.download.mock.calls[0][1] as string;
+    expect(tempPathArg).toMatch(/agent-thumb-\d+-[0-9a-f-]{36}-model\.gcode\.3mf$/);
+  });
+
+  it("zip tidak punya Metadata/plate_1.png -> balikin null, temp tetap dihapus", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+    (readFile as any).mockResolvedValueOnce(Buffer.from("fake-zip"));
+    mockJSZipLoadAsync.mockResolvedValueOnce({ file: vi.fn().mockReturnValue(null) });
+
+    const result = await handlers["agent:file-thumbnail"]({}, "ABC123", "/model.gcode.3mf");
+
+    expect(result).toBeNull();
+    expect(rm).toHaveBeenCalledWith(expect.stringContaining("model.gcode.3mf"), { force: true });
+  });
+
+  it("download/parse gagal -> balikin null (bukan throw), temp tetap dihapus", async () => {
+    registerIpcHandlers();
+    (loadCredentials as any).mockResolvedValueOnce({ agentToken: "t", devices: { ABC123: secret } });
+    mockFileClient.download.mockRejectedValueOnce(new Error("connection refused"));
+
+    const result = await handlers["agent:file-thumbnail"]({}, "ABC123", "/model.gcode.3mf");
+
+    expect(result).toBeNull();
+    expect(rm).toHaveBeenCalledWith(expect.stringContaining("model.gcode.3mf"), { force: true });
+  });
+});
+
+describe("agent:pick-download-folder handler", () => {
+  it("user pilih folder -> balikin filePaths[0]", async () => {
+    registerIpcHandlers();
+    mockShowOpenDialog.mockResolvedValueOnce({ canceled: false, filePaths: ["/home/user/Downloads"] });
+
+    const result = await handlers["agent:pick-download-folder"]();
+
+    expect(dialog.showOpenDialog).toHaveBeenCalledWith({ properties: ["openDirectory"] });
+    expect(result).toBe("/home/user/Downloads");
+  });
+
+  it("user batal dialog -> balikin null", async () => {
+    registerIpcHandlers();
+    mockShowOpenDialog.mockResolvedValueOnce({ canceled: true, filePaths: [] });
+
+    const result = await handlers["agent:pick-download-folder"]();
+
+    expect(result).toBeNull();
   });
 });
