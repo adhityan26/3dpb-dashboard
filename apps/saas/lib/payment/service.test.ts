@@ -19,7 +19,7 @@ vi.mock("@/lib/qris/dynamic", () => ({ generateDynamicQris: vi.fn(() => "QRPAYLO
 import { prisma } from "@/lib/db";
 import { getConfig } from "@/lib/config";
 import { getEntitlement } from "@/lib/entitlement";
-import { allocUniqueCode, createOrReuseCheckout, createSlotCheckout, createOrReuseCydCheckout, markPaid, findClaimablePayment, listPending, activate, cancel, deactivate, listPaid, listCydOrders, updateCydShipping } from "@/lib/payment/service";
+import { allocUniqueCode, createOrReuseCheckout, createSlotCheckout, createOrReuseCydCheckout, createOrReuseSubscribeCheckout, markPaid, findClaimablePayment, listPending, activate, cancel, deactivate, listPaid, listCydOrders, updateCydShipping } from "@/lib/payment/service";
 import { AlreadyOwned, InvalidQuantity, InvalidShippingAddress, InvalidCydVariant, PriceNotSet, QrisNotSet, CodePoolExhausted } from "@/lib/payment/errors";
 
 const NOW = new Date("2026-07-18T10:00:00Z");
@@ -285,6 +285,70 @@ describe("createOrReuseCydCheckout", () => {
 
     expect(prisma.payment.update).not.toHaveBeenCalled();
     expect(p).toBe(existing);
+  });
+});
+
+describe("createOrReuseSubscribeCheckout", () => {
+  it("uses price.sub.standalone when the user does not own lifetime Pro", async () => {
+    (getEntitlement as any).mockResolvedValue({ lifetimeOwned: false });
+    (prisma.payment.findFirst as any).mockResolvedValue(null);
+    (prisma.payment.findMany as any).mockResolvedValue([]);
+    (getConfig as any).mockImplementation(async (k: string) =>
+      ({ "price.sub.standalone": "50000", "price.sub.owner": "35000", "qris.static": "STATICQR", "price.discountBuffer": "1000" })[k] ?? ""
+    );
+    (prisma.payment.create as any).mockImplementation(async ({ data }: any) => ({ id: "p-new", ...data }));
+
+    const p = await createOrReuseSubscribeCheckout("u1", NOW);
+
+    expect(prisma.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ userId: "u1", productType: "SUBSCRIBE", displayPrice: 50000 }) })
+    );
+    expect(p.amount).toBe(50000 - 1000 + (p as any).uniqueCode);
+  });
+
+  it("uses price.sub.owner (discount) when the user already owns lifetime Pro", async () => {
+    (getEntitlement as any).mockResolvedValue({ lifetimeOwned: true });
+    (prisma.payment.findFirst as any).mockResolvedValue(null);
+    (prisma.payment.findMany as any).mockResolvedValue([]);
+    (getConfig as any).mockImplementation(async (k: string) =>
+      ({ "price.sub.standalone": "50000", "price.sub.owner": "35000", "qris.static": "STATICQR", "price.discountBuffer": "1000" })[k] ?? ""
+    );
+    (prisma.payment.create as any).mockImplementation(async ({ data }: any) => ({ id: "p-new", ...data }));
+
+    await createOrReuseSubscribeCheckout("u1", NOW);
+
+    expect(prisma.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ displayPrice: 35000 }) })
+    );
+  });
+
+  it("reuses an existing PENDING SUBSCRIBE payment within the live window", async () => {
+    const existing = { id: "p-existing", productType: "SUBSCRIBE", status: "PENDING" };
+    (prisma.payment.findFirst as any).mockResolvedValue(existing);
+
+    const p = await createOrReuseSubscribeCheckout("u1", NOW);
+
+    expect(p).toBe(existing);
+    expect(prisma.payment.create).not.toHaveBeenCalled();
+    expect(getEntitlement).not.toHaveBeenCalled();
+  });
+
+  it("throws PriceNotSet when the applicable price key is unset", async () => {
+    (getEntitlement as any).mockResolvedValue({ lifetimeOwned: false });
+    (prisma.payment.findFirst as any).mockResolvedValue(null);
+    (getConfig as any).mockImplementation(async () => "");
+    await expect(createOrReuseSubscribeCheckout("u1", NOW)).rejects.toBeInstanceOf(PriceNotSet);
+  });
+
+  it("does not throw AlreadyOwned even when the user owns lifetime Pro", async () => {
+    (getEntitlement as any).mockResolvedValue({ lifetimeOwned: true });
+    (prisma.payment.findFirst as any).mockResolvedValue(null);
+    (prisma.payment.findMany as any).mockResolvedValue([]);
+    (getConfig as any).mockImplementation(async (k: string) =>
+      ({ "price.sub.owner": "35000", "qris.static": "STATICQR", "price.discountBuffer": "1000" })[k] ?? ""
+    );
+    (prisma.payment.create as any).mockImplementation(async ({ data }: any) => ({ id: "p-new", ...data }));
+    await expect(createOrReuseSubscribeCheckout("u1", NOW)).resolves.toBeDefined();
   });
 });
 

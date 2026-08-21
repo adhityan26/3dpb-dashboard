@@ -119,6 +119,31 @@ export async function createOrReuseCydCheckout(
   });
 }
 
+export async function createOrReuseSubscribeCheckout(userId: string, now = new Date()): Promise<Payment> {
+  const existing = await prisma.payment.findFirst({
+    where: { userId, productType: "SUBSCRIBE", status: "PENDING", createdAt: { gt: liveSince(now) } },
+    orderBy: { createdAt: "desc" },
+  });
+  if (existing) return existing;
+
+  const ent = await getEntitlement(userId);
+  const priceKey = ent.lifetimeOwned ? "price.sub.owner" : "price.sub.standalone";
+  const price = parsePrice(await getConfig(priceKey));
+  if (price === null || price <= 0) throw new PriceNotSet();
+  const staticQ = (await getConfig("qris.static")).trim();
+  if (!staticQ) throw new QrisNotSet();
+  const buffer = Math.max(1000, parsePrice(await getConfig("price.discountBuffer")) ?? 1000);
+  if (price <= buffer) throw new PriceNotSet();
+
+  const code = await allocUniqueCode(now);
+  const amount = price - buffer + code;
+  const qrPayload = generateDynamicQris(staticQ, amount);
+
+  return prisma.payment.create({
+    data: { userId, productType: "SUBSCRIBE", displayPrice: price, amount, uniqueCode: code, qrPayload, status: "PENDING" },
+  });
+}
+
 export async function findClaimablePayment(id: string, userId: string, now = new Date()): Promise<Payment | null> {
   return prisma.payment.findFirst({
     where: { id, userId, status: "PENDING", createdAt: { gt: liveSince(now) } },
