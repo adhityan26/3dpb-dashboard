@@ -283,24 +283,67 @@ export function registerIpcHandlers(): void {
     }
   );
 
-  // Ekstrak thumbnail plate (Metadata/plate_1.png) dari file .gcode.3mf, dipakai
-  // FileManagerPanel (Task 6) buat render preview grid. Pola temp-file sama seperti
-  // agent:file-parse-3mf di atas -- randomUUID() disisipkan di nama file temp buat menghindari
-  // race collision antar panggilan bersamaan (carry-forward finding dari Task 4).
-  // Kegagalan apapun (bukan .gcode.3mf, download gagal, zip tak punya thumbnail, dll) balikin
-  // null -- BUKAN throw -- karena ini cuma preview kosmetik, bukan aksi kritikal seperti parse-3mf.
+  // Cari file thumbnail plate di dalam zip .gcode.3mf. Coba plate_1.png dulu (paling umum),
+  // lalu plate_1_small.png (varian lebih kecil yang selalu ada bareng plate_1.png di file 3mf
+  // asli -- lihat riset vault bambu-3mf-gcode-metadata), lalu fallback ke plate_N.png pertama
+  // yang ketemu (urutan angka) kalau plate_1 tak ada sama sekali (kasus file project yang
+  // plate pertamanya sudah dihapus user di slicer).
+  function findPlateThumbnail(zip: JSZip): JSZip.JSZipObject | null {
+    return (
+      zip.file("Metadata/plate_1.png") ??
+      zip.file("Metadata/plate_1_small.png") ??
+      (() => {
+        const names = Object.keys(zip.files ?? {})
+          .filter((n) => /^Metadata\/plate_\d+\.png$/.test(n))
+          .sort((a, b) => Number(a.match(/\d+/)?.[0]) - Number(b.match(/\d+/)?.[0]));
+        return names.length > 0 ? zip.file(names[0]) : null;
+      })()
+    );
+  }
+
+  // Ekstrak thumbnail base64 yang di-embed slicer di header komentar file .gcode POLOS
+  // (bukan .gcode.3mf) -- format "; thumbnail begin WxH size" ... "; thumbnail end", satu
+  // baris base64 per baris komentar. **ASUMSI SEMENTARA, BELUM DIVERIFIKASI** -- ini konvensi
+  // umum PrusaSlicer/OrcaSlicer (basis slicer Bambu Studio), tapi belum dikonfirmasi terhadap
+  // file .gcode Bambu asli. Kalau formatnya beda, fungsi ini cuma balikin null (placeholder
+  // tampil, bukan crash) -- verifikasi manual terhadap file .gcode nyata dari printer Bambu
+  // wajib sebelum fitur ini dianggap final untuk kasus plain-gcode (lihat
+  // docs/superpowers/plans/2026-08-20-agent-file-manager-print.md untuk pola verifikasi serupa).
+  function extractGcodeThumbnail(text: string): string | null {
+    const match = text.match(/;\s*thumbnail begin[^\n]*\n([\s\S]*?)\n;\s*thumbnail end/i);
+    if (!match) return null;
+    const base64 = match[1]
+      .split("\n")
+      .map((line) => line.replace(/^;\s?/, "").trim())
+      .join("");
+    if (!base64) return null;
+    return `data:image/png;base64,${base64}`;
+  }
+
+  // Ekstrak thumbnail preview, dipakai FileManagerPanel buat render kolom preview di tabel
+  // file. Pola temp-file sama seperti agent:file-parse-3mf di atas -- randomUUID() disisipkan
+  // di nama file temp buat menghindari race collision antar panggilan bersamaan (carry-forward
+  // finding dari Task 4). Kegagalan apapun (ekstensi tak didukung, download gagal, tak ada
+  // thumbnail di dalam file, dll) balikin null -- BUKAN throw -- karena ini cuma preview
+  // kosmetik, bukan aksi kritikal seperti parse-3mf.
   ipcMain.handle(
     "agent:file-thumbnail",
     async (_event, shortCode: string, remotePath: string): Promise<string | null> => {
-      if (!remotePath.endsWith(".gcode.3mf")) return null;
+      const isThreemf = remotePath.endsWith(".gcode.3mf");
+      const isPlainGcode = !isThreemf && remotePath.endsWith(".gcode");
+      if (!isThreemf && !isPlainGcode) return null;
       const client = await getFileClientFor(shortCode);
-      const fileName = remotePath.split("/").pop() ?? "thumb.gcode.3mf";
+      const fileName = remotePath.split("/").pop() ?? "thumb";
       const tempPath = join(tmpdir(), `agent-thumb-${Date.now()}-${randomUUID()}-${fileName}`);
       try {
         await client.download(remotePath, tempPath);
+        if (isPlainGcode) {
+          const text = await readFile(tempPath, "utf8");
+          return extractGcodeThumbnail(text);
+        }
         const buffer = await readFile(tempPath);
         const zip = await JSZip.loadAsync(buffer);
-        const png = zip.file("Metadata/plate_1.png");
+        const png = findPlateThumbnail(zip);
         if (!png) return null;
         const base64 = await png.async("base64");
         return `data:image/png;base64,${base64}`;
