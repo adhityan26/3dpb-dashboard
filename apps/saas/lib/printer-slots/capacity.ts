@@ -37,6 +37,28 @@ export async function getCapacity(userId: string, opts: CapacityOpts = {}): Prom
   return baseline + grants.reduce((sum, g) => sum + g.quantity, 0);
 }
 
+/**
+ * Beda dari `getCapacity`: bukan menghitung ANGKA kapasitas (yang menjumlah baseline + semua
+ * grant), tapi cuma menjawab "apakah user ini punya paling tidak 1 grant ledger yang masih
+ * berlaku sekarang" -- tak peduli sumbernya (SLOT_PURCHASE/CYD_PURCHASE/PROMO/SUBSCRIBE).
+ * Baseline gratis sengaja TIDAK ikut dihitung di sini (bukan opts.baseline seperti getCapacity)
+ * karena baseline itu konstanta yang selalu ditambahkan di atas ledger, bukan row SlotGrant
+ * sungguhan -- jadi tidak membuktikan apa-apa soal riwayat pembayaran user.
+ */
+export async function hasActiveSlotGrant(userId: string, opts: CapacityOpts = {}): Promise<boolean> {
+  const client = opts.client ?? prisma;
+  const now = new Date();
+  const count = await client.slotGrant.count({
+    where: {
+      userId,
+      active: true,
+      OR: [{ validUntil: null }, { validUntil: { gt: now } }],
+      AND: [{ OR: [{ validFrom: null }, { validFrom: { lte: now } }] }],
+    },
+  });
+  return count > 0;
+}
+
 export async function getEligibleDevices(userId: string, opts: CapacityOpts = {}): Promise<Device[]> {
   const client = opts.client ?? prisma;
   const capacity = await getCapacity(userId, opts);

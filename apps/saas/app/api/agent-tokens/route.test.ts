@@ -2,20 +2,23 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/entitlement", () => ({ getEntitlement: vi.fn(), capabilities: vi.fn() }));
+vi.mock("@/lib/printer-slots/capacity", () => ({ hasActiveSlotGrant: vi.fn() }));
 vi.mock("@/lib/agent-tokens/service", () => ({ generateToken: vi.fn(), listTokens: vi.fn() }));
 
 import { auth } from "@/lib/auth";
 import { getEntitlement, capabilities } from "@/lib/entitlement";
+import { hasActiveSlotGrant } from "@/lib/printer-slots/capacity";
 import { generateToken, listTokens } from "@/lib/agent-tokens/service";
 import { GET, POST } from "./route";
 
 beforeEach(() => vi.clearAllMocks());
 
-/** requirePaidCore dipakai apa adanya (tak di-mock) — cukup atur auth + entitlement di baliknya. */
+/** requireAgentAccess dipakai apa adanya (tak di-mock) — cukup atur auth + entitlement di baliknya. */
 function loginAs(paidCore: boolean) {
   (auth as any).mockResolvedValue({ user: { id: "u1" } });
   (getEntitlement as any).mockResolvedValue({});
   (capabilities as any).mockReturnValue({ paidCore, cloud: false });
+  (hasActiveSlotGrant as any).mockResolvedValue(false);
 }
 
 describe("GET /api/agent-tokens", () => {

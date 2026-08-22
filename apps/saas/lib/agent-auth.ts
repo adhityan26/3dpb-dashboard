@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { resolveToken } from "@/lib/agent-tokens/service";
 import { getEntitlement, capabilities } from "@/lib/entitlement";
+import { hasActiveSlotGrant } from "@/lib/printer-slots/capacity";
 
 /**
  * Helper per-route (BUKAN Next.js middleware — Edge runtime tak bisa akses Postgres
@@ -17,7 +18,7 @@ export async function requireAgentToken(req: Request): Promise<{ userId: string 
   if (!resolved) return NextResponse.json({ error: "invalid_token" }, { status: 401 });
 
   const ent = await getEntitlement(resolved.userId);
-  if (!capabilities(ent).paidCore) {
+  if (!capabilities(ent).paidCore && !(await hasActiveSlotGrant(resolved.userId))) {
     return NextResponse.json({ error: "entitlement_expired" }, { status: 403 });
   }
 

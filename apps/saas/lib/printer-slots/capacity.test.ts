@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/db", () => ({
   prisma: {
-    slotGrant: { findMany: vi.fn() },
+    slotGrant: { findMany: vi.fn(), count: vi.fn() },
     device: { findMany: vi.fn() },
   },
 }));
@@ -10,10 +10,10 @@ vi.mock("@/lib/config", () => ({ getConfigInt: vi.fn() }));
 
 import { prisma } from "@/lib/db";
 import { getConfigInt } from "@/lib/config";
-import { getCapacity, getEligibleDevices, getEligibleShortCodes } from "./capacity";
+import { getCapacity, getEligibleDevices, getEligibleShortCodes, hasActiveSlotGrant } from "./capacity";
 
 const mockPrisma = prisma as unknown as {
-  slotGrant: { findMany: ReturnType<typeof vi.fn> };
+  slotGrant: { findMany: ReturnType<typeof vi.fn>; count: ReturnType<typeof vi.fn> };
   device: { findMany: ReturnType<typeof vi.fn> };
 };
 const mockGetConfigInt = getConfigInt as ReturnType<typeof vi.fn>;
@@ -58,6 +58,36 @@ describe("getCapacity", () => {
     mockPrisma.slotGrant.findMany.mockResolvedValue([]);
     await getCapacity("u1");
     const where = mockPrisma.slotGrant.findMany.mock.calls[0][0].where;
+    expect(where.AND).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          OR: expect.arrayContaining([{ validFrom: null }, expect.objectContaining({ validFrom: expect.any(Object) })])
+        })
+      ])
+    );
+  });
+});
+
+describe("hasActiveSlotGrant", () => {
+  it("returns true when prisma.slotGrant.count resolves to a number > 0", async () => {
+    mockPrisma.slotGrant.count.mockResolvedValue(2);
+    await expect(hasActiveSlotGrant("u1")).resolves.toBe(true);
+  });
+
+  it("returns false when prisma.slotGrant.count resolves to 0", async () => {
+    mockPrisma.slotGrant.count.mockResolvedValue(0);
+    await expect(hasActiveSlotGrant("u1")).resolves.toBe(false);
+  });
+
+  it("passes the same active + validity-window where clause shape as getCapacity", async () => {
+    mockPrisma.slotGrant.count.mockResolvedValue(0);
+    await hasActiveSlotGrant("u1");
+    const where = mockPrisma.slotGrant.count.mock.calls[0][0].where;
+    expect(where.userId).toBe("u1");
+    expect(where.active).toBe(true);
+    expect(where.OR).toEqual(
+      expect.arrayContaining([{ validUntil: null }, expect.objectContaining({ validUntil: expect.any(Object) })])
+    );
     expect(where.AND).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

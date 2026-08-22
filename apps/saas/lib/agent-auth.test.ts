@@ -3,9 +3,11 @@ import { NextResponse } from "next/server";
 
 vi.mock("@/lib/agent-tokens/service", () => ({ resolveToken: vi.fn() }));
 vi.mock("@/lib/entitlement", () => ({ getEntitlement: vi.fn(), capabilities: vi.fn() }));
+vi.mock("@/lib/printer-slots/capacity", () => ({ hasActiveSlotGrant: vi.fn() }));
 
 import { resolveToken } from "@/lib/agent-tokens/service";
 import { getEntitlement, capabilities } from "@/lib/entitlement";
+import { hasActiveSlotGrant } from "@/lib/printer-slots/capacity";
 import { requireAgentToken } from "./agent-auth";
 
 beforeEach(() => vi.clearAllMocks());
@@ -38,10 +40,20 @@ describe("requireAgentToken", () => {
     (resolveToken as any).mockResolvedValue({ userId: "u1" });
     (getEntitlement as any).mockResolvedValue({});
     (capabilities as any).mockReturnValue({ paidCore: false, cloud: false });
+    (hasActiveSlotGrant as any).mockResolvedValue(false);
     const result = await requireAgentToken(req("Bearer slz_valid"));
     expect((result as NextResponse).status).toBe(403);
     const body = await (result as NextResponse).json();
     expect(body.error).toBe("entitlement_expired");
+  });
+
+  it("200/userId kalau paidCore false TAPI hasActiveSlotGrant true (regresi N2 whole-feature review)", async () => {
+    (resolveToken as any).mockResolvedValue({ userId: "u1" });
+    (getEntitlement as any).mockResolvedValue({});
+    (capabilities as any).mockReturnValue({ paidCore: false, cloud: false });
+    (hasActiveSlotGrant as any).mockResolvedValue(true);
+    const result = await requireAgentToken(req("Bearer slz_valid"));
+    expect(result).toEqual({ userId: "u1" });
   });
 
   it("balikin { userId } kalau semua valid", async () => {

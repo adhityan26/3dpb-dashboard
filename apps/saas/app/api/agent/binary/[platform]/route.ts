@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requirePaidCore } from "@/lib/session-auth";
+import { requireAgentAccess } from "@/lib/session-auth";
 import { getBinary } from "@/lib/storage/r2";
 
 /**
@@ -16,7 +16,7 @@ const BINARIES: Record<string, { key: string; contentType: string; filenameBase:
 };
 
 export async function GET(_req: Request, ctx: { params: Promise<{ platform: string }> }) {
-  const gate = await requirePaidCore();
+  const gate = await requireAgentAccess();
   if (gate instanceof NextResponse) return gate;
 
   const { platform } = await ctx.params;

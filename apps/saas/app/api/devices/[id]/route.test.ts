@@ -2,10 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/entitlement", () => ({ getEntitlement: vi.fn(), capabilities: vi.fn() }));
+vi.mock("@/lib/printer-slots/capacity", () => ({ hasActiveSlotGrant: vi.fn() }));
 vi.mock("@/lib/devices/service", () => ({ updateDevice: vi.fn(), deleteDevice: vi.fn() }));
 
 import { auth } from "@/lib/auth";
 import { getEntitlement, capabilities } from "@/lib/entitlement";
+import { hasActiveSlotGrant } from "@/lib/printer-slots/capacity";
 import { updateDevice, deleteDevice } from "@/lib/devices/service";
 import { DeviceNotFound, InvalidPrinterType, InvalidDeviceModel } from "@/lib/devices/errors";
 import { PATCH, DELETE } from "./route";
@@ -16,11 +18,12 @@ function ctx(id: string) {
   return { params: Promise.resolve({ id }) };
 }
 
-/** requirePaidCore dipakai apa adanya (tak di-mock) — cukup atur auth + entitlement di baliknya. */
+/** requireAgentAccess dipakai apa adanya (tak di-mock) — cukup atur auth + entitlement di baliknya. */
 function loginAs(paidCore: boolean) {
   (auth as any).mockResolvedValue({ user: { id: "u1" } });
   (getEntitlement as any).mockResolvedValue({});
   (capabilities as any).mockReturnValue({ paidCore, cloud: false });
+  (hasActiveSlotGrant as any).mockResolvedValue(false);
 }
 
 describe("PATCH /api/devices/[id]", () => {

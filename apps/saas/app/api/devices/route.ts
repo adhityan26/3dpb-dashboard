@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { requirePaidCore } from "@/lib/session-auth";
+import { requireAgentAccess } from "@/lib/session-auth";
 import { listDevices, createDevice, getDeviceLimit } from "@/lib/devices/service";
 import { SlotLimitExceeded, InvalidPrinterType, InvalidDeviceModel } from "@/lib/devices/errors";
 
@@ -19,7 +19,7 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  const gate = await requirePaidCore();
+  const gate = await requireAgentAccess();
   if (gate instanceof NextResponse) return gate;
 
   const body = (await req.json().catch(() => ({}))) as { label?: unknown; printerType?: unknown; model?: unknown };

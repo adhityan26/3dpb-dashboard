@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { requirePaidCore } from "@/lib/session-auth";
+import { requireAgentAccess } from "@/lib/session-auth";
 import { updateDevice, deleteDevice } from "@/lib/devices/service";
 import { DeviceNotFound, InvalidPrinterType, InvalidDeviceModel } from "@/lib/devices/errors";
 
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function PATCH(req: Request, { params }: Ctx) {
-  const gate = await requirePaidCore();
+  const gate = await requireAgentAccess();
   if (gate instanceof NextResponse) return gate;
   const userId = gate.userId;
   const { id } = await params;

@@ -2,10 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/entitlement", () => ({ getEntitlement: vi.fn(), capabilities: vi.fn() }));
+vi.mock("@/lib/printer-slots/capacity", () => ({ hasActiveSlotGrant: vi.fn() }));
 vi.mock("@/lib/devices/service", () => ({ listDevices: vi.fn(), createDevice: vi.fn(), getDeviceLimit: vi.fn() }));
 
 import { auth } from "@/lib/auth";
 import { getEntitlement, capabilities } from "@/lib/entitlement";
+import { hasActiveSlotGrant } from "@/lib/printer-slots/capacity";
 import { listDevices, createDevice, getDeviceLimit } from "@/lib/devices/service";
 import { SlotLimitExceeded, InvalidDeviceModel } from "@/lib/devices/errors";
 import { GET, POST } from "./route";
@@ -42,10 +44,11 @@ describe("POST /api/devices", () => {
     expect(res.status).toBe(401);
   });
 
-  it("403 kalau bukan paidCore", async () => {
+  it("403 kalau bukan paidCore dan tak punya slot grant aktif", async () => {
     (auth as any).mockResolvedValue({ user: { id: "u1" } });
     (getEntitlement as any).mockResolvedValue({});
     (capabilities as any).mockReturnValue({ paidCore: false, cloud: false });
+    (hasActiveSlotGrant as any).mockResolvedValue(false);
     const res = await POST(req({ label: "A", printerType: "bambu" }));
     expect(res.status).toBe(403);
     expect(createDevice).not.toHaveBeenCalled();

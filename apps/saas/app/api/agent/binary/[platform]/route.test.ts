@@ -2,10 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/entitlement", () => ({ getEntitlement: vi.fn(), capabilities: vi.fn() }));
+vi.mock("@/lib/printer-slots/capacity", () => ({ hasActiveSlotGrant: vi.fn() }));
 vi.mock("@/lib/storage/r2", () => ({ getBinary: vi.fn() }));
 
 import { auth } from "@/lib/auth";
 import { getEntitlement, capabilities } from "@/lib/entitlement";
+import { hasActiveSlotGrant } from "@/lib/printer-slots/capacity";
 import { getBinary } from "@/lib/storage/r2";
 import { GET } from "./route";
 
@@ -15,6 +17,7 @@ function loginAs(paidCore: boolean) {
   (auth as any).mockResolvedValue({ user: { id: "u1" } });
   (getEntitlement as any).mockResolvedValue({});
   (capabilities as any).mockReturnValue({ paidCore, cloud: false });
+  (hasActiveSlotGrant as any).mockResolvedValue(false);
 }
 
 function req() {
@@ -22,7 +25,7 @@ function req() {
 }
 
 describe("GET /api/agent/binary/[platform]", () => {
-  it("401 kalau tak login (requirePaidCore apa adanya)", async () => {
+  it("401 kalau tak login (requireAgentAccess apa adanya)", async () => {
     (auth as any).mockResolvedValue(null);
     const res = await GET(req(), { params: Promise.resolve({ platform: "win" }) });
     expect(res.status).toBe(401);
