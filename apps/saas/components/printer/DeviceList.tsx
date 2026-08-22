@@ -4,7 +4,7 @@ import { PRINTER_TYPES, PRINTER_TYPE_LABELS, PRINTER_MODEL_SUGGESTIONS, type Pri
 import { getPrinterBrand } from "@/lib/devices/printer-brand";
 import { LAYOUT_LIMITS } from "@3pb/cyd-layout-schema";
 
-type Device = { id: string; label: string; printerType: string; model: string | null };
+type Device = { id: string; label: string; printerType: string; model: string | null; suspended?: boolean };
 
 export function DeviceList({ paidCore }: { paidCore: boolean }) {
   const [devices, setDevices] = useState<Device[]>([]);
@@ -134,6 +134,11 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
               {devices.length}/{limit} slot terpakai
             </p>
           )}
+          {devices.some((d) => d.suspended) && (
+            <p className="text-[11px] text-amber-500 mb-2">
+              ⏸ Beberapa printer tersuspend karena kapasitas slot berkurang — kurangi printer aktif atau tambah kapasitas untuk mengaktifkannya kembali.
+            </p>
+          )}
         </div>
         <button
           type="button"
@@ -166,6 +171,14 @@ export function DeviceList({ paidCore }: { paidCore: boolean }) {
               />
             ) : (
               <span className="flex-1 min-w-0 truncate">{d.label}</span>
+            )}
+            {d.suspended && (
+              <span
+                className="text-[10px] text-amber-500"
+                title="Kapasitas slot kurang -- printer ini tidak ditampilkan di layar CYD sampai kapasitas ditambah atau printer lain dihapus/di-nonaktifkan."
+              >
+                ⏸ Tersuspend
+              </span>
             )}
             <span className="g-t4 text-[11px]">{getPrinterBrand(d.printerType, d.model)}</span>
             {editingModelId === d.id ? (

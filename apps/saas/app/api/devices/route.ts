@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { requireAgentAccess } from "@/lib/session-auth";
 import { listDevices, createDevice, getDeviceLimit } from "@/lib/devices/service";
 import { SlotLimitExceeded, InvalidPrinterType, InvalidDeviceModel } from "@/lib/devices/errors";
+import { getEligibleShortCodes } from "@/lib/printer-slots/capacity";
 
 /**
  * Balas `{ devices, limit }`, bukan array telanjang — DeviceList butuh `limit` buat menampilkan
@@ -14,7 +15,12 @@ export async function GET() {
   const session = await auth();
   const userId = session?.user?.id;
   if (!userId) return NextResponse.json({ error: "unauthenticated" }, { status: 401 });
-  const [devices, limit] = await Promise.all([listDevices(userId), getDeviceLimit(userId)]);
+  const [rawDevices, limit, eligibleShortCodes] = await Promise.all([
+    listDevices(userId),
+    getDeviceLimit(userId),
+    getEligibleShortCodes(userId),
+  ]);
+  const devices = rawDevices.map((d) => ({ ...d, suspended: !eligibleShortCodes.has(d.shortCode) }));
   return NextResponse.json({ devices, limit });
 }
 

@@ -2,12 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/entitlement", () => ({ getEntitlement: vi.fn(), capabilities: vi.fn() }));
-vi.mock("@/lib/printer-slots/capacity", () => ({ hasActiveSlotGrant: vi.fn() }));
+vi.mock("@/lib/printer-slots/capacity", () => ({ hasActiveSlotGrant: vi.fn(), getEligibleShortCodes: vi.fn() }));
 vi.mock("@/lib/devices/service", () => ({ listDevices: vi.fn(), createDevice: vi.fn(), getDeviceLimit: vi.fn() }));
 
 import { auth } from "@/lib/auth";
 import { getEntitlement, capabilities } from "@/lib/entitlement";
-import { hasActiveSlotGrant } from "@/lib/printer-slots/capacity";
+import { hasActiveSlotGrant, getEligibleShortCodes } from "@/lib/printer-slots/capacity";
 import { listDevices, createDevice, getDeviceLimit } from "@/lib/devices/service";
 import { SlotLimitExceeded, InvalidDeviceModel } from "@/lib/devices/errors";
 import { GET, POST } from "./route";
@@ -23,13 +23,31 @@ describe("GET /api/devices", () => {
 
   it("200 + { devices, limit } kalau login", async () => {
     (auth as any).mockResolvedValue({ user: { id: "u1" } });
-    (listDevices as any).mockResolvedValue([{ id: "d1" }]);
+    (listDevices as any).mockResolvedValue([{ id: "d1", shortCode: "abc" }]);
     (getDeviceLimit as any).mockResolvedValue(3);
+    (getEligibleShortCodes as any).mockResolvedValue(new Set(["abc"]));
     const res = await GET();
     expect(res.status).toBe(200);
     const body = await res.json();
     expect(body.devices).toHaveLength(1);
     expect(body.limit).toBe(3);
+  });
+
+  it("menandai device suspended: true kalau shortCode-nya tak ada di set eligible (di luar cutoff FIFO)", async () => {
+    (auth as any).mockResolvedValue({ user: { id: "u1" } });
+    (listDevices as any).mockResolvedValue([
+      { id: "d1", shortCode: "eligible-1" },
+      { id: "d2", shortCode: "over-cutoff-1" },
+    ]);
+    (getDeviceLimit as any).mockResolvedValue(3);
+    (getEligibleShortCodes as any).mockResolvedValue(new Set(["eligible-1"]));
+    const res = await GET();
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.devices).toEqual([
+      { id: "d1", shortCode: "eligible-1", suspended: false },
+      { id: "d2", shortCode: "over-cutoff-1", suspended: true },
+    ]);
   });
 });
 

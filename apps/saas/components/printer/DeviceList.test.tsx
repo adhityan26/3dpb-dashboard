@@ -10,7 +10,7 @@ beforeEach(() => {
 });
 
 /** GET /api/devices balas { devices, limit } (bukan array telanjang). */
-function mockList(devices: Array<{ id: string; label: string; printerType: string; model: string | null }>, limit = 3) {
+function mockList(devices: Array<{ id: string; label: string; printerType: string; model: string | null; suspended?: boolean }>, limit = 3) {
   fetchMock.mockResolvedValueOnce({ ok: true, json: async () => ({ devices, limit }) });
 }
 
@@ -55,6 +55,21 @@ describe("DeviceList", () => {
     await waitFor(() => expect(screen.getByText(/batas.*tercapai/i)).toBeTruthy());
     // Gagal -> dialog TETAP terbuka menampilkan error, bukan ke-dismiss diam-diam.
     expect(screen.getByRole("dialog")).toBeTruthy();
+  });
+
+  it("device suspended: true -> tampilkan badge '⏸ Tersuspend' + banner ringkasan", async () => {
+    mockList([DEVICE_A, { ...DEVICE_A, id: "d2", label: "Printer B", suspended: true }]);
+    render(<DeviceList paidCore={true} />);
+    await waitFor(() => expect(screen.getByText("Printer B")).toBeTruthy());
+    expect(screen.getByText("⏸ Tersuspend")).toBeTruthy();
+    expect(screen.getByText(/beberapa printer tersuspend/i)).toBeTruthy();
+  });
+
+  it("tak ada device suspended -> tak tampilkan badge/banner", async () => {
+    mockList([DEVICE_A]);
+    render(<DeviceList paidCore={true} />);
+    await waitFor(() => expect(screen.getByText("Printer A")).toBeTruthy());
+    expect(screen.queryByText(/tersuspend/i)).toBeNull();
   });
 
   it("locked view (upsell) kalau paidCore false, tak panggil fetch sama sekali", () => {
