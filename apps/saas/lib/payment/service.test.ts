@@ -342,15 +342,49 @@ describe("createOrReuseSubscribeCheckout", () => {
     );
   });
 
-  it("reuses an existing PENDING SUBSCRIBE payment within the live window", async () => {
-    const existing = { id: "p-existing", productType: "SUBSCRIBE", status: "PENDING" };
+  it("reuses an existing PENDING SUBSCRIBE payment within the live window when the price still matches", async () => {
+    const existing = { id: "p-existing", productType: "SUBSCRIBE", status: "PENDING", displayPrice: 50000 };
+    (getEntitlement as any).mockResolvedValue({ lifetimeOwned: false });
+    (getConfig as any).mockImplementation(async (k: string) =>
+      ({ "price.sub.standalone": "50000", "price.sub.owner": "35000", "qris.static": "STATICQR", "price.discountBuffer": "1000" })[k] ?? ""
+    );
     (prisma.payment.findFirst as any).mockResolvedValue(existing);
 
     const p = await createOrReuseSubscribeCheckout("u1", NOW);
 
     expect(p).toBe(existing);
     expect(prisma.payment.create).not.toHaveBeenCalled();
-    expect(getEntitlement).not.toHaveBeenCalled();
+    expect(getEntitlement).toHaveBeenCalled();
+    expect(prisma.payment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ userId: "u1", productType: "SUBSCRIBE", displayPrice: 50000, status: "PENDING" }),
+      })
+    );
+  });
+
+  it("does not reuse a stale PENDING payment created at an old price (price changed while pending)", async () => {
+    // User's price changed to the discounted owner price after buying lifetime Pro;
+    // a real Prisma query filtered by displayPrice: 35000 would not find the old
+    // standalone-priced PENDING row, so we simulate that here by returning null.
+    (getEntitlement as any).mockResolvedValue({ lifetimeOwned: true });
+    (getConfig as any).mockImplementation(async (k: string) =>
+      ({ "price.sub.standalone": "50000", "price.sub.owner": "35000", "qris.static": "STATICQR", "price.discountBuffer": "1000" })[k] ?? ""
+    );
+    (prisma.payment.findFirst as any).mockResolvedValue(null);
+    (prisma.payment.findMany as any).mockResolvedValue([]);
+    (prisma.payment.create as any).mockImplementation(async ({ data }: any) => ({ id: "p-new", ...data }));
+
+    const p = await createOrReuseSubscribeCheckout("u1", NOW);
+
+    expect(prisma.payment.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ userId: "u1", productType: "SUBSCRIBE", displayPrice: 35000, status: "PENDING" }),
+      })
+    );
+    expect(prisma.payment.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: expect.objectContaining({ userId: "u1", productType: "SUBSCRIBE", displayPrice: 35000 }) })
+    );
+    expect(p.displayPrice).toBe(35000);
   });
 
   it("throws PriceNotSet when the applicable price key is unset", async () => {
