@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { isOwner } from "@/lib/owner";
+import { capabilities } from "@/lib/entitlement";
 import { getAllConfig } from "@/lib/config";
 import { fetchWaitlist, type WaitlistRow } from "@/lib/waitlist/cloudflare";
 import { listPending, listPaid, listCydOrders } from "@/lib/payment/service";
@@ -62,7 +63,7 @@ export default async function AdminPage() {
 
   // User aktif (semua user + status entitlement)
   const allUsers = await prisma.user.findMany({
-    select: { id: true, email: true, phone: true, createdAt: true, entitlement: { select: { lifetimeOwned: true, subStatus: true } } },
+    select: { id: true, email: true, phone: true, createdAt: true, entitlement: { select: { lifetimeOwned: true, subStatus: true, subExpiresAt: true } } },
     orderBy: { createdAt: "desc" },
     take: 200,
   });
@@ -90,7 +91,15 @@ export default async function AdminPage() {
     const a = latestAgent.get(u.id);
     return {
       who: u.email ?? u.phone ?? u.id.slice(0, 6),
-      status: u.entitlement?.lifetimeOwned ? "Pro" : u.entitlement?.subStatus === "ACTIVE" ? "Subscribe" : "Free",
+      status: u.entitlement?.lifetimeOwned
+        ? "Pro"
+        : capabilities({
+            lifetimeOwned: u.entitlement?.lifetimeOwned ?? false,
+            subStatus: u.entitlement?.subStatus ?? "NONE",
+            subExpiresAt: u.entitlement?.subExpiresAt ?? null,
+          }).cloud
+          ? "Subscribe"
+          : "Free",
       joined: u.createdAt.toISOString().slice(0, 10),
       ...(p
         ? {
