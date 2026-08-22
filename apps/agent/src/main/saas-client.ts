@@ -1,4 +1,5 @@
 import type { LayoutConfigOut } from "@3pb/cyd-layout-schema";
+import log from "electron-log/main";
 
 export interface SaasDevice {
   id: string;
@@ -11,9 +12,18 @@ export interface SaasDevice {
   updatedAt: string;
 }
 
+// "wrong_server": the URL answered, but with something that is NOT the Slizebiz app
+// (an HTML page instead of JSON). Real case 2026-08-22: a default build baked
+// https://app.slizebiz.com, which is still the Cloudflare Pages "Segera Hadir" placeholder
+// (200 text/html on EVERY path, /api/agent/* included) -- every call surfaced as a generic
+// "network_error" and publishLayout() silently skipped, so the CYD sat on "Tampilan belum
+// diatur" with no hint that the build's SAAS_BASE_URL was the problem. Kept separate from
+// network_error so the UI can say "wrong server/build" instead of "check your internet".
+export type SaasFailKind = "invalid_token" | "entitlement_expired" | "network_error" | "wrong_server";
+
 export type FetchResult<T> =
   | { ok: true; data: T }
-  | { ok: false; kind: "invalid_token" | "entitlement_expired" | "network_error" };
+  | { ok: false; kind: SaasFailKind };
 
 // Bentuk KHUSUS buat patchDeviceModel -- BUKAN memperluas FetchResult<T> yang dipakai
 // fetchDevices/fetchLayout, karena kode yang exhaustive-switch atas union `kind` FetchResult
@@ -21,7 +31,7 @@ export type FetchResult<T> =
 // relevan buat PATCH model (Task final-review Fix 2b).
 export type PatchDeviceModelResult =
   | { ok: true; data: { model: string | null } }
-  | { ok: false; kind: "invalid_token" | "entitlement_expired" | "network_error" | "invalid_model" };
+  | { ok: false; kind: SaasFailKind | "invalid_model" };
 
 // Di-inject `define` electron.vite.config.ts saat build. Dideklarasikan (bukan di-import)
 // karena identifier ini DIGANTI literal string oleh Vite; di luar build (vitest, tsx)
@@ -62,6 +72,25 @@ export function saasBaseUrl(): string {
 // AbortSignal's error ketangkep `catch` di bawah dan dipetakan ke "network_error" seperti biasa.
 const FETCH_TIMEOUT_MS = 5_000;
 
+// A 2xx whose body is not JSON means the base URL points at something other than the app
+// (placeholder page, captive portal, reverse proxy default vhost). Decided from the
+// content-type header BEFORE res.json() so the failure is classified, not swallowed by the
+// generic catch. Test doubles may omit `headers` entirely -- only a header that is present
+// AND non-JSON counts as wrong_server; absence is treated as JSON (no behaviour change for
+// callers/tests that never set it).
+function isNonJsonResponse(res: Response): boolean {
+  const contentType = res.headers?.get?.("content-type");
+  if (contentType == null) return false;
+  return !contentType.toLowerCase().includes("json");
+}
+
+function wrongServer(path: string, res: Response): { ok: false; kind: "wrong_server" } {
+  log.error(
+    `[saas-client] ${saasBaseUrl()}${path} answered ${res.status} with content-type "${res.headers?.get?.("content-type")}" -- this is NOT the Slizebiz app. The SAAS_BASE_URL baked into this build is wrong (e.g. the app.slizebiz.com placeholder); rebuild with SAAS_BASE_URL=<app url>.`,
+  );
+  return { ok: false, kind: "wrong_server" };
+}
+
 export async function fetchDevices(token: string): Promise<FetchResult<SaasDevice[]>> {
   try {
     const res = await fetch(`${saasBaseUrl()}/api/agent/devices`, {
@@ -71,6 +100,7 @@ export async function fetchDevices(token: string): Promise<FetchResult<SaasDevic
     if (res.status === 401) return { ok: false, kind: "invalid_token" };
     if (res.status === 403) return { ok: false, kind: "entitlement_expired" };
     if (!res.ok) return { ok: false, kind: "network_error" };
+    if (isNonJsonResponse(res)) return wrongServer("/api/agent/devices", res);
     return { ok: true, data: (await res.json()) as SaasDevice[] };
   } catch {
     return { ok: false, kind: "network_error" };
@@ -87,6 +117,7 @@ export async function fetchLayout(token: string): Promise<FetchResult<LayoutConf
     if (res.status === 403) return { ok: false, kind: "entitlement_expired" };
     if (res.status === 404) return { ok: true, data: null };
     if (!res.ok) return { ok: false, kind: "network_error" };
+    if (isNonJsonResponse(res)) return wrongServer("/api/agent/layout", res);
     return { ok: true, data: (await res.json()) as LayoutConfigOut };
   } catch {
     return { ok: false, kind: "network_error" };
@@ -115,6 +146,7 @@ export async function patchDeviceModel(token: string, shortCode: string, model: 
       return { ok: false, kind: "network_error" };
     }
     if (!res.ok) return { ok: false, kind: "network_error" };
+    if (isNonJsonResponse(res)) return wrongServer(`/api/agent/devices/${shortCode}`, res);
     return { ok: true, data: (await res.json()) as { model: string | null } };
   } catch {
     return { ok: false, kind: "network_error" };
@@ -123,7 +155,7 @@ export async function patchDeviceModel(token: string, shortCode: string, model: 
 
 export type FetchVersionResult =
   | { ok: true; data: { updateAvailable: boolean } }
-  | { ok: false; kind: "invalid_token" | "entitlement_expired" | "network_error" };
+  | { ok: false; kind: SaasFailKind };
 
 export async function fetchLatestVersion(token: string, platform: "win" | "mac"): Promise<FetchVersionResult> {
   try {
@@ -134,6 +166,7 @@ export async function fetchLatestVersion(token: string, platform: "win" | "mac")
     if (res.status === 401) return { ok: false, kind: "invalid_token" };
     if (res.status === 403) return { ok: false, kind: "entitlement_expired" };
     if (!res.ok) return { ok: false, kind: "network_error" };
+    if (isNonJsonResponse(res)) return wrongServer(`/api/agent/version?platform=${platform}`, res);
     const { commitHash } = (await res.json()) as { commitHash: string | null };
     return { ok: true, data: { updateAvailable: commitHash !== null && commitHash !== AGENT_COMMIT_HASH } };
   } catch {

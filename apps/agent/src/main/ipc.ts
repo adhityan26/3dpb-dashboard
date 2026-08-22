@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import JSZip from "jszip";
 import log from "electron-log/main";
 import { loadCredentials, saveCredentials, type DeviceSecret } from "./credential-store";
-import { fetchDevices, patchDeviceModel, saasBaseUrl, type SaasDevice } from "./saas-client";
+import { fetchDevices, patchDeviceModel, saasBaseUrl, type SaasDevice, type SaasFailKind } from "./saas-client";
 import { scanBambu } from "./discovery/bambu-ssdp";
 import { scanMoonraker } from "./discovery/moonraker-mdns";
 import { BambuFtpsClient } from "./file-manager/bambu-ftps-client";
@@ -31,7 +31,7 @@ export type UpdateDeviceModelResult = { ok: boolean; kind?: "invalid_model" };
 
 export type SyncResult =
   | { ok: true; deviceCount: number }
-  | { ok: false; kind: "invalid_token" | "entitlement_expired" | "network_error" | "engine_error" | "broker_unavailable" };
+  | { ok: false; kind: SaasFailKind | "engine_error" | "broker_unavailable" };
 
 export function registerIpcHandlers(): void {
   ipcMain.handle("agent:activate", async (_event, token: string) => {

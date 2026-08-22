@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { fetchDevices, fetchLayout, patchDeviceModel, fetchLatestVersion, saasBaseUrl } from "./saas-client";
 
+vi.mock("electron-log/main", () => ({ default: { info: vi.fn(), warn: vi.fn(), error: vi.fn() } }));
+
 const fetchMock = vi.fn();
 beforeEach(() => {
   fetchMock.mockReset();
@@ -73,6 +75,18 @@ describe("fetchDevices", () => {
     fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
     expect(await fetchDevices("slz_valid")).toEqual({ ok: false, kind: "network_error" });
   });
+
+  it("kind:wrong_server (BUKAN network_error) kalau 200 tapi body HTML -- SAAS_BASE_URL build menunjuk ke server yang bukan app Slizebiz", async () => {
+    // Persis respons placeholder Cloudflare Pages "Segera Hadir" di app.slizebiz.com (2026-08-22):
+    // 200 text/html di SEMUA path, termasuk /api/agent/*.
+    fetchMock.mockResolvedValue({ ok: true, status: 200, headers: new Headers({ "content-type": "text/html; charset=utf-8" }), json: async () => { throw new SyntaxError("Unexpected token <"); } });
+    expect(await fetchDevices("slz_valid")).toEqual({ ok: false, kind: "wrong_server" });
+  });
+
+  it("content-type JSON dengan charset tetap dianggap JSON", async () => {
+    fetchMock.mockResolvedValue({ ok: true, status: 200, headers: new Headers({ "content-type": "application/json; charset=utf-8" }), json: async () => [] });
+    expect(await fetchDevices("slz_valid")).toEqual({ ok: true, data: [] });
+  });
 });
 
 describe("fetchLayout", () => {
@@ -90,6 +104,13 @@ describe("fetchLayout", () => {
   it("kind:invalid_token kalau 401", async () => {
     fetchMock.mockResolvedValue({ ok: false, status: 401, json: async () => ({ error: "invalid_token" }) });
     expect(await fetchLayout("slz_bad")).toEqual({ ok: false, kind: "invalid_token" });
+  });
+
+  it("kind:wrong_server kalau 200 tapi body HTML -- jangan diam-diam gagal publish layout sebagai network_error", async () => {
+    // Persis respons placeholder Cloudflare Pages "Segera Hadir" di app.slizebiz.com (2026-08-22):
+    // 200 text/html di SEMUA path, termasuk /api/agent/*.
+    fetchMock.mockResolvedValue({ ok: true, status: 200, headers: new Headers({ "content-type": "text/html; charset=utf-8" }), json: async () => { throw new SyntaxError("Unexpected token <"); } });
+    expect(await fetchLayout("slz_valid")).toEqual({ ok: false, kind: "wrong_server" });
   });
 });
 
@@ -180,5 +201,12 @@ describe("fetchLatestVersion", () => {
   it("kind:network_error kalau fetch throw", async () => {
     fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
     expect(await fetchLatestVersion("slz_valid", "win")).toEqual({ ok: false, kind: "network_error" });
+  });
+
+  it("kind:wrong_server kalau 200 tapi body HTML", async () => {
+    // Persis respons placeholder Cloudflare Pages "Segera Hadir" di app.slizebiz.com (2026-08-22):
+    // 200 text/html di SEMUA path, termasuk /api/agent/*.
+    fetchMock.mockResolvedValue({ ok: true, status: 200, headers: new Headers({ "content-type": "text/html; charset=utf-8" }), json: async () => { throw new SyntaxError("Unexpected token <"); } });
+    expect(await fetchLatestVersion("slz_valid", "win")).toEqual({ ok: false, kind: "wrong_server" });
   });
 });

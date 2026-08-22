@@ -32,6 +32,8 @@ function syncErrorMessage(kind: Extract<SyncResult, { ok: false }>["kind"]): str
       return "Gagal konek ulang ke printer — cek IP/access code device yang baru diubah.";
     case "broker_unavailable":
       return "Broker MQTT lokal belum jalan (lihat pesan di bawah) — tak ada device yang bisa dimonitor sampai itu diperbaiki.";
+    case "wrong_server":
+      return "Server yang dituju bukan app Slizebiz (balas halaman web, bukan data) — build Agent ini salah alamat server, hubungi 3D Printing Bandung buat installer yang benar.";
     case "network_error":
     default:
       return "Gagal konek ke server Slizebiz — device tetap jalan dari data lokal terakhir.";

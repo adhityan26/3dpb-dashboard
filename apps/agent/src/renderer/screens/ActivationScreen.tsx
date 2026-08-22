@@ -18,6 +18,8 @@ export function ActivationScreen({ onActivated }: { onActivated: (devices: SaasD
           setError("Token tidak valid — generate ulang token dari halaman Settings web Slizebiz.");
         } else if (result.kind === "entitlement_expired") {
           setError("Akses Pro kamu sudah berakhir — perbarui langganan buat lanjut monitoring.");
+        } else if (result.kind === "wrong_server") {
+          setError("Server yang dituju bukan app Slizebiz (balas halaman web, bukan data) — build Agent ini salah alamat server, hubungi 3D Printing Bandung buat installer yang benar.");
         } else {
           setError("Gagal konek ke server Slizebiz. Cek koneksi internet, lalu coba lagi.");
         }
