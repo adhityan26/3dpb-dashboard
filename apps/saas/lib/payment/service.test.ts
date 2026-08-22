@@ -26,16 +26,24 @@ const NOW = new Date("2026-07-18T10:00:00Z");
 beforeEach(() => vi.clearAllMocks());
 
 describe("allocUniqueCode", () => {
-  it("lewati kode yang dipakai payment hidup", async () => {
-    (prisma.payment.findMany as any).mockResolvedValue([{ uniqueCode: 0 }, { uniqueCode: 1 }]);
-    const code = await allocUniqueCode(NOW);
+  it("lewati kode yang bikin amount tabrakan payment lain (base sama)", async () => {
+    (prisma.payment.findMany as any).mockResolvedValue([{ amount: 29000 }, { amount: 29001 }]);
+    const code = await allocUniqueCode(29000, NOW);
     expect(code).toBeGreaterThanOrEqual(0);
     expect([0, 1]).not.toContain(code);
     expect(prisma.payment.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ status: "PENDING", createdAt: { gt: expect.any(Date) } }),
+        where: expect.objectContaining({ status: "PENDING", createdAt: { gt: expect.any(Date) }, amount: { gte: 29000, lt: 30000 } }),
       })
     );
+  });
+
+  it("payment lain dengan base BEDA tak menghalangi kode, walau code-nya sama", async () => {
+    // amount 50500 datang dari base yang beda (misal 50000+500) -- di luar window [29000, 29999] base kita, jadi tak boleh diquery/dianggap tabrakan
+    (prisma.payment.findMany as any).mockResolvedValue([]);
+    const code = await allocUniqueCode(29000, NOW);
+    expect(code).toBeGreaterThanOrEqual(0);
+    expect(code).toBeLessThan(1000);
   });
 });
 
@@ -109,9 +117,21 @@ describe("createOrReuseCheckout", () => {
     (getEntitlement as any).mockResolvedValue({ lifetimeOwned: false });
     (prisma.payment.findFirst as any).mockResolvedValue(null);
     cfg({ "price.beli": "150000", "price.discountBuffer": "1000", "qris.static": "00020101021152...6304ABCD" });
-    const exhausted = Array.from({ length: 1000 }, (_, i) => ({ uniqueCode: i }));
+    // base = price(150000) - buffer(1000) = 149000
+    const exhausted = Array.from({ length: 1000 }, (_, i) => ({ amount: 149000 + i }));
     (prisma.payment.findMany as any).mockResolvedValue(exhausted);
     await expect(createOrReuseCheckout("u1", NOW)).rejects.toBeInstanceOf(CodePoolExhausted);
+  });
+  it("regression: dua base beda gak pernah nabrak walau code sama (fix N1 whole-feature review)", async () => {
+    (getEntitlement as any).mockResolvedValue({ lifetimeOwned: false });
+    (prisma.payment.findFirst as any).mockResolvedValue(null);
+    cfg({ "price.beli": "150000", "price.discountBuffer": "1000", "qris.static": "00020101021152...6304ABCD" });
+    // base = 150000 - 1000 = 149000. Simulate one live PENDING payment that ALREADY occupies amount 149500
+    // (as if from a different base + different code, e.g. base=149000+code=500, or entirely different base by coincidence).
+    (prisma.payment.findMany as any).mockResolvedValue([{ amount: 149500 }]);
+    (prisma.payment.create as any).mockImplementation(async ({ data }: any) => ({ id: "p-new", ...data }));
+    const r = await createOrReuseCheckout("u1", NOW);
+    expect(r.amount).not.toBe(149500);
   });
 });
 

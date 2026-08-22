@@ -13,15 +13,15 @@ export function liveSince(now: Date): Date {
   return new Date(now.getTime() - LIVE_WINDOW_MS);
 }
 
-export async function allocUniqueCode(now = new Date()): Promise<number> {
+export async function allocUniqueCode(base: number, now = new Date()): Promise<number> {
   const live = await prisma.payment.findMany({
-    where: { status: "PENDING", createdAt: { gt: liveSince(now) } },
-    select: { uniqueCode: true },
+    where: { status: "PENDING", createdAt: { gt: liveSince(now) }, amount: { gte: base, lt: base + 1000 } },
+    select: { amount: true },
   });
-  const used = new Set(live.map((p) => p.uniqueCode));
-  if (used.size >= 1000) throw new CodePoolExhausted();
+  const usedCodes = new Set(live.map((p) => p.amount - base));
+  if (usedCodes.size >= 1000) throw new CodePoolExhausted();
   let code = crypto.randomInt(0, 1000);
-  while (used.has(code)) code = crypto.randomInt(0, 1000);
+  while (usedCodes.has(code)) code = crypto.randomInt(0, 1000);
   return code;
 }
 
@@ -42,8 +42,9 @@ export async function createOrReuseCheckout(userId: string, now = new Date()): P
   const buffer = Math.max(1000, parsePrice(await getConfig("price.discountBuffer")) ?? 1000);
   if (price <= buffer) throw new PriceNotSet();
 
-  const code = await allocUniqueCode(now);
-  const amount = price - buffer + code;
+  const base = price - buffer;
+  const code = await allocUniqueCode(base, now);
+  const amount = base + code;
   const qrPayload = generateDynamicQris(staticQ, amount);
 
   return prisma.payment.create({
@@ -68,8 +69,9 @@ export async function createSlotCheckout(userId: string, quantity: number, now =
   const price = unitPrice * quantity;
   if (price <= buffer) throw new PriceNotSet();
 
-  const code = await allocUniqueCode(now);
-  const amount = price - buffer + code;
+  const base = price - buffer;
+  const code = await allocUniqueCode(base, now);
+  const amount = base + code;
   const qrPayload = generateDynamicQris(staticQ, amount);
 
   return prisma.payment.create({
@@ -108,8 +110,9 @@ export async function createOrReuseCydCheckout(
   const price = variant.price * quantity;
   if (price <= buffer) throw new PriceNotSet();
 
-  const code = await allocUniqueCode(now);
-  const amount = price - buffer + code;
+  const base = price - buffer;
+  const code = await allocUniqueCode(base, now);
+  const amount = base + code;
   const qrPayload = generateDynamicQris(staticQ, amount);
 
   return prisma.payment.create({
@@ -136,8 +139,9 @@ export async function createOrReuseSubscribeCheckout(userId: string, now = new D
   const buffer = Math.max(1000, parsePrice(await getConfig("price.discountBuffer")) ?? 1000);
   if (price <= buffer) throw new PriceNotSet();
 
-  const code = await allocUniqueCode(now);
-  const amount = price - buffer + code;
+  const base = price - buffer;
+  const code = await allocUniqueCode(base, now);
+  const amount = base + code;
   const qrPayload = generateDynamicQris(staticQ, amount);
 
   return prisma.payment.create({
