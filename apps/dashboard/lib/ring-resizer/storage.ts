@@ -3,6 +3,7 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
   CreateBucketCommand,
+  NoSuchKey,
 } from "@aws-sdk/client-s3"
 import { getMinioClient } from "@/lib/minio"
 
@@ -48,7 +49,8 @@ export async function deleteRingStl(modelId: string, partId: string): Promise<vo
     await getMinioClient().send(
       new DeleteObjectCommand({ Bucket: RING_BUCKET, Key: ringPartKey(modelId, partId) }),
     )
-  } catch {
-    // idempotent delete
+  } catch (err) {
+    if (err instanceof NoSuchKey) return
+    throw err
   }
 }
