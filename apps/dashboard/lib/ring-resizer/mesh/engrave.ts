@@ -8,7 +8,17 @@ import { buildTextSolid } from "./text"
 const OUTSET_MM = 0.6 // cutter sticks out past the surface to guarantee a clean cut
 
 type V3 = [number, number, number]
-const norm = (v: V3): V3 => { const l = Math.hypot(...v) || 1; return [v[0] / l, v[1] / l, v[2] / l] }
+const norm = (v: V3): V3 => {
+  const l = Math.hypot(...v)
+  // A silent `|| 1` fallback here would return [0,0,0] for a degenerate
+  // input (e.g. `up` parallel to `normal`, whose cross product is the zero
+  // vector) and quietly produce a matrix with a zero column instead of a
+  // valid basis. Fail loudly instead so a bad anchor is caught immediately.
+  if (l < 1e-9) {
+    throw new Error("anchorMatrix: degenerate vector (near-zero length) — check that `up` is not parallel to `normal`")
+  }
+  return [v[0] / l, v[1] / l, v[2] / l]
+}
 const cross = (a: V3, b: V3): V3 => [
   a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0],
 ]
@@ -33,29 +43,56 @@ export function anchorMatrix(anchor: AnchorInput, scale: number): number[] {
   ]
 }
 
+/**
+ * Run `fn(obj)` and unconditionally free `obj`'s WASM memory afterwards,
+ * whether `fn` returns or throws. Used for every manifold-3d object that is
+ * "consumed" to produce the next one in the chain, so a mid-chain failure
+ * (e.g. a degenerate anchorMatrix) can't leak the WASM-side allocation.
+ */
+function consume<T extends { delete(): void }, R>(obj: T, fn: (o: T) => R): R {
+  try {
+    return fn(obj)
+  } finally {
+    obj.delete()
+  }
+}
+
 async function buildCutters(anchors: AnchorInput[], text: string, fontBuf: Buffer, scale: number): Promise<Manifold> {
   // getManifold() is memoized (see ./manifold), and buildTextSolid() already
   // awaits it internally, so no separate warm-up call is needed here.
   let union: Manifold | null = null
-  for (const a of anchors) {
-    // extrude depth + outset, then sink so it spans z ∈ [-depth, +outset] locally
-    const solid = await buildTextSolid({
-      text, fontBuf, heightMm: a.textHeightMm, depthMm: a.depthMm + OUTSET_MM,
-    })
-    const sunk = solid.translate([0, 0, -a.depthMm])
-    solid.delete()
-    // anchorMatrix's public return type is number[] per the interface, but
-    // manifold-3d's transform() expects the fixed-length Mat4 tuple; the
-    // array is always exactly 16 numbers so this narrowing is safe.
-    const placed = sunk.transform(anchorMatrix(a, scale) as unknown as Mat4)
-    sunk.delete()
-    if (!union) union = placed
-    else {
-      // explicit annotation avoids TS7022 (circular inference) from
-      // reassigning `union` from a value derived by calling a method on it
-      const u: Manifold = union.add(placed)
-      union.delete(); placed.delete(); union = u
+  try {
+    for (const a of anchors) {
+      // extrude depth + outset, then sink so it spans z ∈ [-depth, +outset] locally
+      const solid = await buildTextSolid({
+        text, fontBuf, heightMm: a.textHeightMm, depthMm: a.depthMm + OUTSET_MM,
+      })
+      const sunk = consume(solid, (s) => s.translate([0, 0, -a.depthMm]))
+      // anchorMatrix's public return type is number[] per the interface, but
+      // manifold-3d's transform() expects the fixed-length Mat4 tuple; the
+      // array is always exactly 16 numbers so this narrowing is safe.
+      const placed = consume(sunk, (s) => s.transform(anchorMatrix(a, scale) as unknown as Mat4))
+      if (!union) {
+        union = placed
+      } else {
+        // Explicit annotation avoids TS7022 (circular inference) from the
+        // `union = null` / `union = prevUnion.add(...)` reassignments below.
+        const prevUnion: Manifold = union
+        // Null out before the risky call so that if `add` throws, the outer
+        // catch below doesn't try to delete `prevUnion` a second time (it's
+        // freed in the `finally` right below, regardless of outcome).
+        union = null
+        try {
+          union = prevUnion.add(placed)
+        } finally {
+          prevUnion.delete()
+          placed.delete()
+        }
+      }
     }
+  } catch (err) {
+    union?.delete()
+    throw err
   }
   if (!union) throw new Error("no anchors")
   return union
@@ -100,14 +137,19 @@ export async function engraveWelded(opts: {
   const cutters = await buildCutters(anchors, text, fontBuf, scale)
 
   // Rung 1: manifold
+  // Note: `wasm.Mesh` instances (`m`, `out`) are plain JS-side data (no
+  // `.delete()` in manifold-3d's typings) — only `Manifold`/`CrossSection`
+  // instances hold WASM-side allocations that must be freed explicitly.
+  // `cutters` is intentionally NOT deleted on failure here — it's reused by
+  // rung 2 below — and is only freed once this rung fully succeeds and no
+  // longer needs it.
   try {
     const m = new wasm.Mesh({ numProp: 3, vertProperties: base.vertProperties, triVerts: base.triVerts })
     m.merge()
     const solid = new wasm.Manifold(m)
-    const result = solid.subtract(cutters)
-    solid.delete()
-    const out = result.getMesh()
-    result.delete(); cutters.delete()
+    const result = consume(solid, (s) => s.subtract(cutters))
+    const out = consume(result, (r) => r.getMesh())
+    cutters.delete()
     return {
       mesh: { vertProperties: new Float32Array(out.vertProperties), triVerts: new Uint32Array(out.triVerts) },
       engraved: true,
@@ -118,8 +160,8 @@ export async function engraveWelded(opts: {
 
   // Rung 2: three-bvh-csg on the raw triangle soup
   try {
-    const cutterMesh = cutters.getMesh()
-    cutters.delete()
+    // `cutters` must be freed exactly once even if getMesh() itself throws.
+    const cutterMesh = consume(cutters, (c) => c.getMesh())
     const baseBrush = new Brush(weldedToGeometry(base))
     const cutterBrush = new Brush(weldedToGeometry({
       vertProperties: new Float32Array(cutterMesh.vertProperties),

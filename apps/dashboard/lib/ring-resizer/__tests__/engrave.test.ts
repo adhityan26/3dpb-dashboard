@@ -57,9 +57,15 @@ describe("engraveWelded", () => {
     const r = await engraveWelded({
       base: broken, anchors: [topAnchor], text: "US 8", fontBuf: loadEngraveFont(), scale: 1,
     })
-    // either the csg fallback engraved it, or it fell through to scaled-only+warning
+    // This fixture is deterministic: manifold-3d rejects the broken mesh
+    // (rung 1 throws) and three-bvh-csg tolerates it (rung 2 succeeds). Pin
+    // that exact outcome — asserting only `triVerts.length > 0` would also
+    // pass via the give-up branch (mesh: base, engraved: false), so it
+    // wouldn't catch a regression that breaks the csg fallback itself.
+    expect(r.engraved).toBe(true)
+    expect(r.warning).toBeTruthy()
+    expect(r.warning).toContain("csg fallback")
     expect(r.mesh.triVerts.length).toBeGreaterThan(0)
-    if (!r.engraved) expect(r.warning).toBeTruthy()
   }, 30_000)
 
   it("no anchors → returns base untouched, engraved=false, no warning", async () => {
