@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
       depthMm: a.depthMm,
     }))
     const result = await processPart({ stl, scale, anchors, text })
-    files[`${sanitizeLabel(part.name)}_${label}.stl`] = new Uint8Array(result.stl)
+    files[`${sanitizeLabel(part.name)}_${label}.stl`] = result.stl // Buffer is already a Uint8Array subclass
     if (result.warning) warnings.push(`${part.name}: ${result.warning}`)
   }
 
@@ -56,7 +56,10 @@ export async function POST(req: NextRequest) {
     headers: {
       "Content-Type": "application/zip",
       "Content-Disposition": `attachment; filename="${sanitizeLabel(model.name)}_${label}.zip"`,
-      "X-Ring-Warnings": JSON.stringify(warnings),
+      // URI-encoded: raw JSON can contain non-Latin1 chars (e.g. the em-dash in
+      // engrave.ts fallback warnings), which throws when assigned as a header
+      // value. Consumers must JSON.parse(decodeURIComponent(...)).
+      "X-Ring-Warnings": encodeURIComponent(JSON.stringify(warnings)),
     },
   })
 }
