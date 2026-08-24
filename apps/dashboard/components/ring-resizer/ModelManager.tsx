@@ -57,13 +57,21 @@ function PartUpload({ modelId, onChanged }: { modelId: string; onChanged: () => 
 
 export function ModelManager({ models, loading, onChanged, onEditAnchors }: ModelManagerProps) {
   const [busyId, setBusyId] = useState<string | null>(null)
+  const [deleteError, setDeleteError] = useState<{ id: string; message: string } | null>(null)
 
   async function removeModel(id: string, name: string) {
     if (!window.confirm(`Hapus model "${name}" beserta semua part & anchor?`)) return
     setBusyId(id)
+    setDeleteError(null)
     try {
-      await fetch(`/api/ring-resizer/models/${id}`, { method: "DELETE" })
+      const res = await fetch(`/api/ring-resizer/models/${id}`, { method: "DELETE" })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error ?? `HTTP ${res.status}`)
+      }
       await onChanged()
+    } catch (err) {
+      setDeleteError({ id, message: err instanceof Error ? err.message : String(err) })
     } finally {
       setBusyId(null)
     }
@@ -86,9 +94,10 @@ export function ModelManager({ models, loading, onChanged, onEditAnchors }: Mode
             </div>
             <button type="button" onClick={() => removeModel(m.id, m.name)} disabled={busyId === m.id}
               className="rounded-lg px-3 py-1.5 text-xs font-semibold g-t3 hover:bg-red-500/10 disabled:opacity-50">
-              Hapus
+              {busyId === m.id ? "Menghapus…" : "Hapus"}
             </button>
           </div>
+          {deleteError?.id === m.id && <span className="text-xs g-t3">{deleteError.message}</span>}
           <ul className="flex flex-col gap-2">
             {m.parts.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs">
