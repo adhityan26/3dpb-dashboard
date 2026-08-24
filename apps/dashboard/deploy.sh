@@ -58,12 +58,16 @@ if [ "$MODE" = "pull" ]; then
   docker pull "$GHCR_IMAGE"
   DEPLOY_IMAGE="$GHCR_IMAGE"
 elif [ "$MODE" = "build" ]; then
-  echo "🔨  Building shopee-dashboard image di $DOCKER_HOST..."
-  docker build -t "$LOCAL_IMAGE" -f "$REPO_ROOT/apps/dashboard/Dockerfile" "$REPO_ROOT"
+  # BuildKit via buildx — the "docker" driver builds through the SAME remote
+  # daemon $DOCKER_HOST points at (no local compute), it just speaks the
+  # BuildKit protocol instead of the legacy builder, enabling cache mounts
+  # (pnpm store, apk cache) that persist across builds.
+  echo "🔨  Building shopee-dashboard image di $DOCKER_HOST (BuildKit)..."
+  docker buildx build --load -t "$LOCAL_IMAGE" -f "$REPO_ROOT/apps/dashboard/Dockerfile" "$REPO_ROOT"
   DEPLOY_IMAGE="$LOCAL_IMAGE"
 
-  echo "🔨  Building stl-service image di $DOCKER_HOST..."
-  docker build -t "$STL_LOCAL_IMAGE" "$STL_BUILD_CONTEXT"
+  echo "🔨  Building stl-service image di $DOCKER_HOST (BuildKit)..."
+  docker buildx build --load -t "$STL_LOCAL_IMAGE" "$STL_BUILD_CONTEXT"
 else
   echo "❌  Mode tidak dikenal: '$MODE'. Gunakan 'build' atau 'pull'."
   exit 1
