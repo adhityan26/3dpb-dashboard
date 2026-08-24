@@ -22,11 +22,17 @@ WORKDIR /repo
 # Layer caching: download dependensi hanya dari lockfile, sebelum COPY . .
 # — perubahan source code tidak menginvalidasi layer fetch ini.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml .npmrc ./
-# Force optional-dependency resolution (e.g. @next/swc-linux-x64-*) to the
-# musl variant this alpine image actually needs — appended to the copy of
-# .npmrc INSIDE the image only, never the repo's real .npmrc (which must
-# stay platform-agnostic for local dev on non-linux/non-musl machines).
-RUN printf '\nsupportedArchitectures.os=linux\nsupportedArchitectures.cpu=x64\nsupportedArchitectures.libc=musl\n' >> .npmrc
+# Without this, the musl variant of platform-specific optional deps
+# (@next/swc-linux-x64-musl, @img/sharp-libvips-linuxmusl-x64 — the ones
+# this alpine image actually needs) doesn't get installed at all, only
+# the glibc variant, which fails to load at runtime (alpine has no
+# glibc). This ensures musl IS installed; it does NOT exclude the glibc
+# variant too (that stays installed alongside, unused — ~150MB of dead
+# weight we've decided isn't worth chasing further). Build-stage env
+# only — never affects local dev on non-linux machines.
+ENV npm_config_supported_architectures_os=linux
+ENV npm_config_supported_architectures_cpu=x64
+ENV npm_config_supported_architectures_libc=musl
 # Cache mount: pnpm's content-addressable store persists across builds
 # (BuildKit only) — a source-only change no longer re-downloads every
 # package, only re-links from the local store.
