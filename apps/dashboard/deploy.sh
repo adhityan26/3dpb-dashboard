@@ -152,9 +152,17 @@ else
   docker logs "$CONTAINER" --tail 10
 fi
 
-# ── Cleanup dangling images & build cache ──────────────────────────────────────
-echo "🧹  Membersihkan dangling images & build cache..."
-docker image prune -f       2>/dev/null | grep -E "reclaimed|deleted" || true
-docker builder prune -f     2>/dev/null | grep "reclaimed" || true
+# ── Cleanup dangling images & build cache (opt-in) ─────────────────────────────
+# Pruning after every deploy wipes the legacy builder's cache (its cache IS
+# the chain of intermediate committed layers), forcing a full cold rebuild
+# next time — the #1 cause of ~10min deploys. Only prune when explicitly
+# requested (disk pressure), via: CLEANUP=1 ./deploy.sh
+if [ "${CLEANUP:-0}" = "1" ]; then
+  echo "🧹  Membersihkan dangling images & build cache (CLEANUP=1)..."
+  docker image prune -f       2>/dev/null | grep -E "reclaimed|deleted" || true
+  docker builder prune -f     2>/dev/null | grep "reclaimed" || true
+else
+  echo "🧹  Skip cleanup (biar build cache kepersist — pakai CLEANUP=1 ./deploy.sh kalau disk penuh)"
+fi
 DISK_AFTER=$(docker system df 2>/dev/null | awk '/Images/{print $4}' | head -1)
 echo "    Disk Docker: ${DISK_AFTER:-unknown}"
