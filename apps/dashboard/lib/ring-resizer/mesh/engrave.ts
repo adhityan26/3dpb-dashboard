@@ -116,6 +116,15 @@ function geometryToWelded(g: THREE.BufferGeometry): WeldedMesh {
   return { vertProperties, triVerts }
 }
 
+/** Shared "give up" result shape for the bottom rung of the ladder. */
+function giveUp(base: WeldedMesh, err: unknown): { mesh: WeldedMesh; engraved: false; warning: string } {
+  return {
+    mesh: base,
+    engraved: false,
+    warning: `engrave gagal (${err instanceof Error ? err.message : String(err)}) — part di-scale tanpa engrave`,
+  }
+}
+
 /**
  * Engrave `text` at every anchor of an ALREADY-SCALED base mesh.
  * Ladder: manifold-3d (exact, watertight) → three-bvh-csg (tolerant) →
@@ -134,7 +143,17 @@ export async function engraveWelded(opts: {
   }
 
   const wasm = await getManifold()
-  const cutters = await buildCutters(anchors, text, fontBuf, scale)
+  let cutters: Manifold
+  try {
+    cutters = await buildCutters(anchors, text, fontBuf, scale)
+  } catch (err) {
+    // buildCutters (via anchorMatrix -> norm()) throws for a degenerate
+    // anchor — e.g. `up` parallel to `normal` — or any other cutter-solid
+    // build failure. The documented ladder is manifold -> csg ->
+    // scaled-only+warning; a build failure here must degrade to the give-up
+    // branch, not reject the whole engraveWelded promise.
+    return giveUp(base, err)
+  }
 
   // Rung 1: manifold
   // Note: `wasm.Mesh` instances (`m`, `out`) are plain JS-side data (no
@@ -182,10 +201,6 @@ export async function engraveWelded(opts: {
       warning: "mesh non-manifold — engraved via csg fallback, hasil tidak dijamin watertight",
     }
   } catch (err) {
-    return {
-      mesh: base,
-      engraved: false,
-      warning: `engrave gagal (${err instanceof Error ? err.message : String(err)}) — part di-scale tanpa engrave`,
-    }
+    return giveUp(base, err)
   }
 }

@@ -68,6 +68,24 @@ describe("engraveWelded", () => {
     expect(r.mesh.triVerts.length).toBeGreaterThan(0)
   }, 30_000)
 
+  it("degenerate anchor (up parallel to normal) degrades to give-up, doesn't throw", async () => {
+    const base = parseBinaryStl(makeCubeStl(20))
+    const degenerateAnchor: AnchorInput = {
+      ...topAnchor,
+      normal: [0, 0, 1],
+      up: [0, 0, 1], // parallel to normal — cross(up, normal) is the zero vector
+    }
+    const r = await engraveWelded({
+      base, anchors: [degenerateAnchor], text: "US 8", fontBuf: loadEngraveFont(), scale: 1,
+    })
+    // buildCutters (via anchorMatrix -> norm()) throws for this anchor; the
+    // ladder must degrade to the scaled-only+warning branch instead of
+    // rejecting the engraveWelded promise.
+    expect(r.engraved).toBe(false)
+    expect(r.warning).toBeTruthy()
+    expect(r.mesh).toBe(base)
+  })
+
   it("no anchors → returns base untouched, engraved=false, no warning", async () => {
     const base = parseBinaryStl(makeCubeStl(20))
     const r = await engraveWelded({
