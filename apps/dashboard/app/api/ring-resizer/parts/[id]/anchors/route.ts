@@ -10,7 +10,13 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const part = await prisma.ringPart.findUnique({ where: { id: partId } })
   if (!part) return NextResponse.json({ error: "part not found" }, { status: 404 })
 
-  const parsed = parseAnchorsBody(await req.json())
+  let body: unknown
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
+  }
+  const parsed = parseAnchorsBody(body)
   if (!parsed.ok) return NextResponse.json({ error: parsed.error }, { status: 400 })
 
   const anchors = await prisma.$transaction(async (tx) => {
