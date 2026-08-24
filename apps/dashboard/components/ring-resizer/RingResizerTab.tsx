@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRingModels } from "@/lib/hooks/use-ring-models"
+import { AnchorEditor } from "./AnchorEditor"
 import { ModelManager } from "./ModelManager"
 import { ProductionPanel } from "./ProductionPanel"
 
@@ -11,6 +12,11 @@ type SubTab = "setup" | "production"
 export function RingResizerTab() {
   const [sub, setSub] = useState<SubTab>("production")
   const ring = useRingModels()
+  const [editing, setEditing] = useState<{ modelId: string; partId: string } | null>(null)
+
+  const editingPart = editing
+    ? ring.models.find((m) => m.id === editing.modelId)?.parts.find((p) => p.id === editing.partId)
+    : undefined
 
   return (
     <div className="flex flex-col gap-4">
@@ -38,7 +44,17 @@ export function RingResizerTab() {
       {ring.error && <div className="glass-card p-4 text-sm g-t2">Gagal memuat model: {ring.error}</div>}
 
       {sub === "setup" ? (
-        <ModelManager models={ring.models} loading={ring.loading} onChanged={ring.refresh} />
+        editing && editingPart ? (
+          <AnchorEditor
+            partId={editing.partId}
+            initialAnchors={editingPart.anchors}
+            onClose={() => setEditing(null)}
+            onSaved={ring.refresh}
+          />
+        ) : (
+          <ModelManager models={ring.models} loading={ring.loading} onChanged={ring.refresh}
+            onEditAnchors={(modelId, partId) => setEditing({ modelId, partId })} />
+        )
       ) : (
         <ProductionPanel models={ring.models} loading={ring.loading} />
       )}

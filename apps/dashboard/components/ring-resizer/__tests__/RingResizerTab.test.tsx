@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from "react-dom/server"
 vi.mock("@/lib/hooks/use-ring-models", () => ({
   useRingModels: () => ({ models: [], loading: false, error: null, refresh: async () => {} }),
 }))
+vi.mock("../AnchorEditor", () => ({ AnchorEditor: () => <div /> }))
 
 import { RingResizerTab } from "../RingResizerTab"
 
