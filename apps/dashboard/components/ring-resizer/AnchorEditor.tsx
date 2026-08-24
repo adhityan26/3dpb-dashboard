@@ -84,9 +84,21 @@ function PartMesh({ url, onPick }: { url: string; onPick: (pos: V3, normal: V3) 
       onDoubleClick={(e: ThreeEvent<MouseEvent>) => {
         e.stopPropagation()
         if (!e.face) return
-        // point is in world space == local space (mesh has no transform)
+        // `<Center>` (drei) wraps this mesh in a translated ancestor group,
+        // so `e.point` is WORLD space (local vertex + center offset) per
+        // three's Mesh.raycast (intersection point is explicitly transformed
+        // via object.matrixWorld) — NOT the mesh's own local/base-STL space.
+        // Convert back to local space so saved anchors, and freshly placed
+        // markers (siblings of this mesh inside the same <Center>), land at
+        // the same base-STL coordinates as anchors loaded from the DB.
+        const local = e.object.worldToLocal(e.point.clone())
+        // `e.face.normal`, by contrast, is computed by three from local-space
+        // triangle vertices (Mesh.getVertexPosition returns local space) and
+        // is never transformed to world — it's already correct as-is. (Also
+        // moot here either way: <Center> only translates, and a pure
+        // translation doesn't change normal directions.)
         const n = e.face.normal.clone().normalize()
-        onPick([e.point.x, e.point.y, e.point.z], [n.x, n.y, n.z])
+        onPick([local.x, local.y, local.z], [n.x, n.y, n.z])
       }}
     >
       <meshStandardMaterial color="#8a8f98" metalness={0.35} roughness={0.45} side={THREE.DoubleSide} />
@@ -113,8 +125,14 @@ export function AnchorEditor({ partId, initialAnchors, onClose, onSaved }: Ancho
     const draft: DraftAnchor = {
       pos, normal, up: defaultUp(normal), rotationDeg: 0, textHeightMm: 3, depthMm: 0.5,
     }
-    setAnchors((xs) => [...xs, draft])
-    setSelected(anchors.length)
+    // Compute the new anchor's index from the functional updater's own `xs`
+    // rather than the closed-over `anchors`, which may be stale relative to
+    // pending state updates.
+    setAnchors((xs) => {
+      const next = [...xs, draft]
+      setSelected(next.length - 1)
+      return next
+    })
   }
 
   function patchSel(patch: Partial<DraftAnchor>) {
