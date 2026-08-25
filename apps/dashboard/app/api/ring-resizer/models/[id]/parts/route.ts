@@ -54,7 +54,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // First part with a detected hole becomes the model's base bore (the band
   // is normally uploaded first); the UI offers per-part override afterwards.
   if (model.baseBoreMm == null && boreMm != null && isPlausibleRingBore(boreMm)) {
-    await prisma.ringModel.update({ where: { id: modelId }, data: { baseBoreMm: boreMm } })
+    // Conditional write: only fills a still-null bore, so concurrent uploads
+    // cannot overwrite whichever part won the race.
+    await prisma.ringModel.updateMany({
+      where: { id: modelId, baseBoreMm: null },
+      data: { baseBoreMm: boreMm },
+    })
   }
   return NextResponse.json({ part }, { status: 201 })
 }

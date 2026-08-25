@@ -111,12 +111,18 @@ export function ModelManager({ models, loading, onChanged, onEditAnchors }: Mode
   const [deleteError, setDeleteError] = useState<{ id: string; message: string } | null>(null)
 
   async function applyBaseBore(modelId: string, boreMm: number) {
-    await fetch(`/api/ring-resizer/models/${modelId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ baseBoreMm: boreMm }),
-    })
-    await onChanged()
+    setDeleteError(null)
+    try {
+      const res = await fetch(`/api/ring-resizer/models/${modelId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ baseBoreMm: boreMm }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error ?? `HTTP ${res.status}`)
+      await onChanged()
+    } catch (err) {
+      setDeleteError({ id: modelId, message: err instanceof Error ? err.message : String(err) })
+    }
   }
 
   async function removeModel(id: string, name: string) {

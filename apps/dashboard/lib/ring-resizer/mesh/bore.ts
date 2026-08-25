@@ -18,6 +18,7 @@ const MIN_BINS = 24 // at least a third of the circle must contribute minima
 const CENTER_ITERATIONS = 6
 const OUTLIER_MM = 1.5 // per-bin minima farther than this from the median radius
 const MAX_MEAN_RESIDUAL_MM = 0.3
+const ANNULUS_MARGIN_MM = 1.0 // material must exist beyond the fitted circle
 const MIN_ANGULAR_SECTORS = 8 // of 12 — inner wall must wrap most of the circle
 const MID_BAND_FRACTION = 0.25 // use |axial - mid| <= fraction * extent
 const MAX_SAMPLES = 120_000
@@ -234,6 +235,16 @@ export function detectBoreMm(mesh: WeldedMesh): number | null {
   residual /= kept.length
   if (residual > MAX_MEAN_RESIDUAL_MM) return null
 
+  // Annulus check: a real bore has material AROUND the fitted circle. For a
+  // smooth solid (cylinder/dome), the innermost-per-bin points ARE the outer
+  // surface, so nothing in the mid-band lies beyond the fit — reject those.
+  let maxR = 0
+  for (const [x, y] of pts) {
+    const rr = Math.hypot(x - fit.cx, y - fit.cy)
+    if (rr > maxR) maxR = rr
+  }
+  if (maxR < fit.r + ANNULUS_MARGIN_MM) return null
+
   // The inner wall must wrap most of the circle (rejects arcs/edges of solids)
   const sectors = new Array(12).fill(0)
   for (const [x, y] of kept) {
@@ -319,6 +330,42 @@ export function makeRingStl(opts: {
       buf.writeFloatLE(x, base + 12 + vi * 12)
       buf.writeFloatLE(y, base + 12 + vi * 12 + 4)
       buf.writeFloatLE(z, base + 12 + vi * 12 + 8)
+    })
+  })
+  return buf
+}
+
+/**
+ * Test helper: smooth solid cylinder (no hole) as binary STL — wall with a mid
+ * row plus top/bottom triangle fans. Exercises the annulus rejection gate.
+ */
+export function makeCylinderStl(diaMm: number, heightMm: number, segments = 96): Buffer {
+  const r = diaMm / 2
+  const h = heightMm
+  type P = [number, number, number]
+  const tris: Array<[P, P, P]> = []
+  for (let i = 0; i < segments; i++) {
+    const a0 = (i / segments) * 2 * Math.PI
+    const a1 = ((i + 1) / segments) * 2 * Math.PI
+    const b0: P = [r * Math.cos(a0), r * Math.sin(a0), 0]
+    const b1: P = [r * Math.cos(a1), r * Math.sin(a1), 0]
+    const m0: P = [b0[0], b0[1], h / 2]
+    const m1: P = [b1[0], b1[1], h / 2]
+    const t0: P = [b0[0], b0[1], h]
+    const t1: P = [b1[0], b1[1], h]
+    tris.push([b0, b1, m1], [b0, m1, m0]) // wall lower
+    tris.push([m0, m1, t1], [m0, t1, t0]) // wall upper
+    tris.push([[0, 0, h], t0, t1])        // top fan
+    tris.push([[0, 0, 0], b1, b0])        // bottom fan
+  }
+  const buf = Buffer.alloc(HEADER_BYTES + tris.length * TRI_BYTES)
+  buf.writeUInt32LE(tris.length, 80)
+  tris.forEach((tri, t) => {
+    const base = HEADER_BYTES + t * TRI_BYTES
+    tri.forEach((pt, vi) => {
+      buf.writeFloatLE(pt[0], base + 12 + vi * 12)
+      buf.writeFloatLE(pt[1], base + 12 + vi * 12 + 4)
+      buf.writeFloatLE(pt[2], base + 12 + vi * 12 + 8)
     })
   })
   return buf

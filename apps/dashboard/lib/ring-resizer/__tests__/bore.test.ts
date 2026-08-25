@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { parseBinaryStl, makeCubeStl } from "../mesh/stl"
-import { detectBoreMm, makeRingStl } from "../mesh/bore"
+import { detectBoreMm, makeRingStl, makeCylinderStl } from "../mesh/bore"
 
 describe("detectBoreMm", () => {
   it("detects the inner diameter of a plain ring band", () => {
@@ -31,6 +31,13 @@ describe("detectBoreMm", () => {
 
   it("returns null for a solid part with no hole", () => {
     const mesh = parseBinaryStl(makeCubeStl(20))
+    expect(detectBoreMm(mesh)).toBeNull()
+  })
+
+  it("returns null for a smooth solid cylinder whose OUTER surface would fit a plausible circle", () => {
+    // regression: without the annulus gate this detects the outer wall (20mm)
+    // as a perfect "bore" and could silently auto-set a model's scale
+    const mesh = parseBinaryStl(makeCylinderStl(20, 12))
     expect(detectBoreMm(mesh)).toBeNull()
   })
 

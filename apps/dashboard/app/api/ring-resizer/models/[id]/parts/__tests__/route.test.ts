@@ -6,7 +6,7 @@ import { makeRingStl } from "@/lib/ring-resizer/mesh/bore"
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }))
 vi.mock("@/lib/db", () => ({
   prisma: {
-    ringModel: { findUnique: vi.fn(), update: vi.fn() },
+    ringModel: { findUnique: vi.fn(), updateMany: vi.fn() },
     ringPart: { create: vi.fn(), delete: vi.fn() },
   },
 }))
@@ -124,11 +124,13 @@ describe("POST /api/ring-resizer/models/[id]/parts", () => {
     expect(res.status).toBe(201)
     const created = vi.mocked(prisma.ringPart.create).mock.calls[0][0].data as { boreMm: number | null }
     expect(created.boreMm).toBeCloseTo(23.871, 1)
-    const update = vi.mocked(prisma.ringModel.update).mock.calls[0][0] as {
-      where: { id: string }
+    const update = vi.mocked(prisma.ringModel.updateMany).mock.calls[0][0] as {
+      where: { id: string; baseBoreMm: null }
       data: { baseBoreMm: number }
     }
     expect(update.where.id).toBe("m1")
+    // conditional write — only fills a still-null bore (concurrent-upload race guard)
+    expect(update.where.baseBoreMm).toBeNull()
     expect(update.data.baseBoreMm).toBeCloseTo(23.871, 1)
   })
 
@@ -144,7 +146,7 @@ describe("POST /api/ring-resizer/models/[id]/parts", () => {
     form.append("file", new File([stl], "frame.stl"))
     const res = await POST(formReq(form), ctx("m1"))
     expect(res.status).toBe(201)
-    expect(prisma.ringModel.update).not.toHaveBeenCalled()
+    expect(prisma.ringModel.updateMany).not.toHaveBeenCalled()
   })
 
   it("bore terdeteksi tapi di luar range cincin (mis. 8mm) → tersimpan di part, TIDAK auto-set model", async () => {
@@ -164,6 +166,6 @@ describe("POST /api/ring-resizer/models/[id]/parts", () => {
     expect(res.status).toBe(201)
     const created = vi.mocked(prisma.ringPart.create).mock.calls[0][0].data as { boreMm: number | null }
     expect(created.boreMm).toBeCloseTo(8, 1)
-    expect(prisma.ringModel.update).not.toHaveBeenCalled()
+    expect(prisma.ringModel.updateMany).not.toHaveBeenCalled()
   })
 })
