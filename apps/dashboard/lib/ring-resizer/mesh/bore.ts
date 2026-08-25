@@ -140,11 +140,18 @@ function perBinMinima(
   return minPt.filter((q): q is [number, number] => q !== null)
 }
 
-/**
- * Detect the bore (inner hole) diameter of a mesh in mm.
- * Returns null when no plausible hole is found.
- */
-export function detectBoreMm(mesh: WeldedMesh): number | null {
+interface CylinderAnalysis {
+  axis: V3
+  centroid: V3
+  u: V3
+  v: V3
+  fit: { cx: number; cy: number; r: number }
+  /** All mid-band projected points (u,v) — used by the annulus gate. */
+  pts: Array<[number, number]>
+}
+
+/** Shared PCA + mid-band + iterative circle fit (residual/coverage gated). */
+function analyzeCylinder(mesh: WeldedMesh): CylinderAnalysis | null {
   const p = mesh.vertProperties
   const total = p.length / 3
   if (total < MIN_BINS) return null
@@ -235,6 +242,26 @@ export function detectBoreMm(mesh: WeldedMesh): number | null {
   residual /= kept.length
   if (residual > MAX_MEAN_RESIDUAL_MM) return null
 
+  // The inner wall must wrap most of the circle (rejects arcs/edges of solids)
+  const sectors = new Array(12).fill(0)
+  for (const [x, y] of kept) {
+    const ang = Math.atan2(y - fit.cy, x - fit.cx)
+    sectors[Math.min(11, Math.floor(((ang + Math.PI) / (2 * Math.PI)) * 12))]++
+  }
+  if (sectors.filter((c) => c > 0).length < MIN_ANGULAR_SECTORS) return null
+
+  return { axis: az, centroid: [mx, my, mz], u, v, fit, pts }
+}
+
+/**
+ * Detect the bore (inner hole) diameter of a mesh in mm.
+ * Returns null when no plausible hole is found.
+ */
+export function detectBoreMm(mesh: WeldedMesh): number | null {
+  const a = analyzeCylinder(mesh)
+  if (!a) return null
+  const { fit, pts } = a
+
   // Annulus check: a real bore has material AROUND the fitted circle. For a
   // smooth solid (cylinder/dome), the innermost-per-bin points ARE the outer
   // surface, so nothing in the mid-band lies beyond the fit — reject those.
@@ -245,17 +272,35 @@ export function detectBoreMm(mesh: WeldedMesh): number | null {
   }
   if (maxR < fit.r + ANNULUS_MARGIN_MM) return null
 
-  // The inner wall must wrap most of the circle (rejects arcs/edges of solids)
-  const sectors = new Array(12).fill(0)
-  for (const [x, y] of kept) {
-    const ang = Math.atan2(y - fit.cy, x - fit.cx)
-    sectors[Math.min(11, Math.floor(((ang + Math.PI) / (2 * Math.PI)) * 12))]++
-  }
-  if (sectors.filter((c) => c > 0).length < MIN_ANGULAR_SECTORS) return null
-
   const dia = 2 * fit.r
   if (dia < MIN_BORE_MM || dia > MAX_BORE_MM) return null
   return dia
+}
+
+export interface CylinderFrame {
+  /** Unit hole/rotation axis. */
+  axis: V3
+  /** A 3D point on the axis. */
+  center: V3
+}
+
+/**
+ * Rotation frame of a ring-like part: PCA hole axis + fitted circle centre,
+ * gated only on fit quality (no bore-range/annulus gates — a solid cylinder's
+ * curved wall also yields a valid frame for text wrapping).
+ */
+export function detectCylinderFrame(mesh: WeldedMesh): CylinderFrame | null {
+  const a = analyzeCylinder(mesh)
+  if (!a) return null
+  const { axis, centroid, u, v, fit } = a
+  return {
+    axis,
+    center: [
+      centroid[0] + fit.cx * u[0] + fit.cy * v[0],
+      centroid[1] + fit.cx * u[1] + fit.cy * v[1],
+      centroid[2] + fit.cx * u[2] + fit.cy * v[2],
+    ],
+  }
 }
 
 // ── Test fixture ──────────────────────────────────────────────────────────────

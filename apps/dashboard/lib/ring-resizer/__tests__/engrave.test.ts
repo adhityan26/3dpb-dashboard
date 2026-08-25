@@ -1,7 +1,8 @@
 import { describe, it, expect } from "vitest"
 import { parseBinaryStl, makeCubeStl } from "../mesh/stl"
 import { loadEngraveFont } from "../mesh/text"
-import { anchorMatrix, engraveWelded } from "../mesh/engrave"
+import { anchorMatrix, engraveWelded, cylinderWarpFor } from "../mesh/engrave"
+import { detectCylinderFrame, makeRingStl } from "../mesh/bore"
 import { getManifold } from "../mesh/manifold"
 import type { AnchorInput } from "../types"
 
@@ -100,4 +101,66 @@ describe("engraveWelded", () => {
     const wasm = await getManifold()
     expect(wasm.Manifold).toBeDefined()
   })
+
+})
+
+describe("cylinderWarpFor", () => {
+  // Ring around Z: axis [0,0,1], centre origin. Anchor on the INNER wall at
+  // (10,0,6): surface normal points toward the axis, text up is axial.
+  const frame = { axis: [0, 0, 1] as [number, number, number], center: [0, 0, 0] as [number, number, number] }
+  const anchor: AnchorInput = {
+    pos: [10, 0, 6], normal: [-1, 0, 0], up: [0, 0, 1], textHeightMm: 3, depthMm: 0.5,
+  }
+
+  it("maps the anchor point to itself and preserves radius/axial/arc-length", () => {
+    const warp = cylinderWarpFor(frame, anchor, 1)
+    expect(warp).not.toBeNull()
+    const w = warp!
+
+    // anchor itself is a fixed point
+    expect(w([10, 0, 6])).toEqual([10, 0, 6].map((v) => expect.closeTo(v, 6)))
+
+    // tangential offset s becomes arc length at the same radius
+    const R = 10
+    const s = (Math.PI / 2) * R // quarter turn
+    // tangent at the anchor: t = axis × e_r = z × x = +y
+    const p = w([10, s, 6])
+    expect(Math.hypot(p[0], p[1])).toBeCloseTo(R, 6) // still on the cylinder
+    expect(p[2]).toBeCloseTo(6, 6)                   // axial preserved
+    expect(p[0]).toBeCloseTo(0, 6)                   // rotated 90°
+    expect(p[1]).toBeCloseTo(R, 6)
+
+    // radial offset is preserved: a point 0.5mm INTO the material (away from
+    // the axis, -normal direction = +x here) stays 0.5mm beyond the surface
+    const q = w([10.5, s, 6])
+    expect(Math.hypot(q[0], q[1])).toBeCloseTo(R + 0.5, 6)
+  })
+
+  it("declines to wrap when the anchor normal is axial (flat top face)", () => {
+    const topAnchorOnRing: AnchorInput = {
+      pos: [10, 0, 12], normal: [0, 0, 1], up: [0, 1, 0], textHeightMm: 3, depthMm: 0.5,
+    }
+    expect(cylinderWarpFor(frame, topAnchorOnRing, 1)).toBeNull()
+  })
+})
+
+describe("engraveWelded with cylindrical wrap", () => {
+  it("engraves text bent around a ring inner wall", async () => {
+    const base = parseBinaryStl(makeRingStl({ innerDiaMm: 20, outerDiaMm: 26, heightMm: 12 }))
+    const frame = detectCylinderFrame(base)
+    expect(frame).not.toBeNull()
+    const before = meshVolume(base)
+    const r = await engraveWelded({
+      base,
+      anchors: [{ pos: [10, 0, 6], normal: [-1, 0, 0], up: [0, 0, 1], textHeightMm: 4, depthMm: 0.5 }],
+      text: "8888",
+      fontBuf: loadEngraveFont(),
+      scale: 1,
+      cylFrame: frame,
+    })
+    expect(r.engraved).toBe(true)
+    const after = meshVolume(r.mesh)
+    expect(after).toBeLessThan(before)
+    expect(after).toBeGreaterThan(before * 0.9)
+  }, 30_000)
 })

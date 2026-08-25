@@ -267,7 +267,7 @@ export interface AnchorEditorProps {
 export function AnchorEditor({ partId, initialAnchors, onClose, onSaved }: AnchorEditorProps) {
   const [anchors, setAnchors] = useState<DraftAnchor[]>(initialAnchors.map(rowToDraft))
   const [selected, setSelected] = useState<number | null>(initialAnchors.length ? 0 : null)
-  const [previewText, setPreviewText] = useState("US 8")
+  const [previewText, setPreviewText] = useState("8")
   const [frame, setFrame] = useState<ModelFrame | null>(null)
   const [xray, setXray] = useState(false)
   const [busy, setBusy] = useState(false)

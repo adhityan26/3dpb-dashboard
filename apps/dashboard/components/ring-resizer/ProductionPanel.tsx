@@ -33,7 +33,8 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
     }
   }, [model, mode, value, clearance])
 
-  const defaultText = summary ? `US ${summary.usEquivalent.toFixed(1).replace(/\.0$/, "")}` : ""
+  // Label default cukup angkanya saja (mis. "8" / "7.5"), tanpa prefix "US"
+  const defaultText = summary ? summary.usEquivalent.toFixed(1).replace(/\.0$/, "") : ""
   const effectiveText = text || defaultText
 
   async function submit() {

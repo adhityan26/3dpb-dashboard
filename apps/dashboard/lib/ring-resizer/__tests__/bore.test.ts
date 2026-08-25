@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { parseBinaryStl, makeCubeStl } from "../mesh/stl"
-import { detectBoreMm, makeRingStl, makeCylinderStl } from "../mesh/bore"
+import { detectBoreMm, detectCylinderFrame, makeRingStl, makeCylinderStl } from "../mesh/bore"
 
 describe("detectBoreMm", () => {
   it("detects the inner diameter of a plain ring band", () => {
@@ -44,5 +44,22 @@ describe("detectBoreMm", () => {
   it("returns null for an implausibly small hole", () => {
     const mesh = parseBinaryStl(makeRingStl({ innerDiaMm: 2, outerDiaMm: 8, heightMm: 5 }))
     expect(detectBoreMm(mesh)).toBeNull()
+  })
+
+})
+
+describe("detectCylinderFrame", () => {
+  it("finds the hole axis and on-axis centre of a ring", () => {
+    const mesh = parseBinaryStl(makeRingStl({ innerDiaMm: 20, outerDiaMm: 26, heightMm: 12 }))
+    const f = detectCylinderFrame(mesh)
+    expect(f).not.toBeNull()
+    expect(Math.abs(f!.axis[2])).toBeCloseTo(1, 3) // axis = ±Z for an XY ring
+    expect(f!.center[0]).toBeCloseTo(0, 1)
+    expect(f!.center[1]).toBeCloseTo(0, 1)
+  })
+
+  it("also yields a frame for a solid cylinder (no bore gates)", () => {
+    const mesh = parseBinaryStl(makeCylinderStl(20, 12))
+    expect(detectCylinderFrame(mesh)).not.toBeNull()
   })
 })

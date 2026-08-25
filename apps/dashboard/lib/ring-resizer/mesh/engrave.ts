@@ -4,8 +4,12 @@ import type { Manifold, Mat4 } from "manifold-3d"
 import type { AnchorInput, WeldedMesh } from "../types"
 import { getManifold } from "./manifold"
 import { buildTextSolid } from "./text"
+import type { CylinderFrame } from "./bore"
 
 const OUTSET_MM = 0.6 // cutter sticks out past the surface to guarantee a clean cut
+const WRAP_MAX_AXIAL_DOT = 0.7 // wrap only when the anchor normal is roughly radial
+const WRAP_MIN_RADIUS_MM = 3
+const WRAP_REFINE_MM = 0.5 // tessellation edge length before bending
 
 type V3 = [number, number, number]
 const norm = (v: V3): V3 => {
@@ -57,7 +61,56 @@ function consume<T extends { delete(): void }, R>(obj: T, fn: (o: T) => R): R {
   }
 }
 
-async function buildCutters(anchors: AnchorInput[], text: string, fontBuf: Buffer, scale: number): Promise<Manifold> {
+/**
+ * Cylindrical wrap for engrave cutters: bends a flat, tangent-placed text
+ * solid around the part's rotation axis so the engraving follows a curved
+ * (inner or outer) ring surface at constant depth. Pure world-space mapping:
+ * tangential offset from the anchor becomes arc length, radial offset is
+ * preserved relative to the anchor's own radius, axial position is unchanged.
+ * Returns null when the anchor is not on a wrappable (roughly radial-normal)
+ * surface — flat placement is kept in that case.
+ */
+export function cylinderWarpFor(
+  frame: CylinderFrame,
+  anchor: AnchorInput,
+  scale: number,
+): ((w: V3) => V3) | null {
+  const A = norm(frame.axis)
+  const C = frame.center
+  const P: V3 = [anchor.pos[0] * scale, anchor.pos[1] * scale, anchor.pos[2] * scale]
+  const pRel: V3 = [P[0] - C[0], P[1] - C[1], P[2] - C[2]]
+  const aP = pRel[0] * A[0] + pRel[1] * A[1] + pRel[2] * A[2]
+  const radial: V3 = [pRel[0] - aP * A[0], pRel[1] - aP * A[1], pRel[2] - aP * A[2]]
+  const R = Math.hypot(...radial)
+  if (R < WRAP_MIN_RADIUS_MM) return null
+  const n = norm(anchor.normal)
+  if (Math.abs(n[0] * A[0] + n[1] * A[1] + n[2] * A[2]) > WRAP_MAX_AXIAL_DOT) return null
+  const er: V3 = [radial[0] / R, radial[1] / R, radial[2] / R]
+  const t = norm(cross(A, er))
+
+  return (w: V3): V3 => {
+    const dx = w[0] - P[0], dy = w[1] - P[1], dz = w[2] - P[2]
+    const sArc = dx * t[0] + dy * t[1] + dz * t[2]
+    const h = dx * er[0] + dy * er[1] + dz * er[2]
+    const aW = (w[0] - C[0]) * A[0] + (w[1] - C[1]) * A[1] + (w[2] - C[2]) * A[2]
+    const phi = sArc / R
+    const cp = Math.cos(phi), sp = Math.sin(phi)
+    const rho = R + h
+    return [
+      C[0] + aW * A[0] + rho * (cp * er[0] + sp * t[0]),
+      C[1] + aW * A[1] + rho * (cp * er[1] + sp * t[1]),
+      C[2] + aW * A[2] + rho * (cp * er[2] + sp * t[2]),
+    ]
+  }
+}
+
+async function buildCutters(
+  anchors: AnchorInput[],
+  text: string,
+  fontBuf: Buffer,
+  scale: number,
+  cylFrame?: CylinderFrame | null,
+): Promise<Manifold> {
   // getManifold() is memoized (see ./manifold), and buildTextSolid() already
   // awaits it internally, so no separate warm-up call is needed here.
   let union: Manifold | null = null
@@ -136,8 +189,9 @@ export async function engraveWelded(opts: {
   text: string
   fontBuf: Buffer
   scale: number
+  cylFrame?: CylinderFrame | null
 }): Promise<{ mesh: WeldedMesh; engraved: boolean; warning?: string }> {
-  const { base, anchors, text, fontBuf, scale } = opts
+  const { base, anchors, text, fontBuf, scale, cylFrame } = opts
   if (anchors.length === 0 || text.trim() === "") {
     return { mesh: base, engraved: false }
   }
@@ -145,7 +199,7 @@ export async function engraveWelded(opts: {
   const wasm = await getManifold()
   let cutters: Manifold
   try {
-    cutters = await buildCutters(anchors, text, fontBuf, scale)
+    cutters = await buildCutters(anchors, text, fontBuf, scale, cylFrame)
   } catch (err) {
     // buildCutters (via anchorMatrix -> norm()) throws for a degenerate
     // anchor — e.g. `up` parallel to `normal` — or any other cutter-solid
