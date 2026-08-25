@@ -9,6 +9,7 @@ describe("computeScale", () => {
     expect(r.circMm).toBeCloseTo(56.9, 4)
     expect(r.targetDiaMm).toBeCloseTo(18.41183, 4)
     expect(r.scale).toBeCloseTo(0.7713055, 6)
+    expect(r.scaleCeil).toBeCloseTo(0.78, 10) // legacy-calculator round-up
     expect(r.usEquivalent).toBeCloseTo(8, 5)
   })
 

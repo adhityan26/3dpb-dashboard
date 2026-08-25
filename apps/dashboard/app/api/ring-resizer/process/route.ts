@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db"
 import { computeScale } from "@/lib/ring-resizer/sizing"
 import { parseProcessRequest } from "@/lib/ring-resizer/validate"
 import { processPart, sanitizeLabel } from "@/lib/ring-resizer/mesh/pipeline"
-import { downloadRingStl } from "@/lib/ring-resizer/storage"
+import { downloadRingStl, uploadRingZip } from "@/lib/ring-resizer/storage"
 import type { AnchorInput } from "@/lib/ring-resizer/types"
 
 // Boolean ops on 1.7M-triangle meshes take tens of seconds.
@@ -38,7 +38,8 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  const { scale } = computeScale({ mode, value, clearanceMm, baseBoreMm: model.baseBoreMm })
+  // scaleCeil = whole-percent round-up, matching the legacy slicer workflow
+  const { scaleCeil: scale } = computeScale({ mode, value, clearanceMm, baseBoreMm: model.baseBoreMm })
   const label = sanitizeLabel(text) || "resized"
 
   const files: Record<string, Uint8Array> = {}
@@ -85,14 +86,18 @@ export async function POST(req: NextRequest) {
   }
 
   const zip = zipSync(files, { level: 0 }) // STL barely compresses; skip the CPU
-  return new NextResponse(new Uint8Array(zip), {
-    headers: {
-      "Content-Type": "application/zip",
-      "Content-Disposition": `attachment; filename="${sanitizeLabel(model.name)}_${label}.zip"`,
-      // URI-encoded: raw JSON can contain non-Latin1 chars (e.g. the em-dash in
-      // engrave.ts fallback warnings), which throws when assigned as a header
-      // value. Consumers must JSON.parse(decodeURIComponent(...)).
-      "X-Ring-Warnings": encodeURIComponent(JSON.stringify(warnings)),
-    },
+
+  // Large fetch() bodies proved fragile through the reverse proxy (Chrome
+  // aborted mid-body while nginx reported a fully-sent 200). Instead of
+  // returning the ZIP inline, store it and hand back a small JSON payload —
+  // the browser then downloads via a plain GET (cookies included, native
+  // progress, and the same code path as the STL file proxy that works).
+  const resultId = crypto.randomUUID()
+  await uploadRingZip(resultId, zip)
+  const fileName = `${sanitizeLabel(model.name)}_${label}.zip`
+  return NextResponse.json({
+    downloadUrl: `/api/ring-resizer/results/${resultId}?name=${encodeURIComponent(fileName)}`,
+    fileName,
+    warnings,
   })
 }

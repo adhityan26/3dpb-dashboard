@@ -49,15 +49,14 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
         }),
       })
       if (!res.ok) throw new Error((await res.json()).error ?? `HTTP ${res.status}`)
-      // Server URI-encodes the header to stay ByteString-safe
-      setWarnings(JSON.parse(decodeURIComponent(res.headers.get("X-Ring-Warnings") ?? "%5B%5D")))
-      const blob = await res.blob()
-      const cd = res.headers.get("Content-Disposition") ?? ""
-      const fname = /filename="([^"]+)"/.exec(cd)?.[1] ?? "ring.zip"
-      const url = URL.createObjectURL(blob)
+      // Small JSON payload; the ZIP itself is fetched by the browser natively
+      // via GET (large fetch() bodies proved fragile through the proxy).
+      const json = (await res.json()) as { downloadUrl: string; fileName: string; warnings: string[] }
+      setWarnings(json.warnings)
       const a = document.createElement("a")
-      a.href = url; a.download = fname; a.click()
-      URL.revokeObjectURL(url)
+      a.href = json.downloadUrl
+      a.download = json.fileName
+      a.click()
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -120,10 +119,10 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
 
         {summary && model && (
           <div className="rounded-xl border border-indigo-500/40 p-4 text-sm">
-            <span className="text-2xl font-extrabold g-t1">{(summary.scale * 100).toFixed(2)}%</span>
+            <span className="text-2xl font-extrabold g-t1">{Math.round(summary.scaleCeil * 100)}%</span>
             <span className="ml-3 g-t4">
               ≈ US {summary.usEquivalent.toFixed(1)} · target lubang {summary.targetDiaMm.toFixed(2)} mm ·
-              keliling {summary.circMm.toFixed(1)} mm · {model.parts.length} part ·
+              keliling {summary.circMm.toFixed(1)} mm · pas {(summary.scale * 100).toFixed(2)}% · {model.parts.length} part ·
               {" "}{model.parts.reduce((n, p) => n + p.anchors.length, 0)} anchor · text &quot;{effectiveText}&quot;
             </span>
           </div>

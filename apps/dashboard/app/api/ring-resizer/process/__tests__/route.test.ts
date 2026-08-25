@@ -10,6 +10,7 @@ vi.mock("@/lib/db", () => ({
 }))
 vi.mock("@/lib/ring-resizer/storage", () => ({
   downloadRingStl: vi.fn(),
+  uploadRingZip: vi.fn(),
 }))
 vi.mock("@/lib/ring-resizer/mesh/pipeline", async () => {
   const actual = await vi.importActual<typeof import("@/lib/ring-resizer/mesh/pipeline")>(
@@ -23,7 +24,7 @@ vi.mock("@/lib/ring-resizer/mesh/pipeline", async () => {
 
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
-import { downloadRingStl } from "@/lib/ring-resizer/storage"
+import { downloadRingStl, uploadRingZip } from "@/lib/ring-resizer/storage"
 import { processPart } from "@/lib/ring-resizer/mesh/pipeline"
 import { POST } from "../route"
 
@@ -70,7 +71,7 @@ describe("POST /api/ring-resizer/process", () => {
     expect(await res.json()).toEqual({ error: "model not found" })
   })
 
-  it("X-Ring-Warnings header adalah JSON ter-URI-encode yang decode ke array warnings (part gagal download dilewati, bukan 500 generik)", async () => {
+  it("warnings ada di JSON response (part gagal download dilewati, bukan 500 generik)", async () => {
     vi.mocked(prisma.ringModel.findUnique).mockResolvedValue({
       id: "m1",
       name: "Model A",
@@ -85,12 +86,14 @@ describe("POST /api/ring-resizer/process", () => {
     const res = await POST(jsonReq(baseBody))
 
     expect(res.status).toBe(200)
-    const header = res.headers.get("X-Ring-Warnings")
-    expect(header).toBeTruthy()
-    const warnings = JSON.parse(decodeURIComponent(header as string))
-    expect(warnings).toEqual(["missing-part: file STL tidak ditemukan di storage — part dilewati"])
+    const json = await res.json()
+    expect(json.warnings).toEqual(["missing-part: file STL tidak ditemukan di storage — part dilewati"])
+    expect(json.downloadUrl).toMatch(/^\/api\/ring-resizer\/results\/[0-9a-f-]{36}\?name=/)
+    expect(json.fileName).toContain("Model_A")
     // The part that failed to download must not reach processPart at all.
     expect(processPart).toHaveBeenCalledTimes(1)
+    // The ZIP itself is stored, not returned inline.
+    expect(uploadRingZip).toHaveBeenCalledTimes(1)
   })
 
   it("500 kalau SEMUA part gagal download — bukan zip kosong", async () => {
@@ -127,7 +130,7 @@ describe("POST /api/ring-resizer/process", () => {
     const res = await POST(jsonReq(baseBody))
 
     expect(res.status).toBe(200)
-    const zipBytes = new Uint8Array(await res.arrayBuffer())
+    const zipBytes = vi.mocked(uploadRingZip).mock.calls[0][1] as Uint8Array
     const entries = unzipSync(zipBytes)
     const names = Object.keys(entries)
     expect(names).toHaveLength(2)

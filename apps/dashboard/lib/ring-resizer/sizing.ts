@@ -5,7 +5,14 @@
 export type SizeMode = "us" | "dia" | "circ"
 
 export interface ScaleResult {
+  /** Exact scale factor (no rounding). */
   scale: number
+  /**
+   * Scale rounded UP to a whole percent (e.g. 0.771305 -> 0.78) — parity with
+   * the legacy slicer calculator's "bulatkan ke atas" recommendation; this is
+   * the factor production actually applies.
+   */
+  scaleCeil: number
   targetDiaMm: number
   usEquivalent: number
   circMm: number
@@ -35,8 +42,10 @@ export function computeScale(opts: {
   else diaMm = value / Math.PI
 
   const targetDiaMm = diaMm + clearanceMm
+  const scale = targetDiaMm / baseBoreMm
   return {
-    scale: targetDiaMm / baseBoreMm,
+    scale,
+    scaleCeil: Math.ceil(scale * 100) / 100,
     targetDiaMm,
     usEquivalent: diaToUs(diaMm),
     circMm: diaMm * Math.PI,

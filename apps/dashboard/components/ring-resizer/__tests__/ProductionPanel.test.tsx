@@ -19,7 +19,8 @@ describe("ProductionPanel", () => {
     expect(html).toContain("Keliling")
     expect(html).toContain("kelonggaran")
     // default US 8 + 0.3 clearance on 23.871 bore → 77.13%
-    expect(html).toContain("77.13")
+    expect(html).toContain("78%") // dibulatkan ke atas (parity kalkulator lama)
+    expect(html).toContain("77.13") // nilai pas tetap tampil di meta
     expect(html).toContain("Green Lantern 2026")
   })
 

@@ -62,3 +62,28 @@ export async function deleteRingStl(modelId: string, partId: string): Promise<vo
     throw err
   }
 }
+
+/** Key for a processed-result ZIP in the results/ prefix. */
+export function ringResultKey(id: string): string {
+  return `results/${id}.zip`
+}
+
+export async function uploadRingZip(id: string, body: Uint8Array): Promise<void> {
+  await ensureBucket()
+  await getMinioClient().send(
+    new PutObjectCommand({
+      Bucket: RING_BUCKET,
+      Key: ringResultKey(id),
+      Body: body,
+      ContentType: "application/zip",
+    }),
+  )
+}
+
+export async function downloadRingZip(id: string): Promise<Buffer> {
+  const res = await getMinioClient().send(
+    new GetObjectCommand({ Bucket: RING_BUCKET, Key: ringResultKey(id) }),
+  )
+  if (!res.Body) throw new Error("empty object body")
+  return Buffer.from(await res.Body.transformToByteArray())
+}
