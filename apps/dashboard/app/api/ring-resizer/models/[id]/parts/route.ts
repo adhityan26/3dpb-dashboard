@@ -36,6 +36,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const part = await prisma.ringPart.create({
     data: { modelId, name, sizeBytes: buf.length, triCount },
   })
-  await uploadRingStl(modelId, part.id, buf)
+  try {
+    await uploadRingStl(modelId, part.id, buf)
+  } catch (err) {
+    // Storage upload failed — the part row would otherwise be an orphan with
+    // no backing STL and no way to delete it later. Roll it back.
+    await prisma.ringPart.delete({ where: { id: part.id } }).catch(() => {})
+    return NextResponse.json(
+      { error: `failed to store STL: ${err instanceof Error ? err.message : String(err)}` },
+      { status: 500 },
+    )
+  }
   return NextResponse.json({ part }, { status: 201 })
 }

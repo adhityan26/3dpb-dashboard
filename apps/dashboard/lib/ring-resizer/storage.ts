@@ -4,6 +4,8 @@ import {
   DeleteObjectCommand,
   CreateBucketCommand,
   NoSuchKey,
+  BucketAlreadyOwnedByYou,
+  BucketAlreadyExists,
 } from "@aws-sdk/client-s3"
 import { getMinioClient } from "@/lib/minio"
 
@@ -18,10 +20,16 @@ async function ensureBucket(): Promise<void> {
   if (bucketEnsured) return
   try {
     await getMinioClient().send(new CreateBucketCommand({ Bucket: RING_BUCKET }))
-  } catch {
-    // already exists / already owned — fine
+    bucketEnsured = true
+  } catch (err) {
+    if (err instanceof BucketAlreadyOwnedByYou || err instanceof BucketAlreadyExists) {
+      // already exists / already owned — fine, the bucket is usable
+      bucketEnsured = true
+      return
+    }
+    // Unexpected failure (e.g. network/auth error) — don't poison the flag.
+    // A subsequent put/get will surface the real error on its own.
   }
-  bucketEnsured = true
 }
 
 export async function uploadRingStl(modelId: string, partId: string, body: Buffer): Promise<void> {

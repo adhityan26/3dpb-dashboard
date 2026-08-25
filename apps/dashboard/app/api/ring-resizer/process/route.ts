@@ -36,9 +36,16 @@ export async function POST(req: NextRequest) {
   const label = sanitizeLabel(text) || "resized"
 
   const files: Record<string, Uint8Array> = {}
+  const usedKeys = new Set<string>()
   const warnings: string[] = []
   for (const part of model.parts) {
-    const stl = await downloadRingStl(model.id, part.id)
+    let stl: Buffer
+    try {
+      stl = await downloadRingStl(model.id, part.id)
+    } catch {
+      warnings.push(`${part.name}: file STL tidak ditemukan di storage — part dilewati`)
+      continue
+    }
     const anchors: AnchorInput[] = part.anchors.map((a) => ({
       pos: [a.posX, a.posY, a.posZ],
       normal: [a.normX, a.normY, a.normZ],
@@ -47,8 +54,28 @@ export async function POST(req: NextRequest) {
       depthMm: a.depthMm,
     }))
     const result = await processPart({ stl, scale, anchors, text })
-    files[`${sanitizeLabel(part.name)}_${label}.stl`] = result.stl // Buffer is already a Uint8Array subclass
+
+    // Part names have no uniqueness constraint — dedupe sanitized keys so two
+    // parts with the same (or same-sanitized) name don't silently overwrite
+    // each other's ZIP entry.
+    const baseKey = sanitizeLabel(part.name)
+    let key = `${baseKey}_${label}.stl`
+    let suffix = 2
+    while (usedKeys.has(key)) {
+      key = `${baseKey}-${suffix}_${label}.stl`
+      suffix++
+    }
+    usedKeys.add(key)
+
+    files[key] = result.stl // Buffer is already a Uint8Array subclass
     if (result.warning) warnings.push(`${part.name}: ${result.warning}`)
+  }
+
+  if (Object.keys(files).length === 0) {
+    return NextResponse.json(
+      { error: "all parts failed to process — no STL files available for this model", warnings },
+      { status: 500 },
+    )
   }
 
   const zip = zipSync(files, { level: 0 }) // STL barely compresses; skip the CPU
