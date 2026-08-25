@@ -18,6 +18,7 @@ declare module "react" {
   namespace JSX {
     interface IntrinsicElements {
       ambientLight: ThreeIntrinsicProps
+      arrowHelper: ThreeIntrinsicProps
       boxGeometry: ThreeIntrinsicProps
       circleGeometry: ThreeIntrinsicProps
       directionalLight: ThreeIntrinsicProps
@@ -25,7 +26,9 @@ declare module "react" {
       mesh: ThreeIntrinsicProps
       meshBasicMaterial: ThreeIntrinsicProps
       meshStandardMaterial: ThreeIntrinsicProps
+      planeGeometry: ThreeIntrinsicProps
       ringGeometry: ThreeIntrinsicProps
+      sphereGeometry: ThreeIntrinsicProps
     }
   }
 }

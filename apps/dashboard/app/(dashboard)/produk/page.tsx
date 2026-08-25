@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState, Suspense, useCallback, useRef } from "react"
+import dynamic from "next/dynamic"
 import { useRouter, useSearchParams } from "next/navigation"
 import { FilamenTab } from "@/components/filamen/FilamenTab"
 import { KalkulasiTab } from "@/components/kalkulator/KalkulasiTab"
@@ -24,6 +25,11 @@ import { Button } from "@/components/ui/button"
 import { PageShell } from "@/components/layout/PageShell"
 import type { ProductFilterValue } from "@/components/products/types"
 
+const RingResizerTab = dynamic(
+  () => import("@/components/ring-resizer/RingResizerTab").then((m) => m.RingResizerTab),
+  { ssr: false, loading: () => <div className="glass-card p-6 text-sm g-t4">Memuat Ring Resizer…</div> },
+)
+
 export default function ProdukPage() {
   return (
     <Suspense>
@@ -38,6 +44,7 @@ const PRODUK_HEADING: Record<ProdukTab, { title: string; description: string }> 
   produk:     { title: "Produk",           description: "Pantau produk aktif dan HPP" },
   kalkulator: { title: "Kalkulator Harga", description: "Hitung HPP, Floor Price, dan rekomendasi harga jual per produk" },
   filamen:    { title: "Filamen",          description: "Stok dan katalog filament" },
+  ring:       { title: "Ring Resizer",     description: "Setup model cincin dan produksi file cetak per ukuran" },
 }
 
 function ProdukPageInner() {
@@ -55,7 +62,7 @@ function ProdukPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
 
-  const VALID_TABS: ProdukTab[] = ["katalog", "produk", "kalkulator", "filamen"]
+  const VALID_TABS: ProdukTab[] = ["katalog", "produk", "kalkulator", "filamen", "ring"]
   const rawTab = searchParams.get("tab") ?? "katalog"
   const produkTab: ProdukTab = VALID_TABS.includes(rawTab as ProdukTab)
     ? (rawTab as ProdukTab)
@@ -212,6 +219,8 @@ function ProdukPageInner() {
           <KalkulasiTab />
         ) : produkTab === "filamen" ? (
           <FilamenTab />
+        ) : produkTab === "ring" ? (
+          <RingResizerTab />
         ) : (
             <div className="space-y-4">
               {kpiData && <ProductsKpiBar kpi={kpiData} />}

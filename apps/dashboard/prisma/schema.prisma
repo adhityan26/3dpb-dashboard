@@ -542,3 +542,46 @@ model OrderEscrow {
   fetchedAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 }
+
+// ── Ring Resizer (3D tools — resize + engrave STL cincin) ────────────────────
+
+model RingModel {
+  id         String     @id @default(cuid())
+  name       String
+  baseBoreMm Float
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  parts      RingPart[]
+}
+
+model RingPart {
+  id        String       @id @default(cuid())
+  modelId   String
+  model     RingModel    @relation(fields: [modelId], references: [id], onDelete: Cascade)
+  name      String
+  sizeBytes Int
+  triCount  Int
+  createdAt DateTime     @default(now())
+  anchors   RingAnchor[]
+
+  @@index([modelId])
+}
+
+model RingAnchor {
+  id           String   @id @default(cuid())
+  partId       String
+  part         RingPart @relation(fields: [partId], references: [id], onDelete: Cascade)
+  posX         Float
+  posY         Float
+  posZ         Float
+  normX        Float
+  normY        Float
+  normZ        Float
+  upX          Float
+  upY          Float
+  upZ          Float
+  textHeightMm Float    @default(3)
+  depthMm      Float    @default(0.5)
+
+  @@index([partId])
+}
