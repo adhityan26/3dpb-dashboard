@@ -66,6 +66,54 @@ function BaseBoreControl({ model, onChanged }: { model: RingModelWithParts; onCh
   )
 }
 
+function PartName({ part, onChanged }: { part: { id: string; name: string }; onChanged: () => Promise<void> }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function save() {
+    if (!value.trim()) { setEditing(false); return }
+    setBusy(true); setError(null)
+    try {
+      const res = await fetch(`/api/ring-resizer/parts/${part.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: value.trim() }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error ?? `HTTP ${res.status}`)
+      setEditing(false)
+      await onChanged()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (editing) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <input value={value} onChange={(e) => setValue(e.target.value)} autoFocus
+          onKeyDown={(e) => { if (e.key === "Enter") void save(); if (e.key === "Escape") setEditing(false) }}
+          className="glass-input w-32 rounded px-2 py-0.5 text-xs" />
+        <button type="button" onClick={save} disabled={busy}
+          className="rounded bg-indigo-500/80 px-2 py-0.5 text-xs font-semibold text-white disabled:opacity-50">OK</button>
+        <button type="button" onClick={() => setEditing(false)} className="px-1 text-xs g-t4">batal</button>
+        {error && <span className="text-xs g-t3">{error}</span>}
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1 font-medium g-t2">
+      {part.name}
+      <button type="button" title="Rename part"
+        onClick={() => { setValue(part.name); setEditing(true) }}
+        className="rounded px-1 text-xs g-t4 hover:bg-white/10">✎</button>
+    </span>
+  )
+}
+
 function PartUpload({ modelId, onChanged }: { modelId: string; onChanged: () => Promise<void> }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState("")
@@ -109,6 +157,21 @@ function PartUpload({ modelId, onChanged }: { modelId: string; onChanged: () => 
 export function ModelManager({ models, loading, onChanged, onEditAnchors }: ModelManagerProps) {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<{ id: string; message: string } | null>(null)
+
+  async function removePart(partId: string, partName: string) {
+    if (!window.confirm(`Hapus part "${partName}" beserta anchor-nya?`)) return
+    setDeleteError(null)
+    try {
+      const res = await fetch(`/api/ring-resizer/parts/${partId}`, { method: "DELETE" })
+      if (!res.ok) {
+        const data = await res.json()
+        throw new Error(data.error ?? `HTTP ${res.status}`)
+      }
+      await onChanged()
+    } catch (err) {
+      setDeleteError({ id: partId, message: err instanceof Error ? err.message : String(err) })
+    }
+  }
 
   async function applyBaseBore(modelId: string, boreMm: number) {
     setDeleteError(null)
@@ -167,7 +230,7 @@ export function ModelManager({ models, loading, onChanged, onEditAnchors }: Mode
           <ul className="flex flex-col gap-2">
             {m.parts.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs">
-                <span className="font-medium g-t2">{p.name}</span>
+                <PartName part={p} onChanged={onChanged} />
                 <span className="g-t4">
                   {fmtBytes(p.sizeBytes)} · {p.triCount.toLocaleString()} tri · {p.anchors.length} anchor
                   {p.boreMm != null && <> · bore {p.boreMm.toFixed(2)} mm</>}
@@ -184,6 +247,11 @@ export function ModelManager({ models, loading, onChanged, onEditAnchors }: Mode
                     Atur Anchor
                   </button>
                 )}
+                <button type="button" title="Hapus part" onClick={() => removePart(p.id, p.name)}
+                  className="rounded-lg px-2 py-1 font-semibold g-t3 hover:bg-red-500/10">
+                  Hapus
+                </button>
+                {deleteError?.id === p.id && <span className="text-xs g-t3">{deleteError.message}</span>}
               </li>
             ))}
           </ul>
