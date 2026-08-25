@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { parseBinaryStl, makeCubeStl, scaleMesh } from "../mesh/stl"
+import { parseBinaryStl, makeCubeStl } from "../mesh/stl"
 import { loadEngraveFont } from "../mesh/text"
 import { anchorMatrix, engraveWelded } from "../mesh/engrave"
 import { getManifold } from "../mesh/manifold"

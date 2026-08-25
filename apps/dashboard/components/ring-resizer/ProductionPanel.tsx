@@ -117,7 +117,7 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
             <span className="ml-3 g-t4">
               ≈ US {summary.usEquivalent.toFixed(1)} · target lubang {summary.targetDiaMm.toFixed(2)} mm ·
               keliling {summary.circMm.toFixed(1)} mm · {model.parts.length} part ·
-              {" "}{model.parts.reduce((n, p) => n + p.anchors.length, 0)} anchor · text "{effectiveText}"
+              {" "}{model.parts.reduce((n, p) => n + p.anchors.length, 0)} anchor · text &quot;{effectiveText}&quot;
             </span>
           </div>
         )}
