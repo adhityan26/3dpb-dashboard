@@ -15,6 +15,57 @@ function fmtBytes(n: number): string {
   return n > 1e6 ? `${(n / 1e6).toFixed(1)} MB` : `${Math.round(n / 1e3)} KB`
 }
 
+/** Base bore display with manual-override editing (fallback when detection is off). */
+function BaseBoreControl({ model, onChanged }: { model: RingModelWithParts; onChanged: () => Promise<void> }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState("")
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function save() {
+    const num = parseFloat(value)
+    if (!(num > 0)) { setError("harus > 0"); return }
+    setBusy(true); setError(null)
+    try {
+      const res = await fetch(`/api/ring-resizer/models/${model.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ baseBoreMm: num }),
+      })
+      if (!res.ok) throw new Error((await res.json()).error ?? `HTTP ${res.status}`)
+      setEditing(false)
+      await onChanged()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (editing) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <input value={value} onChange={(e) => setValue(e.target.value)} type="number" step="0.001" min="1"
+          autoFocus className="glass-input w-24 rounded px-2 py-0.5 text-xs" placeholder="mm" />
+        <button type="button" onClick={save} disabled={busy}
+          className="rounded bg-indigo-500/80 px-2 py-0.5 text-xs font-semibold text-white disabled:opacity-50">OK</button>
+        <button type="button" onClick={() => setEditing(false)} className="px-1 text-xs g-t4">batal</button>
+        {error && <span className="text-xs g-t3">{error}</span>}
+      </span>
+    )
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {model.baseBoreMm != null
+        ? <>base bore <b className="g-t2">{model.baseBoreMm.toFixed(2)} mm</b></>
+        : <span className="g-t3">base bore belum terdeteksi</span>}
+      <button type="button" title="Edit manual"
+        onClick={() => { setValue(model.baseBoreMm != null ? String(model.baseBoreMm) : ""); setEditing(true) }}
+        className="rounded px-1 text-xs g-t4 hover:bg-white/10">✎</button>
+    </span>
+  )
+}
+
 function PartUpload({ modelId, onChanged }: { modelId: string; onChanged: () => Promise<void> }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState("")
@@ -59,6 +110,15 @@ export function ModelManager({ models, loading, onChanged, onEditAnchors }: Mode
   const [busyId, setBusyId] = useState<string | null>(null)
   const [deleteError, setDeleteError] = useState<{ id: string; message: string } | null>(null)
 
+  async function applyBaseBore(modelId: string, boreMm: number) {
+    await fetch(`/api/ring-resizer/models/${modelId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ baseBoreMm: boreMm }),
+    })
+    await onChanged()
+  }
+
   async function removeModel(id: string, name: string) {
     if (!window.confirm(`Hapus model "${name}" beserta semua part & anchor?`)) return
     setBusyId(id)
@@ -90,7 +150,7 @@ export function ModelManager({ models, loading, onChanged, onEditAnchors }: Mode
           <div className="flex items-center justify-between gap-3">
             <div>
               <div className="text-sm font-semibold g-t1">{m.name}</div>
-              <div className="text-xs g-t4">base bore {m.baseBoreMm} mm · {m.parts.length} part</div>
+              <div className="text-xs g-t4"><BaseBoreControl model={m} onChanged={onChanged} /> · {m.parts.length} part</div>
             </div>
             <button type="button" onClick={() => removeModel(m.id, m.name)} disabled={busyId === m.id}
               className="rounded-lg px-3 py-1.5 text-xs font-semibold g-t3 hover:bg-red-500/10 disabled:opacity-50">
@@ -102,7 +162,16 @@ export function ModelManager({ models, loading, onChanged, onEditAnchors }: Mode
             {m.parts.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-white/10 px-3 py-2 text-xs">
                 <span className="font-medium g-t2">{p.name}</span>
-                <span className="g-t4">{fmtBytes(p.sizeBytes)} · {p.triCount.toLocaleString()} tri · {p.anchors.length} anchor</span>
+                <span className="g-t4">
+                  {fmtBytes(p.sizeBytes)} · {p.triCount.toLocaleString()} tri · {p.anchors.length} anchor
+                  {p.boreMm != null && <> · bore {p.boreMm.toFixed(2)} mm</>}
+                </span>
+                {p.boreMm != null && m.baseBoreMm !== p.boreMm && (
+                  <button type="button" onClick={() => applyBaseBore(m.id, p.boreMm!)}
+                    className="rounded-lg px-2 py-1 font-semibold g-t3 hover:bg-white/10">
+                    Pakai sebagai base bore
+                  </button>
+                )}
                 {onEditAnchors && (
                   <button type="button" onClick={() => onEditAnchors(m.id, p.id)}
                     className="rounded-lg bg-indigo-500/80 px-3 py-1.5 font-semibold text-white">

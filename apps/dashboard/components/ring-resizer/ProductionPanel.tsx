@@ -25,7 +25,7 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
   const model = models.find((m) => m.id === modelId) ?? models[0]
 
   const summary = useMemo(() => {
-    if (!model || !(value > 0)) return null
+    if (!model || model.baseBoreMm == null || !(value > 0)) return null
     try {
       return computeScale({ mode, value, clearanceMm: clearance ? 0.3 : 0, baseBoreMm: model.baseBoreMm })
     } catch {
@@ -110,6 +110,12 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
               className="glass-input w-48 rounded-lg px-3 py-2 text-sm" />
           </label>
         </div>
+
+        {model && model.baseBoreMm == null && (
+          <div className="rounded-xl border border-amber-500/40 p-3 text-xs g-t3">
+            Base bore model ini belum terdeteksi — upload part band di Setup Model (dihitung otomatis) atau isi manual di card model.
+          </div>
+        )}
 
         {summary && model && (
           <div className="rounded-xl border border-indigo-500/40 p-4 text-sm">

@@ -8,8 +8,8 @@ export interface RingAnchorRow {
   upX: number; upY: number; upZ: number
   textHeightMm: number; depthMm: number
 }
-export interface RingPartRow { id: string; name: string; sizeBytes: number; triCount: number; anchors: RingAnchorRow[] }
-export interface RingModelWithParts { id: string; name: string; baseBoreMm: number; parts: RingPartRow[] }
+export interface RingPartRow { id: string; name: string; sizeBytes: number; triCount: number; boreMm: number | null; anchors: RingAnchorRow[] }
+export interface RingModelWithParts { id: string; name: string; baseBoreMm: number | null; parts: RingPartRow[] }
 
 export function useRingModels() {
   const [models, setModels] = useState<RingModelWithParts[]>([])

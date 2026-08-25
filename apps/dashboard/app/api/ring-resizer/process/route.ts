@@ -31,6 +31,12 @@ export async function POST(req: NextRequest) {
   })
   if (!model) return NextResponse.json({ error: "model not found" }, { status: 404 })
   if (model.parts.length === 0) return NextResponse.json({ error: "model has no parts" }, { status: 400 })
+  if (model.baseBoreMm == null) {
+    return NextResponse.json(
+      { error: "base bore belum terdeteksi/di-set untuk model ini — upload part band atau isi manual" },
+      { status: 400 },
+    )
+  }
 
   const { scale } = computeScale({ mode, value, clearanceMm, baseBoreMm: model.baseBoreMm })
   const label = sanitizeLabel(text) || "resized"

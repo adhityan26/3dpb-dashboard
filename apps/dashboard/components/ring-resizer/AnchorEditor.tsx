@@ -1,7 +1,7 @@
 "use client"
 
 import { Suspense, useEffect, useMemo, useState } from "react"
-import { Canvas } from "@react-three/fiber"
+import { Canvas, useThree } from "@react-three/fiber"
 import { OrbitControls, Center } from "@react-three/drei"
 import * as THREE from "three"
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js"
@@ -63,7 +63,31 @@ function AnchorMarker({ a, selected, previewText }: { a: DraftAnchor; selected: 
   )
 }
 
-function PartMesh({ url, onPick }: { url: string; onPick: (pos: V3, normal: V3) => void }) {
+/**
+ * Frames the (Center-ed, origin-anchored) model once its size is known:
+ * camera distance, near/far, and look-at scale with the bounding radius, so
+ * zoom/orbit feel identical for a 12mm band and a 40mm whole ring.
+ */
+function CameraRig({ radius }: { radius: number | null }) {
+  const get = useThree((s) => s.get)
+  useEffect(() => {
+    if (!radius) return
+    const camera = get().camera
+    const d = radius * 2.2
+    camera.position.set(d * 0.7, -d * 0.7, d * 0.5)
+    camera.near = Math.max(0.01, radius / 100)
+    camera.far = radius * 40
+    camera.lookAt(0, 0, 0)
+    camera.updateProjectionMatrix()
+  }, [radius, get])
+  return null
+}
+
+function PartMesh({ url, onPick, onLoaded }: {
+  url: string
+  onPick: (pos: V3, normal: V3) => void
+  onLoaded?: (radiusMm: number) => void
+}) {
   const [geometry, setGeometry] = useState<THREE.BufferGeometry | null>(null)
   useEffect(() => {
     let cancelled = false
@@ -72,10 +96,14 @@ function PartMesh({ url, onPick }: { url: string; onPick: (pos: V3, normal: V3) 
       const buf = await res.arrayBuffer()
       const geo = new STLLoader().parse(buf)
       geo.computeVertexNormals()
-      if (!cancelled) setGeometry(geo)
+      geo.computeBoundingSphere()
+      if (!cancelled) {
+        setGeometry(geo)
+        if (geo.boundingSphere) onLoaded?.(geo.boundingSphere.radius)
+      }
     })()
     return () => { cancelled = true }
-  }, [url])
+  }, [url, onLoaded])
 
   if (!geometry) return null
   return (
@@ -117,6 +145,7 @@ export function AnchorEditor({ partId, initialAnchors, onClose, onSaved }: Ancho
   const [anchors, setAnchors] = useState<DraftAnchor[]>(initialAnchors.map(rowToDraft))
   const [selected, setSelected] = useState(0)
   const [previewText, setPreviewText] = useState("US 8")
+  const [modelRadius, setModelRadius] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const sel = anchors[selected]
@@ -170,18 +199,27 @@ export function AnchorEditor({ partId, initialAnchors, onClose, onSaved }: Ancho
       </div>
 
       <div className="h-[520px] overflow-hidden rounded-xl border border-white/10">
-        <Canvas camera={{ position: [0, -40, 25], fov: 45, near: 0.1, far: 2000 }}>
+        {/* z-up camera matches STL convention (same setup as Lg3DViewer) — with
+            the default y-up, orbiting a z-up model feels like it "rolls". */}
+        <Canvas camera={{ position: [40, -40, 28], up: [0, 0, 1], fov: 45, near: 0.1, far: 2000 }}>
           <ambientLight intensity={0.7} />
           <directionalLight position={[30, -30, 50]} intensity={1.2} />
+          <CameraRig radius={modelRadius} />
           <Suspense fallback={null}>
             <Center>
-              <PartMesh url={`/api/ring-resizer/parts/${partId}/file`} onPick={pick} />
+              <PartMesh url={`/api/ring-resizer/parts/${partId}/file`} onPick={pick} onLoaded={setModelRadius} />
               {anchors.map((a, i) => (
                 <AnchorMarker key={i} a={a} selected={i === selected} previewText={previewText} />
               ))}
             </Center>
           </Suspense>
-          <OrbitControls makeDefault enableDamping />
+          <OrbitControls
+            makeDefault
+            enableDamping
+            zoomSpeed={0.8}
+            minDistance={modelRadius ? modelRadius * 0.15 : 0.5}
+            maxDistance={modelRadius ? modelRadius * 8 : 500}
+          />
         </Canvas>
       </div>
 

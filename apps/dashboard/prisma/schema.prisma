@@ -548,7 +548,7 @@ model OrderEscrow {
 model RingModel {
   id         String     @id @default(cuid())
   name       String
-  baseBoreMm Float
+  baseBoreMm Float?
   createdAt  DateTime   @default(now())
   updatedAt  DateTime   @updatedAt
   parts      RingPart[]
@@ -561,6 +561,7 @@ model RingPart {
   name      String
   sizeBytes Int
   triCount  Int
+  boreMm    Float?
   createdAt DateTime     @default(now())
   anchors   RingAnchor[]
 

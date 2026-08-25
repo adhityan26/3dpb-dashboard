@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest"
 import type { NextRequest } from "next/server"
 import { makeCubeStl } from "@/lib/ring-resizer/mesh/stl"
+import { makeRingStl } from "@/lib/ring-resizer/mesh/bore"
 
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }))
 vi.mock("@/lib/db", () => ({
   prisma: {
-    ringModel: { findUnique: vi.fn() },
+    ringModel: { findUnique: vi.fn(), update: vi.fn() },
     ringPart: { create: vi.fn(), delete: vi.fn() },
   },
 }))
@@ -104,5 +105,65 @@ describe("POST /api/ring-resizer/models/[id]/parts", () => {
     expect(res.status).toBe(201)
     expect(await res.json()).toEqual({ part: created })
     expect(prisma.ringPart.delete).not.toHaveBeenCalled()
+  })
+
+  it("bore terdeteksi dari STL ring → tersimpan di part dan auto-set base bore model", async () => {
+    vi.mocked(prisma.ringModel.findUnique).mockResolvedValue(
+      { id: "m1", baseBoreMm: null } as unknown as RingModelRow,
+    )
+    vi.mocked(prisma.ringPart.create).mockImplementation((async (args: { data: unknown }) => ({
+      id: "p1",
+      ...(args.data as Record<string, unknown>),
+    })) as never)
+    vi.mocked(uploadRingStl).mockResolvedValue(undefined)
+    const stl = new Uint8Array(makeRingStl({ innerDiaMm: 23.871, outerDiaMm: 30, heightMm: 12 }))
+    const form = new FormData()
+    form.append("name", "band")
+    form.append("file", new File([stl], "band.stl"))
+    const res = await POST(formReq(form), ctx("m1"))
+    expect(res.status).toBe(201)
+    const created = vi.mocked(prisma.ringPart.create).mock.calls[0][0].data as { boreMm: number | null }
+    expect(created.boreMm).toBeCloseTo(23.871, 1)
+    const update = vi.mocked(prisma.ringModel.update).mock.calls[0][0] as {
+      where: { id: string }
+      data: { baseBoreMm: number }
+    }
+    expect(update.where.id).toBe("m1")
+    expect(update.data.baseBoreMm).toBeCloseTo(23.871, 1)
+  })
+
+  it("model yang sudah punya base bore tidak ditimpa oleh upload berikutnya", async () => {
+    vi.mocked(prisma.ringModel.findUnique).mockResolvedValue(
+      { id: "m1", baseBoreMm: 23.871 } as unknown as RingModelRow,
+    )
+    vi.mocked(prisma.ringPart.create).mockResolvedValue({ id: "p2" } as unknown as RingPartRow)
+    vi.mocked(uploadRingStl).mockResolvedValue(undefined)
+    const stl = new Uint8Array(makeRingStl({ innerDiaMm: 18, outerDiaMm: 24, heightMm: 10 }))
+    const form = new FormData()
+    form.append("name", "frame")
+    form.append("file", new File([stl], "frame.stl"))
+    const res = await POST(formReq(form), ctx("m1"))
+    expect(res.status).toBe(201)
+    expect(prisma.ringModel.update).not.toHaveBeenCalled()
+  })
+
+  it("bore terdeteksi tapi di luar range cincin (mis. 8mm) → tersimpan di part, TIDAK auto-set model", async () => {
+    vi.mocked(prisma.ringModel.findUnique).mockResolvedValue(
+      { id: "m1", baseBoreMm: null } as unknown as RingModelRow,
+    )
+    vi.mocked(prisma.ringPart.create).mockImplementation((async (args: { data: unknown }) => ({
+      id: "p3",
+      ...(args.data as Record<string, unknown>),
+    })) as never)
+    vi.mocked(uploadRingStl).mockResolvedValue(undefined)
+    const stl = new Uint8Array(makeRingStl({ innerDiaMm: 8, outerDiaMm: 14, heightMm: 6 }))
+    const form = new FormData()
+    form.append("name", "center-stone")
+    form.append("file", new File([stl], "cs.stl"))
+    const res = await POST(formReq(form), ctx("m1"))
+    expect(res.status).toBe(201)
+    const created = vi.mocked(prisma.ringPart.create).mock.calls[0][0].data as { boreMm: number | null }
+    expect(created.boreMm).toBeCloseTo(8, 1)
+    expect(prisma.ringModel.update).not.toHaveBeenCalled()
   })
 })

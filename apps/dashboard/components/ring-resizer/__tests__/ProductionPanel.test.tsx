@@ -6,7 +6,7 @@ const models = [
   {
     id: "m1", name: "Green Lantern 2026", baseBoreMm: 23.871,
     parts: [
-      { id: "p1", name: "band", sizeBytes: 1, triCount: 1, anchors: [{ id: "a1", posX: 0, posY: 0, posZ: 0, normX: 0, normY: 0, normZ: 1, upX: 0, upY: 1, upZ: 0, textHeightMm: 3, depthMm: 0.5 }] },
+      { id: "p1", name: "band", sizeBytes: 1, triCount: 1, boreMm: 23.871, anchors: [{ id: "a1", posX: 0, posY: 0, posZ: 0, normX: 0, normY: 0, normZ: 1, upX: 0, upY: 1, upZ: 0, textHeightMm: 3, depthMm: 0.5 }] },
     ],
   },
 ]

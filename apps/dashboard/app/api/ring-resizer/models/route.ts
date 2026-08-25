@@ -22,10 +22,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid JSON" }, { status: 400 })
   }
   const name = typeof body?.name === "string" ? body.name.trim() : ""
-  const baseBoreMm = typeof body?.baseBoreMm === "number" ? body.baseBoreMm : NaN
-  if (!name || !(baseBoreMm > 0)) {
-    return NextResponse.json({ error: "name and baseBoreMm (> 0) required" }, { status: 400 })
+  if (!name) {
+    return NextResponse.json({ error: "name required" }, { status: 400 })
   }
+  // baseBoreMm is optional — normally auto-detected from the first uploaded
+  // part that has a hole; an explicit value is accepted as a manual override.
+  const baseBoreMm = typeof body?.baseBoreMm === "number" && body.baseBoreMm > 0 ? body.baseBoreMm : null
   const model = await prisma.ringModel.create({ data: { name, baseBoreMm } })
   return NextResponse.json({ model }, { status: 201 })
 }
