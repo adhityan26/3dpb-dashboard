@@ -21,6 +21,12 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
   const [busy, setBusy] = useState(false)
   const [warnings, setWarnings] = useState<string[]>([])
   const [error, setError] = useState<string | null>(null)
+  const [lastResult, setLastResult] = useState<{
+    directUrl: string | null
+    downloadUrl: string
+    fileName: string
+    via: "minio" | "server"
+  } | null>(null)
 
   const model = models.find((m) => m.id === modelId) ?? models[0]
 
@@ -51,10 +57,35 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
       if (!res.ok) throw new Error((await res.json()).error ?? `HTTP ${res.status}`)
       // Small JSON payload; the ZIP itself is fetched by the browser natively
       // via GET (large fetch() bodies proved fragile through the proxy).
-      const json = (await res.json()) as { downloadUrl: string; fileName: string; warnings: string[] }
+      const json = (await res.json()) as {
+        downloadUrl: string
+        directUrl: string | null
+        fileName: string
+        warnings: string[]
+      }
       setWarnings(json.warnings)
+      // Prefer the direct MinIO link when the NAS is reachable (operator on
+      // LAN) — skips the app and any tunnel. An opaque no-cors probe with a
+      // short timeout answers "reachable?" without needing CORS on MinIO;
+      // any failure (offsite, mixed-content block, timeout) falls back to
+      // the app-proxied URL, which works everywhere.
+      let href = json.downloadUrl
+      let via: "minio" | "server" = "server"
+      if (json.directUrl) {
+        try {
+          const ctl = new AbortController()
+          const timer = setTimeout(() => ctl.abort(), 1500)
+          await fetch(json.directUrl, { method: "HEAD", mode: "no-cors", signal: ctl.signal })
+          clearTimeout(timer)
+          href = json.directUrl
+          via = "minio"
+        } catch {
+          // unreachable — keep the server route
+        }
+      }
+      setLastResult({ directUrl: json.directUrl, downloadUrl: json.downloadUrl, fileName: json.fileName, via })
       const a = document.createElement("a")
-      a.href = json.downloadUrl
+      a.href = href
       a.download = json.fileName
       a.click()
     } catch (err) {
@@ -136,6 +167,20 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
           {error && <span className="text-xs g-t3">{error}</span>}
         </div>
       </div>
+
+      {lastResult && (
+        <div className="glass-card p-3 text-xs g-t4">
+          Terdownload via {lastResult.via === "minio" ? "MinIO langsung (LAN)" : "server"} — {lastResult.fileName}.
+          Download ulang:{" "}
+          {lastResult.directUrl && (
+            <>
+              <a href={lastResult.directUrl} className="underline g-t2">langsung MinIO</a>
+              {" · "}
+            </>
+          )}
+          <a href={lastResult.downloadUrl} className="underline g-t2">via server</a>
+        </div>
+      )}
 
       {warnings.length > 0 && (
         <div className="glass-card p-4 text-xs g-t3">

@@ -5,7 +5,7 @@ import { prisma } from "@/lib/db"
 import { computeScale } from "@/lib/ring-resizer/sizing"
 import { parseProcessRequest } from "@/lib/ring-resizer/validate"
 import { processPart, sanitizeLabel } from "@/lib/ring-resizer/mesh/pipeline"
-import { downloadRingStl, uploadRingZip } from "@/lib/ring-resizer/storage"
+import { downloadRingStl, uploadRingZip, presignRingZipUrl } from "@/lib/ring-resizer/storage"
 import type { AnchorInput } from "@/lib/ring-resizer/types"
 
 // Boolean ops on 1.7M-triangle meshes take tens of seconds.
@@ -95,8 +95,18 @@ export async function POST(req: NextRequest) {
   const resultId = crypto.randomUUID()
   await uploadRingZip(resultId, zip)
   const fileName = `${sanitizeLabel(model.name)}_${label}.zip`
+  // directUrl: presigned MinIO link — LAN clients download straight from the
+  // NAS, skipping the app (and any tunnel). The client probes reachability
+  // and falls back to downloadUrl (app-proxied) automatically.
+  let directUrl: string | null = null
+  try {
+    directUrl = await presignRingZipUrl(resultId, fileName)
+  } catch {
+    // presign failure is non-fatal — proxy path still works
+  }
   return NextResponse.json({
     downloadUrl: `/api/ring-resizer/results/${resultId}?name=${encodeURIComponent(fileName)}`,
+    directUrl,
     fileName,
     warnings,
   })

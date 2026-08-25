@@ -11,6 +11,7 @@ vi.mock("@/lib/db", () => ({
 vi.mock("@/lib/ring-resizer/storage", () => ({
   downloadRingStl: vi.fn(),
   uploadRingZip: vi.fn(),
+  presignRingZipUrl: vi.fn(async () => "http://192.168.88.18:9000/ring-models/results/x.zip?sig"),
 }))
 vi.mock("@/lib/ring-resizer/mesh/pipeline", async () => {
   const actual = await vi.importActual<typeof import("@/lib/ring-resizer/mesh/pipeline")>(
@@ -89,6 +90,7 @@ describe("POST /api/ring-resizer/process", () => {
     const json = await res.json()
     expect(json.warnings).toEqual(["missing-part: file STL tidak ditemukan di storage — part dilewati"])
     expect(json.downloadUrl).toMatch(/^\/api\/ring-resizer\/results\/[0-9a-f-]{36}\?name=/)
+    expect(json.directUrl).toContain("192.168.88.18:9000")
     expect(json.fileName).toContain("Model_A")
     // The part that failed to download must not reach processPart at all.
     expect(processPart).toHaveBeenCalledTimes(1)
