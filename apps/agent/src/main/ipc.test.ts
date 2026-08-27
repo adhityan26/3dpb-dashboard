@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 
 const handlers: Record<string, (...args: any[]) => any> = {};
 vi.mock("electron", () => ({
@@ -22,6 +22,17 @@ import { publishLayout } from "./layout-publisher";
 import { getEngine, setEngine, setBrokerPort, getReporters, setReporters } from "./app-state";
 
 describe("registerIpcHandlers", () => {
+  // ipc.ts sengaja console.error di jalur kegagalan yang dites di sini (engine gagal start,
+  // reporter gagal close). Tanpa dibungkam, stack trace-nya nongol di stderr output turbo
+  // dan gampang disangka test failure padahal testnya lulus.
+  let consoleErrorSpy: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+  afterEach(() => {
+    consoleErrorSpy.mockRestore();
+  });
+
   it("daftarkan handler 'agent:activate'", () => {
     registerIpcHandlers();
     expect(ipcMain.handle).toHaveBeenCalledWith("agent:activate", expect.any(Function));

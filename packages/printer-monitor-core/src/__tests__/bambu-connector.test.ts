@@ -1,9 +1,19 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { createServer, type Server } from 'node:net'
 import Aedes from 'aedes'
 import mqtt from 'mqtt'
 import { BambuMqttConnector } from '../connectors/bambu-mqtt'
 import type { DeviceConfig, NormalizedStatus } from '../types'
+
+// start() sengaja resolve TANPA menunggu koneksi (lihat test "printer mati"), jadi test
+// harus menunggu kondisi nyata — fixed sleep (100ms) flaky saat CPU padat, mis. full
+// parallel `turbo test` (10 paket sekaligus): CONNACK bisa lewat dari 100ms → sendCommand
+// balikin printer_offline palsu.
+const waitForConnected = (c: BambuMqttConnector) =>
+  vi.waitFor(() => { if (!c.connected) throw new Error('MQTT belum connect') }, { timeout: 10_000 })
+
+const waitFor = (cond: () => boolean, what: string) =>
+  vi.waitFor(() => { if (!cond()) throw new Error(`menunggu: ${what}`) }, { timeout: 10_000 })
 
 let server: Server, port: number, aedes: InstanceType<typeof Aedes>
 beforeAll(async () => {
@@ -24,15 +34,17 @@ describe('BambuMqttConnector', () => {
     const got: NormalizedStatus[] = []
     const c = new BambuMqttConnector(mars, { urlOverride: `mqtt://127.0.0.1:${port}` })
     await c.start((s) => void got.push(s))
+    // Pushall terkirim SETELAH subscribe (urutan paket di socket yang sama) — begitu pushall
+    // sampai, subscribe connector pasti sudah diproses aedes, aman untuk publish report.
+    await waitFor(() => pushalls.length >= 1, 'pushall on-connect diterima broker')
 
     const pub = mqtt.connect(`mqtt://127.0.0.1:${port}`)
     await new Promise<void>((res) => pub.on('connect', () => res()))
     pub.publish('device/SER1/report', JSON.stringify({ print: { gcode_state: 'RUNNING', mc_percent: 7 } }))
-    await new Promise((r) => setTimeout(r, 200))
+    await waitFor(() => got.length >= 1, 'NormalizedStatus ter-emit')
     pub.end()
     await c.stop()
 
-    expect(pushalls.length).toBeGreaterThanOrEqual(1)
     expect(JSON.parse(pushalls[0]).pushing.command).toBe('pushall')
     expect(got).toHaveLength(1)
     expect(got[0]).toMatchObject({ deviceId: 'mars', state: 'running', progress: 7 })
@@ -42,6 +54,7 @@ describe('BambuMqttConnector', () => {
     const got: NormalizedStatus[] = []
     const c = new BambuMqttConnector(mars, { urlOverride: `mqtt://127.0.0.1:${port}` })
     await c.start((s) => void got.push(s))
+    await waitForConnected(c)
     const pub = mqtt.connect(`mqtt://127.0.0.1:${port}`)
     await new Promise<void>((res) => pub.on('connect', () => res()))
     pub.publish('device/SER1/report', 'bukan json')
@@ -72,14 +85,11 @@ describe('BambuMqttConnector.sendCommand', () => {
 
     const c = new BambuMqttConnector(mars, { urlOverride: `mqtt://127.0.0.1:${port}` })
     await c.start(() => {})
-    await new Promise((r) => setTimeout(r, 100))
+    await waitForConnected(c)
 
     const result = await c.sendCommand({ kind: 'pause' })
-    await new Promise((r) => setTimeout(r, 100))
-
     expect(result).toEqual({ ok: true })
-    const pauseMsg = received.find((m) => JSON.parse(m).print?.command === 'pause')
-    expect(pauseMsg).toBeTruthy()
+    await waitFor(() => received.some((m) => JSON.parse(m).print?.command === 'pause'), 'command pause diterima subscriber')
 
     await c.stop()
     sub.end()
@@ -94,13 +104,12 @@ describe('BambuMqttConnector.sendCommand', () => {
 
     const c = new BambuMqttConnector(mars, { urlOverride: `mqtt://127.0.0.1:${port}` })
     await c.start(() => {})
-    await new Promise((r) => setTimeout(r, 100))
+    await waitForConnected(c)
 
     await c.sendCommand({ kind: 'setSpeedLevel', level: 3 })
-    await new Promise((r) => setTimeout(r, 100))
+    await waitFor(() => received.some((m) => JSON.parse(m).print?.command === 'print_speed'), 'command print_speed diterima subscriber')
 
     const speedMsg = received.find((m) => JSON.parse(m).print?.command === 'print_speed')
-    expect(speedMsg).toBeTruthy()
     expect(JSON.parse(speedMsg!).print.param).toBe('3')
 
     await c.stop()
@@ -117,7 +126,7 @@ describe('BambuMqttConnector.sendCommand', () => {
   it('command kind yang tak didukung Bambu (mis. setSpeedPercent, punya Moonraker) -> unsupported_command', async () => {
     const c = new BambuMqttConnector(mars, { urlOverride: `mqtt://127.0.0.1:${port}` })
     await c.start(() => {})
-    await new Promise((r) => setTimeout(r, 100))
+    await waitForConnected(c)
     const result = await c.sendCommand({ kind: 'setSpeedPercent', percent: 100 })
     expect(result).toEqual({ ok: false, message: 'unsupported_command' })
     await c.stop()
@@ -132,7 +141,7 @@ describe('BambuMqttConnector.sendCommand', () => {
 
     const c = new BambuMqttConnector(mars, { urlOverride: `mqtt://127.0.0.1:${port}` })
     await c.start(() => {})
-    await new Promise((r) => setTimeout(r, 100))
+    await waitForConnected(c)
 
     const zero = await c.sendCommand({ kind: 'setSpeedLevel', level: 0 as unknown as 1 | 2 | 3 | 4 })
     const five = await c.sendCommand({ kind: 'setSpeedLevel', level: 5 as unknown as 1 | 2 | 3 | 4 })

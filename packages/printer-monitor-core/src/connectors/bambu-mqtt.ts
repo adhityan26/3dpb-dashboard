@@ -57,6 +57,11 @@ export class BambuMqttConnector implements Connector {
     return Promise.resolve()
   }
 
+  /** True hanya selama sesi MQTT ke printer benar-benar hidup (CONNACK diterima, belum putus). */
+  get connected(): boolean {
+    return this.client?.connected ?? false
+  }
+
   async sendCommand(cmd: PrinterCommand): Promise<CommandResult> {
     if (!this.client?.connected) return { ok: false, message: 'printer_offline' }
     const requestTopic = `device/${this.device.serial}/request`
