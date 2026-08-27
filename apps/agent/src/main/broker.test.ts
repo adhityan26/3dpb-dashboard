@@ -70,21 +70,47 @@ describe("startBroker", () => {
     await stopBroker();
   });
 
-  it("berhasil listen di port default 1883, balikin ok:true+port", async () => {
-    const result = await startBroker(1883, PIN);
-    expect(result).toEqual({ ok: true, port: 1883 });
+  // Default 1883 diverifikasi lewat fake server (tanpa bind beneran): bind 1883 asli bikin
+  // test tabrakan dengan app Agent/mosquitto yang kebetulan jalan, atau sesi test paralel
+  // lain di mesin yang sama.
+  it("tanpa port eksplisit minta listen di port default 1883, balikin ok:true+port", async () => {
+    let requestedPort: number | undefined;
+    const fakeServer = new EventEmitter() as unknown as net.Server & EventEmitter;
+    (fakeServer as unknown as { listen: unknown }).listen = (port: number, cb: () => void) => {
+      requestedPort = port;
+      setImmediate(cb);
+      return fakeServer;
+    };
+    (fakeServer as unknown as { address: unknown }).address = () => ({ port: requestedPort });
+    (fakeServer as unknown as { close: unknown }).close = (cb?: () => void) => {
+      cb?.();
+      return fakeServer;
+    };
+    const spy = vi.spyOn(net, "createServer").mockReturnValue(fakeServer);
+    try {
+      const result = await startBroker(undefined, PIN);
+      expect(requestedPort).toBe(1883);
+      expect(result).toEqual({ ok: true, port: 1883 });
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("berhasil listen di port ephemeral (0), balikin ok:true+port aktual dari OS", async () => {
+    const result = await startBroker(0, PIN);
+    expect(result.ok).toBe(true);
+    expect((result as { port: number }).port).toBeGreaterThan(0);
   });
 
   it("balikin ok:false reason:port_in_use kalau port sudah dipakai proses lain", async () => {
-    const first = await startBroker(18830, PIN);
-    expect(first.ok).toBe(true);
-    // startBroker kedua di port SAMA tanpa stop dulu, dari instance server net terpisah — simulasikan EADDRINUSE
-    const net = await import("node:net");
+    // Blocker bind port ephemeral dulu, lalu startBroker diarahkan ke port yang SAMA —
+    // EADDRINUSE deterministik tanpa mengandalkan port fixed yang bisa bentrok antar sesi.
     const blocker = net.createServer();
-    await new Promise<void>((res) => blocker.listen(18831, res));
-    const second = await startBroker(18831, PIN);
+    await new Promise<void>((res) => blocker.listen(0, res));
+    const usedPort = (blocker.address() as { port: number }).port;
+    const second = await startBroker(usedPort, PIN);
     expect(second).toEqual({ ok: false, reason: "port_in_use" });
-    blocker.close();
+    await new Promise<void>((res) => blocker.close(() => res()));
   });
 
   it("listen error SELAIN EADDRINUSE (mis. EACCES) tetap resolve — bukan promise yang tak pernah settle", async () => {
@@ -121,10 +147,11 @@ describe("startBroker", () => {
   });
 
   it("stopBroker() resolve walau ada client MQTT yang masih konek (bukan hang nunggu socket close sendiri)", async () => {
-    const started = await startBroker(18832, PIN);
+    const started = await startBroker(0, PIN);
     expect(started.ok).toBe(true);
+    const brokerPort = (started as { port: number }).port;
 
-    const { socket } = await attemptMqttConnect(18832, "t", { username: "agent", password: PIN });
+    const { socket } = await attemptMqttConnect(brokerPort, "t", { username: "agent", password: PIN });
     expect(socket.destroyed).toBe(false);
 
     const TIMEOUT_MS = 2000;

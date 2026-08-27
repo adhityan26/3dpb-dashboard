@@ -150,12 +150,13 @@ export async function startBroker(port = 1883, pin: string): Promise<BrokerStart
     // Cast eksplisit -- lihat komentar di createAuthenticateHandler soal kenapa parameter
     // client di sini ditype longgar ({conn: Socket}) daripada `Client` resmi aedes.
     aedesInstance.authenticate = createAuthenticateHandler(pin) as typeof aedesInstance.authenticate;
-    server = net.createServer(aedesInstance.handle);
+    const srv = net.createServer(aedesInstance.handle);
+    server = srv;
     // WAJIB settle untuk SEMUA kode error, bukan cuma EADDRINUSE. EACCES (port di rentang
     // excluded Hyper-V/WSL di Windows), EADDRNOTAVAIL, dsb. dulu bikin promise ini tak
     // pernah settle -> `await startBroker()` di bootstrap() menggantung -> crash-guard
     // try/catch/finally Task 10 terlewati total (proses hidup, tanpa window, tanpa IPC).
-    server.once("error", (err: NodeJS.ErrnoException) => {
+    srv.once("error", (err: NodeJS.ErrnoException) => {
       if (err.code === "EADDRINUSE") {
         settle({ ok: false, reason: "port_in_use" });
         return;
@@ -169,7 +170,12 @@ export async function startBroker(port = 1883, pin: string): Promise<BrokerStart
     }, LISTEN_TIMEOUT_MS);
     // Timer tak boleh menahan event loop kalau app mau keluar duluan.
     timer.unref?.();
-    server.listen(port, () => settle({ ok: true, port }));
+    srv.listen(port, () => {
+      // Port aktual dari OS, bukan yang diminta — port 0 (ephemeral, dipakai test supaya
+      // hermetis) baru ketahuan nomornya di sini.
+      const addr = srv.address();
+      settle({ ok: true, port: typeof addr === "object" && addr !== null ? addr.port : port });
+    });
   });
 }
 
