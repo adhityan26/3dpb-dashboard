@@ -1,10 +1,11 @@
 "use client"
 
 import { useRef, useState, useEffect } from "react"
-import { useInvoice, useUpdateInvoice, useAddPayment, useDeletePayment, usePaymentMethods, useInvoiceBankAccount, useInvoiceQris } from "@/lib/hooks/use-invoice"
+import { useInvoice, useUpdateInvoice, useAddPayment, useDeletePayment, usePaymentMethods, useInvoiceBankAccount, useInvoiceQris, useSenderInfo } from "@/lib/hooks/use-invoice"
 import type { QuotationStatus, QuotationItemInput } from "@/lib/invoice/types"
 import QRCode from "qrcode"
 import { buildDynamicQris } from "@/lib/invoice/qris"
+import { printShippingLabel } from "./ShippingLabelPrint"
 
 function fmt(n: number) { return `Rp ${Math.round(n).toLocaleString("id-ID")}` }
 function formatDate(iso: string) {
@@ -58,6 +59,7 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
   const { data: inv, isLoading } = useInvoice(invoiceId)
   const { data: paymentMethods } = usePaymentMethods()
   const { data: bankAccount } = useInvoiceBankAccount()
+  const { data: senderInfo } = useSenderInfo()
   const { data: qrisData } = useInvoiceQris()
   const qris = qrisData?.qris
   const qrisPayload = qrisData?.qrisPayload ?? null
@@ -90,6 +92,7 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
   const [editCatatan, setEditCatatan] = useState("")
   const [editBuyerNama, setEditBuyerNama] = useState("")
   const [editBuyerContact, setEditBuyerContact] = useState("")
+  const [editBuyerAlamat, setEditBuyerAlamat] = useState("")
 
   // Edit mode — global diskon
   const [editDiskonGlobal, setEditDiskonGlobal] = useState(0)
@@ -161,6 +164,7 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
     setEditCatatan(invoice.catatan ?? "")
     setEditBuyerNama(invoice.buyerNama)
     setEditBuyerContact(invoice.buyerContact ?? "")
+    setEditBuyerAlamat(invoice.buyerAlamat ?? "")
     setEditDiskonGlobal(invoice.diskonGlobal ?? 0)
     setEditDiskonGlobalPct(invoice.diskonGlobalPct ?? null)
     setEditDiskonGlobalMode(invoice.diskonGlobalPct != null ? '%' : 'Rp')
@@ -178,6 +182,7 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
       input: {
         buyerNama: editBuyerNama.trim() || invoice.buyerNama,
         buyerContact: editBuyerContact.trim() || null,
+        buyerAlamat: editBuyerAlamat.trim() || null,
         catatan: editCatatan.trim() || null,
         dueDate: editDueDate || null,
         ongkir: ongkirNum,
@@ -236,6 +241,18 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
     } finally { setExportingJpeg(false) }
   }
 
+  function handlePrintLabel() {
+    if (!invoice.buyerAlamat?.trim()) {
+      alert("Alamat penerima belum diisi — edit invoice ini dulu untuk mengisi alamat.")
+      return
+    }
+    if (!senderInfo?.nama?.trim()) {
+      alert("Info pengirim belum diisi — isi dulu di Settings > Info Pengirim.")
+      return
+    }
+    printShippingLabel(invoice, senderInfo)
+  }
+
   function handlePrint() {
     if (!printRef.current) return
     const win = window.open("", "_blank", "width=640,height=900")
@@ -284,6 +301,11 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
               <div className="text-[10px] font-semibold uppercase tracking-wider mb-1 g-accent">No. HP / WA</div>
               <input type="text" value={editBuyerContact} onChange={e => setEditBuyerContact(e.target.value)}
                      placeholder="08xx..." className="glass-input w-full h-9 rounded-[5px] px-3 text-sm" />
+            </div>
+            <div className="col-span-2">
+              <div className="text-[10px] font-semibold uppercase tracking-wider mb-1 g-accent">Alamat Penerima (buat resi)</div>
+              <textarea value={editBuyerAlamat} onChange={e => setEditBuyerAlamat(e.target.value)} rows={3}
+                     placeholder="Jl. ..., Kel. ..., Kec. ..., Kota, Provinsi, Kode Pos" className="glass-input w-full rounded-[5px] px-3 py-2 text-sm resize-none" />
             </div>
             <div>
               <div className="text-[10px] font-semibold uppercase tracking-wider mb-1 g-accent">Due Date</div>
@@ -455,6 +477,11 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
                 className="h-8 px-3 rounded-[5px] text-xs font-semibold"
                 style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t2)" }}>
           {exportingJpeg ? "⋯" : "📸 JPEG"}
+        </button>
+        <button onClick={handlePrintLabel}
+                className="h-8 px-3 rounded-[5px] text-xs font-semibold"
+                style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t2)" }}>
+          📦 Cetak Resi
         </button>
         <button onClick={handlePrint}
                 className="h-8 px-3 rounded-[5px] text-xs font-semibold text-white"

@@ -54,6 +54,7 @@ function toQuotationData(raw: any): QuotationData {
     nomor: raw.nomor,
     buyerNama: raw.buyerNama,
     buyerContact: raw.buyerContact ?? null,
+    buyerAlamat: raw.buyerAlamat ?? null,
     catatan: raw.catatan ?? null,
     status: raw.status,
     tanggal: toIsoString(raw.tanggal)!,
@@ -167,6 +168,7 @@ export async function createQuotation(input: QuotationInput): Promise<QuotationD
       nomor,
       buyerNama: input.buyerNama.trim(),
       buyerContact: input.buyerContact?.trim() ?? null,
+      buyerAlamat: input.buyerAlamat?.trim() ?? null,
       catatan: input.catatan?.trim() ?? null,
       tanggal: input.tanggal ? new Date(input.tanggal) : new Date(),
       dueDate: input.dueDate ? new Date(input.dueDate) : null,
@@ -196,6 +198,7 @@ export async function updateQuotation(id: string, input: UpdateQuotationInput): 
   const updateData: any = {}
   if (input.buyerNama !== undefined) updateData.buyerNama = input.buyerNama.trim()
   if (input.buyerContact !== undefined) updateData.buyerContact = input.buyerContact?.trim() ?? null
+  if (input.buyerAlamat !== undefined) updateData.buyerAlamat = input.buyerAlamat?.trim() ?? null
   if (input.catatan !== undefined) updateData.catatan = input.catatan?.trim() ?? null
   if (input.dueDate !== undefined) updateData.dueDate = input.dueDate ? new Date(input.dueDate) : null
   if (input.ongkir !== undefined) updateData.ongkir = input.ongkir

@@ -5,7 +5,9 @@ import {
   usePaymentMethods, useUpdatePaymentMethods,
   useInvoiceBankAccount, useUpdateInvoiceBankAccount,
   useInvoiceQris, useUpdateInvoiceQris,
+  useSenderInfo, useUpdateSenderInfo,
 } from "@/lib/hooks/use-invoice"
+import type { SenderInfo } from "@/lib/invoice/types"
 
 export function InvoiceMethodsCard() {
   const { data: methods, isLoading } = usePaymentMethods()
@@ -22,15 +24,29 @@ export function InvoiceMethodsCard() {
   const [qrisErr, setQrisErr] = useState<string | null>(null)
   const [qrisWarn, setQrisWarn] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
+  const { data: senderInfo } = useSenderInfo()
+  const updateSenderMut = useUpdateSenderInfo()
+  const [senderDraft, setSenderDraft] = useState<SenderInfo>({ nama: "", telepon: "", alamat: "" })
+  const [senderSaved, setSenderSaved] = useState(false)
 
   useEffect(() => {
     if (bankAccount !== undefined) setBankDraft(bankAccount)
   }, [bankAccount])
 
+  useEffect(() => {
+    if (senderInfo !== undefined) setSenderDraft(senderInfo)
+  }, [senderInfo])
+
   async function handleSaveBank() {
     await updateBankMut.mutateAsync(bankDraft)
     setBankSaved(true)
     setTimeout(() => setBankSaved(false), 1500)
+  }
+
+  async function handleSaveSender() {
+    await updateSenderMut.mutateAsync(senderDraft)
+    setSenderSaved(true)
+    setTimeout(() => setSenderSaved(false), 1500)
   }
 
   async function handleQrisFile(file: File) {
@@ -129,6 +145,53 @@ export function InvoiceMethodsCard() {
         >
           + Tambah
         </button>
+      </div>
+
+      {/* Sender info — shown as the "dari" block on printed shipping labels */}
+      <div className="pt-4 border-t" style={{ borderColor: "var(--g-border, rgba(255,255,255,0.08))" }}>
+        <div className="flex items-center justify-between mb-2">
+          <div>
+            <div className="text-sm font-semibold g-t1">📦 Info Pengirim</div>
+            <div className="text-xs mt-0.5 g-t4">Ditampilkan di cetak resi manual sebagai alamat pengirim</div>
+          </div>
+          {senderSaved && <span className="text-xs font-semibold" style={{ color: "#34d399" }}>✓ Tersimpan</span>}
+        </div>
+        <div className="space-y-2">
+          <input
+            type="text"
+            value={senderDraft.nama}
+            onChange={e => setSenderDraft(s => ({ ...s, nama: e.target.value }))}
+            placeholder="Nama toko"
+            className="glass-input w-full h-9 rounded-[5px] px-3 text-sm"
+          />
+          <input
+            type="text"
+            value={senderDraft.telepon}
+            onChange={e => setSenderDraft(s => ({ ...s, telepon: e.target.value }))}
+            placeholder="No. telepon"
+            className="glass-input w-full h-9 rounded-[5px] px-3 text-sm"
+          />
+          <textarea
+            value={senderDraft.alamat}
+            onChange={e => setSenderDraft(s => ({ ...s, alamat: e.target.value }))}
+            rows={2}
+            placeholder="Alamat pengirim"
+            className="glass-input w-full rounded-[5px] px-3 py-2 text-sm"
+          />
+        </div>
+        <div className="flex justify-end mt-2">
+          <button
+            onClick={handleSaveSender}
+            disabled={JSON.stringify(senderDraft) === JSON.stringify(senderInfo ?? { nama: "", telepon: "", alamat: "" }) || updateSenderMut.isPending}
+            className="h-9 px-4 rounded-[5px] text-sm font-semibold"
+            style={{
+              background: JSON.stringify(senderDraft) !== JSON.stringify(senderInfo ?? { nama: "", telepon: "", alamat: "" }) ? "linear-gradient(135deg, #5055e8, #7c84f8)" : "var(--g-inner)",
+              color: JSON.stringify(senderDraft) !== JSON.stringify(senderInfo ?? { nama: "", telepon: "", alamat: "" }) ? "white" : "var(--g-t4)",
+            }}
+          >
+            Simpan Info Pengirim
+          </button>
+        </div>
       </div>
 
       {/* Bank account — shown on printed invoice */}

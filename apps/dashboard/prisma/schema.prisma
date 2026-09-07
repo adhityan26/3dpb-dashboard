@@ -378,6 +378,7 @@ model Quotation {
   nomor         String           @unique // e.g. INV-20260514-001
   buyerNama     String
   buyerContact  String?
+  buyerAlamat   String? // alamat pengiriman, dipakai buat cetak resi manual
   catatan       String?
   status        String           @default("DRAFT") // DRAFT|SENT|PAID|PARTIAL|CANCELLED
   tanggal       DateTime         @default(now())

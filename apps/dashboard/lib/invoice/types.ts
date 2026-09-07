@@ -33,6 +33,7 @@ export interface QuotationData {
   nomor: string
   buyerNama: string
   buyerContact: string | null
+  buyerAlamat: string | null // alamat pengiriman, dipakai buat cetak resi manual
   catatan: string | null
   status: QuotationStatus
   tanggal: string
@@ -66,6 +67,7 @@ export interface QuotationInput {
   tanggal?: string | null      // for backdating; null = today
   buyerNama: string
   buyerContact?: string | null
+  buyerAlamat?: string | null
   catatan?: string | null
   dueDate?: string | null
   ongkir?: number
@@ -78,6 +80,7 @@ export interface QuotationInput {
 export interface UpdateQuotationInput {
   buyerNama?: string
   buyerContact?: string | null
+  buyerAlamat?: string | null
   catatan?: string | null
   dueDate?: string | null
   ongkir?: number
@@ -117,4 +120,12 @@ export interface OrderPrefill {
   buyerUsername: string  // used as initial buyerNama
   items: { namaProduk: string; qty: number; hargaPerUnit: number }[]
   totalAmount: number
+}
+
+// Toko/pengirim — dipakai sebagai blok "dari" di label resi manual. Disimpan di
+// Config (key-value) via app/api/settings/sender-info, bukan tabel sendiri.
+export interface SenderInfo {
+  nama: string
+  telepon: string
+  alamat: string
 }

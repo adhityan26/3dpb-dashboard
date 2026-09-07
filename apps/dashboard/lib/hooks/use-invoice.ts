@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type {
-  QuotationData, QuotationListItem, QuotationInput, UpdateQuotationInput, AddPaymentInput
+  QuotationData, QuotationListItem, QuotationInput, UpdateQuotationInput, AddPaymentInput, SenderInfo
 } from '@/lib/invoice/types'
 
 const METHODS_KEY = ['invoice', 'payment-methods'] as const
@@ -48,6 +48,29 @@ export function useUpdateInvoiceBankAccount() {
         body: JSON.stringify({ bankAccount }),
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: BANK_KEY }),
+  })
+}
+
+const SENDER_INFO_KEY = ['invoice', 'sender-info'] as const
+
+export function useSenderInfo() {
+  return useQuery({
+    queryKey: SENDER_INFO_KEY,
+    queryFn: () => apiFetch<{ senderInfo: SenderInfo }>('/api/settings/sender-info').then(r => r.senderInfo),
+    staleTime: 60_000,
+  })
+}
+
+export function useUpdateSenderInfo() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (senderInfo: SenderInfo) =>
+      apiFetch<{ senderInfo: SenderInfo }>('/api/settings/sender-info', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(senderInfo),
+      }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: SENDER_INFO_KEY }),
   })
 }
 

@@ -29,6 +29,7 @@ vi.mock("@/lib/hooks/use-invoice", () => ({
   useInvoice: () => ({ data: mockInvoice, isLoading: false }),
   usePaymentMethods: () => ({ data: [] }),
   useInvoiceBankAccount: () => ({ data: null }),
+  useSenderInfo: () => ({ data: { nama: "Toko Test", telepon: "0812", alamat: "Jl. Test" } }),
   useInvoiceQris: vi.fn(),
   useUpdateInvoice: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useAddPayment: () => ({ mutateAsync: vi.fn(), isPending: false }),

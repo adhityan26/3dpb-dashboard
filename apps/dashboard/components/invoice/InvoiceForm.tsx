@@ -40,6 +40,7 @@ export function InvoiceForm({ onClose, onCreated, orderPrefill }: Props) {
 
   const [buyerNama, setBuyerNama] = useState(orderPrefill?.buyerUsername ?? "")
   const [buyerContact, setBuyerContact] = useState("")
+  const [buyerAlamat, setBuyerAlamat] = useState("")
   const [dueDate, setDueDate] = useState("")
   const [catatan, setCatatan] = useState("")
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10))
@@ -140,6 +141,7 @@ export function InvoiceForm({ onClose, onCreated, orderPrefill }: Props) {
         tanggal: tanggal || null,
         buyerNama: buyerNama.trim(),
         buyerContact: buyerContact.trim() || null,
+        buyerAlamat: buyerAlamat.trim() || null,
         catatan: catatan.trim() || null,
         dueDate: dueDate || null,
         shopeeOrderSn: orderPrefill?.shopeeOrderSn ?? null,
@@ -197,6 +199,11 @@ export function InvoiceForm({ onClose, onCreated, orderPrefill }: Props) {
               <div className={`${fieldLabel} g-accent`}>No. HP / WA (opsional)</div>
               <input type="text" value={buyerContact} onChange={e => setBuyerContact(e.target.value)}
                 placeholder="08xx..." className="glass-input w-full h-10 rounded-[5px] px-3 text-sm" />
+            </div>
+            <div className="col-span-2">
+              <div className={`${fieldLabel} g-accent`}>Alamat Penerima (opsional, buat resi)</div>
+              <textarea value={buyerAlamat} onChange={e => setBuyerAlamat(e.target.value)} rows={2}
+                placeholder="Jl. ..., Kel. ..., Kec. ..., Kota, Provinsi, Kode Pos" className="glass-input w-full rounded-[5px] px-3 py-2 text-sm resize-none" />
             </div>
             <div>
               <div className={`${fieldLabel} g-accent`}>Tanggal Invoice</div>
