@@ -10,3 +10,4 @@ export * from "./file-manager/types";
 export * from "./file-manager/bambu-ftps-client";
 export * from "./file-manager/threemf-parser";
 export * from "./file-manager/thumbnail";
+export * from "./saas-client";
