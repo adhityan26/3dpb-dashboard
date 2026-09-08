@@ -3,15 +3,20 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "test": "vitest run" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run"
+  },
   "dependencies": {
+    "@3pb/cyd-layout-schema": "workspace:*",
     "@3pb/printer-monitor-core": "workspace:*",
-    "@3pb/cyd-layout-schema": "workspace:*"
+    "bonjour-service": "^1.4.4"
   },
   "devDependencies": {
+    "@types/node": "^22",
     "typescript": "^5",
-    "vitest": "^1.6.1",
-    "@types/node": "^22"
+    "vitest": "^1.6.1"
   }
 }
