@@ -34,8 +34,8 @@ describe("suggestModelFromSsdp", () => {
 
 describe("matchDeviceByName", () => {
   const devices = [
-    { id: "d1", shortCode: "abc1234567", userId: "u1", label: "Neptune", printerType: "bambu", model: null, createdAt: "x", updatedAt: "y" },
-    { id: "d2", shortCode: "def1234567", userId: "u1", label: "Moon", printerType: "bambu", model: null, createdAt: "x", updatedAt: "y" },
+    { shortCode: "abc1234567", label: "Neptune" },
+    { shortCode: "def1234567", label: "Moon" },
   ];
 
   it("cocok walau beda kapitalisasi/spasi", () => {
