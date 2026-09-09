@@ -1,4 +1,4 @@
-import { prisma } from '@/lib/prisma'
+import { prisma } from '@/lib/db'
 import { buildTitle, buildPostContent, parseDueDate, parseAmount, appendNoteWithTimestamp } from './format'
 import { createRelayThread, editRelayThread, archiveRelayThread } from './discord-sync'
 

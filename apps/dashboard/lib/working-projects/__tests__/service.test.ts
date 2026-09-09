@@ -4,7 +4,7 @@ vi.mock('../discord-sync', () => ({
   editRelayThread: vi.fn(),
   archiveRelayThread: vi.fn(),
 }))
-vi.mock('@/lib/prisma', () => ({
+vi.mock('@/lib/db', () => ({
   prisma: {
     workingProject: {
       create: vi.fn(),
@@ -15,7 +15,7 @@ vi.mock('@/lib/prisma', () => ({
 }))
 import { createWorkingProject, setStatus, updateWorkingProject, resyncWorkingProject, runChecklistOp } from '../service'
 import { createRelayThread, editRelayThread } from '../discord-sync'
-import { prisma } from '@/lib/prisma'
+import { prisma } from '@/lib/db'
 
 beforeEach(() => {
   vi.clearAllMocks()
