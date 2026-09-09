@@ -4,7 +4,6 @@ import { createTray } from './tray'
 import { attachHideOnClose } from './window-lifecycle'
 import { AgentRuntime, loadOrCreateConfig } from '@3pb/agent-core'
 import { registerIpcHandlers } from './ipc'
-import { initRuntime } from './app-state'
 import { SafeStorageCredentialStore, ElectronPathProvider, ElectronLogAdapter, getElectronBuildInfo, ElectronLogFileProvider } from './platform-electron'
 import log from 'electron-log/main'
 
@@ -47,13 +46,12 @@ async function bootstrap(): Promise<void> {
     saasBaseUrl: config.saasBaseUrl,
     updatePlatform,
   })
-  initRuntime(runtime)
   try {
     await runtime.start()
   } catch (err) {
     logger.error('[agent] runtime.start() gagal total', err)
   } finally {
-    registerIpcHandlers(config)
+    registerIpcHandlers(runtime)
   }
 }
 

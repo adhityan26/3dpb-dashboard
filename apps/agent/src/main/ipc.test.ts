@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AgentRuntime, InMemoryCredentialStore, type CredentialBlob } from "@3pb/agent-core";
-import { initRuntime } from "./app-state";
 
 // ---------------------------------------------------------------------------------------
 // Mock strategy (rewritten for Task 11): ipc.ts no longer imports any individual
@@ -137,8 +136,7 @@ function setupHandlers(
     saasBaseUrl: baseUrl,
     updatePlatform: "win",
   });
-  initRuntime(runtime);
-  registerIpcHandlers({ saasBaseUrl: baseUrl });
+  registerIpcHandlers(runtime);
 
   const handlers: Record<string, (...args: unknown[]) => unknown> = {};
   for (const call of vi.mocked(ipcMain.handle).mock.calls) {

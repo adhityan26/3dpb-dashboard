@@ -1,14 +1,11 @@
 import { ipcMain, shell, dialog } from "electron";
-import { AgentService } from "@3pb/agent-core";
-import { getRuntime } from "./app-state";
+import { AgentService, type AgentRuntime } from "@3pb/agent-core";
 import type { DeviceSecret } from "@3pb/agent-core";
-import type { AgentConfig } from "@3pb/agent-core";
 import type { PrinterCommand } from "@3pb/printer-monitor-core";
 
 export type { ActivationState, SyncResult, UpdateDeviceModelResult } from "@3pb/agent-core";
 
-export function registerIpcHandlers(_config: AgentConfig): void {
-  const runtime = getRuntime();
+export function registerIpcHandlers(runtime: AgentRuntime): void {
   const service = new AgentService(runtime);
   const baseUrl = runtime.saasBaseUrl;
 
