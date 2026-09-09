@@ -6,7 +6,7 @@ import { randomUUID } from "node:crypto";
 import JSZip from "jszip";
 import {
   loadCredentials, saveCredentials, type DeviceSecret,
-  fetchDevices, patchDeviceModel, type SaasDevice, type SaasFailKind,
+  fetchDevices, patchDeviceModel,
   uploadLogs,
   scanBambu, scanMoonraker,
   BambuFtpsClient, parseThreemf, type PlateInfo, type PrinterFileEntry,
@@ -21,6 +21,9 @@ import { SafeStorageCredentialStore, ElectronPathProvider, ElectronLogAdapter, E
 import type { CommandResult, PrinterCommand } from "@3pb/printer-monitor-core";
 import type { AgentConfig } from "@3pb/agent-core";
 
+// Re-export types from agent-core for preload/renderer compatibility
+export type { ActivationState, SyncResult, UpdateDeviceModelResult } from "@3pb/agent-core";
+
 // Instance singleton -- dibangun sekali per proses Electron, dioper eksplisit ke tiap
 // pemanggilan fungsi core (functions module-level di agent-core TIDAK menyimpan state ini
 // sendiri, semua dependency lewat parameter -- Plan A, lihat spec).
@@ -29,23 +32,6 @@ const pathProvider = new ElectronPathProvider();
 const logger = new ElectronLogAdapter();
 const logFileProvider = new ElectronLogFileProvider();
 const buildInfo = getElectronBuildInfo();
-
-// Dipertahankan (tak ada di kode contoh brief task-14, tapi preload/index.ts +
-// renderer/screens/DashboardScreen.tsx MASIH mengimpor tipe-tipe ini dari "./ipc" -- kalau
-// dihapus, tsc --noEmit gagal di file-file itu meski ipc.ts sendiri lulus. Bentuknya identik
-// dengan definisi lama, cuma dipindah tetap di sini karena ini murni tipe return handler IPC
-// lokal, bukan bagian dari kontrak @3pb/agent-core).
-export interface ActivationState {
-  hasToken: boolean;
-  devices: SaasDevice[];
-  pairedShortCodes: string[];
-}
-
-export type UpdateDeviceModelResult = { ok: boolean; kind?: "invalid_model" };
-
-export type SyncResult =
-  | { ok: true; deviceCount: number }
-  | { ok: false; kind: SaasFailKind | "engine_error" | "broker_unavailable" };
 
 export function registerIpcHandlers(config: AgentConfig): void {
   const baseUrl = config.saasBaseUrl;

@@ -18,3 +18,4 @@ export * from "./startup";
 export * from "./local-network";
 export * from "./pin-rate-limiter";
 export * from "./local-broker";
+export * from "./agent-service-types";
