@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { GlassCard, GlassButton } from "@3pb/ui";
-import type { PrinterFileEntry } from "../../main/file-manager/types";
+import type { PrinterFileEntry } from "@3pb/agent-core";
 
 interface FileManagerPanelProps {
   shortCode: string;

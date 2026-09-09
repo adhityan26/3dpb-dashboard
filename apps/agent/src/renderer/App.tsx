@@ -3,7 +3,7 @@ import { AgentShell } from './AgentShell'
 import { ActivationScreen } from './screens/ActivationScreen'
 import { PairingScreen } from './screens/PairingScreen'
 import { DashboardScreen } from './screens/DashboardScreen'
-import type { SaasDevice } from '../main/saas-client'
+import type { SaasDevice } from '@3pb/agent-core'
 
 type Step = 'loading' | 'activation' | 'pairing' | 'dashboard'
 

@@ -1,12 +1,7 @@
 import { contextBridge, ipcRenderer, webUtils } from "electron";
-import type { DeviceSecret } from "../main/credential-store";
-import type { FetchResult, SaasDevice } from "../main/saas-client";
-import type { ScanResult } from "../main/discovery/bambu-ssdp";
-import type { DiscoveredMoonrakerPrinter } from "../main/discovery/moonraker-mdns";
+import type { DeviceSecret, FetchResult, SaasDevice, ScanResult, DiscoveredMoonrakerPrinter, PrinterFileEntry, PlateInfo } from "@3pb/agent-core";
 import type { PrintersPayload, PrinterCommand, CommandResult } from "@3pb/printer-monitor-core";
 import type { ActivationState, SyncResult, UpdateDeviceModelResult } from "../main/ipc";
-import type { PrinterFileEntry } from "../main/file-manager/types";
-import type { PlateInfo } from "../main/file-manager/threemf-parser";
 
 // Tipe return tiap method di-anotasi EKSPLISIT (bukan cuma `typeof agentApi` inherit
 // `Promise<any>` dari `ipcRenderer.invoke`) — dan HARUS persis cocok dengan tipe return

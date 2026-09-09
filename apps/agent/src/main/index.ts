@@ -3,16 +3,18 @@ import { createWindow, disableApplicationMenu } from './window'
 import { createTray } from './tray'
 import { attachHideOnClose } from './window-lifecycle'
 import { startBroker } from './broker'
-import { buildPairedDevices } from './startup'
-import { startEngine } from './engine-manager'
-import { publishLayout } from './layout-publisher'
-import { loadCredentials, ensureBrokerPin, tryLoadCredentials } from './credential-store'
+import { buildPairedDevices, ensureBrokerPin, loadCredentials, fetchLatestVersion, listLocalIpCandidates, loadOrCreateConfig } from '@3pb/agent-core'
+import { startEngine } from '@3pb/agent-core'
+import { publishLayout } from '@3pb/agent-core'
 import { registerIpcHandlers } from './ipc'
-import { saasBaseUrl, fetchLatestVersion } from './saas-client'
-import { setEngine, setBrokerPort, setBrokerPin, setReporters, setUpdateAvailable, setCredentialStoreDegraded, listLocalIpCandidates } from './app-state'
-import log from 'electron-log/main'
+import { setEngine, setBrokerPort, setBrokerPin, setReporters, setUpdateAvailable, setCredentialStoreDegraded } from './app-state'
+import { SafeStorageCredentialStore, ElectronPathProvider, ElectronLogAdapter, getElectronBuildInfo } from './platform-electron'
 
 const gotLock = app.requestSingleInstanceLock()
+const credentialStore = new SafeStorageCredentialStore()
+const pathProvider = new ElectronPathProvider()
+const logger = new ElectronLogAdapter()
+const buildInfo = getElectronBuildInfo()
 
 let mainWindow: BrowserWindow | null = null
 // App ini dirancang jalan terus di background (broker MQTT + monitoring printer harus tetap
@@ -25,7 +27,7 @@ let isQuitting = false
  * engine (kalau ada device paired) -> publish layout -> registerIpcHandlers (sebelum
  * createWindow, karena renderer bisa langsung panggil IPC begitu window muncul).
  *
- * `registerIpcHandlers()` HARUS jalan tepat SEKALI, apa pun yang terjadi di atasnya —
+ * `registerIpcHandlers(config)` HARUS jalan tepat SEKALI, apa pun yang terjadi di atasnya —
  * makanya dia satu-satunya panggilan, di `finally`, bukan diulang di tiap early-return.
  * Kalau tidak, device yang belum di-pairing dengan benar (mis. accessCode kosong bikin
  * `BambuMqttConnector` throw di `startEngine`) bisa reject seluruh `bootstrap()` dan
@@ -33,21 +35,15 @@ let isQuitting = false
  * `app.on('ready', ...)` di bawah yang menjamin `createWindow()` tetap jalan.
  */
 async function bootstrap(): Promise<void> {
+  const config = await loadOrCreateConfig(pathProvider, process.env.SAAS_BASE_URL)
   try {
-    log.initialize()
-    log.errorHandler.startCatching() // uncaught exceptions + unhandled rejections -> log file automatically
-    Object.assign(console, log.functions) // route console.log/console.error/etc through electron-log too, so uploaded logs actually contain startup diagnostics (SaaS base URL, LAN IP candidates) instead of being near-empty
-    // Diagnostik startup: base URL SaaS di-inject saat BUILD (define di
-    // electron.vite.config.ts). Kalau kosong, SEMUA panggilan SaaS bakal balik
-    // "network_error" generik yang mustahil dibedakan dari internet mati — jadi
-    // salah-konfigurasi build harus berteriak di sini, sekali, dengan jelas.
-    const base = saasBaseUrl()
+    const base = config.saasBaseUrl
     if (base) {
       console.log(`[agent] SaaS base URL: ${base}`)
     } else {
-      log.error(
+      logger.error(
         '[agent] SAAS_BASE_URL KOSONG — build ini tak tahu harus menghubungi server Slizebiz yang mana. ' +
-          'Aktivasi/sync/layout PASTI gagal ("network_error"). Rebuild dengan SAAS_BASE_URL=<url> di environment build.',
+          'Aktivasi/sync/layout PASTI gagal ("network_error"). Cek config.json di direktori data aplikasi.',
       )
     }
     // Alamat ini yang diketik user ke captive-portal WiFi CYD; catat SEMUA kandidat biar
@@ -60,41 +56,41 @@ async function bootstrap(): Promise<void> {
     // (user seolah belum pernah aktivasi) DAN ensureBrokerPin() di bawah jatuh ke PIN
     // session-only (berubah tiap restart) -- flag ini yang bikin AgentShell bisa kasih
     // tahu user, bukan diam total seperti sebelumnya.
-    const credentialStoreOutcome = tryLoadCredentials()
-    setCredentialStoreDegraded(!credentialStoreOutcome.ok)
-    if (!credentialStoreOutcome.ok) {
-      log.error('[agent] penyimpanan kredensial lokal bermasalah (safeStorage tak tersedia atau file gagal didekripsi) -- PIN broker session-only, minta user restart/cek support')
+    const credentialResult = await credentialStore.load()
+    setCredentialStoreDegraded(credentialResult.status === 'degraded')
+    if (credentialResult.status === 'degraded') {
+      logger.error('[agent] penyimpanan kredensial lokal bermasalah (safeStorage tak tersedia atau file gagal didekripsi) -- PIN broker session-only, minta user restart/cek support')
     }
 
     // PIN diresolusi SEBELUM broker start -- authenticate handler broker.ts butuh PIN final
     // di tangan pas server.listen() dipanggil, tak bisa dipasang belakangan.
-    const brokerPin = await ensureBrokerPin()
+    const brokerPin = await ensureBrokerPin(credentialStore, logger)
     setBrokerPin(brokerPin)
 
     const brokerResult = await startBroker(1883, brokerPin)
     if (!brokerResult.ok) {
-      log.error(
+      logger.error(
         `[agent] broker MQTT lokal gagal start (${brokerResult.reason}) — monitoring lokal tak akan jalan`,
       )
       return
     }
     setBrokerPort(brokerResult.port)
 
-    const paired = await buildPairedDevices()
+    const paired = await buildPairedDevices(base, credentialStore, pathProvider, buildInfo, logger)
     if (paired.length > 0) {
-      const started = await startEngine(paired, brokerResult.port, brokerPin)
+      const started = await startEngine(paired, brokerResult.port, brokerPin, logger)
       setEngine(started.engine)
       setReporters(started.reporters) // dilacak biar agent:sync bisa nutupnya pas ganti Engine
     }
 
-    const blob = await loadCredentials()
+    const blob = await loadCredentials(credentialStore)
     if (blob.agentToken) {
-      await publishLayout(blob.agentToken, brokerResult.port, "default", brokerPin)
+      await publishLayout(base, blob.agentToken, brokerResult.port, "default", brokerPin, logger)
     }
   } catch (err) {
-    log.error('[agent] bootstrap gagal di tengah jalan (broker/engine/layout) — IPC tetap didaftarkan biar renderer bisa recover', err)
+    logger.error('[agent] bootstrap gagal di tengah jalan (broker/engine/layout) — IPC tetap didaftarkan biar renderer bisa recover', err)
   } finally {
-    registerIpcHandlers()
+    registerIpcHandlers(config)
   }
 }
 
@@ -105,11 +101,12 @@ async function bootstrap(): Promise<void> {
  * not from inside it.
  */
 async function startUpdateChecks(): Promise<void> {
-  const blob = await loadCredentials()
+  const blob = await loadCredentials(credentialStore)
   if (!blob.agentToken) return
+  const config = await loadOrCreateConfig(pathProvider, process.env.SAAS_BASE_URL)
   const platform = process.platform === 'darwin' ? 'mac' : 'win'
   const check = async () => {
-    const result = await fetchLatestVersion(blob.agentToken!, platform)
+    const result = await fetchLatestVersion(config.saasBaseUrl, blob.agentToken!, platform, buildInfo, logger)
     if (result.ok) setUpdateAvailable(result.data.updateAvailable)
   }
   await check()
@@ -137,13 +134,13 @@ if (!gotLock) {
   app.on('ready', async () => {
     try {
       await bootstrap()
-      void startUpdateChecks().catch((err) => log.error('[agent] update check gagal', err))
+      void startUpdateChecks().catch((err) => logger.error('[agent] update check gagal', err))
     } catch (err) {
       // Pertahanan lapis kedua: bootstrap() sendiri sudah menangkap error internalnya
       // dan selalu registerIpcHandlers() di finally, tapi kalau registerIpcHandlers()
       // ITU SENDIRI yang throw (mis. re-registrasi channel), jangan sampai window juga
       // gagal muncul — window HARUS selalu dibuat.
-      log.error('[agent] bootstrap gagal total', err)
+      logger.error('[agent] bootstrap gagal total', err)
     } finally {
       disableApplicationMenu()
       mainWindow = createWindow()

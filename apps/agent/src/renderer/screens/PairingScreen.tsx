@@ -1,10 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import type { SaasDevice } from "../../main/saas-client";
-import type { DiscoveredBambuPrinter } from "../../main/discovery/bambu-ssdp";
-import type { DiscoveredMoonrakerPrinter } from "../../main/discovery/moonraker-mdns";
+import type { SaasDevice, DiscoveredBambuPrinter, DiscoveredMoonrakerPrinter } from "@3pb/agent-core";
 import { AgentShell } from "../AgentShell";
 import { GlassButton, GlassCard, GlassInput } from "@3pb/ui";
-import { suggestModelFromSsdp, matchDeviceByName } from "../../main/printer-model";
+import { suggestModelFromSsdp, matchDeviceByName } from "@3pb/agent-core";
 import { LAYOUT_LIMITS } from "@3pb/cyd-layout-schema";
 
 // Kartu mana yang harus menampilkan form pairing inline -- "device" = baris di kolom Device

@@ -58,3 +58,39 @@ describe("SafeStorageCredentialStore.save", () => {
     expect(fs.writeFileSync).toHaveBeenCalled();
   });
 });
+
+vi.mock("electron-log/main", () => ({
+  default: {
+    info: vi.fn(), warn: vi.fn(), error: vi.fn(),
+    transports: { file: { getFile: () => ({ path: "/fake/logs/agent.log" }) } },
+  },
+}));
+
+import { ElectronPathProvider, ElectronLogAdapter, ElectronLogFileProvider, getElectronBuildInfo } from "./platform-electron";
+import log from "electron-log/main";
+
+describe("ElectronPathProvider", () => {
+  it("userDataDir() delegasi ke app.getPath('userData')", () => {
+    expect(new ElectronPathProvider().userDataDir()).toBe("/fake/userdata");
+  });
+});
+
+describe("ElectronLogAdapter", () => {
+  it("info/warn/error delegasi ke electron-log", () => {
+    const adapter = new ElectronLogAdapter();
+    adapter.error("test", { detail: 1 });
+    expect(log.error).toHaveBeenCalledWith("test", { detail: 1 });
+  });
+});
+
+describe("ElectronLogFileProvider", () => {
+  it("getLogFilePath() delegasi ke electron-log transport", () => {
+    expect(new ElectronLogFileProvider().getLogFilePath()).toBe("/fake/logs/agent.log");
+  });
+});
+
+describe("getElectronBuildInfo", () => {
+  it("fallback ke 0.0.0/nogit di luar build sungguhan (define tak ada)", () => {
+    expect(getElectronBuildInfo()).toEqual({ version: "0.0.0", commitHash: "nogit" });
+  });
+});

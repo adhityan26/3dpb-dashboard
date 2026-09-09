@@ -19,16 +19,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // sumbernya ke dalam bundle main. `aedes`/`bonjour-service`/`mqtt` sebaliknya TETAP
 // external: paket npm dengan entry JS terkompilasi, lebih aman di-resolve dari
 // node_modules (dan tak perlu ikut di-bundle).
-const WORKSPACE_TS_PACKAGES = ['@3pb/printer-monitor-core', '@3pb/cyd-layout-schema']
-
-// Base URL SaaS di-inject SAAT BUILD (design spec: konfigurasi build-time, bukan setting
-// yang di-expose ke user awam). Tanpa ini, di app terpaket `process.env.SAAS_BASE_URL`
-// selalu undefined -> semua fetch jadi path relatif -> setiap panggilan SaaS (aktivasi,
-// devices, layout) gagal jadi "network_error" tanpa jejak diagnostik.
-// Override saat build:
-//   SAAS_BASE_URL=http://192.168.88.113:3300 pnpm --filter @3pb/agent build
-const DEFAULT_SAAS_BASE_URL = 'https://app.slizebiz.com'
-const saasBaseUrl = process.env.SAAS_BASE_URL ?? DEFAULT_SAAS_BASE_URL
+const WORKSPACE_TS_PACKAGES = ['@3pb/agent-core', '@3pb/printer-monitor-core', '@3pb/cyd-layout-schema']
 
 // Versi app (package.json) di-inject saat build sama seperti SAAS_BASE_URL -- dikirim lewat
 // header X-Agent-Version di tiap request ke SaaS (saas-client.ts), dicatat server-side
@@ -55,7 +46,6 @@ export default defineConfig({
   main: {
     plugins: [externalizeDepsPlugin({ exclude: WORKSPACE_TS_PACKAGES })],
     define: {
-      __SAAS_BASE_URL__: JSON.stringify(saasBaseUrl),
       __AGENT_VERSION__: JSON.stringify(agentVersion),
       __AGENT_COMMIT_HASH__: JSON.stringify(commitHash)
     }
