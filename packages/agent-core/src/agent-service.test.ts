@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { readFile, rm, stat } from "node:fs/promises";
 import { AgentService } from "./agent-service";
 import { AgentRuntime } from "./agent-runtime";
 import { InMemoryCredentialStore } from "./in-memory-credential-store";
@@ -8,8 +9,14 @@ import * as discovery2 from "./discovery/moonraker-mdns";
 import * as startup from "./startup";
 import * as engineManager from "./engine-manager";
 import * as layoutPublisher from "./layout-publisher";
+import * as bambuFtpsClient from "./file-manager/bambu-ftps-client";
 import type { PathProvider, Logger, LogFileProvider, BuildInfo } from "./interfaces";
 
+vi.mock("node:fs/promises", () => ({ readFile: vi.fn(), rm: vi.fn(), stat: vi.fn(), writeFile: vi.fn() }));
+vi.mock("./file-manager/bambu-ftps-client", async () => {
+  const actual = await vi.importActual<typeof import("./file-manager/bambu-ftps-client")>("./file-manager/bambu-ftps-client");
+  return { ...actual, BambuFtpsClient: vi.fn() };
+});
 vi.mock("./saas-client", async () => {
   const actual = await vi.importActual<typeof import("./saas-client")>("./saas-client");
   return { ...actual, fetchDevices: vi.fn(), patchDeviceModel: vi.fn() };
@@ -226,5 +233,56 @@ describe("AgentService.sync", () => {
 
     expect(result).toEqual({ ok: true, deviceCount: 0 });
     expect(logger.error).toHaveBeenCalled();
+  });
+});
+
+describe("AgentService.sendLogs", () => {
+  it("tanpa agentToken -> no_token", async () => {
+    const { service } = makeFixture();
+    expect(await service.sendLogs()).toEqual({ ok: false, reason: "no_token" });
+  });
+
+  it("logFileProvider tidak punya path -> read_failed", async () => {
+    const { service } = makeFixture(new InMemoryCredentialStore({ agentToken: "tok", devices: {}, brokerPin: undefined }));
+    expect(await service.sendLogs()).toEqual({ ok: false, reason: "read_failed" });
+  });
+
+  it("file lebih besar dari 5MB -> too_large", async () => {
+    const store = new InMemoryCredentialStore({ agentToken: "tok", devices: {}, brokerPin: undefined });
+    const pathProvider = { userDataDir: () => "/fake" };
+    const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+    const runtime = new AgentRuntime({
+      credentialStore: store, pathProvider, logger,
+      logFileProvider: { getLogFilePath: () => "/fake/agent.log" },
+      buildInfo: { version: "0.0.1", commitHash: "abc" },
+      saasBaseUrl: "http://test.example.com", updatePlatform: "win",
+    });
+    const service = new AgentService(runtime);
+    vi.mocked(stat).mockResolvedValue({ size: 6 * 1024 * 1024 } as never);
+    expect(await service.sendLogs()).toEqual({ ok: false, reason: "too_large" });
+  });
+});
+
+describe("AgentService.getFileClientFor (via listFiles)", () => {
+  it("device tak terpasang -> throw device_not_found", async () => {
+    const { service } = makeFixture();
+    await expect(service.listFiles("UNKNOWN", "/")).rejects.toThrow("device_not_found");
+  });
+
+  it("device terpasang -> BambuFtpsClient.list() dipanggil dengan ip/accessCode yang benar", async () => {
+    const secret = { ip: "1.2.3.4", accessCode: "code", serial: "" };
+    const { service } = makeFixture(new InMemoryCredentialStore({ agentToken: null, devices: { ABC: secret }, brokerPin: undefined }));
+    const listMock = vi.fn().mockResolvedValue([]);
+    vi.mocked(bambuFtpsClient.BambuFtpsClient).mockImplementation(() => ({ list: listMock }) as never);
+    await service.listFiles("ABC", "/");
+    expect(bambuFtpsClient.BambuFtpsClient).toHaveBeenCalledWith("1.2.3.4", "code");
+    expect(listMock).toHaveBeenCalledWith("/");
+  });
+});
+
+describe("AgentService.getFileThumbnail", () => {
+  it("extension bukan .gcode atau .gcode.3mf -> null, tidak buka koneksi FTPS", async () => {
+    const { service } = makeFixture();
+    expect(await service.getFileThumbnail("ABC", "file.txt")).toBeNull();
   });
 });
