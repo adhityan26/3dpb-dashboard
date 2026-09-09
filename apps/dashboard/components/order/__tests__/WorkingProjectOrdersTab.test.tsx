@@ -9,6 +9,7 @@ vi.mock('@/lib/hooks/use-working-projects', () => ({
       status: 'Open', payment: 'Marketplace', invoiceAmount: 150000,
       checklist: [{ id: 1, text: 'a', done: true, deleted: false }],
       discordThreadId: 't1',
+      discordThreadUrl: 'https://discord.com/channels/123/t1',
     }],
     isLoading: false,
   }),
@@ -31,5 +32,10 @@ describe('WorkingProjectOrdersTab', () => {
   it('shows checklist progress as done/total', () => {
     render(<WorkingProjectOrdersTab />)
     expect(screen.getByText('1/1')).toBeInTheDocument()
+  })
+  it('links to the real discordThreadUrl, not a reconstructed @me link', () => {
+    render(<WorkingProjectOrdersTab />)
+    const link = screen.getByText('Buka').closest('a')
+    expect(link).toHaveAttribute('href', 'https://discord.com/channels/123/t1')
   })
 })

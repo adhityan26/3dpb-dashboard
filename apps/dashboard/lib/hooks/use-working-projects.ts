@@ -12,6 +12,7 @@ export interface WorkingProjectChecklistItem {
 export interface WorkingProject {
   id: string
   discordThreadId: string | null
+  discordThreadUrl?: string | null
   forumChannelId?: string | null
   source: string
   sourceOrderNo: string | null

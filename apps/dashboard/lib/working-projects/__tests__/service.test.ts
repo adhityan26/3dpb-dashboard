@@ -13,7 +13,7 @@ vi.mock('@/lib/db', () => ({
     },
   },
 }))
-import { createWorkingProject, setStatus, updateWorkingProject, resyncWorkingProject, runChecklistOp } from '../service'
+import { createWorkingProject, setStatus, updateWorkingProject, resyncWorkingProject, runChecklistOp, markReminderSent } from '../service'
 import { createRelayThread, editRelayThread } from '../discord-sync'
 import { prisma } from '@/lib/db'
 
@@ -38,7 +38,7 @@ describe('createWorkingProject', () => {
     expect(createRelayThread).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: 'wp1' }))
     expect(prisma.workingProject.update).toHaveBeenCalledWith(expect.objectContaining({
       where: { id: 'wp1' },
-      data: expect.objectContaining({ discordThreadId: 't1', syncState: 'ok' }),
+      data: expect.objectContaining({ discordThreadId: 't1', discordThreadUrl: 'https://discord/t1', syncState: 'ok' }),
     }))
     expect(result).toEqual({ id: 'wp1', threadUrl: 'https://discord/t1', syncState: 'ok' })
   })
@@ -124,5 +124,26 @@ describe('runChecklistOp', () => {
     await runChecklistOp('t1', { type: 'setByLabel', label: 'cetak resin', done: true, by: 'user1' })
     const call = (prisma.workingProject.update as any).mock.calls[0][0]
     expect(call.data.checklist[0].done).toBe(true)
+  })
+})
+
+describe('markReminderSent', () => {
+  it('adds daysLeft to remindersSent for a known threadId', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', remindersSent: [1] })
+    ;(prisma.workingProject.update as any).mockResolvedValue({})
+
+    const result = await markReminderSent('t1', 3)
+    expect(prisma.workingProject.update).toHaveBeenCalledWith({
+      where: { discordThreadId: 't1' },
+      data: { remindersSent: [1, 3] },
+    })
+    expect(result).toEqual({ ok: true })
+  })
+
+  it('throws a clean not-found error for an unknown threadId instead of calling update', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue(null)
+
+    await expect(markReminderSent('unknown', 3)).rejects.toThrow(/not found/i)
+    expect(prisma.workingProject.update).not.toHaveBeenCalled()
   })
 })

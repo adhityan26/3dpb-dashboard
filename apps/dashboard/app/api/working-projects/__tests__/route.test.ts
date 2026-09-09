@@ -49,4 +49,11 @@ describe('POST /api/working-projects', () => {
     const res = await POST(req('POST', {}))
     expect(res.status).toBe(401)
   })
+
+  it('400s when required fields are missing', async () => {
+    ;(createWorkingProject as any).mockClear()
+    const res = await POST(req('POST', { source: 'manual' }))
+    expect(res.status).toBe(400)
+    expect(createWorkingProject).not.toHaveBeenCalled()
+  })
 })

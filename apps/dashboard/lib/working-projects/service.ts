@@ -53,7 +53,7 @@ export async function createWorkingProject(input: {
       parentId: input.forumChannelId, name: title, message,
       mentions: input.mentions ?? [], idempotencyKey: wp.id,
     })
-    await prisma.workingProject.update({ where: { id: wp.id }, data: { discordThreadId: threadId, syncState: 'ok' } })
+    await prisma.workingProject.update({ where: { id: wp.id }, data: { discordThreadId: threadId, discordThreadUrl: threadUrl, syncState: 'ok' } })
     return { id: wp.id, threadUrl, syncState: 'ok' }
   } catch (err) {
     await prisma.workingProject.update({
@@ -219,9 +219,10 @@ export async function getDueReminders() {
 
 export async function markReminderSent(threadId: string, daysLeft: number): Promise<{ ok: true }> {
   const wp = await prisma.workingProject.findUnique({ where: { discordThreadId: threadId } })
+  if (!wp) throw new Error(`WorkingProject not found for discordThreadId=${threadId}`)
   await prisma.workingProject.update({
     where: { discordThreadId: threadId },
-    data: { remindersSent: Array.from(new Set([...(wp?.remindersSent ?? []), daysLeft])) },
+    data: { remindersSent: Array.from(new Set([...wp.remindersSent, daysLeft])) },
   })
   return { ok: true }
 }

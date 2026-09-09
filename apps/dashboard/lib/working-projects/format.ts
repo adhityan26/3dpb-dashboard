@@ -62,8 +62,11 @@ export function variantShort(entry: string): string {
   return entry.replace(/Green Lantern/gi, 'GL')
 }
 
-export function isGLRing(appliedTags: string[], forumChannelId: string | null): boolean {
-  if (forumChannelId === 'FORUM_CINCIN_ID') return true
+// Detection is tag-based only: forumChannelId values become real Discord
+// snowflakes once Plan B's cutover runs, so a literal string comparison
+// against a placeholder like 'FORUM_CINCIN_ID' would silently stop matching.
+// The tag regex works regardless of what forumChannelId actually contains.
+export function isGLRing(appliedTags: string[]): boolean {
   return appliedTags.some(t => /ring|cincin/i.test(t))
 }
 

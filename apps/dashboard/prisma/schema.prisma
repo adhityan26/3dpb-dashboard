@@ -593,6 +593,7 @@ model RingAnchor {
 model WorkingProject {
   id               String   @id @default(cuid())
   discordThreadId  String?  @unique
+  discordThreadUrl String?
   forumChannelId   String?
   source           String
   sourceOrderNo    String?

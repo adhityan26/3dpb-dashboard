@@ -4,8 +4,8 @@ import { describe, it, expect, vi } from 'vitest'
 vi.mock('@/lib/hooks/use-working-projects', () => ({
   useWorkingProjects: () => ({
     data: [
-      { id: 'wp1', customer: 'Budi', product: 'Cincin A, Cincin B', notes: 'size US 8 | catatan', status: 'Open', forumChannelId: 'FORUM_CINCIN_ID', appliedTags: [], checklist: [] },
-      { id: 'wp2', customer: 'Ani', product: 'Cincin C', notes: 'size US 6', status: 'Canceled', forumChannelId: 'FORUM_CINCIN_ID', appliedTags: [], checklist: [] },
+      { id: 'wp1', customer: 'Budi', product: 'Cincin A, Cincin B', notes: 'size US 8 | catatan', status: 'Open', forumChannelId: 'FORUM_CINCIN_ID', appliedTags: ['Cincin'], checklist: [] },
+      { id: 'wp2', customer: 'Ani', product: 'Cincin C', notes: 'size US 6', status: 'Canceled', forumChannelId: 'FORUM_CINCIN_ID', appliedTags: ['Cincin'], checklist: [] },
     ],
     isLoading: false,
   }),

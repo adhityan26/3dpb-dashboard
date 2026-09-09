@@ -16,6 +16,10 @@ export async function POST(req: NextRequest) {
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const body = await req.json()
+  if (!body.source || !body.forumChannelId || !body.customer || !body.product) {
+    return NextResponse.json({ error: "source, forumChannelId, customer, product are required" }, { status: 400 })
+  }
+
   const result = await createWorkingProject(body)
   return NextResponse.json(result, { status: 201 })
 }

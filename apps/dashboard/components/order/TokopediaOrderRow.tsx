@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Image from "next/image"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent } from "@/components/ui/card"
 import type { TokopediaOrderSummary } from "@/lib/tokopedia/types"
 import {
@@ -51,9 +52,17 @@ export function TokopediaOrderRow({ order, defaultExpanded = false }: TokopediaO
   const totalQty = order.products.reduce((sum, p) => sum + p.qty, 0)
   const first = order.products[0]
   const showImage = !imgError && !!first?.imageUrl
+  const queryClient = useQueryClient()
+
+  const createWorkingProjectMutation = useMutation({
+    mutationFn: createWorkingProjectFromOrder,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["working-projects"] })
+    },
+  })
 
   function handleCreateWorkingProject() {
-    createWorkingProjectFromOrder({
+    createWorkingProjectMutation.mutate({
       source: "tokopedia",
       sourceOrderNo: order.orderId,
       forumChannelId: wpForumChannelId,
@@ -149,15 +158,22 @@ export function TokopediaOrderRow({ order, defaultExpanded = false }: TokopediaO
             <button
               type="button"
               onClick={handleCreateWorkingProject}
-              className="flex items-center gap-1 text-xs font-medium transition-colors"
+              disabled={createWorkingProjectMutation.isPending}
+              className="flex items-center gap-1 text-xs font-medium transition-colors disabled:opacity-50"
               style={{ color: "#a5b4fc" }}
               onMouseEnter={(e) => (e.currentTarget.style.color = "#c7d2fe")}
               onMouseLeave={(e) => (e.currentTarget.style.color = "#a5b4fc")}
             >
-              📋 Buat Working Project
+              📋 {createWorkingProjectMutation.isPending ? "Membuat..." : "Buat Working Project"}
             </button>
           </div>
         </div>
+
+        {createWorkingProjectMutation.isError && (
+          <div className="mt-1 text-[11px] text-red-500">
+            Gagal membuat Working Project: {(createWorkingProjectMutation.error as Error).message}
+          </div>
+        )}
 
         {expanded && (
           <div className="mt-3 border-t dark:border-slate-700 pt-3 space-y-2 text-xs">

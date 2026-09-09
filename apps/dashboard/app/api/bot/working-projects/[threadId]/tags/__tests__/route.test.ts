@@ -43,4 +43,12 @@ describe('PATCH /api/bot/working-projects/[threadId]/tags', () => {
     const res = await PATCH(req({ appliedTags: ['urgent'] }), { params: Promise.resolve({ threadId: 't1' }) })
     expect(await res.json()).toEqual({ ok: true, discordSynced: false })
   })
+
+  it('404s cleanly when the threadId does not match any project (Prisma P2025)', async () => {
+    ;(prisma.workingProject.update as any).mockRejectedValue(Object.assign(new Error('Record not found'), { code: 'P2025' }))
+    ;(editRelayThread as any).mockClear()
+    const res = await PATCH(req({ appliedTags: ['urgent'] }), { params: Promise.resolve({ threadId: 'unknown' }) })
+    expect(res.status).toBe(404)
+    expect(editRelayThread).not.toHaveBeenCalled()
+  })
 })

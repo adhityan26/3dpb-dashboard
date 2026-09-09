@@ -65,4 +65,10 @@ describe('DELETE /api/working-projects/:id', () => {
     const res = await DELETE(req('DELETE'), { params: Promise.resolve({ id: 'wp1' }) })
     expect(res.status).toBe(401)
   })
+
+  it('404s cleanly when the id does not match any project (Prisma P2025)', async () => {
+    ;(prisma.workingProject.delete as any).mockRejectedValue(Object.assign(new Error('Record not found'), { code: 'P2025' }))
+    const res = await DELETE(req('DELETE'), { params: Promise.resolve({ id: 'missing' }) })
+    expect(res.status).toBe(404)
+  })
 })

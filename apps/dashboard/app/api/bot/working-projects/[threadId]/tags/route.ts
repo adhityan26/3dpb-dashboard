@@ -10,10 +10,16 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ th
   const body = await req.json()
   if (!Array.isArray(body.appliedTags)) return NextResponse.json({ error: 'appliedTags array is required' }, { status: 400 })
 
-  const wp = await prisma.workingProject.update({
-    where: { discordThreadId: threadId },
-    data: { appliedTags: body.appliedTags, forumChannelId: body.parentId ?? undefined },
-  })
+  let wp
+  try {
+    wp = await prisma.workingProject.update({
+      where: { discordThreadId: threadId },
+      data: { appliedTags: body.appliedTags, forumChannelId: body.parentId ?? undefined },
+    })
+  } catch (err) {
+    if ((err as { code?: string }).code === 'P2025') return NextResponse.json({ error: 'not_found' }, { status: 404 })
+    throw err
+  }
   const newTitle = body.currentName ? buildTitle({ customer: wp.customer, product: wp.product, variant: wp.variant }) : undefined
   try {
     await editRelayThread(threadId, { appliedTags: body.appliedTags, ...(newTitle && newTitle !== body.currentName ? { name: newTitle } : {}) })

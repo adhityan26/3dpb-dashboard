@@ -398,10 +398,15 @@ function OrderPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const rawChannel = searchParams.get("channel") ?? "working-project"
+  // NOTE: default fallback is "shopee" (not "working-project") because
+  // working-project has no real data yet. Flip this to "working-project"
+  // once the Plan B production cutover runs and real data exists.
+  // "working-project" stays the FIRST entry in OrderSidebar's ITEMS array —
+  // it's just not auto-selected by default until then.
+  const rawChannel = searchParams.get("channel") ?? "shopee"
   const channel: OrderChannel = VALID_CHANNELS.includes(rawChannel as OrderChannel)
     ? (rawChannel as OrderChannel)
-    : "working-project"
+    : "shopee"
 
   function setChannel(ch: OrderChannel) {
     const params = new URLSearchParams(searchParams.toString())

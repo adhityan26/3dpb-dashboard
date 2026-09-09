@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import Image from "next/image"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import type { OrderSummary } from "@/lib/orders/types"
@@ -57,10 +58,18 @@ export function OrderRow({ order, onToggleLabel, isPending, linkedInvoice, onCre
   const [expanded, setExpanded] = useState(false)
   const [imgError, setImgError] = useState(false)
   const [wpForumChannelId, setWpForumChannelId] = useState<string>(WORKING_PROJECT_FORUM_CHANNELS[0])
+  const queryClient = useQueryClient()
+
+  const createWorkingProjectMutation = useMutation({
+    mutationFn: createWorkingProjectFromOrder,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["working-projects"] })
+    },
+  })
 
   function handleCreateWorkingProject() {
     const firstItem = order.items[0]
-    createWorkingProjectFromOrder({
+    createWorkingProjectMutation.mutate({
       source: "shopee",
       sourceOrderNo: order.orderSn,
       forumChannelId: wpForumChannelId,
@@ -209,12 +218,13 @@ export function OrderRow({ order, onToggleLabel, isPending, linkedInvoice, onCre
           <button
             type="button"
             onClick={handleCreateWorkingProject}
-            className="flex items-center gap-1 text-xs font-medium transition-colors flex-shrink-0"
+            disabled={createWorkingProjectMutation.isPending}
+            className="flex items-center gap-1 text-xs font-medium transition-colors flex-shrink-0 disabled:opacity-50"
             style={{ color: "#a5b4fc" }}
             onMouseEnter={(e) => (e.currentTarget.style.color = "#c7d2fe")}
             onMouseLeave={(e) => (e.currentTarget.style.color = "#a5b4fc")}
           >
-            📋 Buat Working Project
+            📋 {createWorkingProjectMutation.isPending ? "Membuat..." : "Buat Working Project"}
           </button>
           <Button
             variant={order.labelPrinted ? "outline" : "default"}
@@ -230,6 +240,12 @@ export function OrderRow({ order, onToggleLabel, isPending, linkedInvoice, onCre
             {order.labelPrinted ? "Tandai Belum" : "Tandai Cetak"}
           </Button>
         </div>
+
+        {createWorkingProjectMutation.isError && (
+          <div className="mt-1 text-[11px] text-red-500">
+            Gagal membuat Working Project: {(createWorkingProjectMutation.error as Error).message}
+          </div>
+        )}
 
         {expanded && (
           <div className="mt-3 border-t dark:border-slate-700 pt-3 space-y-2 text-xs">

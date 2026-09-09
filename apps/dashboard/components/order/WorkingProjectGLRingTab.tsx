@@ -11,7 +11,7 @@ export function WorkingProjectGLRingTab() {
   const [filters, setFilters] = useState<{ status?: string; hasSize?: boolean; checklistDone?: boolean; platform?: string; customer?: string }>({})
 
   const rows = useMemo(() => {
-    const active = (data ?? []).filter(wp => wp.status !== 'Canceled' && isGLRing(wp.appliedTags ?? [], wp.forumChannelId ?? null))
+    const active = (data ?? []).filter(wp => wp.status !== 'Canceled' && isGLRing(wp.appliedTags ?? []))
     const expanded = active.flatMap(wp =>
       splitProductVariants(wp.product).map(variant => {
         const { usSize, scalePct } = parseSize(wp.notes ?? '')

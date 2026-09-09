@@ -51,8 +51,8 @@ export function WorkingProjectOrdersTab() {
               <td>Rp{wp.invoiceAmount.toLocaleString("id-ID")}</td>
               <td>{`${done}/${active.length}`}</td>
               <td>
-                {wp.discordThreadId ? (
-                  <a href={`https://discord.com/channels/@me/${wp.discordThreadId}`}>Buka</a>
+                {wp.discordThreadUrl ? (
+                  <a href={wp.discordThreadUrl}>Buka</a>
                 ) : (
                   "-"
                 )}

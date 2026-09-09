@@ -72,14 +72,14 @@ describe('variantShort', () => {
 })
 
 describe('isGLRing', () => {
-  it('true when forumChannelId matches the ring forum', () => {
-    expect(isGLRing([], 'FORUM_CINCIN_ID')).toBe(true)
-  })
   it('true when appliedTags include a ring tag', () => {
-    expect(isGLRing(['Green Lantern Ring'], null)).toBe(true)
+    expect(isGLRing(['Green Lantern Ring'])).toBe(true)
+  })
+  it('true for a cincin tag regardless of forumChannelId (tag-based detection only)', () => {
+    expect(isGLRing(['Cincin'])).toBe(true)
   })
   it('false otherwise', () => {
-    expect(isGLRing(['Topeng'], 'FORUM_TOPENG_ID')).toBe(false)
+    expect(isGLRing(['Topeng'])).toBe(false)
   })
 })
 

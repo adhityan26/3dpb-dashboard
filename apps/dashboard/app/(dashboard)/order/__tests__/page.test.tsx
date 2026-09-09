@@ -70,10 +70,11 @@ function renderPage() {
 }
 
 describe('OrderPage channel/tab routing', () => {
-  it('defaults to the working-project channel with no query params', () => {
+  it('defaults to the shopee channel with no query params (working-project has no real data yet)', () => {
     withParams('')
     renderPage()
-    expect(screen.getByTestId('working-project-channel')).toBeInTheDocument()
+    expect(screen.queryByTestId('working-project-channel')).not.toBeInTheDocument()
+    expect(screen.getByText('📋 Buat Working Project')).toBeInTheDocument()
   })
 
   it('renders the green-lantern-ring tab from ?channel=working-project&tab=green-lantern-ring', () => {

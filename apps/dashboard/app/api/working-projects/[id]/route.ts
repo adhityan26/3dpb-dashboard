@@ -28,6 +28,13 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id } = await params
-  await prisma.workingProject.delete({ where: { id } })
+  try {
+    await prisma.workingProject.delete({ where: { id } })
+  } catch (err) {
+    if ((err as { code?: string }).code === 'P2025') {
+      return NextResponse.json({ error: "not_found" }, { status: 404 })
+    }
+    throw err
+  }
   return NextResponse.json({ ok: true })
 }
