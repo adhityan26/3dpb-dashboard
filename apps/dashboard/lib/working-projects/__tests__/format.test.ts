@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildTitle, buildPostContent, parseDueDate, SIZE_SCALE, parseSize, isGLRing, variantShort, splitProductVariants, parseAmount, appendNoteWithTimestamp, allowedMentionsPayload } from '../format'
+import { buildTitle, buildPostContent, parseDueDate, SIZE_SCALE, parseSize, isGLRing, variantShort, splitProductVariants, parseAmount, appendNoteWithTimestamp, allowedMentionsPayload, notesSegmentForKey } from '../format'
 
 describe('buildTitle', () => {
   it('joins customer, product, variant', () => {
@@ -102,6 +102,32 @@ describe('appendNoteWithTimestamp', () => {
   })
   it('handles null existing notes', () => {
     expect(appendNoteWithTimestamp(null, 'first note')).toContain('first note')
+  })
+})
+
+describe('notesSegmentForKey', () => {
+  it('returns the whole notes string unchanged for a single-variant project', () => {
+    expect(notesSegmentForKey('warna emas | size US 8', 'Cincin A', 1)).toBe('warna emas | size US 8')
+  })
+
+  it('matches by key content, not by list position, when segments are NOT in product-variant order', () => {
+    // "B" block appears before "A" block — order-independent matching must still
+    // resolve each row to its own size, not the positionally-first one.
+    const notes = 'B|size US 6|catatan B|A|size US 8|catatan A'
+    expect(parseSize(notesSegmentForKey(notes, 'Cincin A', 2)).usSize).toBe('8')
+    expect(parseSize(notesSegmentForKey(notes, 'Cincin B', 2)).usSize).toBe('6')
+  })
+
+  it('resolves per-variant size when notes use only |, with no " / "-style separator between segments', () => {
+    const notes = 'Cincin X|size US 9|catatan X|Cincin Y|size US 11|catatan Y'
+    expect(parseSize(notesSegmentForKey(notes, 'Cincin X', 2)).usSize).toBe('9')
+    expect(parseSize(notesSegmentForKey(notes, 'Cincin Y', 2)).usSize).toBe('11')
+  })
+
+  it('still matches legacy " / "-separated blocks by content, not position', () => {
+    const notes = 'A|size US 8|catatan A / B|size US 6|catatan B'
+    expect(parseSize(notesSegmentForKey(notes, 'Cincin A', 2)).usSize).toBe('8')
+    expect(parseSize(notesSegmentForKey(notes, 'Cincin B', 2)).usSize).toBe('6')
   })
 })
 

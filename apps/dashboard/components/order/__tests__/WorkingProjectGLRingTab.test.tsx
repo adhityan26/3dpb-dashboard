@@ -74,4 +74,14 @@ describe('WorkingProjectGLRingTab full parity', () => {
       expect.objectContaining({ method: 'POST', body: expect.stringContaining('setByLabel') })
     )
   })
+
+  it('reverts the optimistic checkbox state when the checklist request resolves ok:false', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500, json: async () => ({ error: 'boom' }) }) as any
+    render(<WorkingProjectGLRingTab />)
+    const checkbox = screen.getAllByRole('checkbox')[1] as HTMLInputElement // "A — Print Stone", currently unchecked
+    expect(checkbox.checked).toBe(false)
+    fireEvent.click(checkbox)
+    await screen.findByRole('alert')
+    expect(checkbox.checked).toBe(false)
+  })
 })

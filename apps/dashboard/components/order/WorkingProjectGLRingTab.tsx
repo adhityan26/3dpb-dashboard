@@ -1,7 +1,7 @@
 'use client'
 import { useMemo, useState } from 'react'
 import { useWorkingProjects, type WorkingProject } from '@/lib/hooks/use-working-projects'
-import { splitProductVariants, variantShort, parseSize, isGLRing } from '@/lib/working-projects/format'
+import { splitProductVariants, variantShort, parseSize, isGLRing, notesSegmentForKey } from '@/lib/working-projects/format'
 
 const STEP_TYPES = ['Print Frame', 'Print Stone', 'Print Ring', 'Cat Frame', 'Cat Stone', 'Cat Ring', 'Assembly'] as const
 type StepType = (typeof STEP_TYPES)[number]
@@ -29,21 +29,6 @@ function checklistLabelsFor(key: string, single: boolean): string[] {
   return STEP_TYPES.map(step => (single ? step : `${key} — ${step}`))
 }
 
-// notes for a multi-variant project are stored as `<key>|...fields.../ <key>|...fields...`
-// (variant blocks separated by " / ", fields inside a block separated by "|"). parseSize()
-// already scans '|'-joined text for a `size ... N` token, so once the block belonging to
-// this row's key is isolated, it can be handed to parseSize() unmodified.
-function notesSegmentForKey(notes: string, key: string, variantIndex: number, variantCount: number): string {
-  if (variantCount <= 1) return notes
-  const blocks = notes.split(' / ').map(b => b.trim())
-  const match = blocks.find(b => {
-    const first = (b.split('|')[0] ?? '').trim().toLowerCase()
-    return first === key.toLowerCase() || first.includes(key.toLowerCase())
-  })
-  if (match) return match
-  return blocks[variantIndex] ?? notes
-}
-
 function expandToRows(projects: WorkingProject[]): RingRow[] {
   const rows: RingRow[] = []
   for (const wp of projects) {
@@ -51,9 +36,9 @@ function expandToRows(projects: WorkingProject[]): RingRow[] {
     if (!isGLRing(wp.appliedTags ?? [])) continue
     const variants = splitProductVariants(wp.product)
     const single = variants.length <= 1
-    variants.forEach((entry, idx) => {
+    variants.forEach((entry) => {
       const key = variantShort(entry)
-      const segment = notesSegmentForKey(wp.notes ?? '', key, idx, variants.length)
+      const segment = notesSegmentForKey(wp.notes ?? '', key, variants.length)
       const { usSize, scalePct } = parseSize(segment)
       const labels = checklistLabelsFor(key, single)
       const checklistDone = {} as Record<StepType, boolean>
@@ -97,7 +82,7 @@ function valueFor(r: RingRow, col: SortColumn): string | number | null {
     case 'orderDate': return r.orderDate
     case 'orderNo': return r.orderNo
     case 'platform': return r.platform
-    case 'variant': return r.entry
+    case 'variant': return r.key
     case 'usSize': return r.usSize
     case 'status': return r.status
   }
@@ -134,6 +119,7 @@ export function WorkingProjectGLRingTab() {
   // resolves without requiring a react-query client (this component may
   // render outside a QueryClientProvider, e.g. in tests).
   const [overrides, setOverrides] = useState<Record<string, boolean>>({})
+  const [checklistError, setChecklistError] = useState<string | null>(null)
 
   const allRows = useMemo(() => expandToRows(data ?? []), [data])
 
@@ -198,24 +184,30 @@ export function WorkingProjectGLRingTab() {
 
   async function toggleChecklist(row: RingRow, stepType: StepType, label: string) {
     const nextDone = !row.checklistDone[stepType]
+    setChecklistError(null)
     setOverrides(prev => ({ ...prev, [`${row.wpId}::${label}`]: nextDone }))
     try {
-      await fetch(`/api/working-projects/${row.wpId}/checklist`, {
+      const res = await fetch(`/api/working-projects/${row.wpId}/checklist`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type: 'setByLabel', label, done: nextDone, by: 'dashboard' }),
       })
-    } catch {
-      // best-effort: revert the optimistic flip on failure
+      if (!res.ok) {
+        setOverrides(prev => ({ ...prev, [`${row.wpId}::${label}`]: !nextDone }))
+        setChecklistError(`Gagal menyimpan checklist "${label}" (${res.status})`)
+      }
+    } catch (err) {
+      // network/fetch-level failure: revert the optimistic flip
       setOverrides(prev => ({ ...prev, [`${row.wpId}::${label}`]: !nextDone }))
+      setChecklistError(`Gagal menyimpan checklist "${label}": ${(err as Error).message}`)
     }
   }
 
   if (isLoading) return <div>Loading...</div>
 
-  const activeCount = allRows.length
-  const missingSizeCount = allRows.filter(r => !r.usSize).length
-  const fullyDoneCount = allRows.filter(r => STEP_TYPES.every(s => r.checklistDone[s])).length
+  const activeCount = rowsWithOverrides.length
+  const missingSizeCount = rowsWithOverrides.filter(r => !r.usSize).length
+  const fullyDoneCount = rowsWithOverrides.filter(r => STEP_TYPES.every(s => r.checklistDone[s])).length
 
   return (
     <div>
@@ -224,6 +216,10 @@ export function WorkingProjectGLRingTab() {
         <span>Tanpa Ukuran: {missingSizeCount}</span>
         <span>Selesai Semua: {fullyDoneCount}</span>
       </div>
+
+      {checklistError && (
+        <div role="alert" style={{ color: '#dc2626' }}>{checklistError}</div>
+      )}
 
       <div>
         <input
@@ -297,7 +293,7 @@ export function WorkingProjectGLRingTab() {
                 <td>{r.orderDate ?? '-'}</td>
                 <td>{r.orderNo}</td>
                 <td>{r.platform ?? '-'}</td>
-                <td>{r.entry}</td>
+                <td>{r.key}</td>
                 <td>{r.usSize ? `US ${r.usSize}` : '-'}</td>
                 <td>{r.scalePct ? `${r.scalePct}%` : '-'}</td>
                 {STEP_TYPES.map((s, si) => (

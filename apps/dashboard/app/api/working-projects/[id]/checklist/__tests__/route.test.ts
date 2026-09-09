@@ -33,6 +33,22 @@ describe('POST /api/working-projects/:id/checklist', () => {
     expect(runChecklistOp).not.toHaveBeenCalled()
   })
 
+  it('400s on malformed JSON body', async () => {
+    const badReq = new Request('http://localhost/api/working-projects/wp1/checklist', {
+      method: 'POST',
+      body: '{not valid json',
+    })
+    const res = await POST(badReq, { params: Promise.resolve({ id: 'wp1' }) })
+    expect(res.status).toBe(400)
+    expect(runChecklistOp).not.toHaveBeenCalled()
+  })
+
+  it('400s on setByLabel with wrong-shaped label/done', async () => {
+    const res = await POST(req({ type: 'setByLabel', label: 123, done: 'yes' }), { params: Promise.resolve({ id: 'wp1' }) })
+    expect(res.status).toBe(400)
+    expect(runChecklistOp).not.toHaveBeenCalled()
+  })
+
   it('404s when the project does not exist', async () => {
     ;(prisma.workingProject.findUnique as any).mockResolvedValue(null)
     const res = await POST(req({ type: 'setByLabel', label: 'x', done: true, by: 'u1' }), { params: Promise.resolve({ id: 'missing' }) })

@@ -10,9 +10,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { id } = await params
-  const body = await req.json()
-  if (!VALID_TYPES.includes(body.type)) {
+  let body: Record<string, unknown>
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'invalid_json' }, { status: 400 })
+  }
+  if (!VALID_TYPES.includes(body.type as string)) {
     return NextResponse.json({ error: `type must be one of ${VALID_TYPES.join(', ')}` }, { status: 400 })
+  }
+  if (body.type === 'setByLabel') {
+    if (typeof body.label !== 'string' || typeof body.done !== 'boolean') {
+      return NextResponse.json({ error: 'label must be a string and done must be a boolean' }, { status: 400 })
+    }
   }
 
   const wp = await prisma.workingProject.findUnique({ where: { id } })

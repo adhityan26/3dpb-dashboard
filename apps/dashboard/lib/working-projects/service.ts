@@ -169,8 +169,23 @@ export async function runChecklistOp(threadId: string, op:
       checklist.push({ ...src, id: nextId++, done: false, done_at: null, done_by: null })
     }
   } else if (op.type === 'setByLabel') {
-    const item = checklist.find(i => i.text.toLowerCase() === op.label.toLowerCase())
-    if (item) { item.done = op.done; item.done_at = op.done ? new Date().toISOString() : null; item.done_by = op.done ? op.by : null }
+    const item = checklist.find(i => !i.deleted && i.text.toLowerCase() === op.label.toLowerCase())
+    if (item) {
+      item.done = op.done
+      item.done_at = op.done ? new Date().toISOString() : null
+      item.done_by = op.done ? op.by : null
+    } else {
+      checklist.push({
+        id: nextChecklistId(checklist),
+        text: op.label,
+        done: op.done,
+        done_at: op.done ? new Date().toISOString() : null,
+        done_by: op.done ? op.by : null,
+        added_by: op.by,
+        added_at: new Date().toISOString(),
+        deleted: false,
+      })
+    }
   }
 
   await prisma.workingProject.update({ where: { discordThreadId: threadId }, data: { checklist } })

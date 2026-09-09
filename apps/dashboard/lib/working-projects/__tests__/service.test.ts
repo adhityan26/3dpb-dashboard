@@ -125,6 +125,23 @@ describe('runChecklistOp', () => {
     const call = (prisma.workingProject.update as any).mock.calls[0][0]
     expect(call.data.checklist[0].done).toBe(true)
   })
+
+  it('setByLabel creates a new item with the next sequential id when no existing item matches the label', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({
+      id: 'wp1', discordThreadId: 't1',
+      checklist: [{ id: 1, text: 'Unrelated Item', done: false, deleted: false }, { id: 3, text: 'Also Unrelated', done: false, deleted: true }],
+    })
+    ;(prisma.workingProject.update as any).mockResolvedValue({})
+
+    await runChecklistOp('t1', { type: 'setByLabel', label: 'Cincin A — Print Frame', done: true, by: 'user1' })
+    const call = (prisma.workingProject.update as any).mock.calls[0][0]
+    const created = call.data.checklist.find((i: any) => i.text === 'Cincin A — Print Frame')
+    expect(created).toBeDefined()
+    expect(created.id).toBe(4)
+    expect(created.done).toBe(true)
+    expect(created.deleted).toBe(false)
+    expect(created.done_by).toBe('user1')
+  })
 })
 
 describe('markReminderSent', () => {

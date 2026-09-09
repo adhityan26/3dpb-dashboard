@@ -54,6 +54,53 @@ export function parseSize(notes: string): { usSize: string | null; scalePct: num
   return { usSize: null, scalePct: null }
 }
 
+// Notes for a multi-variant project encode a size/notes block per variant.
+// Two storage shapes are in use:
+//   (a) legacy: variant blocks separated by ' / ', each block itself
+//       '|'-delimited, e.g. "A|size US 8|catatan A / B|size US 6|catatan B"
+//   (b) flat: no ' / ' separator at all, just one '|'-delimited sequence,
+//       e.g. "B|size US 6|catatan B|A|size US 8|catatan A" (segments may
+//       appear in ANY order relative to the product-variant list).
+// Matching is always CONTENT-based (never by list position/index) — a field
+// "identifies" a variant's `key` when it case-insensitively equals, is
+// contained by, or contains the key (handles both a full key like
+// "Cincin A" appearing verbatim, and a short field like "A" that is the
+// trailing/short form of that key).
+function fieldIdentifiesKey(field: string, lowerKey: string): boolean {
+  const f = field.trim().toLowerCase()
+  if (!f) return false
+  return f === lowerKey || lowerKey.includes(f) || f.includes(lowerKey)
+}
+
+export function notesSegmentForKey(notes: string, key: string, variantCount: number): string {
+  if (variantCount <= 1) return notes
+  const lowerKey = key.trim().toLowerCase()
+
+  // Shape (a): ' / '-separated variant blocks.
+  if (notes.includes(' / ')) {
+    const blocks = notes.split(' / ').map(b => b.trim())
+    const match = blocks.find(b => b.split('|').some(f => fieldIdentifiesKey(f, lowerKey)))
+    if (match) return match
+  }
+
+  // Shape (b): flat '|'-delimited sequence, segments in any order. Find the
+  // field identifying this variant, then take the contiguous run of fields
+  // from there through the next field carrying a `size` token (inclusive) —
+  // that's the data segment this variant's identifier field introduces.
+  const fields = notes.split('|').map(f => f.trim())
+  const matchIdx = fields.findIndex(f => fieldIdentifiesKey(f, lowerKey))
+  if (matchIdx !== -1) {
+    let end = matchIdx
+    for (let i = matchIdx + 1; i < fields.length; i++) {
+      end = i
+      if (/size/i.test(fields[i])) break
+    }
+    return fields.slice(matchIdx, end + 1).join('|')
+  }
+
+  return notes
+}
+
 export function splitProductVariants(product: string): string[] {
   return product.split(',').map(s => s.trim()).filter(Boolean)
 }
