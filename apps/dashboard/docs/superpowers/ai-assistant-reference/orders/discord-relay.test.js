@@ -101,3 +101,43 @@ describe('discord-relay mention hardening', () => {
     }))
   })
 })
+
+describe('discord-relay PATCH starterContent', () => {
+  it('applies starterContent to thread.edit content, truncated to 2000 chars', async () => {
+    const longContent = 'x'.repeat(2500)
+    const thread = { id: 't1', archived: false, setArchived: vi.fn(), edit: vi.fn().mockResolvedValue(undefined), parentId: ALLOWED_CHANNEL }
+    const client = { channels: { fetch: vi.fn().mockResolvedValue(thread) } }
+    const app = buildApp({ client })
+    const res = await request(app)
+      .patch('/discord-relay/thread/t1')
+      .set('X-Webhook-Secret', 'test-secret')
+      .send({ starterContent: longContent, mentions: ['999'] })
+    expect(res.status).toBe(200)
+    expect(thread.edit).toHaveBeenCalledWith(expect.objectContaining({
+      content: longContent.slice(0, 2000),
+      allowedMentions: { parse: [], users: ['999'] },
+    }))
+  })
+})
+
+describe('discord-relay PATCH not found', () => {
+  it('returns 404 instead of throwing when the thread is not found', async () => {
+    const client = { channels: { fetch: vi.fn().mockResolvedValue(null) } }
+    const app = buildApp({ client })
+    const res = await request(app)
+      .patch('/discord-relay/thread/missing')
+      .set('X-Webhook-Secret', 'test-secret')
+      .send({ name: 'New Name' })
+    expect(res.status).toBe(404)
+  })
+
+  it('returns 404 when client.channels.fetch rejects for the thread', async () => {
+    const client = { channels: { fetch: vi.fn().mockRejectedValue(new Error('Unknown Channel')) } }
+    const app = buildApp({ client })
+    const res = await request(app)
+      .patch('/discord-relay/thread/missing')
+      .set('X-Webhook-Secret', 'test-secret')
+      .send({ name: 'New Name' })
+    expect(res.status).toBe(502)
+  })
+})
