@@ -8,6 +8,9 @@ import type { CommandResult, PrinterCommand } from "@3pb/printer-monitor-core";
 import type { ActivationState, SyncResult, UpdateDeviceModelResult } from "./agent-service-types";
 import type { FetchResult } from "./saas-client";
 import type { SaasDevice } from "./saas-client";
+import { reconcileDevices } from "./startup";
+import { startEngine } from "./engine-manager";
+import { publishLayout } from "./layout-publisher";
 
 /**
  * Kontrak transport-agnostic yang dipakai Electron IPC sekarang dan HTTP/WS daemon nanti
@@ -66,14 +69,44 @@ export class AgentService {
   }
 
   async sync(): Promise<SyncResult> {
-    throw new Error("not implemented — see Task 9");
+    const { credentialStore, saasBaseUrl, pathProvider, buildInfo, logger } = this.runtime;
+    const blob = await loadCredentials(credentialStore);
+    if (!blob.agentToken) return { ok: false, kind: "invalid_token" };
+
+    const brokerPort = this.runtime.getBrokerPort();
+    if (brokerPort === null) return { ok: false, kind: "broker_unavailable" };
+    const brokerPin = this.runtime.getBrokerPin() as string;
+
+    const { fetchResult, paired } = await reconcileDevices(saasBaseUrl, credentialStore, pathProvider, blob.agentToken, buildInfo, logger);
+
+    await this.runtime.teardownEngine();
+
+    if (paired.length > 0) {
+      try {
+        const started = await startEngine(paired, brokerPort, brokerPin, logger);
+        this.runtime.setEngine(started.engine);
+        this.runtime.setReporters(started.reporters);
+      } catch (err) {
+        logger.error("[agent-service] sync gagal restart engine dengan device terbaru", err);
+        this.runtime.setEngine(null);
+        return { ok: false, kind: "engine_error" };
+      }
+    } else {
+      this.runtime.setEngine(null);
+    }
+
+    await publishLayout(saasBaseUrl, blob.agentToken, brokerPort, "default", brokerPin, logger).catch((err) => {
+      logger.error("[agent-service] sync gagal republish layout (non-fatal)", err);
+    });
+
+    if (!fetchResult.ok) return fetchResult;
+    return { ok: true, deviceCount: paired.length };
   }
 
   async getActivationState(): Promise<ActivationState> {
     const { credentialStore, saasBaseUrl, pathProvider, buildInfo, logger } = this.runtime;
     const blob = await loadCredentials(credentialStore);
     if (!blob.agentToken) return { hasToken: false, devices: [], pairedShortCodes: [] };
-    const { reconcileDevices } = await import("./startup");
     const { devices, paired } = await reconcileDevices(saasBaseUrl, credentialStore, pathProvider, blob.agentToken, buildInfo, logger);
     return { hasToken: true, devices, pairedShortCodes: paired.map((p) => p.shortCode) };
   }
