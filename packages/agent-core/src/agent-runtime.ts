@@ -153,8 +153,15 @@ export class AgentRuntime {
       const result = await fetchLatestVersion(this.saasBaseUrl, blob.agentToken, this.updatePlatform, this.buildInfo, this.logger);
       if (result.ok) this.setUpdateAvailable(result.data.updateAvailable);
     };
-    void check();
-    this.updateCheckTimer = setInterval(check, 6 * 60 * 60 * 1000);
+    // Sengaja pakai .catch() di sini (bukan cuma void check()) -- ini timer interval jangka
+    // panjang, jadi tiap pemanggilan (awal maupun tiap tick) harus menangkap rejection-nya
+    // sendiri supaya satu error jaringan tidak jadi unhandled rejection yang bisa
+    // menjatuhkan proses agent. Mirror perilaku app-state.ts lama yang membungkus
+    // startUpdateChecks() dengan .catch() di call site.
+    void check().catch((err) => this.logger.error("[agent-runtime] update check gagal", err));
+    this.updateCheckTimer = setInterval(() => {
+      void check().catch((err) => this.logger.error("[agent-runtime] update check gagal", err));
+    }, 6 * 60 * 60 * 1000);
     this.updateCheckTimer.unref?.();
   }
 
