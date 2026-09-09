@@ -17,3 +17,4 @@ export * from "./layout-publisher";
 export * from "./startup";
 export * from "./local-network";
 export * from "./pin-rate-limiter";
+export * from "./local-broker";
