@@ -16,6 +16,7 @@ function req(method: string, body?: unknown) {
 
 describe('PATCH /api/working-projects/:id', () => {
   beforeEach(() => {
+    vi.clearAllMocks()
     vi.mocked(auth).mockResolvedValue({ user: { id: 'u1' } } as any)
   })
 
@@ -31,6 +32,20 @@ describe('PATCH /api/working-projects/:id', () => {
     vi.mocked(auth).mockResolvedValue(null as any)
     const res = await PATCH(req('PATCH', {}), { params: Promise.resolve({ id: 'wp1' }) })
     expect(res.status).toBe(401)
+  })
+
+  it('404s when the project does not exist', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue(null)
+    const res = await PATCH(req('PATCH', { customer: 'Budi' }), { params: Promise.resolve({ id: 'missing' }) })
+    expect(res.status).toBe(404)
+    expect(updateWorkingProject).not.toHaveBeenCalled()
+  })
+
+  it('409s when the project has no discordThreadId', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: null })
+    const res = await PATCH(req('PATCH', { customer: 'Budi' }), { params: Promise.resolve({ id: 'wp1' }) })
+    expect(res.status).toBe(409)
+    expect(updateWorkingProject).not.toHaveBeenCalled()
   })
 })
 

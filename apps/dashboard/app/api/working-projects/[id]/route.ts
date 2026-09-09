@@ -9,8 +9,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { id } = await params
   const wp = await prisma.workingProject.findUnique({ where: { id } })
+  if (!wp) {
+    return NextResponse.json({ error: "not_found" }, { status: 404 })
+  }
+  if (!wp.discordThreadId) {
+    return NextResponse.json(
+      { error: "no_discord_thread", message: "This project has not synced to a Discord thread yet" },
+      { status: 409 },
+    )
+  }
   const body = await req.json()
-  const result = await updateWorkingProject(wp!.discordThreadId!, body)
+  const result = await updateWorkingProject(wp.discordThreadId, body)
   return NextResponse.json(result)
 }
 
