@@ -76,7 +76,7 @@ describe('setStatus', () => {
 
 describe('updateWorkingProject', () => {
   it('appends notes with timestamp rather than overwriting', async () => {
-    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1', notes: 'old', title: 'T' })
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1', notes: 'old', title: 'T', customer: 'Budi', product: 'Cincin', variant: null })
     ;(prisma.workingProject.update as any).mockResolvedValue({})
     ;(editRelayThread as any).mockResolvedValue(undefined)
 
@@ -84,6 +84,26 @@ describe('updateWorkingProject', () => {
     const call = (prisma.workingProject.update as any).mock.calls[0][0]
     expect(call.data.notes).toContain('old')
     expect(call.data.notes).toContain('new info')
+  })
+
+  it('does not touch the Discord thread title when no title-affecting field changed', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1', notes: 'old', title: 'Budi - Cincin', customer: 'Budi', product: 'Cincin', variant: null })
+    ;(prisma.workingProject.update as any).mockResolvedValue({})
+    ;(editRelayThread as any).mockResolvedValue(undefined)
+
+    await updateWorkingProject('t1', { shipping: 'JNE' })
+    expect(editRelayThread).toHaveBeenCalledWith('t1', {})
+  })
+
+  it('rebuilds and sends the new title to Discord when customer changes', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1', notes: null, title: 'Budi - Cincin', customer: 'Budi', product: 'Cincin', variant: null })
+    ;(prisma.workingProject.update as any).mockResolvedValue({})
+    ;(editRelayThread as any).mockResolvedValue(undefined)
+
+    await updateWorkingProject('t1', { customer: 'Budi Santoso' })
+    expect(editRelayThread).toHaveBeenCalledWith('t1', { name: 'Budi Santoso - Cincin' })
+    const call = (prisma.workingProject.update as any).mock.calls[0][0]
+    expect(call.data.title).toBe('Budi Santoso - Cincin')
   })
 })
 
@@ -123,6 +143,21 @@ describe('runChecklistOp', () => {
 
     await runChecklistOp('t1', { type: 'setByLabel', label: 'cetak resin', done: true, by: 'user1' })
     const call = (prisma.workingProject.update as any).mock.calls[0][0]
+    expect(call.data.checklist[0].done).toBe(true)
+  })
+
+  it('setByLabel updates an existing legacy-labeled item that contains the canonical label as a substring, instead of creating a duplicate', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({
+      id: 'wp1', discordThreadId: 't1',
+      checklist: [{ id: 1, text: 'A — Print Frame (extra info)', done: false, deleted: false }],
+    })
+    ;(prisma.workingProject.update as any).mockResolvedValue({})
+
+    await runChecklistOp('t1', { type: 'setByLabel', label: 'A — Print Frame', done: true, by: 'user1' })
+    const call = (prisma.workingProject.update as any).mock.calls[0][0]
+    expect(call.data.checklist).toHaveLength(1)
+    expect(call.data.checklist[0].id).toBe(1)
+    expect(call.data.checklist[0].text).toBe('A — Print Frame (extra info)')
     expect(call.data.checklist[0].done).toBe(true)
   })
 

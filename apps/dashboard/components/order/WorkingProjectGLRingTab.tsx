@@ -1,6 +1,6 @@
 'use client'
 import { useMemo, useState } from 'react'
-import { useWorkingProjects, type WorkingProject } from '@/lib/hooks/use-working-projects'
+import { useWorkingProjects, useSetChecklistByLabel, type WorkingProject } from '@/lib/hooks/use-working-projects'
 import { splitProductVariants, variantShort, parseSize, isGLRing, notesSegmentForKey } from '@/lib/working-projects/format'
 
 const STEP_TYPES = ['Print Frame', 'Print Stone', 'Print Ring', 'Cat Frame', 'Cat Stone', 'Cat Ring', 'Assembly'] as const
@@ -33,7 +33,7 @@ function expandToRows(projects: WorkingProject[]): RingRow[] {
   const rows: RingRow[] = []
   for (const wp of projects) {
     if (wp.status === 'Canceled') continue
-    if (!isGLRing(wp.appliedTags ?? [])) continue
+    if (!isGLRing(wp.appliedTags ?? [], wp.forumChannelId)) continue
     const variants = splitProductVariants(wp.product)
     const single = variants.length <= 1
     variants.forEach((entry) => {
@@ -115,11 +115,14 @@ export function WorkingProjectGLRingTab() {
   const [stepStatus, setStepStatus] = useState<'' | 'done' | 'not-done'>('')
 
   // Local optimistic overrides applied on top of server data, keyed by
-  // `${wpId}::${label}`, so a checkbox flips immediately after the fetch
-  // resolves without requiring a react-query client (this component may
-  // render outside a QueryClientProvider, e.g. in tests).
+  // `${wpId}::${label}`, so a checkbox flips immediately while the mutation
+  // is in flight. A successful mutation invalidates the shared
+  // WORKING_PROJECTS_KEY query cache (via useSetChecklistByLabel) so a
+  // refetch brings in server (and Discord-echoed) truth; the override is
+  // kept meanwhile purely to avoid a flash back to the pre-toggle state.
   const [overrides, setOverrides] = useState<Record<string, boolean>>({})
   const [checklistError, setChecklistError] = useState<string | null>(null)
+  const setChecklistByLabel = useSetChecklistByLabel()
 
   const allRows = useMemo(() => expandToRows(data ?? []), [data])
 
@@ -187,17 +190,9 @@ export function WorkingProjectGLRingTab() {
     setChecklistError(null)
     setOverrides(prev => ({ ...prev, [`${row.wpId}::${label}`]: nextDone }))
     try {
-      const res = await fetch(`/api/working-projects/${row.wpId}/checklist`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'setByLabel', label, done: nextDone, by: 'dashboard' }),
-      })
-      if (!res.ok) {
-        setOverrides(prev => ({ ...prev, [`${row.wpId}::${label}`]: !nextDone }))
-        setChecklistError(`Gagal menyimpan checklist "${label}" (${res.status})`)
-      }
+      await setChecklistByLabel.mutateAsync({ id: row.wpId, label, done: nextDone, by: 'dashboard' })
     } catch (err) {
-      // network/fetch-level failure: revert the optimistic flip
+      // request failed (network or non-2xx): revert the optimistic flip
       setOverrides(prev => ({ ...prev, [`${row.wpId}::${label}`]: !nextDone }))
       setChecklistError(`Gagal menyimpan checklist "${label}": ${(err as Error).message}`)
     }

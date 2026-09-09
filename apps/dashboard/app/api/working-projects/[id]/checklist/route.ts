@@ -34,5 +34,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     )
   }
 
-  return NextResponse.json(await runChecklistOp(wp.discordThreadId, body))
+  return NextResponse.json(
+    await runChecklistOp(wp.discordThreadId, body as Parameters<typeof runChecklistOp>[1]),
+  )
 }

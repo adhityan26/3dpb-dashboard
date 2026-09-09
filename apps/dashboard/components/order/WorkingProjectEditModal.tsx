@@ -24,15 +24,40 @@ interface Props {
 
 const fieldLabel = "text-[10px] font-semibold uppercase tracking-wider mb-1"
 
+// Display value for the due-date input: `dueDateRaw` is only populated for
+// legacy/unparseable text (parseDueDate nulls it out once a date is
+// successfully parsed into `dueDate`), so a project with a parsed due date
+// must fall back to formatting `dueDate` itself — otherwise the field opens
+// blank and saving would send `dueDateRaw: ""`, silently wiping the due date.
+function dueDateDisplayValue(project: WorkingProject): string {
+  if (project.dueDateRaw) return project.dueDateRaw
+  if (project.dueDate) return new Date(project.dueDate).toISOString().slice(0, 10)
+  return ""
+}
+
+function initialValues(project: WorkingProject) {
+  return {
+    customer: project.customer,
+    product: project.product,
+    variant: project.variant ?? "",
+    dueDateRaw: dueDateDisplayValue(project),
+    paymentRaw: project.payment,
+    invoiceAmountRaw: String(project.invoiceAmount),
+    shipping: project.shipping ?? "",
+    trackingNo: project.trackingNo ?? "",
+  }
+}
+
 export function WorkingProjectEditModal({ project, onClose, onSave, isPending, error }: Props) {
   // Reset state via the "resetting state via key prop in state" React 19
   // pattern — mirrors WorkingProjectEditModal's siblings (HppEditModal etc.)
   // rather than useEffect.
   const [trackedId, setTrackedId] = useState<string | null>(project?.id ?? null)
+  const [initial, setInitial] = useState(project ? initialValues(project) : null)
   const [customer, setCustomer] = useState(project?.customer ?? "")
   const [product, setProduct] = useState(project?.product ?? "")
   const [variant, setVariant] = useState(project?.variant ?? "")
-  const [dueDateRaw, setDueDateRaw] = useState(project?.dueDateRaw ?? "")
+  const [dueDateRaw, setDueDateRaw] = useState(project ? dueDateDisplayValue(project) : "")
   const [paymentRaw, setPaymentRaw] = useState(project?.payment ?? "")
   const [invoiceAmountRaw, setInvoiceAmountRaw] = useState(
     project ? String(project.invoiceAmount) : "",
@@ -42,33 +67,31 @@ export function WorkingProjectEditModal({ project, onClose, onSave, isPending, e
 
   if (project && project.id !== trackedId) {
     setTrackedId(project.id)
-    setCustomer(project.customer)
-    setProduct(project.product)
-    setVariant(project.variant ?? "")
-    setDueDateRaw(project.dueDateRaw ?? "")
-    setPaymentRaw(project.payment)
-    setInvoiceAmountRaw(String(project.invoiceAmount))
-    setShipping(project.shipping ?? "")
-    setTrackingNo(project.trackingNo ?? "")
+    const values = initialValues(project)
+    setInitial(values)
+    setCustomer(values.customer)
+    setProduct(values.product)
+    setVariant(values.variant)
+    setDueDateRaw(values.dueDateRaw)
+    setPaymentRaw(values.paymentRaw)
+    setInvoiceAmountRaw(values.invoiceAmountRaw)
+    setShipping(values.shipping)
+    setTrackingNo(values.trackingNo)
   }
 
   if (!project) return null
 
   function handleSave() {
-    if (!project) return
-    onSave({
-      id: project.id,
-      patch: {
-        customer,
-        product,
-        variant,
-        dueDateRaw,
-        paymentRaw,
-        invoiceAmountRaw,
-        shipping,
-        trackingNo,
-      },
-    })
+    if (!project || !initial) return
+    const current = { customer, product, variant, dueDateRaw, paymentRaw, invoiceAmountRaw, shipping, trackingNo }
+    const patch: WorkingProjectEditPatch = {}
+    let key: keyof typeof current
+    for (key in current) {
+      if (current[key] !== initial[key]) {
+        patch[key] = current[key]
+      }
+    }
+    onSave({ id: project.id, patch })
   }
 
   return (

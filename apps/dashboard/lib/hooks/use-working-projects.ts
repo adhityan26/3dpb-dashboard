@@ -53,7 +53,7 @@ async function apiFetch<T>(url: string, opts?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
-const WORKING_PROJECTS_KEY = ["working-projects"] as const
+export const WORKING_PROJECTS_KEY = ["working-projects"] as const
 
 export function useWorkingProjects() {
   const query = useQuery({
@@ -84,6 +84,32 @@ export function useUpdateWorkingProject() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: WORKING_PROJECTS_KEY })
+    },
+  })
+}
+
+export interface SetChecklistByLabelVars {
+  id: string
+  label: string
+  done: boolean
+  by: string
+}
+
+// Shared by the GL Ring tab's checklist toggles. A successful POST
+// invalidates the same WORKING_PROJECTS_KEY cache useUpdateWorkingProject
+// uses, so the checklist stays in sync with server (and Discord-echoed)
+// truth on refetch instead of drifting from local-only optimistic state.
+export function useSetChecklistByLabel() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, label, done, by }: SetChecklistByLabelVars) =>
+      apiFetch(`/api/working-projects/${id}/checklist`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type: "setByLabel", label, done, by }),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: WORKING_PROJECTS_KEY })

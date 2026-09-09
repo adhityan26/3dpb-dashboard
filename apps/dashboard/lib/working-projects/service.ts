@@ -110,8 +110,23 @@ export async function updateWorkingProject(threadId: string, patch: Partial<{
   if (patch.shipping !== undefined) data.shipping = patch.shipping
   if (patch.trackingNo !== undefined) data.trackingNo = patch.trackingNo
 
+  // If any title-affecting field changed, rebuild the title and push it to
+  // Discord too — otherwise editing a customer/product/variant leaves the
+  // thread name stale even though the DB row is up to date. Scope is
+  // intentionally title-only (no starter-post content rebuild here).
+  let syncPatch: Parameters<typeof editRelayThread>[1] = {}
+  if (patch.customer !== undefined || patch.product !== undefined || patch.variant !== undefined) {
+    const newTitle = buildTitle({
+      customer: (data.customer as string) ?? wp.customer,
+      product: (data.product as string) ?? wp.product,
+      variant: (data.variant as string) ?? wp.variant,
+    })
+    data.title = newTitle
+    syncPatch = { name: newTitle }
+  }
+
   await prisma.workingProject.update({ where: { discordThreadId: threadId }, data })
-  const discordSynced = await syncEditOrError(wp.id, wp.discordThreadId, {})
+  const discordSynced = await syncEditOrError(wp.id, wp.discordThreadId, syncPatch)
   return { ok: true, discordSynced }
 }
 
@@ -169,7 +184,13 @@ export async function runChecklistOp(threadId: string, op:
       checklist.push({ ...src, id: nextId++, done: false, done_at: null, done_by: null })
     }
   } else if (op.type === 'setByLabel') {
-    const item = checklist.find(i => !i.deleted && i.text.toLowerCase() === op.label.toLowerCase())
+    // Match the same way the GL Ring tab's read side matches (case-insensitive
+    // substring), so a legacy inconsistently-labeled item (e.g. "A — Print
+    // Frame (resin)") that reads as matching a canonical label continues to
+    // be the item that gets updated on write too — otherwise the strict-equality
+    // write path below would create a second, duplicate canonical-labeled item.
+    const lowerLabel = op.label.toLowerCase()
+    const item = checklist.find(i => !i.deleted && i.text.toLowerCase().includes(lowerLabel))
     if (item) {
       item.done = op.done
       item.done_at = op.done ? new Date().toISOString() : null

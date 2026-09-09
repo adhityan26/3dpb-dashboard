@@ -75,11 +75,18 @@ describe('isGLRing', () => {
   it('true when appliedTags include a ring tag', () => {
     expect(isGLRing(['Green Lantern Ring'])).toBe(true)
   })
-  it('true for a cincin tag regardless of forumChannelId (tag-based detection only)', () => {
+  it('true for a cincin tag regardless of forumChannelId', () => {
     expect(isGLRing(['Cincin'])).toBe(true)
   })
   it('false otherwise', () => {
     expect(isGLRing(['Topeng'])).toBe(false)
+  })
+  it('true when appliedTags is empty but forumChannelId matches the Cincin forum channel env fallback', () => {
+    const cincinId = process.env.NEXT_PUBLIC_FORUM_CINCIN_ID ?? 'FORUM_CINCIN_ID'
+    expect(isGLRing([], cincinId)).toBe(true)
+  })
+  it('false when appliedTags is empty and forumChannelId does not match', () => {
+    expect(isGLRing([], 'some-other-channel-id')).toBe(false)
   })
 })
 

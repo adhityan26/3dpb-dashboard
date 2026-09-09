@@ -50,6 +50,23 @@ describe('WorkingProjectEditModal', () => {
     )
   })
 
+  it('does not include dueDateRaw in the patch when only an unrelated field changes and the due date was parsed (not raw)', () => {
+    const onSave = vi.fn()
+    const parsedDueDateProject: WorkingProject = {
+      ...project,
+      dueDate: '2026-09-20T00:00:00.000Z',
+      dueDateRaw: null,
+    }
+    render(<WorkingProjectEditModal project={parsedDueDateProject} onClose={vi.fn()} onSave={onSave} isPending={false} />)
+    fireEvent.change(screen.getByDisplayValue('Budi'), { target: { value: 'Budi Santoso' } })
+    fireEvent.click(screen.getByRole('button', { name: /simpan/i }))
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'wp1', patch: { customer: 'Budi Santoso' } }),
+    )
+    const patch = onSave.mock.calls[0][0].patch
+    expect(patch).not.toHaveProperty('dueDateRaw')
+  })
+
   it('calls onClose when cancel is clicked', () => {
     const onClose = vi.fn()
     render(<WorkingProjectEditModal project={project} onClose={onClose} onSave={vi.fn()} isPending={false} />)
