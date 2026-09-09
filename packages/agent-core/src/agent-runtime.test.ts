@@ -4,6 +4,33 @@ import { LocalBroker } from "./local-broker";
 import type { CredentialStore, PathProvider, Logger, LogFileProvider, BuildInfo } from "./interfaces";
 import type { CredentialBlob } from "./credential-store";
 import type { Engine, MqttReporter } from "@3pb/printer-monitor-core";
+import * as credentialStoreModule from "./credential-store";
+import * as startupModule from "./startup";
+import * as engineManagerModule from "./engine-manager";
+import * as layoutPublisherModule from "./layout-publisher";
+import * as saasClientModule from "./saas-client";
+import { InMemoryCredentialStore } from "./in-memory-credential-store";
+
+vi.mock("./credential-store", async () => {
+  const actual = await vi.importActual<typeof import("./credential-store")>("./credential-store");
+  return { ...actual, ensureBrokerPin: vi.fn() };
+});
+vi.mock("./startup", async () => {
+  const actual = await vi.importActual<typeof import("./startup")>("./startup");
+  return { ...actual, buildPairedDevices: vi.fn() };
+});
+vi.mock("./engine-manager", async () => {
+  const actual = await vi.importActual<typeof import("./engine-manager")>("./engine-manager");
+  return { ...actual, startEngine: vi.fn() };
+});
+vi.mock("./layout-publisher", async () => {
+  const actual = await vi.importActual<typeof import("./layout-publisher")>("./layout-publisher");
+  return { ...actual, publishLayout: vi.fn() };
+});
+vi.mock("./saas-client", async () => {
+  const actual = await vi.importActual<typeof import("./saas-client")>("./saas-client");
+  return { ...actual, fetchLatestVersion: vi.fn() };
+});
 
 function makeDeps() {
   const store: CredentialStore<CredentialBlob> = {
@@ -143,5 +170,100 @@ describe("AgentRuntime", () => {
     await expect(runtime.teardownEngine()).resolves.toBeUndefined();
     expect(logger.error).toHaveBeenCalled();
     expect(runtime.getReporters()).toEqual([]);
+  });
+});
+
+function makeRuntimeForStartStop(store: CredentialStore<CredentialBlob> = new InMemoryCredentialStore()) {
+  const pathProvider = { userDataDir: () => "/fake" };
+  const logger = { info: vi.fn(), warn: vi.fn(), error: vi.fn() };
+  const logFileProvider = { getLogFilePath: () => null };
+  const buildInfo = { version: "0.0.1", commitHash: "abc1234" };
+  const fakeBroker = {
+    start: vi.fn().mockResolvedValue({ ok: true, port: 1883 }),
+    stop: vi.fn().mockResolvedValue(undefined),
+    port: 1883,
+  };
+  const runtime = new AgentRuntime({
+    credentialStore: store, pathProvider, logger, logFileProvider, buildInfo,
+    saasBaseUrl: "http://test.example.com", updatePlatform: "win",
+    broker: fakeBroker as never,
+  });
+  return { runtime, logger, fakeBroker };
+}
+
+describe("AgentRuntime.start", () => {
+  it("broker start sukses, tanpa device paired -> start selesai tanpa throw, engine tetap null", async () => {
+    const { runtime, fakeBroker } = makeRuntimeForStartStop(new InMemoryCredentialStore({ agentToken: null, devices: {} }));
+    vi.mocked(credentialStoreModule.ensureBrokerPin).mockResolvedValue("1234");
+    vi.mocked(startupModule.buildPairedDevices).mockResolvedValue([]);
+
+    await expect(runtime.start()).resolves.toBeUndefined();
+    expect(fakeBroker.start).toHaveBeenCalledWith(1883, "1234");
+    expect(runtime.getEngine()).toBeNull();
+  });
+
+  it("broker gagal start -> start() TIDAK throw, tetap resolve", async () => {
+    const { runtime, fakeBroker } = makeRuntimeForStartStop();
+    vi.mocked(credentialStoreModule.ensureBrokerPin).mockResolvedValue("1234");
+    fakeBroker.start.mockResolvedValue({ ok: false, reason: "port_in_use" });
+
+    await expect(runtime.start()).resolves.toBeUndefined();
+  });
+
+  it("startEngine throw di tengah start() -> publishLayout ikut TIDAK dipanggil (perilaku lama dipertahankan)", async () => {
+    const { runtime } = makeRuntimeForStartStop(new InMemoryCredentialStore({ agentToken: "tok", devices: {} }));
+    vi.mocked(credentialStoreModule.ensureBrokerPin).mockResolvedValue("1234");
+    const pairedDevice = { shortCode: "ABC", label: "A", printerType: "bambu", model: null, secret: { ip: "1.1.1.1", accessCode: "", serial: "" } };
+    vi.mocked(startupModule.buildPairedDevices).mockResolvedValue([pairedDevice]);
+    vi.mocked(engineManagerModule.startEngine).mockRejectedValue(new Error("accessCode kosong"));
+
+    await runtime.start();
+
+    expect(layoutPublisherModule.publishLayout).not.toHaveBeenCalled();
+  });
+
+  it("dengan agentToken -> publishLayout dipanggil setelah engine start sukses", async () => {
+    const { runtime } = makeRuntimeForStartStop(new InMemoryCredentialStore({ agentToken: "tok", devices: {} }));
+    vi.mocked(credentialStoreModule.ensureBrokerPin).mockResolvedValue("1234");
+    vi.mocked(startupModule.buildPairedDevices).mockResolvedValue([]);
+
+    await runtime.start();
+
+    expect(layoutPublisherModule.publishLayout).toHaveBeenCalledWith("http://test.example.com", "tok", 1883, "default", "1234", runtime.logger);
+  });
+
+  it("update-check timer mulai bahkan kalau broker gagal start (independen dari hasil start lainnya)", async () => {
+    vi.useFakeTimers();
+    const { runtime, fakeBroker } = makeRuntimeForStartStop(new InMemoryCredentialStore({ agentToken: "tok", devices: {} }));
+    vi.mocked(credentialStoreModule.ensureBrokerPin).mockResolvedValue("1234");
+    fakeBroker.start.mockResolvedValue({ ok: false, reason: "port_in_use" });
+    vi.mocked(saasClientModule.fetchLatestVersion).mockResolvedValue({ ok: true, data: { updateAvailable: true } });
+
+    await runtime.start();
+    await vi.runOnlyPendingTimersAsync();
+
+    expect(saasClientModule.fetchLatestVersion).toHaveBeenCalled();
+    expect(runtime.getUpdateAvailable()).toBe(true);
+    vi.useRealTimers();
+  });
+});
+
+describe("AgentRuntime.stop", () => {
+  it("stop() memanggil teardownEngine(), broker.stop(), dan menghentikan timer update-check", async () => {
+    const { runtime, fakeBroker } = makeRuntimeForStartStop(new InMemoryCredentialStore({ agentToken: null, devices: {} }));
+    vi.mocked(credentialStoreModule.ensureBrokerPin).mockResolvedValue("1234");
+    vi.mocked(startupModule.buildPairedDevices).mockResolvedValue([]);
+    const teardownSpy = vi.spyOn(runtime, "teardownEngine");
+
+    await runtime.start();
+    await runtime.stop();
+
+    expect(teardownSpy).toHaveBeenCalled();
+    expect(fakeBroker.stop).toHaveBeenCalled();
+  });
+
+  it("stop() sebelum start() -> tidak throw", async () => {
+    const { runtime } = makeRuntimeForStartStop();
+    await expect(runtime.stop()).resolves.toBeUndefined();
   });
 });
