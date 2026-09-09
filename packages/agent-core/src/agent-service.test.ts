@@ -43,7 +43,7 @@ describe("AgentService.activate", () => {
     vi.mocked(saasClient.fetchDevices).mockResolvedValue({ ok: true, data: [] });
     const result = await service.activate("tok123");
     expect(result).toEqual({ ok: true, data: [] });
-    expect(await store.load()).toEqual({ status: "ok", blob: { agentToken: "tok123", devices: {}, brokerPin: null } });
+    expect(await store.load()).toEqual({ status: "ok", blob: { agentToken: "tok123", devices: {} } });
   });
 
   it("fetchDevices gagal -> token TIDAK disimpan", async () => {
@@ -68,13 +68,13 @@ describe("AgentService.pairDevice / forgetDevice", () => {
     const { service, store } = makeFixture();
     const secret = { ip: "1.2.3.4", accessCode: "x", serial: "" };
     await service.pairDevice("ABC", secret);
-    expect(await store.load()).toEqual({ status: "ok", blob: { agentToken: undefined, devices: { ABC: secret }, brokerPin: null } });
+    expect(await store.load()).toEqual({ status: "ok", blob: { agentToken: null, devices: { ABC: secret } } });
   });
 
   it("forgetDevice: hapus dari blob.devices", async () => {
-    const { service, store } = makeFixture(new InMemoryCredentialStore({ agentToken: undefined, devices: { ABC: { ip: "x", accessCode: "y", serial: "" } }, brokerPin: null }));
+    const { service, store } = makeFixture(new InMemoryCredentialStore({ agentToken: null, devices: { ABC: { ip: "x", accessCode: "y", serial: "" } } }));
     await service.forgetDevice("ABC");
-    expect(await store.load()).toEqual({ status: "ok", blob: { agentToken: undefined, devices: {}, brokerPin: null } });
+    expect(await store.load()).toEqual({ status: "ok", blob: { agentToken: null, devices: {} } });
   });
 });
 
@@ -85,13 +85,13 @@ describe("AgentService.updateDeviceModel", () => {
   });
 
   it("patchDeviceModel sukses -> ok:true", async () => {
-    const { service } = makeFixture(new InMemoryCredentialStore({ agentToken: "tok", devices: {}, brokerPin: null }));
+    const { service } = makeFixture(new InMemoryCredentialStore({ agentToken: "tok", devices: {} }));
     vi.mocked(saasClient.patchDeviceModel).mockResolvedValue({ ok: true, data: { model: "model-x" } });
     expect(await service.updateDeviceModel("ABC", "model-x")).toEqual({ ok: true });
   });
 
   it("patchDeviceModel kind invalid_model -> diteruskan", async () => {
-    const { service } = makeFixture(new InMemoryCredentialStore({ agentToken: "tok", devices: {}, brokerPin: null }));
+    const { service } = makeFixture(new InMemoryCredentialStore({ agentToken: "tok", devices: {} }));
     vi.mocked(saasClient.patchDeviceModel).mockResolvedValue({ ok: false, kind: "invalid_model" });
     expect(await service.updateDeviceModel("ABC", "model-x")).toEqual({ ok: false, kind: "invalid_model" });
   });

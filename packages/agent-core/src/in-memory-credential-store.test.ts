@@ -9,8 +9,8 @@ describe("InMemoryCredentialStore", () => {
 
   it("save() lalu load() -> balikin blob yang sama, status ok", async () => {
     const store = new InMemoryCredentialStore();
-    await store.save({ agentToken: "tok", devices: {}, brokerPin: null });
-    expect(await store.load()).toEqual({ status: "ok", blob: { agentToken: "tok", devices: {}, brokerPin: null } });
+    await store.save({ agentToken: "tok", devices: {} });
+    expect(await store.load()).toEqual({ status: "ok", blob: { agentToken: "tok", devices: {} } });
   });
 
   it("isEncryptionAvailable() selalu true (fixture test, bukan simulasi degraded)", () => {
