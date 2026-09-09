@@ -1,6 +1,6 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 
 export interface WorkingProjectChecklistItem {
   id: number
@@ -53,11 +53,40 @@ async function apiFetch<T>(url: string, opts?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
+const WORKING_PROJECTS_KEY = ["working-projects"] as const
+
 export function useWorkingProjects() {
   const query = useQuery({
-    queryKey: ["working-projects"],
+    queryKey: WORKING_PROJECTS_KEY,
     queryFn: () => apiFetch<WorkingProject[]>("/api/working-projects"),
   })
 
   return { ...query, data: query.data, isLoading: query.isLoading }
+}
+
+export interface WorkingProjectUpdatePatch {
+  customer?: string
+  product?: string
+  variant?: string
+  dueDateRaw?: string
+  paymentRaw?: string
+  invoiceAmountRaw?: string
+  shipping?: string
+  trackingNo?: string
+  notesAppend?: string
+}
+
+export function useUpdateWorkingProject() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, patch }: { id: string; patch: WorkingProjectUpdatePatch }) =>
+      apiFetch(`/api/working-projects/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: WORKING_PROJECTS_KEY })
+    },
+  })
 }

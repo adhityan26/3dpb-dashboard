@@ -1,0 +1,64 @@
+// @vitest-environment jsdom
+import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi } from 'vitest'
+import { WorkingProjectEditModal } from '../WorkingProjectEditModal'
+import type { WorkingProject } from '@/lib/hooks/use-working-projects'
+
+const project: WorkingProject = {
+  id: 'wp1',
+  discordThreadId: 't1',
+  discordThreadUrl: 'https://discord.com/channels/123/t1',
+  forumChannelId: null,
+  source: 'shopee',
+  sourceOrderNo: 'SN1',
+  orderNoLegacy: null,
+  customer: 'Budi',
+  contact: '0812',
+  platform: 'Shopee',
+  product: 'Cincin',
+  variant: 'Emas',
+  status: 'Open',
+  payment: 'Marketplace',
+  dueDate: null,
+  dueDateRaw: '2026-09-20',
+  invoiceAmount: 150000,
+  checklist: [],
+}
+
+describe('WorkingProjectEditModal', () => {
+  it('returns null when no project is given', () => {
+    const { container } = render(
+      <WorkingProjectEditModal project={null} onClose={vi.fn()} onSave={vi.fn()} isPending={false} />,
+    )
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it('prefills fields from the given project', () => {
+    render(<WorkingProjectEditModal project={project} onClose={vi.fn()} onSave={vi.fn()} isPending={false} />)
+    expect(screen.getByDisplayValue('Budi')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Cincin')).toBeInTheDocument()
+    expect(screen.getByDisplayValue('Emas')).toBeInTheDocument()
+  })
+
+  it('calls onSave with the edited patch', () => {
+    const onSave = vi.fn()
+    render(<WorkingProjectEditModal project={project} onClose={vi.fn()} onSave={onSave} isPending={false} />)
+    fireEvent.change(screen.getByDisplayValue('Budi'), { target: { value: 'Budi Santoso' } })
+    fireEvent.click(screen.getByRole('button', { name: /simpan/i }))
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'wp1', patch: expect.objectContaining({ customer: 'Budi Santoso' }) }),
+    )
+  })
+
+  it('calls onClose when cancel is clicked', () => {
+    const onClose = vi.fn()
+    render(<WorkingProjectEditModal project={project} onClose={onClose} onSave={vi.fn()} isPending={false} />)
+    fireEvent.click(screen.getByRole('button', { name: /batal/i }))
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('disables save while pending', () => {
+    render(<WorkingProjectEditModal project={project} onClose={vi.fn()} onSave={vi.fn()} isPending={true} />)
+    expect(screen.getByRole('button', { name: /menyimpan/i })).toBeDisabled()
+  })
+})
