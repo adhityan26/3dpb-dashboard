@@ -9,6 +9,7 @@ import { publishLayout } from '@3pb/agent-core'
 import { registerIpcHandlers } from './ipc'
 import { setEngine, setBrokerPort, setBrokerPin, setReporters, setUpdateAvailable, setCredentialStoreDegraded } from './app-state'
 import { SafeStorageCredentialStore, ElectronPathProvider, ElectronLogAdapter, getElectronBuildInfo } from './platform-electron'
+import log from 'electron-log/main'
 
 const gotLock = app.requestSingleInstanceLock()
 const credentialStore = new SafeStorageCredentialStore()
@@ -35,6 +36,9 @@ let isQuitting = false
  * `app.on('ready', ...)` di bawah yang menjamin `createWindow()` tetap jalan.
  */
 async function bootstrap(): Promise<void> {
+  log.initialize()
+  log.errorHandler.startCatching() // uncaught exceptions + unhandled rejections -> log file automatically
+  Object.assign(console, log.functions) // route console.log/console.error/etc through electron-log too, so uploaded logs actually contain startup diagnostics (SaaS base URL, LAN IP candidates) instead of being near-empty
   const config = await loadOrCreateConfig(pathProvider, process.env.SAAS_BASE_URL)
   try {
     const base = config.saasBaseUrl
