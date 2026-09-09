@@ -26,6 +26,9 @@ import type { OrderSummary } from "@/lib/orders/types"
 import type { OrderPrefill } from "@/lib/invoice/types"
 import { useTokopediaSession, useTokopediaOrders, useTokopediaOrder } from "@/lib/hooks/use-tokopedia"
 import { TokopediaOrderRow } from "@/components/order/TokopediaOrderRow"
+import { WorkingProjectOrdersTab } from "@/components/order/WorkingProjectOrdersTab"
+import { WorkingProjectTimelineTab } from "@/components/order/WorkingProjectTimelineTab"
+import { WorkingProjectGLRingTab } from "@/components/order/WorkingProjectGLRingTab"
 
 // ── ShopeeOrderView ────────────────────────────────────────────────────────
 
@@ -343,6 +346,42 @@ function TokopediaOrderView() {
   )
 }
 
+// ── WorkingProjectView ──────────────────────────────────────────────────────
+
+type WorkingProjectTab = "orders" | "green-lantern-ring" | "timeline"
+const VALID_WORKING_PROJECT_TABS: WorkingProjectTab[] = ["orders", "green-lantern-ring", "timeline"]
+
+function WorkingProjectView() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const rawTab = searchParams.get("tab") ?? "orders"
+  const tab: WorkingProjectTab = VALID_WORKING_PROJECT_TABS.includes(rawTab as WorkingProjectTab)
+    ? (rawTab as WorkingProjectTab)
+    : "orders"
+
+  function setTab(t: WorkingProjectTab) {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("tab", t)
+    router.replace(`?${params.toString()}`, { scroll: false })
+  }
+
+  return (
+    <div data-testid="working-project-channel" className="space-y-4">
+      <div className="flex items-center gap-2 flex-wrap">
+        {([["orders", "Orders"], ["green-lantern-ring", "Green Lantern Ring"], ["timeline", "Timeline"]] as const).map(([t, label]) => (
+          <button key={t} onClick={() => setTab(t)}
+            className={`px-3 py-1 rounded-full text-sm font-medium border ${tab === t ? "bg-indigo-600 text-white border-indigo-600" : "border-border text-muted-foreground hover:bg-muted"}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === "orders" && <div data-testid="wp-tab-orders"><WorkingProjectOrdersTab /></div>}
+      {tab === "green-lantern-ring" && <div data-testid="wp-tab-green-lantern-ring"><WorkingProjectGLRingTab /></div>}
+      {tab === "timeline" && <div data-testid="wp-tab-timeline"><WorkingProjectTimelineTab /></div>}
+    </div>
+  )
+}
+
 // ── OrderPage ──────────────────────────────────────────────────────────────
 
 export default function OrderPage() {
@@ -353,20 +392,21 @@ export default function OrderPage() {
   )
 }
 
-const VALID_CHANNELS: OrderChannel[] = ["shopee", "tokopedia", "light-generator", "strava"]
+const VALID_CHANNELS: OrderChannel[] = ["working-project", "shopee", "tokopedia", "light-generator", "strava"]
 
 function OrderPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const rawChannel = searchParams.get("channel") ?? "shopee"
+  const rawChannel = searchParams.get("channel") ?? "working-project"
   const channel: OrderChannel = VALID_CHANNELS.includes(rawChannel as OrderChannel)
     ? (rawChannel as OrderChannel)
-    : "shopee"
+    : "working-project"
 
   function setChannel(ch: OrderChannel) {
     const params = new URLSearchParams(searchParams.toString())
     params.set("channel", ch)
+    if (ch !== "working-project") params.delete("tab")
     router.replace(`?${params.toString()}`, { scroll: false })
     setSidebarOpen(false)
   }
@@ -394,6 +434,7 @@ function OrderPageInner() {
             </Link>
           }
         >
+          {channel === "working-project" && <WorkingProjectView />}
           {channel === "shopee" && <ShopeeOrderView />}
           {channel === "tokopedia" && <TokopediaOrderView />}
           {channel === "light-generator" && <LightGeneratorOrderView />}
