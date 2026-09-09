@@ -59,10 +59,10 @@ describe("AgentRuntime", () => {
   });
 
   it("dua instance AgentRuntime punya state independen (bukan singleton tersembunyi)", () => {
-    const depsA = makeDeps();
-    const depsB = makeDeps();
-    const runtimeA = new AgentRuntime({ ...depsA, saasBaseUrl: "a", updatePlatform: "win" });
-    const runtimeB = new AgentRuntime({ ...depsB, saasBaseUrl: "b", updatePlatform: "mac" });
+    const { store: storeA, ...restA } = makeDeps();
+    const { store: storeB, ...restB } = makeDeps();
+    const runtimeA = new AgentRuntime({ ...restA, credentialStore: storeA, saasBaseUrl: "a", updatePlatform: "win" });
+    const runtimeB = new AgentRuntime({ ...restB, credentialStore: storeB, saasBaseUrl: "b", updatePlatform: "mac" });
     runtimeA.setBrokerPort(1);
     runtimeB.setBrokerPort(2);
     expect(runtimeA.getBrokerPort()).toBe(1);
