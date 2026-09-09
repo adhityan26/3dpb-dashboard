@@ -68,3 +68,21 @@ describe("app-state facade", () => {
     expect(getBrokerPort()).toBeNull();
   });
 });
+
+// Modul app-state.ts di-cache Vitest per file test, jadi describe terpisah ini butuh
+// vi.resetModules() + import dinamis supaya `runtime` module-level-nya benar-benar belum
+// pernah di-set oleh initRuntime() dari describe block manapun -- meniru persis skenario
+// ipc.test.ts (yang tidak pernah memanggil initRuntime() sama sekali).
+describe("app-state facade - lazy default sebelum initRuntime()", () => {
+  it("getRuntime()/getBrokerPort() tanpa initRuntime() sebelumnya tidak throw, balikin default", async () => {
+    vi.resetModules();
+    const fresh = await import("./app-state");
+    expect(() => fresh.getRuntime()).not.toThrow();
+    expect(fresh.getBrokerPort()).toBeNull();
+    expect(fresh.getBrokerPin()).toBeNull();
+    expect(fresh.getEngine()).toBeNull();
+    expect(fresh.getReporters()).toEqual([]);
+    expect(fresh.getUpdateAvailable()).toBe(false);
+    expect(fresh.getCredentialStoreDegraded()).toBe(false);
+  });
+});
