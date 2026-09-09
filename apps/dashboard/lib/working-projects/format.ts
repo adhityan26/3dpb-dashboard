@@ -37,3 +37,32 @@ export function buildPostContent(wp: {
   if (wp.notes) lines.push(`**Catatan:** ${wp.notes}`)
   return lines.join('\n')
 }
+
+export const SIZE_SCALE: Record<string, number> = {
+  '5': 88, '6': 91, '7': 94, '8': 97, '9': 100, '10': 103, '11': 106, '12': 109,
+}
+
+export function parseSize(notes: string): { usSize: string | null; scalePct: number | null } {
+  const segments = notes.split('|').map(s => s.trim())
+  for (const seg of segments) {
+    const m = seg.match(/size\s*(?:us)?\s*(\d{1,2})/i)
+    if (m) {
+      const usSize = m[1]
+      return { usSize, scalePct: SIZE_SCALE[usSize] ?? null }
+    }
+  }
+  return { usSize: null, scalePct: null }
+}
+
+export function splitProductVariants(product: string): string[] {
+  return product.split(',').map(s => s.trim()).filter(Boolean)
+}
+
+export function variantShort(entry: string): string {
+  return entry.replace(/Green Lantern/gi, 'GL')
+}
+
+export function isGLRing(appliedTags: string[], forumChannelId: string | null): boolean {
+  if (forumChannelId === 'FORUM_CINCIN_ID') return true
+  return appliedTags.some(t => /ring|cincin/i.test(t))
+}

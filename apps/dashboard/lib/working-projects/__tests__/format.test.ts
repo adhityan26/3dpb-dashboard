@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildTitle, buildPostContent, parseDueDate } from '../format'
+import { buildTitle, buildPostContent, parseDueDate, SIZE_SCALE, parseSize, isGLRing, variantShort, splitProductVariants } from '../format'
 
 describe('buildTitle', () => {
   it('joins customer, product, variant', () => {
@@ -38,5 +38,47 @@ describe('buildPostContent', () => {
     } as any)
     expect(content).toContain('SN123')
     expect(content).not.toContain('legacy-1')
+  })
+})
+
+describe('SIZE_SCALE', () => {
+  it('maps US ring sizes to scale percentages', () => {
+    expect(SIZE_SCALE['8']).toBeTypeOf('number')
+    expect(SIZE_SCALE['6']).toBeLessThan(SIZE_SCALE['10'])
+  })
+})
+
+describe('parseSize', () => {
+  it('extracts US size from pipe-delimited notes', () => {
+    const r = parseSize('warna emas | size US 8 | catatan lain')
+    expect(r.usSize).toBe('8')
+    expect(r.scalePct).toBe(SIZE_SCALE['8'])
+  })
+  it('returns nulls when no size segment present', () => {
+    expect(parseSize('warna emas')).toEqual({ usSize: null, scalePct: null })
+  })
+})
+
+describe('splitProductVariants', () => {
+  it('splits comma-joined product string into variants', () => {
+    expect(splitProductVariants('Cincin A, Cincin B')).toEqual(['Cincin A', 'Cincin B'])
+  })
+})
+
+describe('variantShort', () => {
+  it('shortens a variant entry for display', () => {
+    expect(variantShort('Cincin Green Lantern - Emas')).toBe('Cincin GL - Emas')
+  })
+})
+
+describe('isGLRing', () => {
+  it('true when forumChannelId matches the ring forum', () => {
+    expect(isGLRing([], 'FORUM_CINCIN_ID')).toBe(true)
+  })
+  it('true when appliedTags include a ring tag', () => {
+    expect(isGLRing(['Green Lantern Ring'], null)).toBe(true)
+  })
+  it('false otherwise', () => {
+    expect(isGLRing(['Topeng'], 'FORUM_TOPENG_ID')).toBe(false)
   })
 })
