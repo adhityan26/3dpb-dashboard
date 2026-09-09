@@ -20,4 +20,5 @@ export * from "./pin-rate-limiter";
 export * from "./local-broker";
 export * from "./agent-service-types";
 export * from "./agent-runtime";
+export * from "./agent-service";
 export * from "./in-memory-credential-store";
