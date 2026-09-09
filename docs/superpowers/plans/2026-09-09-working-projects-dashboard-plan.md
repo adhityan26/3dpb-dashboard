@@ -2730,6 +2730,214 @@ git commit -m "docs(working-projects): document DISCORD_RELAY_URL/DISCORD_RELAY_
 
 ---
 
+### Task 23: GL Ring tab — rebuild to full spec parity (post-review follow-up)
+
+**Context:** The final whole-branch review found Task 20's implementation far below the spec's `tab=green-lantern-ring` requirements (§UI, spec lines 404-430) — missing the production checklist grid entirely, no filter UI, single-column sort only, and per-project (not per-variant) size application that renders wrong data on multi-ring projects. User decision: rebuild to full spec.
+
+**Files:**
+- Modify: `apps/dashboard/components/order/WorkingProjectGLRingTab.tsx`
+- Modify: `apps/dashboard/components/order/__tests__/WorkingProjectGLRingTab.test.tsx`
+- Consume (already exist): `runChecklistOp` with `type:'setByLabel'` (Task 9), `POST /api/bot/working-projects/[threadId]/checklist` (Task 12) — but this is a WEB-authenticated UI, so it must call through `PATCH /api/working-projects/[id]` or a checklist-capable web route; check whether Task 14's web routes expose a checklist op, and if not, add a thin web-facing checklist route mirroring Task 12's bot-facing one (session-auth via `auth()`, delegating to the same `runChecklistOp`).
+
+**Interfaces:**
+- Consumes: `splitProductVariants`, `variantShort`, `parseSize`, `SIZE_SCALE` (Task 3, `lib/working-projects/format.ts`), `useWorkingProjects` (Task 18).
+- Produces: a fully spec-compliant GL Ring table.
+
+**Required behavior (verbatim from spec, §UI `tab=green-lantern-ring`):**
+
+1. **One row per ring variant, not per project**: split `product` on commas; each part becomes its own row with a `key` from `variantShort()` (e.g. "Cosplay" / "2026" / "raw") distinguishing multiple variants within one project.
+2. **Per-variant size**: split `notes` on `|`; find the segment matching the row's `key` (or use the whole `notes` string when the project has only one variant) — NOT `parseSize(wp.notes)` applied identically to every row. Parse that segment with `parseSize()`, look up `SIZE_SCALE`.
+3. **Checklist — 7 items per `key`**, canonical labels: `"<key> — Print Frame"`, `"<key> — Print Stone"`, `"<key> — Print Ring"`, `"<key> — Cat Frame"`, `"<key> — Cat Stone"`, `"<key> — Cat Ring"`, `"<key> — Assembly"` (omit the `"<key> — "` prefix entirely when the project has only one variant). **Reads**: match by case-insensitive `includes()` against `wp.checklist[].text` (tolerates inconsistent legacy labels). **Writes**: a checkbox toggle calls the checklist `setByLabel` op (`{op:'setByLabel', label, done, actor}`) via the web-authenticated route identified above — never mutate checklist state client-side only.
+4. **Filters** (all must have real, wired UI controls — not just state that's declared and never rendered): search (matches order no or customer, case-insensitive substring), platform, variant, size (US size value), production step (one of the 7 checklist item types), step-status (done/not-done for the selected step).
+5. **Sort**: up to 3-column shift-click multi-sort over due date / order date / order no / platform / variant / US size / status — clicking a column header without shift replaces the sort key list with that one column; shift-clicking appends it (up to 3 total, dropping the oldest beyond 3).
+6. **Summary stat pills**: active count (non-Canceled, non-excluded rows), missing-size count (rows where `parseSize` returned no US size), fully-done count (rows where all 7 checklist items are done).
+7. **`Canceled` status rows excluded entirely** (already correct in the current implementation — preserve this).
+8. **Columns**, in order: Due Date, Order Date, No Order (`sourceOrderNo ?? orderNoLegacy ?? '-'`), Platform, Variant, Ukuran (US size), Scale (percentage), then 7 checklist checkboxes (one per canonical label, each independently toggleable), Progress (done/7), Status, Discord link.
+
+- [ ] **Step 1: Check for an existing web-facing checklist route; add one if missing**
+
+Read `apps/dashboard/app/api/working-projects/[id]/route.ts` (Task 14) and confirm whether it already supports checklist ops. If not, create `apps/dashboard/app/api/working-projects/[id]/checklist/route.ts`:
+
+```typescript
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import { prisma } from '@/lib/db'
+import { runChecklistOp } from '@/lib/working-projects/service'
+
+const VALID_TYPES = ['add', 'check', 'uncheck', 'edit', 'remove', 'copy', 'setByLabel']
+
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await auth()
+  if (!session?.user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const { id } = await params
+  const body = await req.json()
+  if (!VALID_TYPES.includes(body.type)) {
+    return NextResponse.json({ error: `type must be one of ${VALID_TYPES.join(', ')}` }, { status: 400 })
+  }
+  const wp = await prisma.workingProject.findUnique({ where: { id } })
+  if (!wp) return NextResponse.json({ error: 'not_found' }, { status: 404 })
+  if (!wp.discordThreadId) return NextResponse.json({ error: 'no_discord_thread' }, { status: 409 })
+  return NextResponse.json(await runChecklistOp(wp.discordThreadId, body))
+}
+```
+
+Write a test file `apps/dashboard/app/api/working-projects/[id]/checklist/__tests__/route.test.ts` covering: 401 unauthenticated, 400 invalid type, 404 unknown id, 409 no discord thread, 200 delegating to `runChecklistOp`.
+
+- [ ] **Step 2: Write failing tests for the rebuilt component**
+
+```tsx
+vi.mock('@/lib/hooks/use-working-projects', () => ({
+  useWorkingProjects: () => ({
+    data: [
+      {
+        id: 'wp1', customer: 'Budi', product: 'Cincin A, Cincin B', notes: 'A|size US 8|catatan A / B|size US 6|catatan B',
+        status: 'Open', platform: 'Shopee', sourceOrderNo: 'SN1', orderNoLegacy: null,
+        dueDate: '2026-09-20', orderDate: '2026-09-01', discordThreadUrl: 'https://discord.com/x',
+        appliedTags: ['Cincin'],
+        checklist: [
+          { id: 1, text: 'A — Print Frame', done: true, deleted: false },
+          { id: 2, text: 'A — Print Stone', done: false, deleted: false },
+        ],
+      },
+    ],
+    isLoading: false,
+  }),
+}))
+import { render, screen, fireEvent } from '@testing-library/react'
+import { WorkingProjectGLRingTab } from '../WorkingProjectGLRingTab'
+
+describe('WorkingProjectGLRingTab full parity', () => {
+  it('parses per-variant size from the matching notes segment, not the same size for every row', () => {
+    render(<WorkingProjectGLRingTab />)
+    expect(screen.getByText(/US 8/)).toBeInTheDocument()
+    expect(screen.getByText(/US 6/)).toBeInTheDocument()
+  })
+
+  it('renders 7 checklist checkboxes per row with canonical labels', () => {
+    render(<WorkingProjectGLRingTab />)
+    const checkboxes = screen.getAllByRole('checkbox')
+    expect(checkboxes.length).toBeGreaterThanOrEqual(14) // 7 per row x 2 rows
+  })
+
+  it('renders real filter controls, not just internal state', () => {
+    render(<WorkingProjectGLRingTab />)
+    expect(screen.getByPlaceholderText(/cari|search/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/platform/i)).toBeInTheDocument()
+  })
+
+  it('shows summary stat pills', () => {
+    render(<WorkingProjectGLRingTab />)
+    expect(screen.getByText(/aktif|active/i)).toBeInTheDocument()
+  })
+
+  it('checking a checklist box calls the web checklist route with setByLabel', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) })
+    render(<WorkingProjectGLRingTab />)
+    const checkbox = screen.getAllByRole('checkbox')[1] // "A — Print Stone", currently unchecked
+    fireEvent.click(checkbox)
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining('/checklist'),
+      expect.objectContaining({ method: 'POST', body: expect.stringContaining('setByLabel') })
+    )
+  })
+})
+```
+
+- [ ] **Step 3: Run to verify failure**
+
+Run: `cd apps/dashboard && npx vitest run components/order/__tests__/WorkingProjectGLRingTab.test.tsx`
+Expected: FAIL against the current stub implementation.
+
+- [ ] **Step 4: Rebuild the component to full spec**
+
+Implement per the 8 numbered requirements above. Use real `<select>`/`<input>` elements for every filter (search input, platform select, variant select, size select, production-step select, step-status select), wire them all into the `useMemo` filter chain (not just some of them). Implement real shift-click multi-sort (track `event.shiftKey` in the column header `onClick` handler). Compute and render the 3 stat pills. Render the 7-checkbox grid per row, each checkbox's `onChange` firing the web checklist route's `setByLabel` op with this row's canonical label for that checklist item and the new `done` value, then invalidating the `useWorkingProjects` query cache (mirror the `invalidateQueries` pattern from Task 21's `create-from-order.ts` fix).
+
+- [ ] **Step 5: Run to verify pass**
+
+Run: `cd apps/dashboard && npx vitest run components/order/__tests__/WorkingProjectGLRingTab.test.tsx`
+Expected: PASS (all tests)
+
+- [ ] **Step 6: Run the full suite to confirm no regressions**
+
+Run: `cd apps/dashboard && npx vitest run`
+Expected: all tests pass.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add apps/dashboard/components/order/WorkingProjectGLRingTab.tsx apps/dashboard/components/order/__tests__/WorkingProjectGLRingTab.test.tsx apps/dashboard/app/api/working-projects/[id]/checklist
+git commit -m "feat(working-projects): rebuild GL Ring tab to full spec parity (checklist grid, filters, multi-sort, per-variant size)"
+```
+
+---
+
+### Task 24: Orders tab — edit action + "Lihat Data Marketplace" action
+
+**Context:** The final whole-branch review found Task 18's orders tab missing two spec-required actions (§UI, spec line 397-400): an edit action, and a "Lihat Data Marketplace" action for rows with a non-null `sourceOrderNo` that live-fetches via `GET /api/working-projects/:id/detail-source` (Task 14b). Task 14b's endpoint currently has zero callers.
+
+**Files:**
+- Modify: `apps/dashboard/components/order/WorkingProjectOrdersTab.tsx`
+- Modify: `apps/dashboard/components/order/__tests__/WorkingProjectOrdersTab.test.tsx`
+- Create: `apps/dashboard/components/order/WorkingProjectEditModal.tsx` (or similar — check for an existing modal pattern in this codebase, e.g. how invoice editing works, and mirror it rather than inventing a new one)
+- Create: `apps/dashboard/components/order/__tests__/WorkingProjectEditModal.test.tsx`
+
+**Interfaces:**
+- Consumes: `PATCH /api/working-projects/[id]` (Task 14, already exists), `GET /api/working-projects/[id]/detail-source` (Task 14b, already exists).
+
+- [ ] **Step 1: Find the existing modal/edit pattern to mirror**
+
+Search for how row-level editing already works elsewhere in this codebase (e.g. invoice editing, printer settings) — read that component in full before building a new one, to match this repo's established modal/dialog conventions (Glass theme, per the spec's UI note).
+
+- [ ] **Step 2: Write failing tests**
+
+```tsx
+vi.mock('@/lib/hooks/use-working-projects', () => ({
+  useWorkingProjects: () => ({
+    data: [
+      { id: 'wp1', customer: 'Budi', product: 'Cincin', sourceOrderNo: 'SN1', orderNoLegacy: null, /* ...other fields */ },
+      { id: 'wp2', customer: 'Ani', product: 'Topeng', sourceOrderNo: null, orderNoLegacy: 'manual-1', /* ... */ },
+    ],
+    isLoading: false,
+  }),
+}))
+import { render, screen } from '@testing-library/react'
+import { WorkingProjectOrdersTab } from '../WorkingProjectOrdersTab'
+
+describe('WorkingProjectOrdersTab actions', () => {
+  it('shows an edit action on every row', () => {
+    render(<WorkingProjectOrdersTab />)
+    expect(screen.getAllByRole('button', { name: /edit|ubah/i }).length).toBe(2)
+  })
+
+  it('shows Lihat Data Marketplace only for rows with a sourceOrderNo', () => {
+    render(<WorkingProjectOrdersTab />)
+    expect(screen.getAllByText(/lihat data marketplace/i).length).toBe(1)
+  })
+})
+```
+
+- [ ] **Step 3: Run to verify failure**
+
+Run: `cd apps/dashboard && npx vitest run components/order/__tests__/WorkingProjectOrdersTab.test.tsx`
+Expected: FAIL.
+
+- [ ] **Step 4: Implement**
+
+Add an "Edit" button per row opening `WorkingProjectEditModal` (prefilled from the row's current data, `PATCH`-ing `/api/working-projects/[id]` on save, invalidating the query cache on success). Add a "Lihat Data Marketplace" button, rendered only when `wp.sourceOrderNo` is non-null, which fetches `GET /api/working-projects/[id]/detail-source` and displays the result (a simple expandable panel or modal — match whatever pattern Step 1 found).
+
+- [ ] **Step 5: Run to verify pass, then full suite**
+
+Run: `cd apps/dashboard && npx vitest run` — confirm everything passes.
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add apps/dashboard/components/order/WorkingProjectOrdersTab.tsx apps/dashboard/components/order/WorkingProjectEditModal.tsx apps/dashboard/components/order/__tests__/WorkingProjectOrdersTab.test.tsx apps/dashboard/components/order/__tests__/WorkingProjectEditModal.test.tsx
+git commit -m "feat(working-projects): add edit and Lihat Data Marketplace actions to orders tab"
+```
+
+---
+
 ## Self-Review
 
 **Spec coverage:** All spec sections have a task — Data model (Task 1), pure formatting/GL-Ring logic (Tasks 2-4), relay (Task 5), relay client (Task 6), service layer incl. failure-ordering/reconciliation (Tasks 7-9), full bot-facing API surface (Tasks 10-13), full web-facing API surface incl. `detail-source`/`resync` (Tasks 14-14b), migration script (Task 15), UI incl. sidebar/tabs/GL-Ring parity/create-actions (Tasks 16-21), final verification (Task 22). The `cyd-publisher.js` stub and `threadUpdate` handler rewrite belong to Plan B (ai-assistant-side files), not this dashboard plan.
