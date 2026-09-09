@@ -77,6 +77,7 @@ async function syncEditOrError(id: string, threadId: string | null, patch: Param
 
 export async function setStatus(threadId: string, status: string, starterMessageContent?: string): Promise<{ ok: true; discordSynced: boolean }> {
   const wp = await prisma.workingProject.findUnique({ where: { discordThreadId: threadId } })
+  if (!wp) throw new Error(`WorkingProject not found for discordThreadId=${threadId}`)
   await prisma.workingProject.update({ where: { discordThreadId: threadId }, data: { status } })
   const discordSynced = await syncEditOrError(wp.id, wp.discordThreadId, starterMessageContent ? { starterContent: starterMessageContent } : {})
   return { ok: true, discordSynced }
@@ -84,6 +85,7 @@ export async function setStatus(threadId: string, status: string, starterMessage
 
 export async function markDone(threadId: string): Promise<{ ok: true; discordSynced: boolean }> {
   const wp = await prisma.workingProject.findUnique({ where: { discordThreadId: threadId } })
+  if (!wp) throw new Error(`WorkingProject not found for discordThreadId=${threadId}`)
   await prisma.workingProject.update({ where: { discordThreadId: threadId }, data: { status: 'Done' } })
   const discordSynced = await syncEditOrError(wp.id, wp.discordThreadId, {})
   await archiveRelayThread(threadId).catch(() => {})
@@ -95,6 +97,7 @@ export async function updateWorkingProject(threadId: string, patch: Partial<{
   notesAppend: string; variant: string; customer: string; product: string; shipping: string; trackingNo: string
 }>): Promise<{ ok: true; discordSynced: boolean }> {
   const wp = await prisma.workingProject.findUnique({ where: { discordThreadId: threadId } })
+  if (!wp) throw new Error(`WorkingProject not found for discordThreadId=${threadId}`)
   const data: Record<string, unknown> = {}
   if (patch.dueDateRaw !== undefined) Object.assign(data, parseDueDate(patch.dueDateRaw))
   if (patch.paymentRaw !== undefined) data.payment = patch.paymentRaw
@@ -114,6 +117,7 @@ export async function updateWorkingProject(threadId: string, patch: Partial<{
 
 export async function updateMentions(threadId: string, mentions: string[]): Promise<{ ok: true; discordSynced: boolean }> {
   const wp = await prisma.workingProject.findUnique({ where: { discordThreadId: threadId } })
+  if (!wp) throw new Error(`WorkingProject not found for discordThreadId=${threadId}`)
   await prisma.workingProject.update({ where: { discordThreadId: threadId }, data: { mentions } })
   const discordSynced = await syncEditOrError(wp.id, wp.discordThreadId, { mentions })
   return { ok: true, discordSynced }
@@ -121,6 +125,7 @@ export async function updateMentions(threadId: string, mentions: string[]): Prom
 
 export async function resyncWorkingProject(id: string): Promise<{ ok: true; discordSynced: boolean }> {
   const wp = await prisma.workingProject.findUnique({ where: { id } })
+  if (!wp) throw new Error(`WorkingProject not found for id=${id}`)
   const discordSynced = await syncEditOrError(id, wp.discordThreadId, {
     name: wp.title, appliedTags: wp.appliedTags, mentions: wp.mentions,
   })
@@ -141,6 +146,7 @@ export async function runChecklistOp(threadId: string, op:
   | { type: 'setByLabel'; label: string; done: boolean; by: string }
 ): Promise<{ ok: true; discordSynced: boolean }> {
   const wp = await prisma.workingProject.findUnique({ where: { discordThreadId: threadId } })
+  if (!wp) throw new Error(`WorkingProject not found for discordThreadId=${threadId}`)
   const checklist: ChecklistItem[] = wp.checklist as ChecklistItem[]
 
   if (op.type === 'add') {
@@ -156,6 +162,7 @@ export async function runChecklistOp(threadId: string, op:
     if (item) item.text = op.text
   } else if (op.type === 'copy') {
     const source = await prisma.workingProject.findUnique({ where: { discordThreadId: op.fromThreadId } })
+    if (!source) throw new Error(`WorkingProject not found for discordThreadId=${op.fromThreadId}`)
     let nextId = nextChecklistId(checklist)
     for (const src of source.checklist as ChecklistItem[]) {
       if (src.deleted) continue
