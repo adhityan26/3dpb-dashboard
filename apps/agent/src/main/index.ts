@@ -2,7 +2,7 @@ import { app, BrowserWindow } from 'electron'
 import { createWindow, disableApplicationMenu } from './window'
 import { createTray } from './tray'
 import { attachHideOnClose } from './window-lifecycle'
-import { startBroker } from './broker'
+import { LocalBroker } from '@3pb/agent-core'
 import { buildPairedDevices, ensureBrokerPin, loadCredentials, fetchLatestVersion, listLocalIpCandidates, loadOrCreateConfig } from '@3pb/agent-core'
 import { startEngine } from '@3pb/agent-core'
 import { publishLayout } from '@3pb/agent-core'
@@ -16,6 +16,7 @@ const credentialStore = new SafeStorageCredentialStore()
 const pathProvider = new ElectronPathProvider()
 const logger = new ElectronLogAdapter()
 const buildInfo = getElectronBuildInfo()
+const broker = new LocalBroker(logger)
 
 let mainWindow: BrowserWindow | null = null
 // App ini dirancang jalan terus di background (broker MQTT + monitoring printer harus tetap
@@ -71,7 +72,7 @@ async function bootstrap(): Promise<void> {
     const brokerPin = await ensureBrokerPin(credentialStore, logger)
     setBrokerPin(brokerPin)
 
-    const brokerResult = await startBroker(1883, brokerPin)
+    const brokerResult = await broker.start(1883, brokerPin)
     if (!brokerResult.ok) {
       logger.error(
         `[agent] broker MQTT lokal gagal start (${brokerResult.reason}) — monitoring lokal tak akan jalan`,
