@@ -67,6 +67,14 @@ describe("PinRateLimiter", () => {
     vi.useRealTimers();
   });
 
+  it("lockout satu alamat non-loopback TIDAK memengaruhi alamat lain", () => {
+    for (let i = 0; i < 5; i++) {
+      limiter.check("9.9.9.9", "wrong", "1234");
+    }
+    expect(limiter.check("9.9.9.9", "1234", "1234").locked).toBe(true); // ATTACKER terkunci
+    expect(limiter.check("8.8.8.8", "1234", "1234")).toEqual({ ok: true, locked: false }); // OTHER tidak terpengaruh
+  });
+
   it("::ffff:127.0.0.1 (IPv4-mapped IPv6) dianggap loopback juga", () => {
     for (let i = 0; i < 10; i++) {
       expect(limiter.check("::ffff:127.0.0.1", "wrong", "1234").locked).toBe(false);
