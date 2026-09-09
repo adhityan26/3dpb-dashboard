@@ -170,3 +170,51 @@ export async function runChecklistOp(threadId: string, op:
   const discordSynced = await syncEditOrError(wp.id, wp.discordThreadId, {})
   return { ok: true, discordSynced }
 }
+
+const REMINDER_SETTINGS_KEY = 'workingProjects.reminderSettings'
+
+export type ReminderSettings = { reminderDays: number[]; defaultMentions: string[] }
+
+const DEFAULT_REMINDER_SETTINGS: ReminderSettings = { reminderDays: [3, 1], defaultMentions: [] }
+
+export async function getReminderSettings(): Promise<ReminderSettings> {
+  const row = await prisma.config.findUnique({ where: { key: REMINDER_SETTINGS_KEY } })
+  if (!row?.value) return DEFAULT_REMINDER_SETTINGS
+  try {
+    return JSON.parse(row.value) as ReminderSettings
+  } catch {
+    return DEFAULT_REMINDER_SETTINGS
+  }
+}
+
+export async function setReminderSettings(settings: ReminderSettings): Promise<void> {
+  await prisma.config.upsert({
+    where: { key: REMINDER_SETTINGS_KEY },
+    update: { value: JSON.stringify(settings) },
+    create: { key: REMINDER_SETTINGS_KEY, value: JSON.stringify(settings) },
+  })
+}
+
+export async function getDueReminders() {
+  const settings = await getReminderSettings()
+  if (settings.reminderDays.length === 0) return []
+  const maxDays = Math.max(...settings.reminderDays)
+  const cutoff = new Date(Date.now() + maxDays * 86400000)
+  const candidates = await prisma.workingProject.findMany({
+    where: { dueDate: { not: null, lte: cutoff }, status: { notIn: ['Done', 'Canceled'] } },
+  })
+  return candidates.filter(wp => {
+    if (!wp.dueDate) return false
+    const daysLeft = Math.ceil((wp.dueDate.getTime() - Date.now()) / 86400000)
+    return settings.reminderDays.includes(daysLeft) && !wp.remindersSent.includes(daysLeft)
+  })
+}
+
+export async function markReminderSent(threadId: string, daysLeft: number): Promise<{ ok: true }> {
+  const wp = await prisma.workingProject.findUnique({ where: { discordThreadId: threadId } })
+  await prisma.workingProject.update({
+    where: { discordThreadId: threadId },
+    data: { remindersSent: Array.from(new Set([...(wp?.remindersSent ?? []), daysLeft])) },
+  })
+  return { ok: true }
+}
