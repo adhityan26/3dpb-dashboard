@@ -57,11 +57,7 @@ export class PinRateLimiter {
     if (!loopback) {
       const entry = this.rateLimitMap.get(addr) ?? { count: 0, lockedUntil: 0 };
       entry.count += 1;
-      if (entry.count >= MAX_ATTEMPTS) {
-        entry.lockedUntil = now + LOCKOUT_MS;
-        this.rateLimitMap.set(addr, entry);
-        return { ok: false, locked: true };
-      }
+      if (entry.count >= MAX_ATTEMPTS) entry.lockedUntil = now + LOCKOUT_MS;
       this.rateLimitMap.set(addr, entry);
     }
     return { ok: false, locked: false };

@@ -59,11 +59,11 @@ describe("PinRateLimiter", () => {
     }
     expect(limiter.check("9.9.9.9", "wrong", "1234").locked).toBe(true);
     vi.advanceTimersByTime(60_001);
-    // cooldown habis: 4 kali salah lagi harus TIDAK locked (budget baru, bukan 5+4=9)
-    for (let i = 0; i < 4; i++) {
+    // cooldown habis: 5 kali salah lagi harus TIDAK locked sampai call ke-6 (budget baru, bukan 5+5=10)
+    for (let i = 0; i < 5; i++) {
       expect(limiter.check("9.9.9.9", "wrong", "1234").locked).toBe(false);
     }
-    expect(limiter.check("9.9.9.9", "wrong", "1234").locked).toBe(true); // ke-5 lagi setelah reset -> locked
+    expect(limiter.check("9.9.9.9", "wrong", "1234").locked).toBe(true); // ke-6 dalam periode baru -> locked
     vi.useRealTimers();
   });
 
