@@ -54,12 +54,26 @@ roles that genuinely require a persistent process:
    gateway connection per se, but keeping it in `ai-assistant` means
    **zero new Discord dependency or bot token in `apps/dashboard`**, and
    the same bot identity keeps editing threads it already owns.
-2. **Gateway-dependent listeners** — slash commands
-   (`/order-baru`, `/order-dari-shopee`, `/order-dari-tokopedia`) and the
-   `threadUpdate` event (tag changed manually in Discord) genuinely need a
-   live gateway connection. These handlers are simplified to thin clients
-   that call the dashboard's new bot-facing API instead of touching
-   SQLite or building post content themselves.
+2. **Gateway-dependent listeners** — every order-related slash command and
+   context menu genuinely needs a live gateway connection to receive the
+   interaction: `/order-baru`, `/order-dari-shopee`, `/order-dari-tokopedia`,
+   `/order-status`, `/order-selesai`, `/order-update`, `/order-checklist`
+   (6 subcommands: add/check/uncheck/edit/remove/copy, plus its
+   autocomplete), `/mention-set`, `/reminder-config`, and the "🗂️ Buat
+   Order" message context menu (routes through the same modal as
+   `/order-baru` — see §Dashboard API surface). The `threadUpdate` event
+   (tag changed manually in Discord) needs the same live connection.
+   **Every one of these becomes a thin handler**: validate/parse the
+   interaction in Discord, make exactly one `fetch` to the dashboard's
+   bot-facing API, and render the reply from that response. The dashboard
+   performs the DB write and triggers any Discord-visible side effect by
+   calling back into the `ai-assistant` relay — the handler itself never
+   touches SQLite or Discord content directly (only user-facing reply
+   text and, where noted below, reading a value already in hand from the
+   interaction/thread object it was already given).
+   The `📱 Kirim WA Status` context menu (in the same `catalog-wa.js`
+   file) touches no order data — it's unrelated (WA Omni broadcast) and
+   stays untouched.
 3. **Reminder cron** (already exists, hourly, in `ai-assistant`'s
    `index.js`) stays there too — it already holds live `thread` objects,
    so it's the natural place to keep sending reminder messages. It's
@@ -108,14 +122,36 @@ model WorkingProject {
   title            String   // base title, no emoji/status prefix
   status           String   @default("Open") // Open|Proses|Waiting Customer|Siap Kirim|Done|Canceled
   payment          String   @default("Belum") // Belum|DP|Lunas|Marketplace
-  orderDate        DateTime @default(now())
+  orderDate        DateTime? // nullable: legacy web-entered order_date was
+                             // stored unparsed with no validation; a
+                             // missing legacy value must not be
+                             // fabricated as "now"
   dueDate          DateTime?
+  dueDateRaw       String?  // preserves a legacy due date that couldn't be
+                             // parsed as ISO (e.g. "akhir bulan", "TBD") —
+                             // the old code stored these verbatim and
+                             // displayed them as-is. Display rule:
+                             // dueDate ?? dueDateRaw ?? '-'. New writes
+                             // (server-side validated) never populate this.
   invoiceAmount    Int      @default(0)
   paidAmount       Int      @default(0)
   notes            String?
   shipping         String?
   trackingNo       String?
-  checklist        Json     @default("[]") // [{id,text,done,done_at,done_by,added_by,added_at,deleted}]
+  checklist        Json     @default("[]") // canonical item shape:
+                             // {id:int, text:string, done:bool,
+                             //  done_at:string|null, done_by:string|null,
+                             //  added_by:string, added_at:string,
+                             //  deleted:bool}. `id` is allocated
+                             // server-side as max(id)+1 over ALL items
+                             // (including deleted) — never client-supplied.
+                             // Every write is normalized to this shape
+                             // (assign missing id, coerce booleans) so a
+                             // caller can never write a partial item —
+                             // this closes a real bug in the old code
+                             // where the Green Lantern Ring view wrote
+                             // {text,done} with no id, corrupting later
+                             // id allocation (NaN ids).
   mentions         String[] @default([])   // Discord user IDs
   appliedTags      String[] @default([])   // Discord forum tag IDs
   remindersSent    Int[]    @default([])   // which reminder-day thresholds already fired
@@ -125,9 +161,15 @@ model WorkingProject {
 }
 ```
 
-Settings (`reminder_days`, `default_mentions`) go into the existing
-`Config` key-value table under key `workingProjects.reminderSettings`
-(JSON blob) — no new settings table.
+Settings go into the existing `Config` key-value table under key
+`workingProjects.reminderSettings`, value shape
+`{reminderDays: number[] (default [7,3,1]), defaultMentions: string[]}`
+— no new settings table. The three original writers of these values
+disagreed on input parsing (`/mention-set` extracts `<@id>` mentions,
+`/reminder-config` takes bare comma-separated IDs, the old web PATCH took
+a raw JSON array) — the new setting endpoints accept only the
+already-parsed `string[]`/`number[]` shape; each caller does its own
+parsing before calling it.
 
 Applied via `prisma db push` on next deploy (this repo's actual deploy
 path per `docker-entrypoint.sh`, not `migrate deploy` — confirmed in
@@ -145,11 +187,21 @@ Wraps existing `discord.js` calls (all confirmed REST-only by reading
 |---|---|
 | `GET /discord-relay/channel/:id/tags` | `channel.availableTags` |
 | `POST /discord-relay/thread` | `forum.threads.create({name, message})` → `{threadId, threadUrl}` |
-| `PATCH /discord-relay/thread/:id` | `setName` / `setAppliedTags` / edit starter message (request body selects which) |
+| `PATCH /discord-relay/thread/:id` | Body independently selects `{name?, appliedTags?, starterContent?}` — wraps `setName` / `setAppliedTags` / edit-starter-message, any subset in one call (status changes rename+edit; mentions changes call nothing; checklist changes edit-only) |
+| `POST /discord-relay/thread/:id/archive` | `thread.setArchived(true)` — needed by `/order-selesai` |
 | `DELETE /discord-relay/thread/:id` | `thread.delete()` |
 
-Auth: `X-Webhook-Secret: <DISCORD_RELAY_TOKEN>` header, checked the same
-way `webhook/ocr.js` checks `WEBHOOK_SECRET` today.
+No "post/edit message by id" endpoint is needed: `checklist_msg_id`
+(a column that exists in the old SQLite schema) has zero readers or
+writers anywhere in the codebase — `/order-checklist` only edits the
+starter message, same as every other update path. Treat it as dead
+schema (see §Data migration).
+
+Auth: `X-Webhook-Secret: <DISCORD_RELAY_TOKEN>` header — confirmed against
+the actual `webhook/ocr.js` handler (`req.headers['x-webhook-secret']`,
+env var `WEBHOOK_SECRET`); the new relay checks its own separate
+`DISCORD_RELAY_TOKEN` env var the same way (`x-webhook-secret` header !==
+`process.env.DISCORD_RELAY_TOKEN` → 401).
 
 ### Dashboard API surface
 
@@ -159,10 +211,19 @@ auth via existing `requireBotToken` / `BOT_API_TOKEN` pattern — same as
 
 | Endpoint | Called by (in `ai-assistant`) | Behavior |
 |---|---|---|
-| `POST /api/bot/working-projects` | slash `/order-baru`, `/order-dari-shopee`, `/order-dari-tokopedia` | Body `{source, sourceOrderNo?, forumType, ...manualFields}`. For shopee/tokopedia, dashboard fetches full detail itself (`getOrderDetail`/`getOrderById`, no more HTTP round-trip). Builds title + post content, calls the `ai-assistant` Discord relay to create the thread, persists `WorkingProject` with `discordThreadId` + `forumChannelId`. Returns `{threadUrl}`. |
-| `PATCH /api/bot/working-projects/:threadId/tags` | `threadUpdate` gateway listener | Syncs `appliedTags` changed manually in Discord back into the DB. |
-| `GET /api/bot/working-projects/due-reminders` | hourly cron | Returns Working Projects needing a reminder today. |
-| `POST /api/bot/working-projects/:threadId/reminder-sent` | hourly cron, after `thread.send()` succeeds | Appends to `remindersSent`. |
+| `POST /api/bot/working-projects` | slash `/order-baru`, `/order-dari-shopee`, `/order-dari-tokopedia`, and the "🗂️ Buat Order" context menu (via `handleOrderModal`, customId `catalog_order_modal` → forum type resolves to `general`, same as today) | Body `{source, sourceOrderNo?, forumType, ...manualFields}`. For shopee/tokopedia, dashboard fetches full detail itself (`getOrderDetail`/`getOrderById`, no more HTTP round-trip). Builds title + post content, calls the `ai-assistant` Discord relay to create the thread, persists `WorkingProject` with `discordThreadId` + `forumChannelId`. Returns `{threadUrl}`. |
+| `GET /api/bot/working-projects/by-thread/:threadId` | every thread-scoped handler below, as a pre-check | 404 if the thread isn't a known Working Project (handler replies "order tidak ditemukan"). Returns the full project incl. `status`, `checklist`, `mentions`. |
+| `PATCH /api/bot/working-projects/:threadId/status` | `/order-status` | Body `{status, starterMessageContent?}` — `starterMessageContent` is the starter message text the handler already has from the interaction's thread object (no extra relay round-trip needed). Sets `status`; if `notes` is empty and `starterMessageContent` doesn't start with `📋 **Detail Order**`, stores it as `notes` (port of the old `maybeExtractNotes` — imports notes from threads a human started). Relay: rename thread (status/due suffix in title) + edit starter message. Does **not** touch `appliedTags` (status lives in the title, not tags — matches original behavior). Returns `{oldStatus, status}`. |
+| `POST /api/bot/working-projects/:threadId/done` | `/order-selesai` | Sets status to `Done`. Relay: rename thread, then **archive** it (`setArchived(true)` — see relay table below). Returns `{ok: true}`. |
+| `PATCH /api/bot/working-projects/:threadId` | `/order-update` | Body: subset of `{dueDate, payment, invoiceAmount, paidAmount, notesAppend, variant, customer, product, shipping, trackingNo}`. Amount parsing (`Rp`/`.`/`,`/`k`/`jt` suffixes) happens **server-side** so the web UI's edit form can share the same logic — the handler passes the raw string through. `notesAppend` appends (not replaces) with an Asia/Jakarta `[d Mon, HH.MM]` timestamp prefix. Recomputes `title` if `customer`/`product` changed. An empty string for `variant`/`shipping`/`trackingNo` is a valid "clear" write; only `undefined` fields are left alone. Relay: rename thread only if `variant`/`customer`/`product` changed, always edit starter message. Returns 400 on an unparseable `dueDate` (the handler `editReply`s the error — the original's bug of replying after `deferReply`, which throws, is intentionally not ported). |
+| `PATCH /api/bot/working-projects/:threadId/mentions` | `/mention-set` | Body `{mentions: string[]}` (Discord user IDs, already extracted by the handler from `<@id>` mentions). Empty array resets to `defaultMentions` from settings. Returns `{mentions}`. No relay call — matches original (mentions only show up in the starter message on its next edit). |
+| `POST /api/bot/working-projects/:threadId/checklist` | `/order-checklist add\|check\|uncheck\|edit\|remove\|copy` | Body `{op, text?, ids?, id?, fromThreadId?, actor}` (`actor` = Discord display name, for `added_by`/`done_by`). The server owns id allocation (`max(id)+1` over all items including soft-deleted ones — never the handler), soft-delete (`deleted:true`, never a real removal), and `copy`'s renumbering (1..n, `done` reset, `added_by` set to the copier). Every write is normalized to the canonical item shape (see §Data model). Relay: edit starter message only. Returns `{items, affectedIds}` (and for `copy`, `{sourceLabel, count}`); 404 on unknown ids → handler replies "item tidak ditemukan". |
+| `GET /api/bot/working-projects/checklist-sources?q=` | `/order-checklist copy` autocomplete | Projects with ≥1 non-deleted checklist item (done or not), `customer product` containing `q`, max 25, label `"customer — product"`. Returns `[{threadId, label}]`. |
+| `GET /api/bot/working-projects/settings` | `/reminder-config` (no args) | `{reminderDays: number[], defaultMentions: string[]}`. |
+| `PATCH /api/bot/working-projects/settings` | `/reminder-config days:/mentions:` | Body: subset of `{reminderDays: number[], defaultMentions: string[]}` (each handler does its own input parsing — `/mention-set` extracts `<@id>`, `/reminder-config` takes bare comma-separated IDs; the endpoint itself only accepts already-parsed `string[]`/`number[]`). 400 if `reminderDays` is empty after filtering to positive integers. |
+| `PATCH /api/bot/working-projects/:threadId/tags` | `threadUpdate` gateway listener | Syncs `appliedTags` changed manually in Discord back into the DB. Must be idempotent — a web-triggered `setAppliedTags` fires `threadUpdate` right back, which must no-op when the tags already match. |
+| `GET /api/bot/working-projects/due-reminders` | hourly cron | Returns `[{threadId, customer, product, dueDate, daysLeft, mentions: string[], pendingDays: number[]}]` where `pendingDays` = configured `reminderDays` that match `daysLeft` and aren't already in `remindersSent`. The cron no longer needs to read settings itself — the dashboard resolves `reminderDays` server-side. |
+| `POST /api/bot/working-projects/:threadId/reminder-sent` | hourly cron, after `thread.send()` succeeds | Appends the fired day(s) to `remindersSent`. |
 
 **Web-facing** (new, session-authenticated, used by the dashboard UI):
 `GET/POST/PATCH/DELETE /api/working-projects`,
@@ -251,8 +312,28 @@ idempotent.
    (same pattern as `scripts/seed-cyd-field-presets.ts`): parses the
    JSON-string columns (`checklist`, `mentions`, `applied_tags`,
    `reminders_sent`), maps to `WorkingProject`, `upsert`s by
-   `discordThreadId`.
-3. Before cutover: spot-check whether any live thread's starter message
+   `discordThreadId`. Specific column rules:
+   - `checklist_msg_id` is **dropped** — dead schema, zero readers/writers
+     anywhere in the fetched codebase (confirmed by grep across every
+     order-related file); do not migrate it.
+   - `due_date`/`order_date`: `''` → `null`; a value matching
+     `^\d{4}-\d{2}-\d{2}$` → parsed as `DateTime` at Asia/Jakarta midnight;
+     anything else (free text like "akhir bulan", entered through the old
+     web UI which never validated this field) → `dueDate: null` +
+     preserved verbatim in `dueDateRaw` (order_date has no raw-preserving
+     field since nothing in the UI displays a fallback for it — just null
+     it out).
+   - `checklist` items: normalize every item to the canonical shape —
+     assign a fresh sequential `id` to any item missing one (this is
+     exactly the Green Lantern Ring bug's fallout: those items were
+     written as `{text,done}` with no `id`), coerce `done`/`deleted` to
+     booleans, default missing `added_by`/`added_at` to `"migration"` /
+     the migration timestamp.
+3. Before running the script, count rows where `due_date` or `order_date`
+   is non-empty and doesn't match `^\d{4}-\d{2}-\d{2}$`, and report the
+   count — this tells the user how many `dueDateRaw` records to expect
+   and surfaces any migration surprise before it's live.
+4. Before cutover: spot-check whether any live thread's starter message
    was posted by a human, not the bot (`thread.ownerId !== botUserId`) —
    if so, that thread's post-content can never be auto-edited by any bot,
    before or after this migration; this is a pre-existing limitation, not
@@ -267,19 +348,36 @@ on that host before each file edit so any step can be reverted:
 
 1. Add `orders/discord-relay.js` (new endpoints, see above), mount in
    `index.js`, add `DISCORD_RELAY_TOKEN` to `.env`.
-2. `order-baru.js` / `order-dari-shopee.js` / `tokopedia-order.js`: replace
-   local order-creation logic with a `fetch()` to the dashboard's new
-   `POST /api/bot/working-projects` (reusing `BOT_API_URL`/`BOT_API_TOKEN`,
-   already present).
+2. Rewrite every order-related handler into a thin dashboard-API client:
+   `order-baru.js` (including `handleOrderModal`, which also serves the
+   "🗂️ Buat Order" context menu's `catalog_order_modal`),
+   `order-dari-shopee.js`, `tokopedia-order.js`, `order-status.js`,
+   `order-selesai.js`, `order-update.js`, `order-checklist.js` (all 6
+   subcommands + its autocomplete), `mention-set.js`, `reminder-config.js`.
+   All reuse the already-present `BOT_API_URL`/`BOT_API_TOKEN`.
+   `catalog-wa.js` itself is **not edited** — its Buat-Order half only
+   builds and shows the modal (no DB/Discord write of its own), and its
+   WA-broadcast half is unrelated to orders.
 3. `thread-update-handler.js`: replace the local SQLite update with a
    `PATCH` to `/api/bot/working-projects/:threadId/tags`.
 4. `index.js`'s hourly reminder cron: replace `getAllOrders()` (local
    SQLite) with `GET /api/bot/working-projects/due-reminders`; after
-   `thread.send()`, call `POST .../reminder-sent`.
-5. After cutover is verified working end-to-end: remove/disable the old
-   `orders/router.js` mount, the old `public/*.html` files, and
-   `db/orders.js` (the web UI is now served entirely from the dashboard).
-6. `pm2 restart` after each step; verify one slash command manually
+   `thread.send()`, call `POST .../reminder-sent`. The cron no longer
+   needs `getReminderDays()` — that setting now lives server-side.
+5. Port two pieces of pure logic into
+   `apps/dashboard/lib/working-projects/format.ts` rather than
+   reimplementing them: `parseAmount` (the `Rp`/`.`/`,`/`k`/`jt` parser
+   from `order-update.js`) and the notes-append timestamp format
+   (`[d Mon, HH.MM]`, Asia/Jakarta). The original's bug of calling
+   `interaction.reply` after `deferReply` on an invalid due date (which
+   throws) is intentionally not ported — the dashboard returns 400 and
+   the handler `editReply`s a clean error instead.
+6. After cutover is verified working end-to-end: remove/disable the old
+   `orders/router.js` mount, the old `public/*.html` files, `db/orders.js`,
+   and `orders/status-tags.js`'s `maybeExtractNotes`/`syncStatusTag`
+   (unused once every handler is thin) — the web UI is now served
+   entirely from the dashboard.
+7. `pm2 restart` after each step; verify one slash command manually
    before moving to the next file.
 
 ## Testing
@@ -300,7 +398,15 @@ on that host before each file edit so any step can be reverted:
 - `app/api/bot/working-projects/*` route tests (mocked service layer,
   auth-checked) — same pattern as existing `app/api/bot/*` route tests.
 - `scripts/migrate-working-projects.ts` — test against a fixture JSON
-  export shaped like the real SQLite dump.
+  export shaped like the real SQLite dump, including rows with `''`,
+  valid-ISO, and free-text (non-parseable) `due_date`/`order_date`
+  values, and a checklist item missing `id` (the Green Lantern Ring bug
+  case) to confirm normalization assigns one correctly.
+- Checklist normalization, `parseAmount`, and the notes-append timestamp
+  format get their own unit tests in `lib/working-projects/format.ts`'s
+  test file — these are the pieces most likely to silently diverge from
+  the original's behavior since they're small parsing/formatting
+  functions easy to get subtly wrong.
 - UI: component tests for the three tabs' rendering (columns, checklist
   toggle, GL Ring filter/parse), following this repo's existing
   `renderToStaticMarkup`-based test conventions.
@@ -317,6 +423,12 @@ on that host before each file edit so any step can be reverted:
   from the SQLite this migration retires; what CYD does after cutover is
   a separate, explicitly out-of-scope decision the user will make later.
 - Any change to `ai-assistant`'s other bot commands (research, tanya,
-  lineart, wa-setting, catalog-wa, etc.) — untouched.
+  lineart, wa-setting, etc.) — untouched. Within `catalog-wa.js`
+  specifically: the `📱 Kirim WA Status` context menu (WA Omni broadcast,
+  touches no order data) is untouched; the `🗂️ Buat Order` menu IS
+  covered by this merge, via the shared `handleOrderModal` path (see
+  §Dashboard API surface / §`ai-assistant`-side changes step 2) — it's
+  not separately implemented, it rides along once `order-baru.js`'s
+  modal handler is rewritten.
 - A ring-sizing calculator tool — does not exist in the analyzed code;
   nothing was excluded here on that basis (see Problem section).
