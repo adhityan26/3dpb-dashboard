@@ -20,11 +20,12 @@ let mainWindow: BrowserWindow | null = null
 let isQuitting = false
 
 /**
- * Urutan WAJIB: broker duluan (engine butuh broker buat konek) -> paired devices ->
- * engine (kalau ada device paired) -> publish layout -> registerIpcHandlers (sebelum
- * createWindow, karena renderer bisa langsung panggil IPC begitu window muncul).
+ * Resolve config -> bikin `AgentRuntime` -> `runtime.start()` (yang di dalamnya sendiri
+ * menjalankan urutan broker -> paired devices -> engine -> publish layout -> update-check,
+ * lihat `AgentRuntime.start()` di packages/agent-core) -> `registerIpcHandlers(runtime)`
+ * (sebelum createWindow, karena renderer bisa langsung panggil IPC begitu window muncul).
  *
- * `registerIpcHandlers(config)` HARUS jalan tepat SEKALI, apa pun yang terjadi di atasnya —
+ * `registerIpcHandlers(runtime)` HARUS jalan tepat SEKALI, apa pun yang terjadi di atasnya —
  * makanya dia satu-satunya panggilan, di `finally`, bukan diulang di tiap early-return.
  * Kalau tidak, device yang belum di-pairing dengan benar (mis. accessCode kosong bikin
  * `BambuMqttConnector` throw di `startEngine`) bisa reject seluruh `bootstrap()` dan

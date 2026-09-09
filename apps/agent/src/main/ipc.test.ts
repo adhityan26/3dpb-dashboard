@@ -2,12 +2,15 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { AgentRuntime, InMemoryCredentialStore, type CredentialBlob } from "@3pb/agent-core";
 
 // ---------------------------------------------------------------------------------------
-// Mock strategy (rewritten for Task 11): ipc.ts no longer imports any individual
-// @3pb/agent-core function -- it only imports AgentService + getRuntime() and delegates
-// every handler to a method on AgentService. Mocking @3pb/agent-core's named exports
-// (the OLD strategy) therefore no longer intercepts anything ipc.ts calls directly.
+// Mock strategy (rewritten for Task 11, updated after the getRuntime() facade was removed):
+// ipc.ts no longer imports any individual @3pb/agent-core function, and `registerIpcHandlers`
+// no longer calls a `getRuntime()` facade either -- it takes a `runtime: AgentRuntime`
+// directly as a parameter and delegates every handler to a method on AgentService built
+// from it. Mocking @3pb/agent-core's named exports (the OLD strategy) therefore no longer
+// intercepts anything ipc.ts calls directly.
 //
-// Instead we construct a REAL AgentRuntime (backed by InMemoryCredentialStore) and mock
+// Instead we construct a REAL AgentRuntime (backed by InMemoryCredentialStore), pass it
+// straight into registerIpcHandlers(runtime), and mock
 // only the true I/O boundaries AgentService's internals reach:
 // - global `fetch` -- saas-client.ts (fetchDevices/patchDeviceModel/uploadLogs/fetchLayout)
 //   is plain fetch(), so mocking fetch exercises AgentService's real HTTP-call construction

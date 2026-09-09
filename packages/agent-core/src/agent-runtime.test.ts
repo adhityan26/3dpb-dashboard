@@ -171,6 +171,25 @@ describe("AgentRuntime", () => {
     expect(logger.error).toHaveBeenCalled();
     expect(runtime.getReporters()).toEqual([]);
   });
+
+  it("teardownEngine(): engine.stop() gagal -> logger.error dipanggil, TIDAK throw, reporter tetap ditutup dan state tetap direset", async () => {
+    const { store, pathProvider, logger, logFileProvider, buildInfo } = makeDeps();
+    const runtime = new AgentRuntime({
+      credentialStore: store, pathProvider, logger, logFileProvider, buildInfo,
+      saasBaseUrl: "x", updatePlatform: "win",
+    });
+    const fakeEngine = { stop: vi.fn(async () => { throw new Error("engine.stop gagal"); }) } as unknown as Engine;
+    const fakeReporter = { close: vi.fn(async () => {}) } as unknown as MqttReporter;
+    runtime.setEngine(fakeEngine);
+    runtime.setReporters([fakeReporter]);
+
+    await expect(runtime.teardownEngine()).resolves.toBeUndefined();
+
+    expect(logger.error).toHaveBeenCalled();
+    expect(fakeReporter.close).toHaveBeenCalledOnce();
+    expect(runtime.getEngine()).toBeNull();
+    expect(runtime.getReporters()).toEqual([]);
+  });
 });
 
 function makeRuntimeForStartStop(store: CredentialStore<CredentialBlob> = new InMemoryCredentialStore()) {
@@ -246,20 +265,63 @@ describe("AgentRuntime.start", () => {
     expect(runtime.getUpdateAvailable()).toBe(true);
     vi.useRealTimers();
   });
+
+  it("update-check awal gagal (fetchLatestVersion reject) -> logger.error dipanggil, TIDAK unhandled rejection", async () => {
+    vi.useFakeTimers();
+    const { runtime } = makeRuntimeForStartStop(new InMemoryCredentialStore({ agentToken: "tok", devices: {} }));
+    vi.mocked(credentialStoreModule.ensureBrokerPin).mockResolvedValue("1234");
+    vi.mocked(startupModule.buildPairedDevices).mockResolvedValue([]);
+    vi.mocked(saasClientModule.fetchLatestVersion).mockRejectedValueOnce(new Error("network gagal"));
+
+    await runtime.start();
+    await vi.runOnlyPendingTimersAsync();
+
+    expect(runtime.logger.error).toHaveBeenCalledWith("[agent-runtime] update check gagal", expect.any(Error));
+    vi.useRealTimers();
+  });
+
+  it("update-check tick berikutnya (setInterval) gagal -> logger.error dipanggil, TIDAK unhandled rejection", async () => {
+    vi.useFakeTimers();
+    const { runtime } = makeRuntimeForStartStop(new InMemoryCredentialStore({ agentToken: "tok", devices: {} }));
+    vi.mocked(credentialStoreModule.ensureBrokerPin).mockResolvedValue("1234");
+    vi.mocked(startupModule.buildPairedDevices).mockResolvedValue([]);
+    vi.mocked(saasClientModule.fetchLatestVersion).mockResolvedValueOnce({ ok: true, data: { updateAvailable: false } });
+
+    await runtime.start();
+    await vi.runOnlyPendingTimersAsync();
+
+    vi.mocked(saasClientModule.fetchLatestVersion).mockRejectedValueOnce(new Error("network gagal lagi"));
+    await vi.advanceTimersByTimeAsync(6 * 60 * 60 * 1000 + 1000);
+
+    expect(runtime.logger.error).toHaveBeenCalledWith("[agent-runtime] update check gagal", expect.any(Error));
+    vi.useRealTimers();
+  });
 });
 
 describe("AgentRuntime.stop", () => {
   it("stop() memanggil teardownEngine(), broker.stop(), dan menghentikan timer update-check", async () => {
+    vi.useFakeTimers();
     const { runtime, fakeBroker } = makeRuntimeForStartStop(new InMemoryCredentialStore({ agentToken: null, devices: {} }));
     vi.mocked(credentialStoreModule.ensureBrokerPin).mockResolvedValue("1234");
     vi.mocked(startupModule.buildPairedDevices).mockResolvedValue([]);
+    vi.mocked(saasClientModule.fetchLatestVersion).mockResolvedValue({ ok: true, data: { updateAvailable: false } });
     const teardownSpy = vi.spyOn(runtime, "teardownEngine");
 
     await runtime.start();
+    await vi.runOnlyPendingTimersAsync();
+    const callsBeforeStop = vi.mocked(saasClientModule.fetchLatestVersion).mock.calls.length;
+
     await runtime.stop();
 
     expect(teardownSpy).toHaveBeenCalled();
     expect(fakeBroker.stop).toHaveBeenCalled();
+
+    // Pastikan timer update-check benar-benar berhenti tick setelah stop() -- bukan cuma
+    // clearInterval() dipanggil, tapi cek observable: fetchLatestVersion TIDAK dipanggil lagi.
+    await vi.advanceTimersByTimeAsync(6 * 60 * 60 * 1000 + 1000);
+    expect(vi.mocked(saasClientModule.fetchLatestVersion).mock.calls.length).toBe(callsBeforeStop);
+
+    vi.useRealTimers();
   });
 
   it("stop() sebelum start() -> tidak throw", async () => {

@@ -80,7 +80,9 @@ export class AgentRuntime {
    */
   async teardownEngine(): Promise<void> {
     const oldEngine = this.engine;
-    if (oldEngine) await oldEngine.stop();
+    if (oldEngine) {
+      await oldEngine.stop().catch((err) => this.logger.error("[agent-runtime] gagal stop engine lama", err));
+    }
     for (const r of this.reporters) {
       await r.close().catch((err) => this.logger.error("[agent-runtime] gagal tutup reporter lama", err));
     }
