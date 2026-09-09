@@ -1,18 +1,25 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('../discord-sync', () => ({
   createRelayThread: vi.fn(),
+  editRelayThread: vi.fn(),
+  archiveRelayThread: vi.fn(),
 }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     workingProject: {
       create: vi.fn(),
       update: vi.fn(),
+      findUnique: vi.fn(),
     },
   },
 }))
-import { createWorkingProject } from '../service'
-import { createRelayThread } from '../discord-sync'
+import { createWorkingProject, setStatus, updateWorkingProject, resyncWorkingProject } from '../service'
+import { createRelayThread, editRelayThread } from '../discord-sync'
 import { prisma } from '@/lib/prisma'
+
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('createWorkingProject', () => {
   it('writes DB row first as pending, then syncs to Discord and marks ok', async () => {
@@ -50,5 +57,46 @@ describe('createWorkingProject', () => {
     }))
     expect(result.threadUrl).toBeNull()
     expect(result.syncState).toBe('error')
+  })
+})
+
+describe('setStatus', () => {
+  it('writes Postgres first, then relay; discordSynced:false on relay failure but still ok:true', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1', title: 'T' })
+    ;(prisma.workingProject.update as any).mockResolvedValue({})
+    ;(editRelayThread as any).mockRejectedValue(new Error('discord-relay 500'))
+
+    const result = await setStatus('t1', 'Done')
+    expect(prisma.workingProject.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { discordThreadId: 't1' }, data: expect.objectContaining({ status: 'Done' }),
+    }))
+    expect(result).toEqual({ ok: true, discordSynced: false })
+  })
+})
+
+describe('updateWorkingProject', () => {
+  it('appends notes with timestamp rather than overwriting', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1', notes: 'old', title: 'T' })
+    ;(prisma.workingProject.update as any).mockResolvedValue({})
+    ;(editRelayThread as any).mockResolvedValue(undefined)
+
+    await updateWorkingProject('t1', { notesAppend: 'new info' })
+    const call = (prisma.workingProject.update as any).mock.calls[0][0]
+    expect(call.data.notes).toContain('old')
+    expect(call.data.notes).toContain('new info')
+  })
+})
+
+describe('resyncWorkingProject', () => {
+  it('re-pushes current DB state to the relay and clears syncError on success', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1', title: 'T', appliedTags: [] })
+    ;(editRelayThread as any).mockResolvedValue(undefined)
+    ;(prisma.workingProject.update as any).mockResolvedValue({})
+
+    const result = await resyncWorkingProject('wp1')
+    expect(result).toEqual({ ok: true, discordSynced: true })
+    expect(prisma.workingProject.update).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ syncState: 'ok', syncError: null }),
+    }))
   })
 })
