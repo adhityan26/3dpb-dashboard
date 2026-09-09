@@ -1,59 +1,325 @@
 'use client'
-import { useState, useMemo } from 'react'
-import { useWorkingProjects } from '@/lib/hooks/use-working-projects'
+import { useMemo, useState } from 'react'
+import { useWorkingProjects, type WorkingProject } from '@/lib/hooks/use-working-projects'
 import { splitProductVariants, variantShort, parseSize, isGLRing } from '@/lib/working-projects/format'
 
-type SortKey = 'customer' | 'variant' | 'size' | 'status'
+const STEP_TYPES = ['Print Frame', 'Print Stone', 'Print Ring', 'Cat Frame', 'Cat Stone', 'Cat Ring', 'Assembly'] as const
+type StepType = (typeof STEP_TYPES)[number]
+
+type SortColumn = 'dueDate' | 'orderDate' | 'orderNo' | 'platform' | 'variant' | 'usSize' | 'status'
+
+interface RingRow {
+  wpId: string
+  key: string
+  entry: string
+  customer: string
+  platform: string | null
+  orderNo: string
+  dueDate: string | null
+  orderDate: string | null
+  status: string
+  usSize: string | null
+  scalePct: number | null
+  discordThreadUrl: string | null
+  checklistLabels: string[]
+  checklistDone: Record<StepType, boolean>
+}
+
+function checklistLabelsFor(key: string, single: boolean): string[] {
+  return STEP_TYPES.map(step => (single ? step : `${key} — ${step}`))
+}
+
+// notes for a multi-variant project are stored as `<key>|...fields.../ <key>|...fields...`
+// (variant blocks separated by " / ", fields inside a block separated by "|"). parseSize()
+// already scans '|'-joined text for a `size ... N` token, so once the block belonging to
+// this row's key is isolated, it can be handed to parseSize() unmodified.
+function notesSegmentForKey(notes: string, key: string, variantIndex: number, variantCount: number): string {
+  if (variantCount <= 1) return notes
+  const blocks = notes.split(' / ').map(b => b.trim())
+  const match = blocks.find(b => {
+    const first = (b.split('|')[0] ?? '').trim().toLowerCase()
+    return first === key.toLowerCase() || first.includes(key.toLowerCase())
+  })
+  if (match) return match
+  return blocks[variantIndex] ?? notes
+}
+
+function expandToRows(projects: WorkingProject[]): RingRow[] {
+  const rows: RingRow[] = []
+  for (const wp of projects) {
+    if (wp.status === 'Canceled') continue
+    if (!isGLRing(wp.appliedTags ?? [])) continue
+    const variants = splitProductVariants(wp.product)
+    const single = variants.length <= 1
+    variants.forEach((entry, idx) => {
+      const key = variantShort(entry)
+      const segment = notesSegmentForKey(wp.notes ?? '', key, idx, variants.length)
+      const { usSize, scalePct } = parseSize(segment)
+      const labels = checklistLabelsFor(key, single)
+      const checklistDone = {} as Record<StepType, boolean>
+      STEP_TYPES.forEach((step, i) => {
+        const label = labels[i]
+        const item = (wp.checklist ?? []).find(
+          c => !c.deleted && c.text.toLowerCase().includes(label.toLowerCase()),
+        )
+        checklistDone[step] = item?.done ?? false
+      })
+      rows.push({
+        wpId: wp.id,
+        key,
+        entry,
+        customer: wp.customer,
+        platform: wp.platform,
+        orderNo: wp.sourceOrderNo ?? wp.orderNoLegacy ?? '-',
+        dueDate: wp.dueDate,
+        orderDate: wp.orderDate ?? null,
+        status: wp.status,
+        usSize,
+        scalePct,
+        discordThreadUrl: wp.discordThreadUrl ?? null,
+        checklistLabels: labels,
+        checklistDone,
+      })
+    })
+  }
+  return rows
+}
+
+function compareRows(a: RingRow, b: RingRow, col: SortColumn): number {
+  const va = valueFor(a, col)
+  const vb = valueFor(b, col)
+  return String(va ?? '').localeCompare(String(vb ?? ''))
+}
+
+function valueFor(r: RingRow, col: SortColumn): string | number | null {
+  switch (col) {
+    case 'dueDate': return r.dueDate
+    case 'orderDate': return r.orderDate
+    case 'orderNo': return r.orderNo
+    case 'platform': return r.platform
+    case 'variant': return r.entry
+    case 'usSize': return r.usSize
+    case 'status': return r.status
+  }
+}
+
+const COLUMN_LABELS: Record<SortColumn, string> = {
+  dueDate: 'Due Date',
+  orderDate: 'Order Date',
+  orderNo: 'No Order',
+  platform: 'Platform',
+  variant: 'Variant',
+  usSize: 'Ukuran',
+  status: 'Status',
+}
+
+// Column display order per spec: Due Date, Order Date, No Order, Platform,
+// Variant, Ukuran, Scale, [7 checklist checkboxes], Progress, Status, Discord.
+// `status` is sortable but its *display* position is near the end, so it is
+// rendered separately from the leading sortable-header block below.
+const LEADING_SORT_COLUMNS: SortColumn[] = ['dueDate', 'orderDate', 'orderNo', 'platform', 'variant', 'usSize']
 
 export function WorkingProjectGLRingTab() {
   const { data, isLoading } = useWorkingProjects()
-  const [sortKeys, setSortKeys] = useState<SortKey[]>(['customer'])
-  const [filters, setFilters] = useState<{ status?: string; hasSize?: boolean; checklistDone?: boolean; platform?: string; customer?: string }>({})
+  const [sortKeys, setSortKeys] = useState<SortColumn[]>(['dueDate'])
+  const [search, setSearch] = useState('')
+  const [platform, setPlatform] = useState('')
+  const [variant, setVariant] = useState('')
+  const [size, setSize] = useState('')
+  const [step, setStep] = useState<StepType | ''>('')
+  const [stepStatus, setStepStatus] = useState<'' | 'done' | 'not-done'>('')
+
+  // Local optimistic overrides applied on top of server data, keyed by
+  // `${wpId}::${label}`, so a checkbox flips immediately after the fetch
+  // resolves without requiring a react-query client (this component may
+  // render outside a QueryClientProvider, e.g. in tests).
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({})
+
+  const allRows = useMemo(() => expandToRows(data ?? []), [data])
+
+  const rowsWithOverrides = useMemo(() => {
+    return allRows.map(r => {
+      const checklistDone = { ...r.checklistDone }
+      r.checklistLabels.forEach((label, i) => {
+        const overrideKey = `${r.wpId}::${label}`
+        if (overrideKey in overrides) checklistDone[STEP_TYPES[i]] = overrides[overrideKey]
+      })
+      return { ...r, checklistDone }
+    })
+  }, [allRows, overrides])
+
+  const platformOptions = useMemo(
+    () => Array.from(new Set(allRows.map(r => r.platform).filter((p): p is string => !!p))).sort(),
+    [allRows],
+  )
+  const variantOptions = useMemo(
+    () => Array.from(new Set(allRows.map(r => r.key))).sort(),
+    [allRows],
+  )
+  const sizeOptions = useMemo(
+    () => Array.from(new Set(allRows.map(r => r.usSize).filter((s): s is string => !!s))).sort(),
+    [allRows],
+  )
 
   const rows = useMemo(() => {
-    const active = (data ?? []).filter(wp => wp.status !== 'Canceled' && isGLRing(wp.appliedTags ?? []))
-    const expanded = active.flatMap(wp =>
-      splitProductVariants(wp.product).map(variant => {
-        const { usSize, scalePct } = parseSize(wp.notes ?? '')
-        return { wpId: wp.id, customer: wp.customer, variant, variantLabel: variantShort(variant), usSize, scalePct, status: wp.status, checklist: wp.checklist }
-      })
-    )
-    let sorted = expanded
-    for (const key of [...sortKeys].reverse()) {
-      sorted = [...sorted].sort((a, b) => String((a as any)[key] ?? '').localeCompare(String((b as any)[key] ?? '')))
+    let out = rowsWithOverrides
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      out = out.filter(r => r.orderNo.toLowerCase().includes(q) || r.customer.toLowerCase().includes(q))
     }
-    return sorted.filter(r => (!filters.status || r.status === filters.status) && (!filters.customer || r.customer === filters.customer))
-  }, [data, sortKeys, filters])
+    if (platform) out = out.filter(r => r.platform === platform)
+    if (variant) out = out.filter(r => r.key === variant)
+    if (size) out = out.filter(r => r.usSize === size)
+    if (step && stepStatus) {
+      out = out.filter(r => {
+        const done = r.checklistDone[step]
+        return stepStatus === 'done' ? done : !done
+      })
+    }
+    const sorted = [...out].sort((a, b) => {
+      for (const key of sortKeys) {
+        const cmp = compareRows(a, b, key)
+        if (cmp !== 0) return cmp
+      }
+      return 0
+    })
+    return sorted
+  }, [rowsWithOverrides, search, platform, variant, size, step, stepStatus, sortKeys])
+
+  function handleHeaderClick(col: SortColumn, e: React.MouseEvent) {
+    setSortKeys(prev => {
+      if (e.shiftKey) {
+        const next = [...prev.filter(k => k !== col), col]
+        return next.slice(-3)
+      }
+      return [col]
+    })
+  }
+
+  async function toggleChecklist(row: RingRow, stepType: StepType, label: string) {
+    const nextDone = !row.checklistDone[stepType]
+    setOverrides(prev => ({ ...prev, [`${row.wpId}::${label}`]: nextDone }))
+    try {
+      await fetch(`/api/working-projects/${row.wpId}/checklist`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'setByLabel', label, done: nextDone, by: 'dashboard' }),
+      })
+    } catch {
+      // best-effort: revert the optimistic flip on failure
+      setOverrides(prev => ({ ...prev, [`${row.wpId}::${label}`]: !nextDone }))
+    }
+  }
 
   if (isLoading) return <div>Loading...</div>
 
-  const totalRings = rows.length
-  const withSize = rows.filter(r => r.usSize).length
+  const activeCount = allRows.length
+  const missingSizeCount = allRows.filter(r => !r.usSize).length
+  const fullyDoneCount = allRows.filter(r => STEP_TYPES.every(s => r.checklistDone[s])).length
 
   return (
     <div>
       <div>
-        <span>Total Cincin: {totalRings}</span>
-        <span>Dengan Ukuran: {withSize}</span>
+        <span>Aktif: {activeCount}</span>
+        <span>Tanpa Ukuran: {missingSizeCount}</span>
+        <span>Selesai Semua: {fullyDoneCount}</span>
       </div>
+
+      <div>
+        <input
+          placeholder="Cari order no / customer..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        <label>
+          Platform
+          <select aria-label="Platform" value={platform} onChange={e => setPlatform(e.target.value)}>
+            <option value="">Semua</option>
+            {platformOptions.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </label>
+        <label>
+          Variant
+          <select aria-label="Variant" value={variant} onChange={e => setVariant(e.target.value)}>
+            <option value="">Semua</option>
+            {variantOptions.map(v => <option key={v} value={v}>{`Variant: ${v}`}</option>)}
+          </select>
+        </label>
+        <label>
+          Ukuran
+          <select aria-label="Ukuran" value={size} onChange={e => setSize(e.target.value)}>
+            <option value="">Semua</option>
+            {sizeOptions.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
+        <label>
+          Tahap Produksi
+          <select aria-label="Tahap Produksi" value={step} onChange={e => setStep(e.target.value as StepType | '')}>
+            <option value="">Semua</option>
+            {STEP_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </label>
+        <label>
+          Status Tahap
+          <select aria-label="Status Tahap" value={stepStatus} onChange={e => setStepStatus(e.target.value as '' | 'done' | 'not-done')}>
+            <option value="">Semua</option>
+            <option value="done">Selesai</option>
+            <option value="not-done">Belum</option>
+          </select>
+        </label>
+      </div>
+
       <table>
         <thead>
           <tr>
-            <th onClick={() => setSortKeys(['customer'])}>Customer</th>
-            <th onClick={() => setSortKeys(['variant'])}>Variant</th>
-            <th onClick={() => setSortKeys(['size'])}>Size</th>
-            <th onClick={() => setSortKeys(['status'])}>Status</th>
+            {LEADING_SORT_COLUMNS.map(col => (
+              <th key={col} onClick={e => handleHeaderClick(col, e)} style={{ cursor: 'pointer' }}>
+                {COLUMN_LABELS[col]}
+                {sortKeys.includes(col) ? ` (${sortKeys.indexOf(col) + 1})` : ''}
+              </th>
+            ))}
+            <th>Scale</th>
+            {STEP_TYPES.map(s => <th key={s}>{s}</th>)}
+            <th>Progress</th>
+            <th onClick={e => handleHeaderClick('status', e)} style={{ cursor: 'pointer' }}>
+              {COLUMN_LABELS.status}
+              {sortKeys.includes('status') ? ` (${sortKeys.indexOf('status') + 1})` : ''}
+            </th>
+            <th>Discord</th>
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, i) => (
-            <tr key={`${r.wpId}-${i}`}>
-              <td>{r.customer}</td>
-              <td>{r.variantLabel}</td>
-              <td>{r.usSize ? `US ${r.usSize} (${r.scalePct}%)` : '-'}</td>
-              <td>{r.status}</td>
-            </tr>
-          ))}
+          {rows.map((r, i) => {
+            const doneCount = STEP_TYPES.filter(s => r.checklistDone[s]).length
+            return (
+              <tr key={`${r.wpId}-${r.key}-${i}`}>
+                <td>{r.dueDate ?? '-'}</td>
+                <td>{r.orderDate ?? '-'}</td>
+                <td>{r.orderNo}</td>
+                <td>{r.platform ?? '-'}</td>
+                <td>{r.entry}</td>
+                <td>{r.usSize ? `US ${r.usSize}` : '-'}</td>
+                <td>{r.scalePct ? `${r.scalePct}%` : '-'}</td>
+                {STEP_TYPES.map((s, si) => (
+                  <td key={s}>
+                    <input
+                      type="checkbox"
+                      checked={r.checklistDone[s]}
+                      onChange={() => toggleChecklist(r, s, r.checklistLabels[si])}
+                      aria-label={r.checklistLabels[si]}
+                    />
+                  </td>
+                ))}
+                <td>{doneCount}/7</td>
+                <td>{r.status}</td>
+                <td>
+                  {r.discordThreadUrl ? (
+                    <a href={r.discordThreadUrl} target="_blank" rel="noreferrer">Discord</a>
+                  ) : '-'}
+                </td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
