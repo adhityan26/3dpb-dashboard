@@ -2,7 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import type { SaasDevice, DiscoveredBambuPrinter, DiscoveredMoonrakerPrinter } from "@3pb/agent-core";
 import { AgentShell } from "../AgentShell";
 import { GlassButton, GlassCard, GlassInput } from "@3pb/ui";
-import { suggestModelFromSsdp, matchDeviceByName } from "@3pb/agent-core";
+// Import langsung dari subpath "@3pb/agent-core/printer-model" (BUKAN barrel "@3pb/agent-core")
+// -- barrel index.ts re-export engine-manager.ts/hms-table.ts yang statically import
+// "@3pb/printer-monitor-core" (readFileSync dari node:fs). Renderer di-bundle sebagai target
+// browser oleh Vite (lihat electron.vite.config.ts) -- node:fs di-externalize jadi stub kosong,
+// jadi kalau renderer ikut menarik barrel penuh, build electron-vite gagal
+// ("readFileSync" is not exported by "__vite-browser-external"). printer-model.ts sendiri pure
+// (tanpa dependency Node), aman di-bundle ke renderer.
+import { suggestModelFromSsdp, matchDeviceByName } from "@3pb/agent-core/printer-model";
 import { LAYOUT_LIMITS } from "@3pb/cyd-layout-schema";
 
 // Kartu mana yang harus menampilkan form pairing inline -- "device" = baris di kolom Device
