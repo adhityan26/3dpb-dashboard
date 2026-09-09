@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { SaasDevice } from "../../main/saas-client";
+import type { SaasDevice } from "@3pb/agent-core";
 import { AgentShell } from "../AgentShell";
 import { GlassButton, GlassInput } from "@3pb/ui";
 

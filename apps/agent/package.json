@@ -25,6 +25,7 @@
     "generate-icons": "node scripts/generate-icons.mjs"
   },
   "dependencies": {
+    "@3pb/agent-core": "workspace:*",
     "@3pb/cyd-layout-schema": "workspace:*",
     "@3pb/printer-monitor-core": "workspace:*",
     "@3pb/ui": "workspace:*",

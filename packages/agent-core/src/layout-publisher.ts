@@ -1,25 +1,24 @@
 import mqtt from "mqtt";
-import log from "electron-log/main";
 import { fetchLayout } from "./saas-client";
+import type { Logger } from "./interfaces";
 
 const MQTT_AUTH_USERNAME_PLACEHOLDER = "agent";
 
-/** cydDeviceId "default" sesuai kontrak lama §13 (1 layar CYD per akun, MVP sub-proyek 1). pin dipakai sebagai password CONNECT (lihat broker.ts authenticate). */
 export async function publishLayout(
+  baseUrl: string,
   token: string,
   brokerPort: number,
   cydDeviceId: string,
   pin: string,
+  logger: Logger,
 ): Promise<{ published: boolean }> {
-  const result = await fetchLayout(token);
-  // Not publishing is the one failure the CYD can never explain by itself (it just shows
-  // "Tampilan belum diatur" forever), so every skipped publish gets a line in the log.
+  const result = await fetchLayout(baseUrl, token);
   if (!result.ok) {
-    log.error(`[layout-publisher] layout NOT published to 3dpb/cyd/${cydDeviceId}/layout -- fetchLayout failed: ${result.kind}`);
+    logger.error(`[layout-publisher] layout NOT published to 3dpb/cyd/${cydDeviceId}/layout -- fetchLayout failed: ${result.kind}`);
     return { published: false };
   }
   if (result.data === null) {
-    log.warn(`[layout-publisher] layout NOT published to 3dpb/cyd/${cydDeviceId}/layout -- no layout configured on the SaaS yet (404)`);
+    logger.warn(`[layout-publisher] layout NOT published to 3dpb/cyd/${cydDeviceId}/layout -- no layout configured on the SaaS yet (404)`);
     return { published: false };
   }
 

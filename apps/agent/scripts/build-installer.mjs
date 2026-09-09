@@ -114,8 +114,13 @@ if (uploadOnly) {
   process.exit(0);
 }
 
-// 1. Build renderer/main/preload as usual (SAAS_BASE_URL override, if set,
-//    flows through electron.vite.config.ts's existing `define` as before).
+// 1. Build renderer/main/preload as usual. SAAS_BASE_URL is no longer baked in
+//    at build time: it's read from the env var only when the BUILT APP FIRST
+//    RUNS, to seed config.json in the user-data directory (see
+//    packages/agent-core/src/config.ts). After that first run, the value
+//    lives in config.json and the env var has no further effect unless the
+//    file is deleted (or a hand-edited config.json is invalid JSON, in which
+//    case the same env-var-or-default seed logic applies again for that call).
 run("electron-vite build");
 
 // 2. Fresh deploy directory with a flat, hoisted node_modules -- see header

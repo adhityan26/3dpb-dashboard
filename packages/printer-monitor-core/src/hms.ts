@@ -1,5 +1,11 @@
 import { readFileSync } from 'node:fs'
 import type { HmsEntry } from './types'
+import hmsCodesJson from './hms-codes.json'
+
+// Named export dari JSON yang sama yang dipakai HmsLookup's loadBundled() secara internal --
+// disediakan supaya package lain (agent-core) bisa import data-nya lewat entry point package
+// ini, bukan path relatif lintas-package yang rapuh (patah kalau struktur folder berubah).
+export const hmsCodes: Record<string, string> = hmsCodesJson as Record<string, string>
 
 const h4 = (n: number) => (n >>> 0).toString(16).padStart(4, '0')
 

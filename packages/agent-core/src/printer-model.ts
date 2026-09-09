@@ -1,5 +1,3 @@
-import type { SaasDevice } from "./saas-client";
-
 /** Dipakai engine-manager.ts kalau Device.model kosong -- "Bambu Lab"/"Klipper" dua-duanya
  * masuk batas 11 byte buffer firmware char type[12] (LAYOUT_LIMITS.maxPrinterModelLength). */
 export const CYD_TYPE_FALLBACK: Record<"bambu" | "moonraker", string> = {
@@ -41,7 +39,7 @@ function normalizeForMatch(value: string): string {
 
 /** Cari device SaaS yang label-nya paling mirip nama hasil scan -- REKOMENDASI untuk menandai
  * tombol "Pasangkan ke ..." di PairingScreen, bukan keputusan otomatis; user tetap pilih sendiri. */
-export function matchDeviceByName(devName: string, devices: SaasDevice[]): string | null {
+export function matchDeviceByName(devName: string, devices: { shortCode: string; label: string }[]): string | null {
   const target = normalizeForMatch(devName);
   const match = devices.find((d) => normalizeForMatch(d.label) === target);
   return match?.shortCode ?? null;

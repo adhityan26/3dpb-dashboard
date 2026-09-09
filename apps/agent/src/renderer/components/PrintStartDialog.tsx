@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { PlateInfo } from "../../main/file-manager/threemf-parser";
+import type { PlateInfo } from "@3pb/agent-core";
 
 interface PrintStartDialogProps {
   shortCode: string;
