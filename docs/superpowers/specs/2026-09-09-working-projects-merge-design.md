@@ -25,6 +25,14 @@ with no visible disruption to the team using Discord.
 - Keeping each Working Project synced to a Discord forum thread
   (create/rename/tag/edit/delete/reminder).
 
+Source snapshot verified identical (md5) against the live `/app/src` host
+on 2026-09-09. One discrepancy noted for completeness: `public/index.html`
+calls `/orders/api/tokopedia-session` in three places, but that route
+doesn't exist anywhere in the live code either — it's dead UI code from
+before the route was removed or renamed (the HTML file predates the
+router file by about six weeks), silently 404ing today. Not migrated;
+doesn't affect any other claim in this spec.
+
 **Explicitly out of scope:**
 - Any ring-*sizing calculator* tool (there is no such tool in the fetched
   files — this was an earlier misreading, corrected during design; nothing
@@ -98,6 +106,27 @@ but uses a **separate** secret (`DISCORD_RELAY_TOKEN`), not the OCR one —
 least privilege: a leaked OCR secret shouldn't also grant Discord thread
 control.
 
+**Transport and reachability**: the dashboard is reachable from the
+public internet (`dashboard.3dprintingbandung.my.id`); the relay call
+crosses the homelab LAN to `192.168.88.92:3000` in plaintext HTTP, the
+same path the existing OCR integration already uses. Because the
+dashboard side is internet-facing, the relay additionally checks the
+caller's source IP against an allowlist (`ALLOWED_RELAY_IPS`, just the
+homelab Docker host's IP — cheap, `req.socket.remoteAddress`, no TLS
+needed) on top of the shared-secret header, so a leaked
+`DISCORD_RELAY_TOKEN` alone isn't sufficient from outside the LAN.
+
+**Blast radius of reusing `BOT_API_TOKEN`**: this token previously only
+authorized read-only order lookups; it now also authorizes creating and
+updating Working Projects (which in turn can create/rename/archive/delete
+Discord threads via the relay it triggers). Since the calling side
+(`ai-assistant`) already validates and shapes the interaction before this
+token is ever used, and the relay itself is separately gated by both the
+forum-channel allowlist (§Discord relay) and its own token, this is an
+accepted increase in scope rather than something requiring a third token
+— but it's worth stating plainly rather than treating the reuse as a free
+simplification.
+
 ### Data model
 
 New Prisma model in `apps/dashboard/prisma/schema.prisma`:
@@ -108,12 +137,30 @@ model WorkingProject {
   discordThreadId  String?  @unique
   forumChannelId   String?  // which forum this thread lives in — fixes a
                              // latent bug in the old code (see "Fixed
-                             // issues" below)
+                             // issues" below). SQLite has no equivalent
+                             // column, so every migrated row starts null
+                             // and is backfilled from Discord directly
+                             // (see §Data migration); a row that fails
+                             // backfill stays null and keeps the old
+                             // buggy tag-resolution until its next
+                             // threadUpdate self-heals it.
   source           String   // "shopee" | "tokopedia" | "manual"
-  sourceOrderNo    String?  // Shopee orderSn / Tokopedia order_id; null for manual.
-                             // Used to live-fetch full marketplace detail
-                             // on demand (see UI section) — never stored
-                             // as a snapshot, to avoid staleness.
+  sourceOrderNo    String?  // Real marketplace order ID (Shopee orderSn /
+                             // Tokopedia order_id) — ONLY set when it came
+                             // from a marketplace API call, never from a
+                             // human-typed field. Used to live-fetch full
+                             // marketplace detail on demand (see UI
+                             // section) — never stored as a snapshot.
+  orderNoLegacy    String?  // Free-text "No. Order" as typed into the old
+                             // `/order-baru` modal or web form — NOT a
+                             // marketplace ID, never used for a live
+                             // lookup. Kept only for display. New manual
+                             // creates from the dashboard populate this
+                             // the same way; sourceOrderNo stays null for
+                             // manual orders.
+  syncState        String   @default("ok") // "ok" | "pending" | "error" —
+                             // see §Architecture › Failure ordering
+  syncError        String?
   customer         String
   contact          String?
   platform         String?
@@ -178,6 +225,37 @@ push --accept-data-loss` is safe; **column names must be finalized before
 first deploy**, since any later rename would need to go through the same
 accept-data-loss path against a live table.
 
+### Failure ordering & reconciliation
+
+Unlike an escrow-payment sync where a stale cache is invisible until
+someone looks, a Working Project whose Discord thread has drifted from
+its database record is immediately visible to the team. This needs an
+explicit story, not just "don't corrupt the DB record":
+
+- **Create**: write the `WorkingProject` row first, without
+  `discordThreadId`, `syncState: "pending"`. Call the relay's
+  `POST /discord-relay/thread` with an `Idempotency-Key: <project.id>`
+  header — the relay keeps a small map (`/app/data/relay-idempotency.json`)
+  from that key to the thread it already created, so a retried request
+  (e.g. after a timeout where the first attempt actually succeeded)
+  returns the existing thread instead of creating a duplicate. On success,
+  update the row with `discordThreadId`, `syncState: "ok"`. On failure,
+  leave `syncState: "pending"` with the error in `syncError` — the
+  handler's reply reflects this ("✅ tersimpan, ⚠️ Discord belum sinkron")
+  rather than silently claiming success.
+- **Update**: write to Postgres first, then call the relay. If the relay
+  call fails, set `syncState: "error"` + `syncError`, but still return
+  200 to the caller with `{discordSynced: false}` — the data change is
+  real and shouldn't be rolled back or hidden just because Discord is
+  temporarily unreachable.
+- **Reconciliation**: no cron-based reconciler (unnecessary at this
+  scale) — instead, a manual `POST /api/working-projects/:id/resync`
+  endpoint and a "🔄 Resync Discord" button in the UI for any row with
+  `syncState != "ok"`. Resync re-derives `name`, `appliedTags`, and
+  `starterContent` entirely from the current DB row and sends one
+  `PATCH /discord-relay/thread/:id` — the DB is always the source of
+  truth being replayed outward, never the other way around.
+
 ### Discord relay (`ai-assistant` side, new file `orders/discord-relay.js`)
 
 Wraps existing `discord.js` calls (all confirmed REST-only by reading
@@ -186,10 +264,37 @@ Wraps existing `discord.js` calls (all confirmed REST-only by reading
 | Endpoint | Wraps |
 |---|---|
 | `GET /discord-relay/channel/:id/tags` | `channel.availableTags` |
-| `POST /discord-relay/thread` | `forum.threads.create({name, message})` → `{threadId, threadUrl}` |
-| `PATCH /discord-relay/thread/:id` | Body independently selects `{name?, appliedTags?, starterContent?}` — wraps `setName` / `setAppliedTags` / edit-starter-message, any subset in one call (status changes rename+edit; mentions changes call nothing; checklist changes edit-only) |
+| `GET /discord-relay/thread/:id` | `client.channels.fetch(id)` → `{parentId, name, appliedTags, archived, ownerId}`. 404 if the thread no longer exists. Used for the `forumChannelId` migration backfill (below) and for spot-checking human-started threads (§Data migration). |
+| `POST /discord-relay/thread` | `forum.threads.create({name, message})` → `{threadId, threadUrl}`. Accepts `Idempotency-Key` header (see §Failure ordering). |
+| `PATCH /discord-relay/thread/:id` | Body independently selects `{name?, appliedTags?, starterContent?}` — wraps `setName` / `setAppliedTags` / edit-starter-message, any subset in one call (status changes rename+edit; mentions changes call nothing; checklist changes edit-only). Auto-unarchives first if the thread is archived and any field besides `archived` is being changed (Discord rejects edits on an archived thread otherwise) — does not re-archive afterward. |
 | `POST /discord-relay/thread/:id/archive` | `thread.setArchived(true)` — needed by `/order-selesai` |
 | `DELETE /discord-relay/thread/:id` | `thread.delete()` |
+
+**Mention hardening**: `buildPostContent` interpolates `customer`,
+`contact`, `product`, `variant`, `shipping`, `trackingNo`, `notes`, and
+checklist text raw into message content. In the original, that content
+was always typed by trusted staff into a Discord modal. After this merge
+it can also come from marketplace data (Shopee/Tokopedia customer names
+and product titles) or the new dashboard web form — a product title
+containing `@everyone`, `@here`, or a role mention would ping the whole
+guild, and would re-fire on every starter-message re-edit. Every
+`threads.create({message})` and starter-message edit call in the relay
+sets `allowedMentions: {parse: [], users: mentions}`, where `mentions` is
+the explicit array of Discord user IDs from the request body — never
+parsed out of the message content itself. Per user decision, only
+mentions are neutralized this way; markdown formatting characters
+(`**bold**`, `_italic_`, etc.) in free-text fields are left as-is, since
+`notes` in particular sometimes carries formatting staff typed on
+purpose, and this doesn't create a new forum thread or otherwise change
+what already exists — it's the same starter-message-edit mechanism the
+original used, just with mention parsing turned off.
+
+All of `POST /thread`, `PATCH /thread/:id`, `DELETE /thread/:id` restrict
+their target to an allowlisted set of forum channel IDs
+(`[ORDERS_FORUM_CHANNEL_ID, FORUM_TOPENG_ID, FORUM_CINCIN_ID,
+FORUM_CLICKER_ID]`, the same set `thread-update-handler.js` already uses
+as `ORDER_FORUM_IDS`) — reject with 403 otherwise. See §Ownership split ›
+blast radius for why.
 
 No "post/edit message by id" endpoint is needed: `checklist_msg_id`
 (a column that exists in the old SQLite schema) has zero readers or
@@ -197,11 +302,48 @@ writers anywhere in the codebase — `/order-checklist` only edits the
 starter message, same as every other update path. Treat it as dead
 schema (see §Data migration).
 
+**Discord API constraints** the relay must respect (none of these were
+addressed by the original code, since it made these calls one at a time
+inline rather than through a shared layer):
+- **Rename rate limit**: Discord allows roughly 2 name edits per 10
+  minutes per channel — and this design *increases* rename frequency
+  relative to the original (web UI edits, `/order-status`,
+  `/order-update`, and `threadUpdate` can all trigger one). Mitigation:
+  `PATCH /thread/:id` always fetches the current name first (already
+  needed for the archived-thread check) and only sends `name` in the
+  Discord API call if it actually differs; `discord-sync.ts` on the
+  dashboard side batches all changed fields into one `PATCH` call rather
+  than issuing separate rename/tag/edit requests. On a 429 that
+  discord.js's own built-in queueing doesn't absorb, the relay returns
+  503 + `retryAfter`; the dashboard marks `syncState: "error"` (see
+  §Failure ordering) rather than retrying synchronously.
+- **Archived threads**: `/order-selesai` archives a thread. Any later
+  edit (e.g. reopening for a correction) needs the relay's
+  `PATCH /thread/:id` to auto-unarchive first, as already specified in
+  the endpoint table above.
+- **Title length**: the 100-character cap is already enforced by
+  `buildThreadTitle`'s `.slice(0, 100)` — port this as-is, with a unit
+  test.
+- **Tag count**: Discord allows at most 5 applied tags per thread; the
+  tags endpoint rejects a request with more than 5 with a 400.
+- **Message length**: the starter message has a 2000-character cap.
+  `buildPostContent`'s port must truncate the checklist render (the most
+  elastic part of the message) with a `… (+N item)` suffix when needed —
+  a latent bug in the original that likely never triggered at current
+  data volume, but should be handled now that it's being rewritten
+  anyway.
+
 Auth: `X-Webhook-Secret: <DISCORD_RELAY_TOKEN>` header — confirmed against
 the actual `webhook/ocr.js` handler (`req.headers['x-webhook-secret']`,
 env var `WEBHOOK_SECRET`); the new relay checks its own separate
-`DISCORD_RELAY_TOKEN` env var the same way (`x-webhook-secret` header !==
-`process.env.DISCORD_RELAY_TOKEN` → 401).
+`DISCORD_RELAY_TOKEN` env var the same way, but **fails closed**: if
+`DISCORD_RELAY_TOKEN` is unset, `index.js` refuses to mount the relay
+router at all and logs an error at startup, rather than the old
+`router.js` pattern of `if (!token) return next()` (fail open) — which is
+in fact the live bug behind the "web UI had no auth in production" note
+in §Fixed issues. The comparison itself uses `crypto.timingSafeEqual` on
+equal-length buffers, matching this repo's own `lib/bot/auth.ts` pattern
+(stronger than `webhook/ocr.js`'s plain `!==`, which is not copied here).
 
 ### Dashboard API surface
 
@@ -211,8 +353,8 @@ auth via existing `requireBotToken` / `BOT_API_TOKEN` pattern — same as
 
 | Endpoint | Called by (in `ai-assistant`) | Behavior |
 |---|---|---|
-| `POST /api/bot/working-projects` | slash `/order-baru`, `/order-dari-shopee`, `/order-dari-tokopedia`, and the "🗂️ Buat Order" context menu (via `handleOrderModal`, customId `catalog_order_modal` → forum type resolves to `general`, same as today) | Body `{source, sourceOrderNo?, forumType, ...manualFields}`. For shopee/tokopedia, dashboard fetches full detail itself (`getOrderDetail`/`getOrderById`, no more HTTP round-trip). Builds title + post content, calls the `ai-assistant` Discord relay to create the thread, persists `WorkingProject` with `discordThreadId` + `forumChannelId`. Returns `{threadUrl}`. |
-| `GET /api/bot/working-projects/by-thread/:threadId` | every thread-scoped handler below, as a pre-check | 404 if the thread isn't a known Working Project (handler replies "order tidak ditemukan"). Returns the full project incl. `status`, `checklist`, `mentions`. |
+| `POST /api/bot/working-projects` | slash `/order-baru`, `/order-dari-shopee`, `/order-dari-tokopedia`, and the "🗂️ Buat Order" context menu (via `handleOrderModal`, customId `catalog_order_modal` → forum type resolves to `general`, same as today) | Body `{source, sourceOrderNo?, orderNoLegacy?, forumType, ...manualFields}`. `/order-baru`'s modal parsing (`parsePlatformOrder`, pure Discord-interaction parsing, stays in the thin handler) sends `{source:"manual", platform, orderNoLegacy}` — it never has a real marketplace ID. For shopee/tokopedia, dashboard fetches full detail itself (`getOrderDetail`/`getOrderById`, no more HTTP round-trip) and sets `sourceOrderNo` to the real ID. Builds title + post content (escaped — see §Discord relay › Mention & markdown hardening), calls the `ai-assistant` Discord relay to create the thread (with an `Idempotency-Key`, see §Failure ordering), persists `WorkingProject` with `discordThreadId` + `forumChannelId`. Returns `{threadUrl, threadId}`. |
+| `GET /api/bot/working-projects/by-thread/:threadId` | debugging / `/order-checklist copy`'s autocomplete labels (optional, not a required pre-check) | 404 if the thread isn't a known Working Project. Returns the full project incl. `status`, `checklist`, `mentions`. Thread-scoped action endpoints below do **not** call this first — each one does its own lookup and returns 404 `{error:"not_working_project"}` directly, which the handler maps to "⚠️ Thread ini tidak terdaftar sebagai order". This keeps every handler to exactly one `fetch` per interaction (the `/order-checklist copy` autocomplete is a separate interaction from its execution, so that command is the one stated exception at two fetches total, not one). |
 | `PATCH /api/bot/working-projects/:threadId/status` | `/order-status` | Body `{status, starterMessageContent?}` — `starterMessageContent` is the starter message text the handler already has from the interaction's thread object (no extra relay round-trip needed). Sets `status`; if `notes` is empty and `starterMessageContent` doesn't start with `📋 **Detail Order**`, stores it as `notes` (port of the old `maybeExtractNotes` — imports notes from threads a human started). Relay: rename thread (status/due suffix in title) + edit starter message. Does **not** touch `appliedTags` (status lives in the title, not tags — matches original behavior). Returns `{oldStatus, status}`. |
 | `POST /api/bot/working-projects/:threadId/done` | `/order-selesai` | Sets status to `Done`. Relay: rename thread, then **archive** it (`setArchived(true)` — see relay table below). Returns `{ok: true}`. |
 | `PATCH /api/bot/working-projects/:threadId` | `/order-update` | Body: subset of `{dueDate, payment, invoiceAmount, paidAmount, notesAppend, variant, customer, product, shipping, trackingNo}`. Amount parsing (`Rp`/`.`/`,`/`k`/`jt` suffixes) happens **server-side** so the web UI's edit form can share the same logic — the handler passes the raw string through. `notesAppend` appends (not replaces) with an Asia/Jakarta `[d Mon, HH.MM]` timestamp prefix. Recomputes `title` if `customer`/`product` changed. An empty string for `variant`/`shipping`/`trackingNo` is a valid "clear" write; only `undefined` fields are left alone. Relay: rename thread only if `variant`/`customer`/`product` changed, always edit starter message. Returns 400 on an unparseable `dueDate` (the handler `editReply`s the error — the original's bug of replying after `deferReply`, which throws, is intentionally not ported). |
@@ -221,7 +363,7 @@ auth via existing `requireBotToken` / `BOT_API_TOKEN` pattern — same as
 | `GET /api/bot/working-projects/checklist-sources?q=` | `/order-checklist copy` autocomplete | Projects with ≥1 non-deleted checklist item (done or not), `customer product` containing `q`, max 25, label `"customer — product"`. Returns `[{threadId, label}]`. |
 | `GET /api/bot/working-projects/settings` | `/reminder-config` (no args) | `{reminderDays: number[], defaultMentions: string[]}`. |
 | `PATCH /api/bot/working-projects/settings` | `/reminder-config days:/mentions:` | Body: subset of `{reminderDays: number[], defaultMentions: string[]}` (each handler does its own input parsing — `/mention-set` extracts `<@id>`, `/reminder-config` takes bare comma-separated IDs; the endpoint itself only accepts already-parsed `string[]`/`number[]`). 400 if `reminderDays` is empty after filtering to positive integers. |
-| `PATCH /api/bot/working-projects/:threadId/tags` | `threadUpdate` gateway listener | Syncs `appliedTags` changed manually in Discord back into the DB. Must be idempotent — a web-triggered `setAppliedTags` fires `threadUpdate` right back, which must no-op when the tags already match. |
+| `PATCH /api/bot/working-projects/:threadId/tags` | `threadUpdate` gateway listener | Body `{appliedTags: string[], parentId: string, currentName: string}`. Saves `appliedTags` (and backfills `forumChannelId` from `parentId` if it was null). Fetches the correct forum's `availableTags` (via relay, using `forumChannelId`) and recomputes `newName = buildThreadTitle(status, title, appliedTags, availableTags, dueDate, variant)` — this ports the original's behavior of rebuilding the thread title when a person-tag changes (the original's `thread-update-handler.js` does this; an earlier draft of this spec dropped it). If `newName !== currentName`, calls the relay to rename. Returns `{renamed: boolean, name}`. Also no-ops server-side if the incoming `appliedTags` already equals what's stored (defense in depth) — but the primary loop guard stays on the `ai-assistant` side, see below. |
 | `GET /api/bot/working-projects/due-reminders` | hourly cron | Returns `[{threadId, customer, product, dueDate, daysLeft, mentions: string[], pendingDays: number[]}]` where `pendingDays` = configured `reminderDays` that match `daysLeft` and aren't already in `remindersSent`. The cron no longer needs to read settings itself — the dashboard resolves `reminderDays` server-side. |
 | `POST /api/bot/working-projects/:threadId/reminder-sent` | hourly cron, after `thread.send()` succeeds | Appends the fired day(s) to `remindersSent`. |
 
@@ -253,17 +395,45 @@ params matching this repo's existing `?channel=` convention:
 - **`tab=orders`** — list matching the original `index.html`'s columns
   exactly: Customer/Contact, Produk, Variant, Platform, No. Order, Due
   Date, Status, Payment, Nominal, Checklist, Discord (link), plus an edit
-  action. Clicking a row with `source` shopee/tokopedia shows a "Lihat
-  Data Marketplace" action that live-fetches via
-  `GET /api/working-projects/:id/detail-source`.
-- **`tab=green-lantern-ring`** — same underlying data, filtered by
-  `/green.?lantern/i.test(product)` (ported from `isGLRing()`), with the
-  original's specialized columns: Due/Order Date, No Order, Platform,
-  Variant, parsed US ring size (from `notes`, via the ported `parseSize()`
-  regex — no new field, computed client-side same as the original),
-  then 7 checklist checkboxes (Frame/Stone/Ring × Print/Cat, plus
-  Assembly), Progress, Status, Discord link. Checkboxes toggle the
-  matching `checklist` item via `PATCH /api/working-projects/:id`.
+  action. "No. Order" displays `sourceOrderNo ?? orderNoLegacy ?? '-'`.
+  Clicking a row with a non-null `sourceOrderNo` shows a "Lihat Data
+  Marketplace" action that live-fetches via
+  `GET /api/working-projects/:id/detail-source`; rows with only
+  `orderNoLegacy` (or neither) don't get that action, since there's no
+  real marketplace ID to look up.
+- **`tab=green-lantern-ring`** — full parity with the original page, which
+  is considerably more than a simple product filter:
+  - **One row per ring variant, not per project**: `product` is split on
+    commas; each part matching `isGLRing()` becomes its own row. When a
+    project has multiple ring variants, `variantShort()` (Cosplay / 2026 /
+    raw) becomes a `key` distinguishing them.
+  - **Size**: `notes` is split on `|`; the segment matching the row's
+    `key` (or the whole `notes` string for a single-variant project) is
+    parsed by `parseSize()` for a US ring size, then looked up in the
+    ported `SIZE_SCALE` table (US size → scale percentage) — both
+    ported verbatim into `lib/working-projects/format.ts` with unit
+    tests.
+  - **Checklist**: 7 items per `key`, canonical labels
+    `"<key> — Print Frame"` / `"… Print Stone"` / `"… Print Ring"` /
+    `"… Cat Frame"` / `"… Cat Stone"` / `"… Cat Ring"` / `"… Assembly"`
+    (no `key` prefix for a single-variant project). **Reads** match by
+    case-insensitive substring (`includes()`), same as the original, to
+    stay compatible with inconsistently-labeled legacy data. **Writes**
+    go through a dedicated checklist op,
+    `POST .../checklist {op:"setByLabel", label, done, actor}`, which
+    matches an existing non-deleted item by case-insensitive exact label
+    match or creates a new one with a server-allocated `id` — this closes
+    the original's bug where the GL view wrote `{text,done}` with no
+    `id`, corrupting later id allocation.
+  - **Filters and sort**: search (order no / customer), platform,
+    variant, size, production step, and step-status filters; up to
+    3-column shift-click multi-sort (due date / order date / order no /
+    platform / variant / US size / status); summary stat pills (active
+    count, missing-size count, fully-done count). `Canceled` rows are
+    excluded, same as the original.
+  - Columns: Due Date, Order Date, No Order, Platform, Variant, Ukuran,
+    Scale, then the 7 checklist checkboxes, Progress, Status, Discord
+    link — matching the original's 17-ish columns.
 - **`tab=timeline`** — Gantt view, `orderDate` → `dueDate`, colored by
   status, same data source as the `orders` tab (confirmed: the original
   `timeline.html` uses the identical `GET /orders/api/orders` endpoint,
@@ -292,7 +462,16 @@ fixing during the rewrite rather than replicating)
   a thread actually lives in, so person-tags on non-default forums
   (topeng/cincin/clicker) resolve incorrectly. Fixed by storing
   `forumChannelId` per `WorkingProject` and resolving tags from the
-  correct forum.
+  correct forum — **for rows that have it backfilled** (see §Data
+  migration). A row with `forumChannelId: null` falls back to
+  `ORDERS_FORUM_CHANNEL_ID` (the old buggy behavior) until its next
+  `threadUpdate` event supplies the real `parentId` and self-heals it.
+- **Web UI had no auth in production**: `router.js`'s `requireAuth` fails
+  *open* (`if (!token) return next()`), and the live host's `.env` never
+  set `ORDERS_WEB_TOKEN` — the old web UI has been running with zero
+  authentication. This is fixed automatically by the merge (the new UI is
+  behind this dashboard's NextAuth session), not a separate task, but
+  worth naming since it's a real pre-existing gap being closed.
 - **Duplicated create logic**: the old `router.js` and `order-baru.js` had
   near-identical inline create logic (including two separate `FORUM_MAP`
   definitions). Consolidated into one path
@@ -307,78 +486,186 @@ One-shot (not dual-write) — the data volume is small (workshop scale) and
 every record has a natural unique key (`thread_id`), so import is
 idempotent.
 
-1. On `192.168.88.92`: `sqlite3 /app/data/orders.db ".mode json" "select * from orders"` → JSON file.
-2. New script `apps/dashboard/scripts/migrate-working-projects.ts`
-   (same pattern as `scripts/seed-cyd-field-presets.ts`): parses the
-   JSON-string columns (`checklist`, `mentions`, `applied_tags`,
-   `reminders_sent`), maps to `WorkingProject`, `upsert`s by
-   `discordThreadId`. Specific column rules:
-   - `checklist_msg_id` is **dropped** — dead schema, zero readers/writers
-     anywhere in the fetched codebase (confirmed by grep across every
-     order-related file); do not migrate it.
-   - `due_date`/`order_date`: `''` → `null`; a value matching
-     `^\d{4}-\d{2}-\d{2}$` → parsed as `DateTime` at Asia/Jakarta midnight;
-     anything else (free text like "akhir bulan", entered through the old
-     web UI which never validated this field) → `dueDate: null` +
-     preserved verbatim in `dueDateRaw` (order_date has no raw-preserving
-     field since nothing in the UI displays a fallback for it — just null
-     it out).
-   - `checklist` items: normalize every item to the canonical shape —
-     assign a fresh sequential `id` to any item missing one (this is
-     exactly the Green Lantern Ring bug's fallout: those items were
-     written as `{text,done}` with no `id`), coerce `done`/`deleted` to
-     booleans, default missing `added_by`/`added_at` to `"migration"` /
-     the migration timestamp.
-3. Before running the script, count rows where `due_date` or `order_date`
-   is non-empty and doesn't match `^\d{4}-\d{2}-\d{2}$`, and report the
-   count — this tells the user how many `dueDateRaw` records to expect
-   and surfaces any migration surprise before it's live.
-4. Before cutover: spot-check whether any live thread's starter message
-   was posted by a human, not the bot (`thread.ownerId !== botUserId`) —
-   if so, that thread's post-content can never be auto-edited by any bot,
-   before or after this migration; this is a pre-existing limitation, not
-   a regression, but worth knowing about ahead of time rather than being
-   surprised by it later.
+Export is via `scripts/export-orders.mjs` (standalone, read-only `sql.js`
+— see cutover step 4 above; `sqlite3` CLI isn't installed on the host).
+
+New script `apps/dashboard/scripts/migrate-working-projects.ts` (same
+pattern as `scripts/seed-cyd-field-presets.ts`): parses the JSON-string
+columns (`checklist`, `mentions`, `applied_tags`, `reminders_sent`), maps
+to `WorkingProject`, `upsert`s by `discordThreadId`. Column rules:
+
+- **`source`/`sourceOrderNo`/`orderNoLegacy` derivation**: `platform`
+  matching `/shopee/i` **and** `order_no` matching an orderSn shape
+  (`/^\d{12,}[A-Z0-9]*$/`) → `source:"shopee"`, `sourceOrderNo:order_no`;
+  `platform` matching `/tokopedia/i` and `order_no` numeric →
+  `source:"tokopedia"`, `sourceOrderNo:order_no`; anything else →
+  `source:"manual"`, `sourceOrderNo:null`, `orderNoLegacy:order_no`. This
+  works because the old `order-dari-shopee`/`tokopedia-order` handlers
+  already wrote the real marketplace ID into `order_no` — only
+  `/order-baru`'s free-text entry ends up as `manual`. Report the
+  resulting `source` distribution and list any `platform`-shopee/tokopedia
+  row that fails its regex (candidates for manual correction) before
+  proceeding.
+- `checklist_msg_id` is **dropped** — dead schema, zero readers/writers
+  anywhere in the fetched codebase (confirmed by grep across every
+  order-related file); do not migrate it.
+- `due_date`/`order_date`: `''` → `null`; a value matching
+  `^\d{4}-\d{2}-\d{2}$` → parsed as `DateTime` at Asia/Jakarta midnight;
+  anything else (free text like "akhir bulan", entered through the old
+  web UI which never validated this field) → `dueDate: null` + preserved
+  verbatim in `dueDateRaw` (`order_date` has no raw-preserving field since
+  nothing in the UI displays a fallback for it — just null it out).
+  Before running the script, count rows where `due_date`/`order_date` is
+  non-empty and doesn't match the ISO pattern, and report the count.
+- `checklist` items: normalize every item to the canonical shape — assign
+  a fresh sequential `id` to any item missing one (this is exactly the
+  Green Lantern Ring bug's fallout: those items were written as
+  `{text,done}` with no `id`), coerce `done`/`deleted` to booleans,
+  default missing `added_by`/`added_at` to `"migration"` / the migration
+  timestamp.
+- **`forumChannelId` backfill**: after the upsert pass, for each row with
+  a `discordThreadId`, call the relay's `GET /discord-relay/thread/:id`
+  (serially, ~250ms apart — this is hundreds of threads, not thousands)
+  and set `forumChannelId = parentId`, refresh `appliedTags` to the live
+  value (the SQLite copy may be stale), and record whether
+  `ownerId !== <bot's own user id>` (closes the "spot-check human-started
+  threads" concern below — it's now automatic). A relay failure or 404
+  leaves `forumChannelId: null` for that row and appends it to a
+  `backfill-failed.json` report; that row keeps the old buggy tag
+  resolution until a subsequent `threadUpdate` supplies `parentId` and
+  self-heals it. Idempotent: a row with `forumChannelId` already set is
+  skipped unless `--force`.
+- Any live thread whose starter message was posted by a human
+  (`ownerId !== bot`, from the backfill pass above) can never have its
+  post-content auto-edited by any bot, before or after this migration —
+  a pre-existing limitation, not a regression, but worth surfacing in the
+  backfill report rather than being discovered later by surprise.
 
 ### `ai-assistant`-side changes (separate repo, production host,
 via SSH — no staging environment exists there)
 
-Executed as part of this same effort (per explicit user decision), git-committed
-on that host before each file edit so any step can be reverted:
+Executed as part of this same effort (per explicit user decision). This
+is a single Express process (`index.js`) also serving unrelated commands
+(research, tanya, lineart, wa-setting) and the OCR webhook the dashboard
+already depends on — a naive file-by-file rewrite-and-restart sequence
+crashes the *entire* process (see rationale below), so cutover is
+redesigned as one atomic switchover instead.
 
-1. Add `orders/discord-relay.js` (new endpoints, see above), mount in
-   `index.js`, add `DISCORD_RELAY_TOKEN` to `.env`.
-2. Rewrite every order-related handler into a thin dashboard-API client:
-   `order-baru.js` (including `handleOrderModal`, which also serves the
-   "🗂️ Buat Order" context menu's `catalog_order_modal`),
-   `order-dari-shopee.js`, `tokopedia-order.js`, `order-status.js`,
-   `order-selesai.js`, `order-update.js`, `order-checklist.js` (all 6
-   subcommands + its autocomplete), `mention-set.js`, `reminder-config.js`.
-   All reuse the already-present `BOT_API_URL`/`BOT_API_TOKEN`.
-   `catalog-wa.js` itself is **not edited** — its Buat-Order half only
-   builds and shows the modal (no DB/Discord write of its own), and its
-   WA-broadcast half is unrelated to orders.
-3. `thread-update-handler.js`: replace the local SQLite update with a
-   `PATCH` to `/api/bot/working-projects/:threadId/tags`.
-4. `index.js`'s hourly reminder cron: replace `getAllOrders()` (local
-   SQLite) with `GET /api/bot/working-projects/due-reminders`; after
-   `thread.send()`, call `POST .../reminder-sent`. The cron no longer
-   needs `getReminderDays()` — that setting now lives server-side.
-5. Port two pieces of pure logic into
-   `apps/dashboard/lib/working-projects/format.ts` rather than
-   reimplementing them: `parseAmount` (the `Rp`/`.`/`,`/`k`/`jt` parser
-   from `order-update.js`) and the notes-append timestamp format
-   (`[d Mon, HH.MM]`, Asia/Jakarta). The original's bug of calling
-   `interaction.reply` after `deferReply` on an invalid due date (which
-   throws) is intentionally not ported — the dashboard returns 400 and
-   the handler `editReply`s a clean error instead.
-6. After cutover is verified working end-to-end: remove/disable the old
-   `orders/router.js` mount, the old `public/*.html` files, `db/orders.js`,
-   and `orders/status-tags.js`'s `maybeExtractNotes`/`syncStatusTag`
-   (unused once every handler is thin) — the web UI is now served
-   entirely from the dashboard.
-7. `pm2 restart` after each step; verify one slash command manually
-   before moving to the next file.
+**Import-graph hazard driving this redesign**: `router.js`,
+`order-status.js`, `order-update.js`, and `order-checklist.js` all
+statically `import { buildPostContent } from '../bot/handlers/commands/order-baru.js'`.
+Rewriting `order-baru.js` (removing that export) while `router.js` is
+still mounted, then `pm2 restart`-ing, is an ESM module-load failure —
+the process won't even boot. Every file in this import graph must be
+deployed together, in one commit, with one restart.
+
+**Baseline**: the live `/app/src` git repo currently has only its
+original 2026-07-21 commit; every file this merge touches shows as
+uncommitted (`M`). Before anything else, commit that live working state
+as a snapshot and tag it, so "revert" has something concrete to revert
+to:
+```
+cd /app/src && git add <the specific M files listed by git status> && \
+  git commit -m "chore: snapshot before working-projects merge" && \
+  git tag pre-wp-merge
+```
+(Repo convention applies here too: `git add` specific paths, not `-A`.)
+
+**Cutover sequence:**
+
+1. **Pre-cutover (no downtime, can happen days ahead)**: deploy the
+   dashboard side fully (model, bot-facing endpoints, web UI) and verify
+   it with mocked/unit tests only — nothing in `ai-assistant` changes
+   yet. Then, as a separate small additive change: add
+   `orders/discord-relay.js`, mount it in `index.js`, add
+   `DISCORD_RELAY_TOKEN` to `/app/.env` (the real env file is at
+   `/app/.env`, not `/app/src/.env`), `pm2 restart`. This is purely
+   additive — no existing handler is touched — so it can't break
+   anything else. Verify the relay works with a manual
+   `GET /discord-relay/channel/:id/tags` call from the dashboard side.
+2. **Freeze**: stop new writes to the old SQLite-backed system before
+   touching anything else. Mechanism: set `ORDERS_FREEZE=1` in
+   `/app/.env`; `router.js` and every order handler check this flag first
+   and reply "⏸️ Order tracker sedang migrasi, coba lagi dalam beberapa
+   menit" instead of proceeding. This ~10-line check is written and
+   committed as part of the pre-cutover step (1), so it's already in
+   place before the freeze is flipped on — flipping the flag needs only
+   an env change + restart, not a code deploy. (Rejected alternative:
+   `pm2 stop` the whole bot — that also kills the OCR webhook and
+   unrelated commands, which don't need to go down for this.)
+3. **Backup**: `cp -p /app/data/orders.db /app/data/backup/orders-$(date +%Y%m%dT%H%M%S).db`,
+   `chmod 444` it, record its `sha256sum` in the runbook. This must happen
+   *before* any migration step, because `db/orders.js`'s `initDb()` calls
+   `_save()` on startup — simply starting the old code again (e.g. during
+   a later rollback) overwrites `orders.db`, destroying the very file the
+   migration read from if no backup exists.
+4. **Export**: `sqlite3` isn't installed on the host, so export via a
+   small standalone Node script (`scripts/export-orders.mjs`, uses
+   `sql.js` directly against the file in **read-only** mode — it must
+   never call `db.export()`/write, since that's what corrupts state on
+   every old-code write) → JSON.
+5. **Import + backfill**: run `migrate-working-projects.ts` (§Data
+   migration) against that export, including the `forumChannelId`
+   backfill pass.
+6. **Deploy all rewritten handlers in one commit, one restart**: every
+   file in the `buildPostContent` import graph plus every other
+   order-related handler — `order-baru.js` (incl. `handleOrderModal`,
+   also serving "🗂️ Buat Order"), `order-dari-shopee.js`,
+   `tokopedia-order.js`, `order-status.js`, `order-selesai.js`,
+   `order-update.js`, `order-checklist.js` (+ autocomplete),
+   `mention-set.js`, `reminder-config.js`, `thread-update-handler.js`
+   (keeps its existing loop guard — comparing `oldThread.appliedTags` vs
+   `newThread.appliedTags` from the live Discord event and early-returning
+   when they match, which is what stops a bot-triggered rename from
+   re-firing `threadUpdate` forever; only its *body* changes, from a
+   local SQLite update to the `PATCH .../tags` call above),
+   and the reminder cron in `index.js` — become thin dashboard-API
+   clients in this single commit. Also in this commit: remove the
+   `/orders` router mount, remove `db/orders.js`'s import from `index.js`,
+   and change `publishCydOrders()` to publish an explicit
+   `{orders: [], unavailable: true, reason: "migrated"}` payload instead
+   of reading SQLite (per user: the CYD order publisher already isn't
+   working today and hasn't been fixed — this just stops it from
+   publishing stale-but-plausible-looking data once cutover starts;
+   porting a real CYD reader is separate future work). `catalog-wa.js`
+   itself is **not edited** — its Buat-Order half has no DB/Discord write
+   of its own (it only shows the modal), and its WA-broadcast half is
+   unrelated. Port `parseAmount` and the notes-append timestamp format
+   (`[d Mon, HH.MM]`, Asia/Jakarta) into
+   `apps/dashboard/lib/working-projects/format.ts` as part of this same
+   commit, rather than reimplementing them ad hoc. The original's bug of
+   calling `interaction.reply` after `deferReply` on an invalid due date
+   (which throws) is intentionally not ported — the dashboard returns 400
+   and the handler `editReply`s a clean error instead. One `pm2 restart`
+   for this entire commit.
+7. **Delta re-import**: re-run the (idempotent) migration script once
+   more against a fresh SQLite export, to catch anything written between
+   steps 4 and 6. Expected delta: zero, since writes were frozen in step
+   2 — a non-zero delta here means the freeze leaked and needs
+   investigating before proceeding.
+8. **Verify**: exercise one of each — `/order-baru`, `/order-status`, a
+   manual tag change in Discord, and one edit from the new dashboard web
+   UI. Only then unset `ORDERS_FREEZE`.
+9. **Post-cutover (+7 days, not part of the cutover window)**: once
+   stable, remove the old `public/*.html` files, `db/orders.js`, and
+   `orders/status-tags.js`'s now-unused `maybeExtractNotes`/
+   `syncStatusTag` helpers.
+
+**Expected downtime**: order-related commands/web UI are unavailable
+during steps 2–8, roughly 15–30 minutes. Unrelated commands and the OCR
+webhook are unaffected except for two short PM2 restarts (steps 1 and 6,
+~10 seconds each).
+
+**Rollback**: `git checkout pre-wp-merge` in `/app/src`, restore
+`orders.db` from the step-3 backup, `pm2 restart`, unset
+`ORDERS_FREEZE`. Accepted consequence: any Postgres writes made after
+cutover are not reflected back in SQLite/Discord-bot state (the
+underlying Discord threads still exist and are untouched — only the
+bot's own bookkeeping reverts). No reverse Postgres→SQLite export is
+built; the Postgres data remains available for a manual re-migration
+later if needed. This is deliberately the simpler of two options,
+appropriate for the verification window in step 8 being short and the
+data volume being workshop-scale.
 
 ## Testing
 
@@ -410,25 +697,40 @@ on that host before each file edit so any step can be reverted:
 - UI: component tests for the three tabs' rendering (columns, checklist
   toggle, GL Ring filter/parse), following this repo's existing
   `renderToStaticMarkup`-based test conventions.
-- `ai-assistant`-side changes are manually verified against production
-  (no test suite ports there — `vitest` exists in that repo but wasn't
-  read as part of this analysis; out of scope to extend it here).
+- `orders/discord-relay.js` — this IS new, unit-testable code (unlike the
+  gateway-dependent handlers, which stay manually verified against
+  production since `vitest` there can't easily simulate a live Discord
+  gateway session): forum-channel allowlist enforcement, fail-closed
+  behavior when `DISCORD_RELAY_TOKEN` is unset, idempotency-key handling,
+  auto-unarchive-before-edit, and `allowedMentions` being set on every
+  message create/edit — all mockable against discord.js.
+- `PATCH /api/bot/working-projects/:threadId/tags` — a test asserting
+  that identical incoming `appliedTags` produces no relay call (the
+  dashboard-side no-op, defense in depth alongside the `ai-assistant`
+  loop guard).
+- The thin `ai-assistant` handlers themselves (slash commands, modals,
+  the reminder cron) are manually verified against production per the
+  cutover runbook's step 8 — no staging environment exists to run an
+  automated suite against.
 
 ## Out of scope / explicitly deferred
 
 - Removing `ai-assistant` entirely — it keeps running for gateway-only
   duties (slash commands, `threadUpdate`, reminder cron) indefinitely;
   full decommissioning was not requested.
-- CYD/MQTT sync for Working Projects — `cyd-publisher.js` currently reads
-  from the SQLite this migration retires; what CYD does after cutover is
-  a separate, explicitly out-of-scope decision the user will make later.
+- A real CYD/MQTT reader against the new dashboard data — per user, the
+  CYD order publisher isn't working today regardless of this merge, so
+  cutover only makes sure it stops publishing stale-but-plausible SQLite
+  data (see cutover step 6: `publishCydOrders()` is changed to publish an
+  explicit `{orders: [], unavailable: true}` payload). Building a proper
+  reader against `apps/dashboard`'s API is separate future work.
 - Any change to `ai-assistant`'s other bot commands (research, tanya,
   lineart, wa-setting, etc.) — untouched. Within `catalog-wa.js`
   specifically: the `📱 Kirim WA Status` context menu (WA Omni broadcast,
   touches no order data) is untouched; the `🗂️ Buat Order` menu IS
   covered by this merge, via the shared `handleOrderModal` path (see
-  §Dashboard API surface / §`ai-assistant`-side changes step 2) — it's
-  not separately implemented, it rides along once `order-baru.js`'s
+  §Dashboard API surface / §`ai-assistant`-side changes cutover step 6) —
+  it's not separately implemented, it rides along once `order-baru.js`'s
   modal handler is rewritten.
 - A ring-sizing calculator tool — does not exist in the analyzed code;
   nothing was excluded here on that basis (see Problem section).
