@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildTitle, buildPostContent, parseDueDate, SIZE_SCALE, parseSize, isGLRing, variantShort, splitProductVariants } from '../format'
+import { buildTitle, buildPostContent, parseDueDate, SIZE_SCALE, parseSize, isGLRing, variantShort, splitProductVariants, parseAmount, appendNoteWithTimestamp, allowedMentionsPayload } from '../format'
 
 describe('buildTitle', () => {
   it('joins customer, product, variant', () => {
@@ -80,5 +80,33 @@ describe('isGLRing', () => {
   })
   it('false otherwise', () => {
     expect(isGLRing(['Topeng'], 'FORUM_TOPENG_ID')).toBe(false)
+  })
+})
+
+describe('parseAmount', () => {
+  it('strips currency formatting to an integer', () => {
+    expect(parseAmount('Rp150.000')).toBe(150000)
+    expect(parseAmount('150000')).toBe(150000)
+  })
+  it('returns 0 for empty/invalid input', () => {
+    expect(parseAmount('')).toBe(0)
+    expect(parseAmount('abc')).toBe(0)
+  })
+})
+
+describe('appendNoteWithTimestamp', () => {
+  it('appends with a bracketed ISO date prefix', () => {
+    const result = appendNoteWithTimestamp('existing note', 'new note')
+    expect(result.startsWith('existing note\n[')).toBe(true)
+    expect(result).toContain('new note')
+  })
+  it('handles null existing notes', () => {
+    expect(appendNoteWithTimestamp(null, 'first note')).toContain('first note')
+  })
+})
+
+describe('allowedMentionsPayload', () => {
+  it('never parses everyone/roles, only explicit user ids', () => {
+    expect(allowedMentionsPayload(['123', '456'])).toEqual({ parse: [], users: ['123', '456'] })
   })
 })

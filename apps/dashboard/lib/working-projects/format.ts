@@ -66,3 +66,18 @@ export function isGLRing(appliedTags: string[], forumChannelId: string | null): 
   if (forumChannelId === 'FORUM_CINCIN_ID') return true
   return appliedTags.some(t => /ring|cincin/i.test(t))
 }
+
+export function parseAmount(raw: string): number {
+  const digits = raw.replace(/[^\d]/g, '')
+  return digits ? parseInt(digits, 10) : 0
+}
+
+export function appendNoteWithTimestamp(existing: string | null, note: string): string {
+  const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ')
+  const line = `[${stamp}] ${note}`
+  return existing ? `${existing}\n${line}` : line
+}
+
+export function allowedMentionsPayload(mentions: string[]): { parse: []; users: string[] } {
+  return { parse: [], users: mentions }
+}
