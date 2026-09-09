@@ -61,4 +61,22 @@ describe('WorkingProjectEditModal', () => {
     render(<WorkingProjectEditModal project={project} onClose={vi.fn()} onSave={vi.fn()} isPending={true} />)
     expect(screen.getByRole('button', { name: /menyimpan/i })).toBeDisabled()
   })
+
+  it('shows a visible error message when a save attempt failed', () => {
+    render(
+      <WorkingProjectEditModal
+        project={project}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        isPending={false}
+        error="Gagal menyimpan: HTTP 500"
+      />,
+    )
+    expect(screen.getByRole('alert')).toHaveTextContent('Gagal menyimpan: HTTP 500')
+  })
+
+  it('renders no error message when there is none', () => {
+    render(<WorkingProjectEditModal project={project} onClose={vi.fn()} onSave={vi.fn()} isPending={false} />)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
 })

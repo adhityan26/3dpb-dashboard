@@ -19,11 +19,12 @@ interface Props {
   onClose: () => void
   onSave: (vars: { id: string; patch: WorkingProjectEditPatch }) => void
   isPending: boolean
+  error?: string | null
 }
 
 const fieldLabel = "text-[10px] font-semibold uppercase tracking-wider mb-1"
 
-export function WorkingProjectEditModal({ project, onClose, onSave, isPending }: Props) {
+export function WorkingProjectEditModal({ project, onClose, onSave, isPending, error }: Props) {
   // Reset state via the "resetting state via key prop in state" React 19
   // pattern — mirrors WorkingProjectEditModal's siblings (HppEditModal etc.)
   // rather than useEffect.
@@ -166,6 +167,12 @@ export function WorkingProjectEditModal({ project, onClose, onSave, isPending }:
             />
           </div>
         </div>
+
+        {error ? (
+          <p role="alert" className="mt-3 text-xs text-red-500">
+            {error}
+          </p>
+        ) : null}
 
         <div className="flex gap-2 mt-4">
           <button

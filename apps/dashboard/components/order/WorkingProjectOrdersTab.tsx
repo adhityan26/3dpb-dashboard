@@ -144,6 +144,7 @@ export function WorkingProjectOrdersTab() {
         project={editing}
         onClose={() => setEditing(null)}
         isPending={updateMutation.isPending}
+        error={updateMutation.error instanceof Error ? updateMutation.error.message : null}
         onSave={({ id, patch }) => {
           updateMutation.mutate(
             { id, patch },
