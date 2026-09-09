@@ -126,3 +126,47 @@ export async function resyncWorkingProject(id: string): Promise<{ ok: true; disc
   })
   return { ok: true, discordSynced }
 }
+
+type ChecklistItem = { id: number; text: string; done: boolean; done_at: string | null; done_by: string | null; added_by: string | null; added_at: string; deleted: boolean }
+
+function nextChecklistId(checklist: ChecklistItem[]): number {
+  return checklist.length ? Math.max(...checklist.map(i => i.id)) + 1 : 1
+}
+
+export async function runChecklistOp(threadId: string, op:
+  | { type: 'add'; text: string; addedBy: string }
+  | { type: 'check' | 'uncheck' | 'remove'; id: number; by: string }
+  | { type: 'edit'; id: number; text: string }
+  | { type: 'copy'; fromThreadId: string }
+  | { type: 'setByLabel'; label: string; done: boolean; by: string }
+): Promise<{ ok: true; discordSynced: boolean }> {
+  const wp = await prisma.workingProject.findUnique({ where: { discordThreadId: threadId } })
+  const checklist: ChecklistItem[] = wp.checklist as ChecklistItem[]
+
+  if (op.type === 'add') {
+    checklist.push({ id: nextChecklistId(checklist), text: op.text, done: false, done_at: null, done_by: null, added_by: op.addedBy, added_at: new Date().toISOString(), deleted: false })
+  } else if (op.type === 'check' || op.type === 'uncheck') {
+    const item = checklist.find(i => i.id === op.id)
+    if (item) { item.done = op.type === 'check'; item.done_at = op.type === 'check' ? new Date().toISOString() : null; item.done_by = op.type === 'check' ? op.by : null }
+  } else if (op.type === 'remove') {
+    const item = checklist.find(i => i.id === op.id)
+    if (item) item.deleted = true
+  } else if (op.type === 'edit') {
+    const item = checklist.find(i => i.id === op.id)
+    if (item) item.text = op.text
+  } else if (op.type === 'copy') {
+    const source = await prisma.workingProject.findUnique({ where: { discordThreadId: op.fromThreadId } })
+    let nextId = nextChecklistId(checklist)
+    for (const src of source.checklist as ChecklistItem[]) {
+      if (src.deleted) continue
+      checklist.push({ ...src, id: nextId++, done: false, done_at: null, done_by: null })
+    }
+  } else if (op.type === 'setByLabel') {
+    const item = checklist.find(i => i.text.toLowerCase() === op.label.toLowerCase())
+    if (item) { item.done = op.done; item.done_at = op.done ? new Date().toISOString() : null; item.done_by = op.done ? op.by : null }
+  }
+
+  await prisma.workingProject.update({ where: { discordThreadId: threadId }, data: { checklist } })
+  const discordSynced = await syncEditOrError(wp.id, wp.discordThreadId, {})
+  return { ok: true, discordSynced }
+}

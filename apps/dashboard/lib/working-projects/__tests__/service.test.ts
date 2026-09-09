@@ -13,7 +13,7 @@ vi.mock('@/lib/prisma', () => ({
     },
   },
 }))
-import { createWorkingProject, setStatus, updateWorkingProject, resyncWorkingProject } from '../service'
+import { createWorkingProject, setStatus, updateWorkingProject, resyncWorkingProject, runChecklistOp } from '../service'
 import { createRelayThread, editRelayThread } from '../discord-sync'
 import { prisma } from '@/lib/prisma'
 
@@ -98,5 +98,31 @@ describe('resyncWorkingProject', () => {
     expect(prisma.workingProject.update).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ syncState: 'ok', syncError: null }),
     }))
+  })
+})
+
+describe('runChecklistOp', () => {
+  it('allocates the next sequential id over ALL items including soft-deleted', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({
+      id: 'wp1', discordThreadId: 't1',
+      checklist: [{ id: 1, text: 'a', done: false, deleted: false }, { id: 3, text: 'b', done: false, deleted: true }],
+    })
+    ;(prisma.workingProject.update as any).mockResolvedValue({})
+
+    await runChecklistOp('t1', { type: 'add', text: 'c', addedBy: 'user1' })
+    const call = (prisma.workingProject.update as any).mock.calls[0][0]
+    expect(call.data.checklist.find((i: any) => i.text === 'c').id).toBe(4)
+  })
+
+  it('setByLabel matches case-insensitively and updates only the exact label on write', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({
+      id: 'wp1', discordThreadId: 't1',
+      checklist: [{ id: 1, text: 'Cetak Resin', done: false, deleted: false }],
+    })
+    ;(prisma.workingProject.update as any).mockResolvedValue({})
+
+    await runChecklistOp('t1', { type: 'setByLabel', label: 'cetak resin', done: true, by: 'user1' })
+    const call = (prisma.workingProject.update as any).mock.calls[0][0]
+    expect(call.data.checklist[0].done).toBe(true)
   })
 })
