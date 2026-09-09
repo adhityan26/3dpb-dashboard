@@ -53,4 +53,22 @@ describe("loadOrCreateConfig", () => {
     const config = await loadOrCreateConfig(pathProvider, undefined);
     expect(config.saasBaseUrl).toBe("");
   });
+
+  it("config.json rusak (JSON invalid, misal hasil edit manual) -> TIDAK throw, balikin fallback dari envSeed/default, dan file rusak di disk TIDAK ditimpa", async () => {
+    const configPath = join(dir, "config.json");
+    writeFileSync(configPath, "{ ini bukan json valid ,,,");
+    const config = await loadOrCreateConfig(pathProvider, undefined);
+    expect(config.saasBaseUrl).toBe("https://app.slizebiz.com");
+    // File yang rusak harus tetap ada apa adanya di disk supaya operator bisa lihat & perbaiki --
+    // bootstrap() TIDAK boleh diam-diam menimpanya dengan fallback.
+    expect(readFileSync(configPath, "utf8")).toBe("{ ini bukan json valid ,,,");
+  });
+
+  it("config.json rusak + envSeed diisi -> fallback pakai envSeed, bukan default", async () => {
+    const configPath = join(dir, "config.json");
+    writeFileSync(configPath, "not json at all");
+    const config = await loadOrCreateConfig(pathProvider, "http://env-fallback:3300");
+    expect(config.saasBaseUrl).toBe("http://env-fallback:3300");
+    expect(readFileSync(configPath, "utf8")).toBe("not json at all");
+  });
 });

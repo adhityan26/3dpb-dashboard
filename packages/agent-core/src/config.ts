@@ -25,7 +25,15 @@ export async function loadOrCreateConfig(pathProvider: PathProvider, envSeed: st
   let stored: AgentConfig;
 
   if (fs.existsSync(filePath)) {
-    stored = JSON.parse(fs.readFileSync(filePath, "utf8")) as AgentConfig;
+    try {
+      stored = JSON.parse(fs.readFileSync(filePath, "utf8")) as AgentConfig;
+    } catch {
+      // Corrupt/hand-edited config.json: fall back to an in-memory value derived
+      // from envSeed/default so bootstrap() can still register IPC handlers.
+      // We deliberately do NOT overwrite the file on disk -- the operator's
+      // broken file must stay in place so they notice and fix it themselves.
+      stored = { saasBaseUrl: envSeed || DEFAULT_SAAS_BASE_URL };
+    }
   } else {
     const dir = pathProvider.userDataDir();
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });

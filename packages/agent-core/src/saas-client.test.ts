@@ -225,9 +225,11 @@ describe("uploadLogs", () => {
     }));
   });
 
-  it("fetch gagal/reject -> ok:false reason upload_failed", async () => {
+  it("fetch gagal/reject -> ok:false reason upload_failed, logger.error dipanggil", async () => {
     fetchMock.mockRejectedValue(new Error("network down"));
-    expect(await uploadLogs(BASE_URL, "t", Buffer.from("x"), makeLogger())).toEqual({ ok: false, reason: "upload_failed" });
+    const logger = makeLogger();
+    expect(await uploadLogs(BASE_URL, "t", Buffer.from("x"), logger)).toEqual({ ok: false, reason: "upload_failed" });
+    expect(logger.error).toHaveBeenCalledOnce();
   });
 
   it("respons non-ok -> ok:false reason upload_failed", async () => {

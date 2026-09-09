@@ -21,9 +21,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 // node_modules (dan tak perlu ikut di-bundle).
 const WORKSPACE_TS_PACKAGES = ['@3pb/agent-core', '@3pb/printer-monitor-core', '@3pb/cyd-layout-schema']
 
-// Versi app (package.json) di-inject saat build sama seperti SAAS_BASE_URL -- dikirim lewat
-// header X-Agent-Version di tiap request ke SaaS (saas-client.ts), dicatat server-side
-// (AgentToken.agentVersion) supaya admin bisa lihat user komplain pakai versi berapa.
+// Versi app (package.json) di-inject saat build -- dikirim lewat header X-Agent-Version di
+// tiap request ke SaaS (saas-client.ts), dicatat server-side (AgentToken.agentVersion)
+// supaya admin bisa lihat user komplain pakai versi berapa. (SAAS_BASE_URL TIDAK lagi
+// di-inject di sini seperti versi/commit hash di bawah -- itu sekarang dibaca dari env var
+// hanya saat app pertama kali jalan, buat seed config.json runtime. Lihat
+// packages/agent-core/src/config.ts dan build-installer.mjs.)
 const agentVersion = JSON.parse(fs.readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8')).version
 
 // Commit hash git di-inject SAAT BUILD juga (pola sama dgn agentVersion). Selama fase

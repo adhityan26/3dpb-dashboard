@@ -88,9 +88,13 @@ beforeEach(() => {
 });
 
 describe("registerIpcHandlers", () => {
-  // ipc.ts sengaja console.error di jalur kegagalan yang dites di sini (engine gagal start,
-  // reporter gagal close). Tanpa dibungkam, stack trace-nya nongol di stderr output turbo
-  // dan gampang disangka test failure padahal testnya lulus.
+  // ipc.ts sendiri manggil logger.error (Logger yang di-inject) di jalur kegagalan yang
+  // dites di sini (engine gagal start, reporter gagal close) -- bukan console.error
+  // langsung. Ini cuma nyampe console karena index.ts nge-alias `console` ke electron-log
+  // saat runtime (lihat bootstrap()), yang tidak direplikasi test ini -- jadi di sini
+  // logger.error tetap dites via spy pada `console.error` global. Tanpa dibungkam,
+  // stack trace-nya nongol di stderr output turbo dan gampang disangka test failure
+  // padahal testnya lulus.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- vi.spyOn's return type
   // varies across vitest versions (MockInstance generic shape); avoid pinning to one here.
   let consoleErrorSpy: any;
