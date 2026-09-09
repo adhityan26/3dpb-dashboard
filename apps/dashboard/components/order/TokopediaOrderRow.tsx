@@ -4,6 +4,10 @@ import { useState } from "react"
 import Image from "next/image"
 import { Card, CardContent } from "@/components/ui/card"
 import type { TokopediaOrderSummary } from "@/lib/tokopedia/types"
+import {
+  WORKING_PROJECT_FORUM_CHANNELS,
+  createWorkingProjectFromOrder,
+} from "@/lib/working-projects/create-from-order"
 
 interface TokopediaOrderRowProps {
   order: TokopediaOrderSummary
@@ -42,10 +46,22 @@ function statusStyle(code: number | null): { dot: string; dotClass: string; bord
 export function TokopediaOrderRow({ order, defaultExpanded = false }: TokopediaOrderRowProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const [imgError, setImgError] = useState(false)
+  const [wpForumChannelId, setWpForumChannelId] = useState<string>(WORKING_PROJECT_FORUM_CHANNELS[0])
   const s = statusStyle(order.statusCode)
   const totalQty = order.products.reduce((sum, p) => sum + p.qty, 0)
   const first = order.products[0]
   const showImage = !imgError && !!first?.imageUrl
+
+  function handleCreateWorkingProject() {
+    createWorkingProjectFromOrder({
+      source: "tokopedia",
+      sourceOrderNo: order.orderId,
+      forumChannelId: wpForumChannelId,
+      customer: order.buyerNickname ?? order.orderId,
+      product: first?.name ?? "",
+      variant: first?.variant || undefined,
+    })
+  }
 
   return (
     <Card style={{ borderColor: s.border, background: s.bg }}>
@@ -117,6 +133,30 @@ export function TokopediaOrderRow({ order, defaultExpanded = false }: TokopediaO
             <div className="mt-0.5 text-[11px]" style={{ color: "#facc15" }}>📝 {order.note}</div>
           )}
           </button>
+          <div className="flex flex-col items-end gap-1 flex-shrink-0">
+            <select
+              value={wpForumChannelId}
+              onChange={(e) => setWpForumChannelId(e.target.value)}
+              className="h-7 rounded-md border bg-transparent px-1 text-[11px]"
+              aria-label="Forum channel Working Project"
+            >
+              {WORKING_PROJECT_FORUM_CHANNELS.map((id) => (
+                <option key={id} value={id}>
+                  {id}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleCreateWorkingProject}
+              className="flex items-center gap-1 text-xs font-medium transition-colors"
+              style={{ color: "#a5b4fc" }}
+              onMouseEnter={(e) => (e.currentTarget.style.color = "#c7d2fe")}
+              onMouseLeave={(e) => (e.currentTarget.style.color = "#a5b4fc")}
+            >
+              📋 Buat Working Project
+            </button>
+          </div>
         </div>
 
         {expanded && (

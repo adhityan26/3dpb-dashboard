@@ -5,6 +5,10 @@ import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import type { OrderSummary } from "@/lib/orders/types"
+import {
+  WORKING_PROJECT_FORUM_CHANNELS,
+  createWorkingProjectFromOrder,
+} from "@/lib/working-projects/create-from-order"
 
 interface OrderRowProps {
   order: OrderSummary
@@ -52,6 +56,19 @@ function formatShipByDate(unixSec: number): { text: string; urgent: boolean; ove
 export function OrderRow({ order, onToggleLabel, isPending, linkedInvoice, onCreateInvoice }: OrderRowProps) {
   const [expanded, setExpanded] = useState(false)
   const [imgError, setImgError] = useState(false)
+  const [wpForumChannelId, setWpForumChannelId] = useState<string>(WORKING_PROJECT_FORUM_CHANNELS[0])
+
+  function handleCreateWorkingProject() {
+    const firstItem = order.items[0]
+    createWorkingProjectFromOrder({
+      source: "shopee",
+      sourceOrderNo: order.orderSn,
+      forumChannelId: wpForumChannelId,
+      customer: order.buyerUsername ?? order.orderSn,
+      product: firstItem?.productName ?? "",
+      variant: firstItem?.variantName ?? undefined,
+    })
+  }
   const totalQty = order.items.reduce((s, it) => s + it.qty, 0)
   const firstItem = order.items[0]
 
@@ -177,6 +194,28 @@ export function OrderRow({ order, onToggleLabel, isPending, linkedInvoice, onCre
               📄
             </span>
           )}
+          <select
+            value={wpForumChannelId}
+            onChange={(e) => setWpForumChannelId(e.target.value)}
+            className="h-7 rounded-md border bg-transparent px-1 text-[11px] flex-shrink-0"
+            aria-label="Forum channel Working Project"
+          >
+            {WORKING_PROJECT_FORUM_CHANNELS.map((id) => (
+              <option key={id} value={id}>
+                {id}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            onClick={handleCreateWorkingProject}
+            className="flex items-center gap-1 text-xs font-medium transition-colors flex-shrink-0"
+            style={{ color: "#a5b4fc" }}
+            onMouseEnter={(e) => (e.currentTarget.style.color = "#c7d2fe")}
+            onMouseLeave={(e) => (e.currentTarget.style.color = "#a5b4fc")}
+          >
+            📋 Buat Working Project
+          </button>
           <Button
             variant={order.labelPrinted ? "outline" : "default"}
             size="sm"
