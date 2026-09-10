@@ -26,6 +26,24 @@ fi
 echo "==> Memasang symlink current -> rilis baru"
 sudo ln -sfn "$VERSION_DIR" "$INSTALL_ROOT/current"
 
+# Direktori data disiapkan manual di sini (bukan mengandalkan StateDirectory= di unit systemd)
+# karena langkah --print-token di bawah dijalankan SEBELUM daemon pernah start -- kalau
+# direktori belum ada, FileAesCredentialStore (jalan sebagai $SERVICE_USER, bukan root) akan
+# gagal mkdir di /var/lib yang read-only untuknya.
+echo "==> Menyiapkan direktori data"
+sudo mkdir -p "$DATA_DIR"
+sudo chown "$SERVICE_USER:$SERVICE_USER" "$DATA_DIR"
+
+# Seed token SEBELUM daemon pernah dijalankan (enable/restart di bawah). Urutan ini SENGAJA:
+# --print-token dan runtime.start() -> ensureBrokerPin sama-sama unlocked load-modify-save ke
+# blob kredensial terenkripsi yang sama -- kalau token di-seed SETELAH daemon jalan, race
+# dengan penulisan broker PIN bisa diam-diam menghapus salah satu nilai.
+echo "==> Menyiapkan API token"
+TOKEN="$(sudo -u "$SERVICE_USER" env AGENT_DATA_DIR="$DATA_DIR" node "$INSTALL_ROOT/current/dist/index.mjs" --print-token)"
+echo "$TOKEN" | sudo tee "$DATA_DIR/api-token" >/dev/null
+sudo chown "root:$SERVICE_USER" "$DATA_DIR/api-token"
+sudo chmod 0640 "$DATA_DIR/api-token"
+
 echo "==> Memasang systemd unit"
 sudo cp "$VERSION_DIR/install/slizebiz-agent.service" /etc/systemd/system/slizebiz-agent.service
 sudo systemctl daemon-reload
@@ -44,12 +62,6 @@ for i in $(seq 1 30); do
   fi
   sleep 1
 done
-
-echo "==> Menyiapkan API token"
-TOKEN="$(sudo -u "$SERVICE_USER" node "$INSTALL_ROOT/current/dist/index.mjs" --print-token)"
-echo "$TOKEN" | sudo tee "$DATA_DIR/api-token" >/dev/null
-sudo chown "root:$SERVICE_USER" "$DATA_DIR/api-token"
-sudo chmod 0640 "$DATA_DIR/api-token"
 
 IP="$(hostname -I | awk '{print $1}')"
 echo ""
