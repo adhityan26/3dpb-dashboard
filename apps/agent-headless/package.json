@@ -1,0 +1,23 @@
+{
+  "name": "@3pb/agent-headless",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "build": "node scripts/build.mjs",
+    "start": "node dist/index.mjs"
+  },
+  "dependencies": {
+    "@3pb/agent-core": "workspace:*",
+    "@3pb/printer-monitor-core": "workspace:*",
+    "fastify": "^4.28.1",
+    "@fastify/multipart": "^8.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22",
+    "typescript": "^5",
+    "vitest": "^1.6.1",
+    "esbuild": "^0.24.0"
+  }
+}
