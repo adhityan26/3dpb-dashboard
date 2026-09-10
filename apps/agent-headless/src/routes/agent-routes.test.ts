@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import Fastify from "fastify";
+import multipart from "@fastify/multipart";
 import { AgentRuntime, AgentService, InMemoryCredentialStore } from "@3pb/agent-core";
 import { registerAgentRoutes } from "./agent-routes";
 
@@ -36,7 +37,18 @@ function makeFixture(seed: ConstructorParameters<typeof InMemoryCredentialStore>
   });
   const service = new AgentService(runtime);
   const app = Fastify();
+  app.register(multipart);
   registerAgentRoutes(app, service);
+  // Meniru setErrorHandler produksi di http-server.ts (route file-operation THROW pada error) --
+  // biar test di sini bisa cek pemetaan status HTTP tanpa harus lewat createHttpServer penuh.
+  app.setErrorHandler((error, _req, reply) => {
+    if (error.message === "device_not_found") {
+      reply.code(404).send({ error: "device_not_found" });
+      return;
+    }
+    logger.error("[agent-headless] unhandled route error", error);
+    reply.code(502).send({ error: "upstream_error" });
+  });
   return { app, runtime, store, logger };
 }
 
@@ -153,5 +165,21 @@ describe("POST /api/send-logs", () => {
     const { app } = makeFixture();
     const res = await app.inject({ method: "POST", url: "/api/send-logs" });
     expect(res.json()).toEqual({ ok: false, reason: "no_token" });
+  });
+});
+
+describe("GET /api/devices/:shortCode/files", () => {
+  it("device tak dipasang -> 404 device_not_found", async () => {
+    const { app } = makeFixture();
+    const res = await app.inject({ method: "GET", url: "/api/devices/UNKNOWN/files?path=/" });
+    expect(res.statusCode).toBe(404);
+  });
+});
+
+describe("GET /api/devices/:shortCode/files/thumbnail", () => {
+  it("extension bukan .gcode/.gcode.3mf -> 404", async () => {
+    const { app } = makeFixture({ agentToken: null, devices: { ABC: { ip: "x", serial: "s", accessCode: "c" } } });
+    const res = await app.inject({ method: "GET", url: "/api/devices/ABC/files/thumbnail?remotePath=/file.txt" });
+    expect(res.statusCode).toBe(404);
   });
 });
