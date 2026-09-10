@@ -1,0 +1,27 @@
+[Unit]
+Description=Slizebiz Agent (headless daemon)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=slizebiz-agent
+StateDirectory=slizebiz-agent
+WorkingDirectory=/opt/slizebiz-agent/current
+ExecStart=/usr/bin/node /opt/slizebiz-agent/current/dist/index.mjs
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=300
+StartLimitBurst=5
+TimeoutStopSec=20
+PrivateTmp=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/slizebiz-agent
+Environment=SAAS_BASE_URL=
+Environment=AGENT_DATA_DIR=/var/lib/slizebiz-agent
+# Uncomment kalau port 1883 default bentrok dengan mosquitto/broker MQTT lain yang sudah jalan:
+#Environment=AGENT_BROKER_PORT=18830
+
+[Install]
+WantedBy=multi-user.target
