@@ -1,7 +1,8 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import fs from "node:fs";
 import { FileAesCredentialStore } from "./credential-store-file-aes";
 
 describe("FileAesCredentialStore", () => {
@@ -33,5 +34,27 @@ describe("FileAesCredentialStore", () => {
   it("isEncryptionAvailable selalu true (file-AES tak bergantung service eksternal)", () => {
     const store = new FileAesCredentialStore(dir);
     expect(store.isEncryptionAvailable()).toBe(true);
+  });
+
+  it("save() menulis lewat temp file lalu rename (bukan langsung ke file final)", async () => {
+    const store = new FileAesCredentialStore(dir);
+    const writeSpy = vi.spyOn(fs, "writeFileSync");
+    const renameSpy = vi.spyOn(fs, "renameSync");
+
+    await store.save({ agentToken: "tok", devices: {} });
+
+    // writeFileSync harus dipanggil ke path yang BUKAN credentials.enc final (temp file dulu)
+    const dataFileWrites = writeSpy.mock.calls.filter((call) => String(call[0]).includes("credentials.enc") && !String(call[0]).includes(".tmp"));
+    expect(dataFileWrites).toHaveLength(0);
+    expect(renameSpy).toHaveBeenCalled();
+    writeSpy.mockRestore();
+    renameSpy.mockRestore();
+  });
+
+  it("save() tetap benar-benar bisa dibaca balik setelah rename (round-trip tak berubah)", async () => {
+    const store = new FileAesCredentialStore(dir);
+    await store.save({ agentToken: "tok", devices: { ABC: { ip: "1.2.3.4", serial: "s", accessCode: "c" } } });
+    const result = await store.load();
+    expect(result).toEqual({ status: "ok", blob: { agentToken: "tok", devices: { ABC: { ip: "1.2.3.4", serial: "s", accessCode: "c" } } } });
   });
 });

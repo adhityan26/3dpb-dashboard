@@ -76,7 +76,14 @@ export class FileAesCredentialStore implements CredentialStore<CredentialBlob> {
     const plaintext = Buffer.from(JSON.stringify(blob), "utf8");
     const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
     const authTag = cipher.getAuthTag();
-    fs.writeFileSync(this.dataFilePath(), Buffer.concat([iv, authTag, ciphertext]), { mode: 0o600 });
+    const finalPath = this.dataFilePath();
+    // Tulis ke temp file di direktori yang SAMA (rename lintas filesystem tidak atomic), lalu
+    // rename -- di POSIX, rename dalam satu filesystem adalah satu operasi atomic. Mencegah file
+    // .enc terpotong kalau proses mati/listrik mati di tengah writeFileSync (mode kegagalan
+    // realistis di SD card Raspberry Pi) -- file lama tetap utuh sampai rename benar-benar sukses.
+    const tempPath = `${finalPath}.${randomBytes(4).toString("hex")}.tmp`;
+    fs.writeFileSync(tempPath, Buffer.concat([iv, authTag, ciphertext]), { mode: 0o600 });
+    fs.renameSync(tempPath, finalPath);
   }
 
   isEncryptionAvailable(): boolean {
