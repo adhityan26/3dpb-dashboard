@@ -1,4 +1,13 @@
-import { AgentRuntime, AgentService, FileAesCredentialStore, loadOrCreateConfig } from "@3pb/agent-core";
+import {
+  AgentRuntime,
+  AgentService,
+  FileAesCredentialStore,
+  loadOrCreateConfig,
+  ensureApiToken,
+  type CredentialStore,
+  type CredentialBlob,
+  type Logger,
+} from "@3pb/agent-core";
 import type { FastifyInstance } from "fastify";
 import { NodePathProvider, NodeLogAdapter, NodeLogFileProvider, getNodeBuildInfo } from "./platform-node";
 import { createHttpServer } from "./http-server";
@@ -53,7 +62,25 @@ export async function bootstrap(opts: BootstrapOptions = {}): Promise<{ app: Fas
   return { app, runtime };
 }
 
+/**
+ * Mode CLI singkat -- bangun credentialStore+logger SAJA (tanpa AgentRuntime/HTTP server),
+ * panggil ensureApiToken, balikin. Idempoten -- aman dipanggil berkali-kali termasuk saat
+ * re-run install script untuk update (tidak generate token baru kalau sudah ada).
+ */
+export async function printToken(store: CredentialStore<CredentialBlob>, logger: Logger): Promise<string> {
+  return ensureApiToken(store, logger);
+}
+
 async function main(): Promise<void> {
+  if (process.argv.includes("--print-token")) {
+    const pathProvider = new NodePathProvider();
+    const logger = new NodeLogAdapter();
+    const store = new FileAesCredentialStore(pathProvider.userDataDir());
+    const token = await printToken(store, logger);
+    console.log(token);
+    return;
+  }
+
   const { app, runtime } = await bootstrap();
 
   let shuttingDown = false;
