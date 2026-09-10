@@ -11,7 +11,7 @@ let commitHash = "nogit";
 try {
   commitHash = execSync("git rev-parse --short HEAD", { cwd: __dirname }).toString().trim();
 } catch {
-  // no git available at build time -- keep "nogit" fallback, matches getNodeBuildInfo()'s own fallback shape
+  // git tidak tersedia saat build -- pertahankan fallback "nogit", cocok dengan bentuk fallback getNodeBuildInfo() sendiri
 }
 
 writeFileSync(
