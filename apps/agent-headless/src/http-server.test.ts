@@ -204,13 +204,14 @@ describe("upload size limit (@fastify/multipart limits.fileSize)", () => {
     testApp.post("/upload", async (req) => {
       const data = await req.file();
       if (!data) return { received: false };
-      let truncated = false;
-      data.file.on("limit", () => {
-        truncated = true;
+      // resume() + race 'limit'/'end' (bukan for-await manual) -- menghindari backpressure yang
+      // bisa menggantung kalau stream tidak pernah 'end' sendiri setelah truncated.
+      const truncated = await new Promise<boolean>((resolve) => {
+        data.file.on("limit", () => resolve(true));
+        data.file.on("end", () => resolve(data.file.truncated));
+        data.file.resume();
       });
-      const chunks: Buffer[] = [];
-      for await (const chunk of data.file) chunks.push(chunk);
-      return { received: true, truncated: truncated || data.file.truncated };
+      return { received: true, truncated };
     });
 
     const form = new FormData();
@@ -218,5 +219,5 @@ describe("upload size limit (@fastify/multipart limits.fileSize)", () => {
     const res = await testApp.inject({ method: "POST", url: "/upload", payload: form as unknown as Record<string, unknown> });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ received: true, truncated: true });
-  });
+  }, 15000);
 });
