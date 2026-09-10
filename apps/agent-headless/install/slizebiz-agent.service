@@ -2,6 +2,8 @@
 Description=Slizebiz Agent (headless daemon)
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=5
 
 [Service]
 Type=simple
@@ -11,8 +13,6 @@ WorkingDirectory=/opt/slizebiz-agent/current
 ExecStart=/usr/bin/node /opt/slizebiz-agent/current/dist/index.mjs
 Restart=on-failure
 RestartSec=5
-StartLimitIntervalSec=300
-StartLimitBurst=5
 TimeoutStopSec=20
 PrivateTmp=yes
 NoNewPrivileges=yes
