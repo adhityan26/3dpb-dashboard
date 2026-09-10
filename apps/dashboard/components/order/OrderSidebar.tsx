@@ -2,9 +2,10 @@
 
 import { SectionSidebar, type SectionSidebarItem } from "@/components/layout/SectionSidebar"
 
-export type OrderChannel = "shopee" | "light-generator" | "strava" | "tokopedia"
+export type OrderChannel = "working-project" | "shopee" | "light-generator" | "strava" | "tokopedia"
 
 const ITEMS: SectionSidebarItem<OrderChannel>[] = [
+  { key: "working-project", icon: "📋", label: "Working Project" },
   { key: "shopee", icon: "🛒", label: "Shopee" },
   { key: "tokopedia", icon: "🟢", label: "Tokopedia" },
   { key: "light-generator", icon: "💡", label: "Light Generator" },

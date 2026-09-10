@@ -587,3 +587,40 @@ model RingAnchor {
 
   @@index([partId])
 }
+
+// ── Working Projects (tracking orders across channels) ───────────────────────
+
+model WorkingProject {
+  id               String   @id @default(cuid())
+  discordThreadId  String?  @unique
+  discordThreadUrl String?
+  forumChannelId   String?
+  source           String
+  sourceOrderNo    String?
+  orderNoLegacy    String?
+  syncState        String   @default("ok")
+  syncError        String?
+  customer         String
+  contact          String?
+  platform         String?
+  product          String
+  variant          String?
+  title            String
+  status           String   @default("Open")
+  payment          String   @default("Belum")
+  orderDate        DateTime?
+  dueDate          DateTime?
+  dueDateRaw       String?
+  invoiceAmount    Int      @default(0)
+  paidAmount       Int      @default(0)
+  notes            String?
+  shipping         String?
+  trackingNo       String?
+  checklist        Json     @default("[]")
+  mentions         String[] @default([])
+  appliedTags      String[] @default([])
+  remindersSent    Int[]    @default([])
+  quotationId      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
