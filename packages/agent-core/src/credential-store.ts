@@ -1,4 +1,4 @@
-import { randomInt } from "node:crypto";
+import { randomInt, randomBytes } from "node:crypto";
 import type { CredentialStore, Logger } from "./interfaces";
 
 export interface DeviceSecret {
@@ -13,6 +13,11 @@ export interface CredentialBlob {
   // String (bukan number) supaya leading zero ("0042") tak hilang. Opsional -- blob lama
   // (pra-fitur ini) tak punya field ini sama sekali, bukan error.
   brokerPin?: string;
+  // 32 byte random, hex-encoded -- token Bearer buat HTTP API daemon (apps/agent-headless).
+  // SENGAJA terpisah dari brokerPin (PIN 4 digit buat MQTT/CYD) -- brokerPin punya keyspace
+  // kecil dan rate-limiter-nya bypass loopback, tidak memadai buat auth HTTP. Opsional --
+  // blob lama (pra-fitur ini, atau target non-headless) tak punya field ini sama sekali.
+  apiToken?: string;
 }
 
 const EMPTY_BLOB: CredentialBlob = { agentToken: null, devices: {} };
@@ -31,6 +36,10 @@ export async function saveCredentials(store: CredentialStore<CredentialBlob>, bl
 
 function generatePin(): string {
   return String(randomInt(0, 10000)).padStart(4, "0");
+}
+
+function generateApiToken(): string {
+  return randomBytes(32).toString("hex");
 }
 
 /**
@@ -64,4 +73,30 @@ export async function ensureBrokerPin(store: CredentialStore<CredentialBlob>, lo
 /** Pure function, no I/O -- hapus brokerPin dari blob (dipakai future regenerate action / support guidance), BUKAN hapus seluruh file credentials. */
 export function clearBrokerPin(blob: CredentialBlob): CredentialBlob {
   return { ...blob, brokerPin: undefined };
+}
+
+/**
+ * Bootstrap apiToken -- pola identik ensureBrokerPin (lihat komentar di sana untuk alasan
+ * lengkap soal kenapa "degraded" tidak boleh ditimpa). SATU-SATUNYA beda: token 32 byte hex,
+ * dipakai sebagai Bearer HTTP di apps/agent-headless, BUKAN brokerPin (4 digit, buat MQTT/CYD).
+ */
+export async function ensureApiToken(store: CredentialStore<CredentialBlob>, logger: Logger): Promise<string> {
+  const result = await store.load();
+  if (result.status === "ok" && result.blob.apiToken) return result.blob.apiToken;
+
+  const token = generateApiToken();
+  if (result.status === "degraded") {
+    logger.error(
+      "[credential-store] tak bisa simpan API token baru dengan aman (file ada tapi gagal didekripsi, atau enkripsi tak tersedia) -- pakai token session-only untuk run ini",
+    );
+    return token;
+  }
+  const blob = result.status === "ok" ? result.blob : EMPTY_BLOB;
+  await store.save({ ...blob, apiToken: token });
+  return token;
+}
+
+/** Pure function, no I/O -- hapus apiToken dari blob (dipakai rotate-token action), BUKAN hapus seluruh file credentials. */
+export function clearApiToken(blob: CredentialBlob): CredentialBlob {
+  return { ...blob, apiToken: undefined };
 }
