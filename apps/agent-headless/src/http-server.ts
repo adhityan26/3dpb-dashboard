@@ -1,9 +1,10 @@
 import Fastify, { type FastifyInstance } from "fastify";
-import type { AgentRuntime } from "@3pb/agent-core";
+import type { AgentRuntime, AgentService } from "@3pb/agent-core";
 import { createAuthHook } from "./auth";
 import { registerHealthRoutes } from "./routes/health-routes";
+import { registerAgentRoutes } from "./routes/agent-routes";
 
-export function createHttpServer(runtime: AgentRuntime): FastifyInstance {
+export function createHttpServer(runtime: AgentRuntime, service: AgentService): FastifyInstance {
   const app = Fastify({ logger: false }); // pakai runtime.logger sendiri, bukan Fastify built-in logger
 
   // /healthz didaftarkan SEBELUM auth hook dipasang, dan auth hook mengecualikannya secara
@@ -15,6 +16,8 @@ export function createHttpServer(runtime: AgentRuntime): FastifyInstance {
     if (req.url === "/healthz") return;
     await authHook(req, reply);
   });
+
+  registerAgentRoutes(app, service);
 
   return app;
 }
