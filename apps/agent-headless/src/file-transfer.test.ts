@@ -40,4 +40,27 @@ describe("relayDownload", () => {
     await cleanup();
     expect(existsSync(tempPath)).toBe(false);
   });
+
+  it("service.downloadFile throw SETELAH temp file dibuat -> temp file tetap dibersihkan, error diteruskan", async () => {
+    let capturedPath = "";
+    const service = makeFakeService({
+      downloadFile: vi.fn(async (_shortCode: string, _remotePath: string, localPath: string) => {
+        const { writeFileSync } = await import("node:fs");
+        capturedPath = localPath;
+        writeFileSync(localPath, "partial content");
+        throw new Error("printer_connection_lost");
+      }),
+    });
+    await expect(relayDownload(service, "ABC", "/remote/file.gcode")).rejects.toThrow("printer_connection_lost");
+    expect(existsSync(capturedPath)).toBe(false);
+  });
+
+  it("service.downloadFile throw SEBELUM temp file sempat dibuat -> tidak error saat cleanup", async () => {
+    const service = makeFakeService({
+      downloadFile: vi.fn(async () => {
+        throw new Error("device_not_found");
+      }),
+    });
+    await expect(relayDownload(service, "ABC", "/remote/file.gcode")).rejects.toThrow("device_not_found");
+  });
 });

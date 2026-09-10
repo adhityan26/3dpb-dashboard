@@ -1,4 +1,4 @@
-import { createWriteStream } from "node:fs";
+import { createWriteStream, existsSync } from "node:fs";
 import { rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -33,7 +33,18 @@ export async function relayDownload(
   remotePath: string,
 ): Promise<{ tempPath: string; cleanup: () => Promise<void> }> {
   const tempPath = join(tmpdir(), `agent-headless-download-${Date.now()}-${randomUUID()}`);
-  await service.downloadFile(shortCode, remotePath, tempPath);
+  try {
+    await service.downloadFile(shortCode, remotePath, tempPath);
+  } catch (err) {
+    // service.downloadFile bisa throw SETELAH klien FTPS sudah membuat temp file lokal (mis.
+    // printer putus koneksi di tengah transfer) -- tanpa ini, temp file itu bocor selamanya
+    // (baru hilang kalau proses daemon restart). Cek existsSync dulu karena file bisa saja
+    // belum sempat dibuat sama sekali sebelum throw.
+    if (existsSync(tempPath)) {
+      await rm(tempPath, { force: true });
+    }
+    throw err;
+  }
   return {
     tempPath,
     cleanup: () => rm(tempPath, { force: true }),
