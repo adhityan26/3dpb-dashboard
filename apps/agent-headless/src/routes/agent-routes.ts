@@ -11,6 +11,15 @@ import { relayUpload, relayDownload } from "../file-transfer";
 // diekspos ke klien HTTP.
 export function registerAgentRoutes(app: FastifyInstance, service: AgentService): void {
   app.post<{ Body: { token: string } }>("/api/activate", async (req) => {
+    // Guard minimal (bukan schema validation penuh) -- body kosong/malformed sebelumnya lempar
+    // TypeError tak tertangani saat baca req.body.token, jatuh ke error handler generik (500).
+    // errorHandler di http-server.ts memetakan statusCode Fastify sendiri (400) kalau ada, tapi
+    // TypeError manual ini tidak punya statusCode -- jadi dicek eksplisit di sini.
+    if (typeof req.body?.token !== "string") {
+      const err: Error & { statusCode?: number } = new Error("token wajib berupa string");
+      err.statusCode = 400;
+      throw err;
+    }
     return service.activate(req.body.token);
   });
 
@@ -107,6 +116,13 @@ export function registerAgentRoutes(app: FastifyInstance, service: AgentService)
   app.post<{ Params: { shortCode: string }; Body: { oldPath: string; newPath: string } }>(
     "/api/devices/:shortCode/files/rename",
     async (req, reply) => {
+      // Guard minimal, sama alasannya seperti /api/activate: oldPath/newPath hilang sebelumnya
+      // diteruskan sebagai undefined ke FTPS client.
+      if (typeof req.body?.oldPath !== "string" || typeof req.body?.newPath !== "string") {
+        const err: Error & { statusCode?: number } = new Error("oldPath dan newPath wajib berupa string");
+        err.statusCode = 400;
+        throw err;
+      }
       await service.renameFile(req.params.shortCode, req.body.oldPath, req.body.newPath);
       reply.code(204).send();
     },
