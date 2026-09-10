@@ -124,6 +124,15 @@ describe("AgentRuntime", () => {
     expect(runtime.configuredBrokerPort).toBe(1883);
   });
 
+  it("updatePlatform menerima 'linux'", () => {
+    const { store, pathProvider, logger, logFileProvider, buildInfo } = makeDeps();
+    const runtime = new AgentRuntime({
+      credentialStore: store, pathProvider, logger, logFileProvider, buildInfo,
+      saasBaseUrl: "x", updatePlatform: "linux",
+    });
+    expect(runtime.updatePlatform).toBe("linux");
+  });
+
   it("teardownEngine(): stop engine lama LALU tutup semua reporter lama, urutan ini WAJIB", async () => {
     const { store, pathProvider, logger, logFileProvider, buildInfo } = makeDeps();
     const runtime = new AgentRuntime({

@@ -16,7 +16,7 @@ export interface AgentRuntimeDeps {
   logFileProvider: LogFileProvider;
   buildInfo: BuildInfo;
   saasBaseUrl: string;
-  updatePlatform: "win" | "mac";
+  updatePlatform: "win" | "mac" | "linux";
   brokerPort?: number;
   broker?: LocalBroker;
 }
@@ -35,7 +35,7 @@ export class AgentRuntime {
   readonly logFileProvider: LogFileProvider;
   readonly buildInfo: BuildInfo;
   readonly saasBaseUrl: string;
-  readonly updatePlatform: "win" | "mac";
+  readonly updatePlatform: "win" | "mac" | "linux";
   readonly configuredBrokerPort: number;
   readonly broker: LocalBroker;
 
