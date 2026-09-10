@@ -234,6 +234,35 @@ describe("AgentService.sync", () => {
     expect(result).toEqual({ ok: true, deviceCount: 0 });
     expect(logger.error).toHaveBeenCalled();
   });
+
+  it("dua panggilan sync() bersamaan -> hanya SATU eksekusi nyata, keduanya dapat hasil yang sama", async () => {
+    const { service, runtime } = makeFixture(new InMemoryCredentialStore({ agentToken: "tok", devices: {}, brokerPin: undefined }));
+    runtime.setBrokerPort(1883);
+    runtime.setBrokerPin("1234");
+    const teardownSpy = vi.spyOn(runtime, "teardownEngine");
+    vi.mocked(startup.reconcileDevices).mockResolvedValue({ fetchResult: { ok: true, data: [] }, devices: [], paired: [] });
+    vi.mocked(layoutPublisher.publishLayout).mockResolvedValue({ published: false });
+
+    const [resultA, resultB] = await Promise.all([service.sync(), service.sync()]);
+
+    expect(teardownSpy).toHaveBeenCalledOnce(); // BUKAN dua kali -- ini bukti coalescing, bukan cuma "keduanya sukses"
+    expect(resultA).toEqual(resultB);
+    expect(resultA).toEqual({ ok: true, deviceCount: 0 });
+  });
+
+  it("sync() kedua SETELAH yang pertama selesai -> jalan lagi dari awal (bukan cache selamanya)", async () => {
+    const { service, runtime } = makeFixture(new InMemoryCredentialStore({ agentToken: "tok", devices: {}, brokerPin: undefined }));
+    runtime.setBrokerPort(1883);
+    runtime.setBrokerPin("1234");
+    const teardownSpy = vi.spyOn(runtime, "teardownEngine");
+    vi.mocked(startup.reconcileDevices).mockResolvedValue({ fetchResult: { ok: true, data: [] }, devices: [], paired: [] });
+    vi.mocked(layoutPublisher.publishLayout).mockResolvedValue({ published: false });
+
+    await service.sync();
+    await service.sync();
+
+    expect(teardownSpy).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("AgentService.sendLogs", () => {

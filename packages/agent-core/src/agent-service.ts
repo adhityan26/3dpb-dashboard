@@ -38,6 +38,8 @@ import type { PrinterFileEntry } from "./file-manager/types";
 export class AgentService {
   constructor(private readonly runtime: AgentRuntime) {}
 
+  private inFlightSync: Promise<SyncResult> | null = null;
+
   async activate(token: string): Promise<FetchResult<SaasDevice[]>> {
     const { saasBaseUrl, buildInfo, logger, credentialStore } = this.runtime;
     const result = await fetchDevices(saasBaseUrl, token, buildInfo, logger);
@@ -78,6 +80,14 @@ export class AgentService {
   }
 
   async sync(): Promise<SyncResult> {
+    if (this.inFlightSync) return this.inFlightSync;
+    this.inFlightSync = this.doSync().finally(() => {
+      this.inFlightSync = null;
+    });
+    return this.inFlightSync;
+  }
+
+  private async doSync(): Promise<SyncResult> {
     const { credentialStore, saasBaseUrl, pathProvider, buildInfo, logger } = this.runtime;
     const blob = await loadCredentials(credentialStore);
     if (!blob.agentToken) return { ok: false, kind: "invalid_token" };
