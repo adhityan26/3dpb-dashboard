@@ -81,3 +81,25 @@ describe("PinRateLimiter", () => {
     }
   });
 });
+
+describe("PinRateLimiter with trustLoopback: false", () => {
+  it("loopback (127.0.0.1) TETAP kena rate limit kalau trustLoopback:false", () => {
+    const limiter = new PinRateLimiter({ trustLoopback: false });
+    for (let i = 0; i < 5; i++) {
+      limiter.check("127.0.0.1", "wrong", "1234");
+    }
+    expect(limiter.check("127.0.0.1", "1234", "1234")).toEqual({ ok: false, locked: true });
+  });
+
+  it("PIN benar dari loopback tetap ok:true kalau belum locked, trustLoopback:false", () => {
+    const limiter = new PinRateLimiter({ trustLoopback: false });
+    expect(limiter.check("127.0.0.1", "1234", "1234")).toEqual({ ok: true, locked: false });
+  });
+
+  it("default (tanpa opts) tetap trustLoopback:true -- perilaku lama tak berubah", () => {
+    const limiter = new PinRateLimiter();
+    for (let i = 0; i < 10; i++) {
+      expect(limiter.check("127.0.0.1", "wrong", "1234").locked).toBe(false);
+    }
+  });
+});

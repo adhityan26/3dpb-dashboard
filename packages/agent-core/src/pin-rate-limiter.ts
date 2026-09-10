@@ -24,15 +24,24 @@ function isLoopback(normalizedAddr: string): boolean {
   return normalizedAddr === "127.0.0.1" || normalizedAddr === "::1";
 }
 
+export interface PinRateLimiterOptions {
+  trustLoopback?: boolean;
+}
+
 export class PinRateLimiter {
   private rateLimitMap = new Map<string, RateLimitEntry>();
+  private readonly trustLoopback: boolean;
+
+  constructor(opts: PinRateLimiterOptions = {}) {
+    this.trustLoopback = opts.trustLoopback ?? true;
+  }
 
   /**
    * `addr` boleh mentah (belum dinormalisasi) -- normalisasi dilakukan di sini, bukan caller.
    */
   check(rawAddr: string, presentedPassword: string, pin: string): { ok: boolean; locked: boolean } {
     const addr = normalizeAddress(rawAddr);
-    const loopback = isLoopback(addr);
+    const loopback = this.trustLoopback && isLoopback(addr);
     const now = Date.now();
 
     if (!loopback) {
