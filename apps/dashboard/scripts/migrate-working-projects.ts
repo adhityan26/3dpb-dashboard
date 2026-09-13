@@ -38,7 +38,17 @@ export async function migrateWorkingProjects(
 
     const { source, sourceOrderNo, orderNoLegacy } = derivePlatformFields(order)
     const { dueDate, dueDateRaw } = parseDueDate(order.due_date ?? '')
-    const checklist = (order.checklist ?? []).map((item: any, idx: number) => ({
+    let rawChecklist = order.checklist ?? []
+    if (typeof rawChecklist === 'string') {
+      try {
+        rawChecklist = JSON.parse(rawChecklist || '[]')
+      } catch {
+        warnings.push(`order_no=${order.order_no}: unparseable checklist JSON, treated as empty`)
+        rawChecklist = []
+      }
+    }
+    if (!Array.isArray(rawChecklist)) rawChecklist = []
+    const checklist = rawChecklist.map((item: any, idx: number) => ({
       id: item.id ?? idx + 1,
       text: item.text,
       done: !!item.done,

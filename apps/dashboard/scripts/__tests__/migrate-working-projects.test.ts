@@ -51,6 +51,21 @@ describe('migrateWorkingProjects', () => {
     expect(data.checklist.map((i: any) => i.id)).toEqual([1, 2])
   })
 
+  it('parses checklist stored as a JSON string, matching real SQLite TEXT columns', async () => {
+    const file = writeFixture([{ order_no: '1', platform: 'Manual', customer: 'B', product: 'P', checklist: '[{"id":1,"text":"a","done":true}]' }])
+    await migrateWorkingProjects(file)
+    const data = (prisma.workingProject.create as any).mock.calls[0][0].data
+    expect(data.checklist).toEqual([{ id: 1, text: 'a', done: true, done_at: null, done_by: null, added_by: null, added_at: expect.any(String), deleted: false }])
+  })
+
+  it('treats an unparseable checklist string as empty and warns instead of throwing', async () => {
+    const file = writeFixture([{ order_no: '1', platform: 'Manual', customer: 'B', product: 'P', checklist: 'not json' }])
+    const result = await migrateWorkingProjects(file)
+    const data = (prisma.workingProject.create as any).mock.calls[0][0].data
+    expect(data.checklist).toEqual([])
+    expect(result.warnings[0]).toMatch(/unparseable checklist/)
+  })
+
   it('reports a warning and skips a row with no customer or product', async () => {
     const file = writeFixture([{ order_no: '1', platform: 'Manual', checklist: [] }])
     const result = await migrateWorkingProjects(file)
