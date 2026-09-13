@@ -165,6 +165,7 @@ export async function resyncWorkingProject(id: string): Promise<{ ok: true; disc
   if (!wp) throw new Error(`WorkingProject not found for id=${id}`)
   const discordSynced = await syncEditOrError(id, wp.discordThreadId, {
     name: wp.title, appliedTags: wp.appliedTags, mentions: wp.mentions,
+    starterContent: rebuildStarterContent(wp),
   })
   return { ok: true, discordSynced }
 }

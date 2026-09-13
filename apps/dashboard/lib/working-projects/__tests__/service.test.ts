@@ -115,7 +115,7 @@ describe('updateWorkingProject', () => {
 
 describe('resyncWorkingProject', () => {
   it('re-pushes current DB state to the relay and clears syncError on success', async () => {
-    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1', title: 'T', appliedTags: [] })
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1', title: 'T', appliedTags: [], customer: 'Budi', product: 'Cincin', status: 'Open', payment: 'Belum', mentions: [], checklist: [] })
     ;(editRelayThread as any).mockResolvedValue(undefined)
     ;(prisma.workingProject.update as any).mockResolvedValue({})
 
@@ -124,6 +124,8 @@ describe('resyncWorkingProject', () => {
     expect(prisma.workingProject.update).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ syncState: 'ok', syncError: null }),
     }))
+    const call = (editRelayThread as any).mock.calls[0]
+    expect(call[1].starterContent).toContain('Budi')
   })
 })
 
