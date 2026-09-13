@@ -20,6 +20,7 @@ export const WORKING_PROJECT_FORUM_CHANNELS = [
 export interface CreateWorkingProjectFromOrderInput {
   source: "shopee" | "tokopedia"
   sourceOrderNo: string
+  sourceProductId?: string
   forumChannelId: string
   customer: string
   contact?: string

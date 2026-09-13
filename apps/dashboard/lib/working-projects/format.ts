@@ -160,17 +160,29 @@ export function variantShort(entry: string): string {
   return entry.replace(/Green Lantern/gi, 'GL')
 }
 
-// Detection is tag-OR-channel based. `appliedTags` is only ever populated by
-// the Discord threadUpdate echo route, so a project created straight from an
-// order (createWorkingProject / create-from-order.ts) into the Cincin forum
-// channel never gets a tag until a human manually applies one on Discord —
-// it must still show up on the GL Ring tab via its forumChannelId. The tag
-// regex is kept as the primary signal (works regardless of what
-// forumChannelId actually contains) with the channel-id comparison as a
-// fallback against the SAME Cincin forum channel id create-from-order.ts
-// resolves (NEXT_PUBLIC_FORUM_CINCIN_ID, passed in by the caller since this
-// function itself is used both server- and client-side).
-export function isGLRing(appliedTags: string[], forumChannelId?: string | null): boolean {
+// Detection signals, checked in order of reliability:
+//   1. sourceProductId membership in a curated, admin-configured list
+//      (Settings > Lainnya > "Produk Green Lantern Ring") — this is the
+//      precise, intentional signal, but only populated for rows created
+//      through a path that captures the marketplace item id (currently:
+//      the dashboard's own "Buat Working Project" row action for Shopee
+//      orders; ai-assistant's /order-dari-shopee does not capture it yet).
+//   2. product name containing "ring"/"cincin" — the fallback that keeps
+//      the GL Ring tab working for the ~100+ already-migrated rows and any
+//      row created through a path that doesn't capture sourceProductId.
+//      Matches the legacy ai-assistant behavior, which also keyed off the
+//      product name.
+//   3. appliedTags / forumChannelId — legacy signals from before product-id
+//      matching existed, kept for rows with a generic/empty product field.
+export function isGLRing(
+  appliedTags: string[],
+  forumChannelId?: string | null,
+  product?: string | null,
+  sourceProductId?: string | null,
+  configuredProductIds?: string[],
+): boolean {
+  if (sourceProductId && configuredProductIds?.includes(sourceProductId)) return true
+  if (product && /ring|cincin/i.test(product)) return true
   if (appliedTags.some(t => /ring|cincin/i.test(t))) return true
   if (forumChannelId) {
     const cincinId = process.env.NEXT_PUBLIC_FORUM_CINCIN_ID ?? "FORUM_CINCIN_ID"

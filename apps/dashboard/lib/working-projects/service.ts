@@ -5,6 +5,7 @@ import { createRelayThread, editRelayThread, archiveRelayThread } from './discor
 export async function createWorkingProject(input: {
   source: 'shopee' | 'tokopedia' | 'manual'
   sourceOrderNo?: string
+  sourceProductId?: string
   orderNoLegacy?: string
   forumChannelId: string
   customer: string
@@ -24,6 +25,7 @@ export async function createWorkingProject(input: {
     data: {
       source: input.source,
       sourceOrderNo: input.sourceOrderNo ?? null,
+      sourceProductId: input.sourceProductId ?? null,
       orderNoLegacy: input.orderNoLegacy ?? null,
       syncState: 'pending',
       discordThreadId: null,
@@ -258,6 +260,32 @@ export async function setReminderSettings(settings: ReminderSettings): Promise<v
     where: { key: REMINDER_SETTINGS_KEY },
     update: { value: JSON.stringify(settings) },
     create: { key: REMINDER_SETTINGS_KEY, value: JSON.stringify(settings) },
+  })
+}
+
+const GL_RING_PRODUCT_IDS_KEY = 'workingProjects.glRingProductIds'
+
+// Shopee `item_id`s (as strings) that identify a "Green Lantern Ring" style
+// product. Product-ID matching is the reliable signal for GL Ring detection
+// (a curated, explicit list) — the product-NAME regex in isGLRing() is only
+// a fallback for rows created before this list existed or whose creation
+// path doesn't yet capture sourceProductId (see create-from-order.ts).
+export async function getGLRingProductIds(): Promise<string[]> {
+  const row = await prisma.config.findUnique({ where: { key: GL_RING_PRODUCT_IDS_KEY } })
+  if (!row?.value) return []
+  try {
+    const parsed = JSON.parse(row.value)
+    return Array.isArray(parsed) ? parsed.map(String) : []
+  } catch {
+    return []
+  }
+}
+
+export async function setGLRingProductIds(productIds: string[]): Promise<void> {
+  await prisma.config.upsert({
+    where: { key: GL_RING_PRODUCT_IDS_KEY },
+    update: { value: JSON.stringify(productIds) },
+    create: { key: GL_RING_PRODUCT_IDS_KEY, value: JSON.stringify(productIds) },
   })
 }
 

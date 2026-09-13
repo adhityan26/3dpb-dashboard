@@ -117,6 +117,7 @@ export async function getReadyToShipOrders(): Promise<OrderListResult> {
 
   const orders: OrderSummary[] = allDetails.map((d) => {
     const items: OrderItemSummary[] = d.item_list.map((it) => ({
+      itemId: it.item_id,
       productName: it.item_name,
       variantName: it.model_name ?? null,
       sku: it.model_sku ?? it.item_sku ?? null,

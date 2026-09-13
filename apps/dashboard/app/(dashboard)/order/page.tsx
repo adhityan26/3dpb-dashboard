@@ -398,15 +398,13 @@ function OrderPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  // NOTE: default fallback is "shopee" (not "working-project") because
-  // working-project has no real data yet. Flip this to "working-project"
-  // once the Plan B production cutover runs and real data exists.
-  // "working-project" stays the FIRST entry in OrderSidebar's ITEMS array —
-  // it's just not auto-selected by default until then.
-  const rawChannel = searchParams.get("channel") ?? "shopee"
+  // Plan B production cutover has run (2026-09-13/14) — working-project now
+  // has real migrated data, so it's the default channel per the original
+  // spec, matching its position as the FIRST entry in OrderSidebar's ITEMS.
+  const rawChannel = searchParams.get("channel") ?? "working-project"
   const channel: OrderChannel = VALID_CHANNELS.includes(rawChannel as OrderChannel)
     ? (rawChannel as OrderChannel)
-    : "shopee"
+    : "working-project"
 
   function setChannel(ch: OrderChannel) {
     const params = new URLSearchParams(searchParams.toString())

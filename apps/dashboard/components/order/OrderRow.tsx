@@ -72,6 +72,7 @@ export function OrderRow({ order, onToggleLabel, isPending, linkedInvoice, onCre
     createWorkingProjectMutation.mutate({
       source: "shopee",
       sourceOrderNo: order.orderSn,
+      sourceProductId: firstItem?.itemId ? String(firstItem.itemId) : undefined,
       forumChannelId: wpForumChannelId,
       customer: order.buyerUsername ?? order.orderSn,
       product: firstItem?.productName ?? "",

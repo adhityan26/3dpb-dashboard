@@ -88,6 +88,13 @@ describe('isGLRing', () => {
   it('false when appliedTags is empty and forumChannelId does not match', () => {
     expect(isGLRing([], 'some-other-channel-id')).toBe(false)
   })
+  it('true when the product name itself mentions ring/cincin, even with no tags or matching forum — the common real-world case for Shopee/Tokopedia-created orders in the general forum', () => {
+    expect(isGLRing([], null, 'Green Lantern Ring 2026 3D Print')).toBe(true)
+    expect(isGLRing([], 'some-other-channel-id', '3D Print Green Lantern Ring Cosplay')).toBe(true)
+  })
+  it('false when product name does not mention ring/cincin and no other signal matches', () => {
+    expect(isGLRing([], null, 'Custom Clicker Flat RGB 3D Print')).toBe(false)
+  })
 })
 
 describe('parseAmount', () => {

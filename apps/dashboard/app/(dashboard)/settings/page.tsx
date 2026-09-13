@@ -20,6 +20,7 @@ import { GopayStatusCard } from "@/components/settings/GopayStatusCard"
 import { FilamentAliasCard } from "@/components/settings/FilamentAliasCard"
 import { CydDeviceCard } from "@/components/settings/CydDeviceCard"
 import { CydFieldPresetCard } from "@/components/settings/CydFieldPresetCard"
+import { GLRingProductIdsCard } from "@/components/settings/GLRingProductIdsCard"
 import { useSettings } from "@/lib/hooks/use-settings"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
@@ -165,6 +166,7 @@ function SettingsPageInner() {
               />
             </div>
             <FilamentAliasCard />
+            <GLRingProductIdsCard />
           </div>
         )}
       </div>

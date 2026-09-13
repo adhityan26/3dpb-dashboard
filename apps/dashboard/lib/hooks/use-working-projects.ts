@@ -16,6 +16,7 @@ export interface WorkingProject {
   forumChannelId?: string | null
   source: string
   sourceOrderNo: string | null
+  sourceProductId?: string | null
   orderNoLegacy: string | null
   syncState?: string
   syncError?: string | null
@@ -113,6 +114,31 @@ export function useSetChecklistByLabel() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: WORKING_PROJECTS_KEY })
+    },
+  })
+}
+
+export const GL_RING_PRODUCT_IDS_KEY = ["working-projects", "settings", "gl-ring-products"] as const
+
+export function useGLRingProductIds() {
+  const query = useQuery({
+    queryKey: GL_RING_PRODUCT_IDS_KEY,
+    queryFn: () => apiFetch<{ productIds: string[] }>("/api/working-projects/settings/gl-ring-products"),
+  })
+  return { ...query, data: query.data?.productIds, isLoading: query.isLoading }
+}
+
+export function useUpdateGLRingProductIds() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (productIds: string[]) =>
+      apiFetch("/api/working-projects/settings/gl-ring-products", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productIds }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: GL_RING_PRODUCT_IDS_KEY })
     },
   })
 }

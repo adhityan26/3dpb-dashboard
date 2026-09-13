@@ -1,6 +1,6 @@
 'use client'
 import { useMemo, useState } from 'react'
-import { useWorkingProjects, useSetChecklistByLabel, type WorkingProject } from '@/lib/hooks/use-working-projects'
+import { useWorkingProjects, useSetChecklistByLabel, useGLRingProductIds, type WorkingProject } from '@/lib/hooks/use-working-projects'
 import { splitProductVariants, variantShort, parseSize, isGLRing, notesSegmentForKey } from '@/lib/working-projects/format'
 
 const STEP_TYPES = ['Print Frame', 'Print Stone', 'Print Ring', 'Cat Frame', 'Cat Stone', 'Cat Ring', 'Assembly'] as const
@@ -29,11 +29,11 @@ function checklistLabelsFor(key: string, single: boolean): string[] {
   return STEP_TYPES.map(step => (single ? step : `${key} — ${step}`))
 }
 
-function expandToRows(projects: WorkingProject[]): RingRow[] {
+function expandToRows(projects: WorkingProject[], configuredProductIds: string[]): RingRow[] {
   const rows: RingRow[] = []
   for (const wp of projects) {
     if (wp.status === 'Canceled') continue
-    if (!isGLRing(wp.appliedTags ?? [], wp.forumChannelId)) continue
+    if (!isGLRing(wp.appliedTags ?? [], wp.forumChannelId, wp.product, wp.sourceProductId, configuredProductIds)) continue
     const variants = splitProductVariants(wp.product)
     const single = variants.length <= 1
     variants.forEach((entry) => {
@@ -123,8 +123,12 @@ export function WorkingProjectGLRingTab() {
   const [overrides, setOverrides] = useState<Record<string, boolean>>({})
   const [checklistError, setChecklistError] = useState<string | null>(null)
   const setChecklistByLabel = useSetChecklistByLabel()
+  const { data: configuredProductIds } = useGLRingProductIds()
 
-  const allRows = useMemo(() => expandToRows(data ?? []), [data])
+  const allRows = useMemo(
+    () => expandToRows(data ?? [], configuredProductIds ?? []),
+    [data, configuredProductIds],
+  )
 
   const rowsWithOverrides = useMemo(() => {
     return allRows.map(r => {

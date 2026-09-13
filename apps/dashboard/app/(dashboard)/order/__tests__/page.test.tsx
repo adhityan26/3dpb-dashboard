@@ -33,6 +33,17 @@ vi.mock('@/lib/hooks/use-orders', () => ({
 }))
 vi.mock('@/lib/hooks/use-invoice', () => ({ useInvoiceList: () => ({ data: [] }) }))
 
+// Working Project data — the default channel now that Plan B has run.
+vi.mock('@/lib/hooks/use-working-projects', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/hooks/use-working-projects')>()
+  return {
+    ...actual,
+    useWorkingProjects: () => ({ data: [], isLoading: false }),
+    useGLRingProductIds: () => ({ data: [], isLoading: false }),
+    useUpdateWorkingProject: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+  }
+})
+
 // Tokopedia row data.
 vi.mock('@/lib/hooks/use-tokopedia', () => ({
   useTokopediaSession: () => ({ data: { exists: true, expired: false } }),
@@ -70,11 +81,10 @@ function renderPage() {
 }
 
 describe('OrderPage channel/tab routing', () => {
-  it('defaults to the shopee channel with no query params (working-project has no real data yet)', () => {
+  it('defaults to the working-project channel with no query params (Plan B cutover has run, real data exists)', () => {
     withParams('')
     renderPage()
-    expect(screen.queryByTestId('working-project-channel')).not.toBeInTheDocument()
-    expect(screen.getByText('📋 Buat Working Project')).toBeInTheDocument()
+    expect(screen.getByTestId('working-project-channel')).toBeInTheDocument()
   })
 
   it('renders the green-lantern-ring tab from ?channel=working-project&tab=green-lantern-ring', () => {
