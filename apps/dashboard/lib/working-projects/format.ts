@@ -13,6 +13,23 @@ export function parseDueDate(raw: string): { dueDate: Date | null; dueDateRaw: s
   return { dueDate: null, dueDateRaw: trimmed }
 }
 
+function formatRp(amount: number): string {
+  return `Rp${amount.toLocaleString('id-ID')}`
+}
+
+type ChecklistItemLike = { text: string; done: boolean; deleted?: boolean }
+
+function renderChecklist(checklist: ChecklistItemLike[]): string {
+  const active = (checklist ?? []).filter(i => !i.deleted)
+  if (!active.length) return ''
+  return active.map(i => `${i.done ? '✅' : '⬜'} ${i.text}`).join('\n')
+}
+
+// Ported verbatim (format + emoji + section order) from the original
+// ai-assistant order-baru.js buildPostContent — this is the Discord starter
+// post body, and every field it renders must be resynced (via setStatus/
+// markDone/updateWorkingProject/runChecklistOp) on every mutation, or the
+// visible thread message silently drifts from the actual persisted state.
 export function buildPostContent(wp: {
   customer: string
   contact?: string | null
@@ -21,20 +38,54 @@ export function buildPostContent(wp: {
   platform?: string | null
   sourceOrderNo?: string | null
   orderNoLegacy?: string | null
+  orderDate?: Date | null
   dueDate?: Date | null
   dueDateRaw?: string | null
+  status?: string | null
+  payment?: string | null
+  invoiceAmount?: number | null
+  paidAmount?: number | null
+  shipping?: string | null
+  trackingNo?: string | null
+  mentions?: string[] | null
   notes?: string | null
+  checklist?: ChecklistItemLike[] | null
 }): string {
-  const lines = [
-    `**Customer:** ${wp.customer}${wp.contact ? ` (${wp.contact})` : ''}`,
-    `**Produk:** ${wp.product}${wp.variant ? ` — ${wp.variant}` : ''}`,
-  ]
-  if (wp.platform) lines.push(`**Platform:** ${wp.platform}`)
   const orderNo = wp.sourceOrderNo ?? wp.orderNoLegacy
-  if (orderNo) lines.push(`**No. Order:** ${orderNo}`)
   const due = wp.dueDate ? wp.dueDate.toISOString().slice(0, 10) : wp.dueDateRaw
-  if (due) lines.push(`**Due Date:** ${due}`)
-  if (wp.notes) lines.push(`**Catatan:** ${wp.notes}`)
+  const orderDateDisplay = wp.orderDate ? wp.orderDate.toISOString().slice(0, 10) : null
+  const invoiceAmount = wp.invoiceAmount ?? 0
+  const paidAmount = wp.paidAmount ?? 0
+  const mentionStr = (wp.mentions ?? []).map(id => `<@${id}>`).join(' ')
+
+  const lines = [
+    `📋 **Detail Order**`,
+    `👤 Customer   : ${wp.customer || '-'}`,
+  ]
+  if (orderDateDisplay) lines.push(`📆 Tgl Order  : ${orderDateDisplay}`)
+  lines.push(
+    `📱 Contact    : ${wp.contact || '-'}`,
+    `🛒 Platform   : ${wp.platform || '-'}`,
+    `🔢 No. Order  : ${orderNo || '-'}`,
+    `📦 Produk     : ${wp.product || '-'}`,
+  )
+  if (wp.variant) lines.push(`🎨 Variant    : ${wp.variant}`)
+  if (wp.shipping) lines.push(`🚚 Pengiriman : ${wp.shipping}`)
+  if (wp.trackingNo) lines.push(`📮 Resi       : ${wp.trackingNo}`)
+  lines.push(
+    `📅 Due Date   : ${due || '-'}`,
+    ``,
+    `🔄 Status     : ${wp.status || 'Open'}`,
+    `💳 Payment    : ${wp.payment || 'Belum'}`,
+  )
+  if (invoiceAmount > 0) {
+    lines.push(`💰 Invoice    : ${formatRp(invoiceAmount)}`)
+    lines.push(`   Dibayar   : ${formatRp(paidAmount)}`)
+  }
+  lines.push(``, mentionStr)
+  if (wp.notes) lines.push(``, `──────────────────────────`, ``, wp.notes)
+  const checklistSection = renderChecklist(wp.checklist ?? [])
+  if (checklistSection) lines.push(``, `──────────────────────────`, ``, checklistSection)
   return lines.join('\n')
 }
 

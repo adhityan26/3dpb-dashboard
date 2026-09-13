@@ -45,7 +45,7 @@ export async function createWorkingProject(input: {
   const message = buildPostContent({
     customer: input.customer, contact: input.contact, product: input.product, variant: input.variant,
     platform: input.platform, sourceOrderNo: input.sourceOrderNo, orderNoLegacy: input.orderNoLegacy,
-    dueDate, dueDateRaw, notes: input.notes,
+    dueDate, dueDateRaw, notes: input.notes, mentions: input.mentions,
   })
 
   try {
@@ -63,6 +63,25 @@ export async function createWorkingProject(input: {
   }
 }
 
+// Rebuilds the Discord starter post body from the CURRENT persisted row.
+// Every mutation below calls this so the visible thread message never drifts
+// from the DB — status/payment/checklist changes previously sent an empty
+// relay patch (still marking discordSynced:true) while the actual Discord
+// message kept showing stale data.
+function rebuildStarterContent(wp: {
+  customer: string; contact: string | null; product: string; variant: string | null
+  platform: string | null; sourceOrderNo: string | null; orderNoLegacy: string | null
+  orderDate: Date | null; dueDate: Date | null; dueDateRaw: string | null
+  status: string; payment: string; invoiceAmount: number; paidAmount: number
+  shipping: string | null; trackingNo: string | null; mentions: string[]
+  notes: string | null; checklist: unknown
+}): string {
+  return buildPostContent({
+    ...wp,
+    checklist: wp.checklist as Parameters<typeof buildPostContent>[0]['checklist'],
+  })
+}
+
 async function syncEditOrError(id: string, threadId: string | null, patch: Parameters<typeof editRelayThread>[1]): Promise<boolean> {
   if (!threadId) return false
   try {
@@ -78,16 +97,18 @@ async function syncEditOrError(id: string, threadId: string | null, patch: Param
 export async function setStatus(threadId: string, status: string, starterMessageContent?: string): Promise<{ ok: true; discordSynced: boolean }> {
   const wp = await prisma.workingProject.findUnique({ where: { discordThreadId: threadId } })
   if (!wp) throw new Error(`WorkingProject not found for discordThreadId=${threadId}`)
-  await prisma.workingProject.update({ where: { discordThreadId: threadId }, data: { status } })
-  const discordSynced = await syncEditOrError(wp.id, wp.discordThreadId, starterMessageContent ? { starterContent: starterMessageContent } : {})
+  const updated = await prisma.workingProject.update({ where: { discordThreadId: threadId }, data: { status } })
+  const discordSynced = await syncEditOrError(wp.id, wp.discordThreadId, {
+    starterContent: starterMessageContent ?? rebuildStarterContent(updated),
+  })
   return { ok: true, discordSynced }
 }
 
 export async function markDone(threadId: string): Promise<{ ok: true; discordSynced: boolean }> {
   const wp = await prisma.workingProject.findUnique({ where: { discordThreadId: threadId } })
   if (!wp) throw new Error(`WorkingProject not found for discordThreadId=${threadId}`)
-  await prisma.workingProject.update({ where: { discordThreadId: threadId }, data: { status: 'Done' } })
-  const discordSynced = await syncEditOrError(wp.id, wp.discordThreadId, {})
+  const updated = await prisma.workingProject.update({ where: { discordThreadId: threadId }, data: { status: 'Done' } })
+  const discordSynced = await syncEditOrError(wp.id, wp.discordThreadId, { starterContent: rebuildStarterContent(updated) })
   await archiveRelayThread(threadId).catch(() => {})
   return { ok: true, discordSynced }
 }
@@ -110,23 +131,24 @@ export async function updateWorkingProject(threadId: string, patch: Partial<{
   if (patch.shipping !== undefined) data.shipping = patch.shipping
   if (patch.trackingNo !== undefined) data.trackingNo = patch.trackingNo
 
-  // If any title-affecting field changed, rebuild the title and push it to
-  // Discord too — otherwise editing a customer/product/variant leaves the
-  // thread name stale even though the DB row is up to date. Scope is
-  // intentionally title-only (no starter-post content rebuild here).
-  let syncPatch: Parameters<typeof editRelayThread>[1] = {}
+  // If any title-affecting field changed, rebuild the title too — otherwise
+  // editing a customer/product/variant leaves the thread name stale even
+  // though the DB row is up to date.
+  let newTitle: string | undefined
   if (patch.customer !== undefined || patch.product !== undefined || patch.variant !== undefined) {
-    const newTitle = buildTitle({
+    newTitle = buildTitle({
       customer: (data.customer as string) ?? wp.customer,
       product: (data.product as string) ?? wp.product,
       variant: (data.variant as string) ?? wp.variant,
     })
     data.title = newTitle
-    syncPatch = { name: newTitle }
   }
 
-  await prisma.workingProject.update({ where: { discordThreadId: threadId }, data })
-  const discordSynced = await syncEditOrError(wp.id, wp.discordThreadId, syncPatch)
+  const updated = await prisma.workingProject.update({ where: { discordThreadId: threadId }, data })
+  const discordSynced = await syncEditOrError(wp.id, wp.discordThreadId, {
+    ...(newTitle ? { name: newTitle } : {}),
+    starterContent: rebuildStarterContent(updated),
+  })
   return { ok: true, discordSynced }
 }
 
@@ -209,8 +231,8 @@ export async function runChecklistOp(threadId: string, op:
     }
   }
 
-  await prisma.workingProject.update({ where: { discordThreadId: threadId }, data: { checklist } })
-  const discordSynced = await syncEditOrError(wp.id, wp.discordThreadId, {})
+  const updated = await prisma.workingProject.update({ where: { discordThreadId: threadId }, data: { checklist } })
+  const discordSynced = await syncEditOrError(wp.id, wp.discordThreadId, { starterContent: rebuildStarterContent(updated) })
   return { ok: true, discordSynced }
 }
 
