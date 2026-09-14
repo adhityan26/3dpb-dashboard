@@ -3,7 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/db'
 import { runChecklistOp } from '@/lib/working-projects/service'
 
-const VALID_TYPES = ['add', 'check', 'uncheck', 'edit', 'remove', 'copy', 'setByLabel']
+const VALID_TYPES = ['add', 'check', 'uncheck', 'edit', 'remove', 'copy', 'setByLabel', 'reorder']
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await auth()
@@ -22,6 +22,11 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   if (body.type === 'setByLabel') {
     if (typeof body.label !== 'string' || typeof body.done !== 'boolean') {
       return NextResponse.json({ error: 'label must be a string and done must be a boolean' }, { status: 400 })
+    }
+  }
+  if (body.type === 'reorder') {
+    if (!Array.isArray(body.orderedIds) || !body.orderedIds.every((id: unknown) => typeof id === 'number')) {
+      return NextResponse.json({ error: 'orderedIds must be an array of numbers' }, { status: 400 })
     }
   }
 

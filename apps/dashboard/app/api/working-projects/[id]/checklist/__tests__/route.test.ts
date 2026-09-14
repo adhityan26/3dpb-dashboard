@@ -70,4 +70,18 @@ describe('POST /api/working-projects/:id/checklist', () => {
     expect(runChecklistOp).toHaveBeenCalledWith('t1', { type: 'setByLabel', label: 'x', done: true, by: 'u1' })
     expect(await res.json()).toEqual({ ok: true, discordSynced: true })
   })
+
+  it('400s on reorder with a non-numeric-array orderedIds', async () => {
+    const res = await POST(req({ type: 'reorder', orderedIds: ['a', 'b'] }), { params: Promise.resolve({ id: 'wp1' }) })
+    expect(res.status).toBe(400)
+    expect(runChecklistOp).not.toHaveBeenCalled()
+  })
+
+  it('200s delegating a reorder op to runChecklistOp', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1' })
+    ;(runChecklistOp as any).mockResolvedValue({ ok: true, discordSynced: true })
+    const res = await POST(req({ type: 'reorder', orderedIds: [2, 1] }), { params: Promise.resolve({ id: 'wp1' }) })
+    expect(runChecklistOp).toHaveBeenCalledWith('t1', { type: 'reorder', orderedIds: [2, 1] })
+    expect(await res.json()).toEqual({ ok: true, discordSynced: true })
+  })
 })

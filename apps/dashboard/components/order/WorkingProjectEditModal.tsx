@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import type { WorkingProject } from "@/lib/hooks/use-working-projects"
 
 export interface WorkingProjectEditPatch {
@@ -65,6 +65,18 @@ export function WorkingProjectEditModal({ project, onClose, onSave, isPending, e
   const [shipping, setShipping] = useState(project?.shipping ?? "")
   const [trackingNo, setTrackingNo] = useState(project?.trackingNo ?? "")
 
+  // Body scroll lock while open — the page behind can be very long (100+
+  // rows); letting it scroll behind a near-transparent backdrop is what
+  // made the modal look mispositioned ("harus scroll-scroll cari").
+  useEffect(() => {
+    if (!project) return
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = "hidden"
+    return () => {
+      document.body.style.overflow = prevOverflow
+    }
+  }, [project])
+
   if (project && project.id !== trackedId) {
     setTrackedId(project.id)
     const values = initialValues(project)
@@ -104,7 +116,7 @@ export function WorkingProjectEditModal({ project, onClose, onSave, isPending, e
     >
       <div
         className="w-full max-w-md rounded-[5px] p-5 max-h-[90vh] overflow-y-auto"
-        style={{ background: "var(--g-card)", border: "1px solid var(--g-card-border)" }}
+        style={{ background: "var(--g-modal)", border: "1px solid var(--g-card-border)" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">

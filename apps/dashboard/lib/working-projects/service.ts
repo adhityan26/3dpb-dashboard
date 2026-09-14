@@ -117,7 +117,8 @@ export async function markDone(threadId: string): Promise<{ ok: true; discordSyn
 
 export async function updateWorkingProject(threadId: string, patch: Partial<{
   dueDateRaw: string; paymentRaw: string; invoiceAmountRaw: string; paidAmountRaw: string
-  notesAppend: string; variant: string; customer: string; product: string; shipping: string; trackingNo: string
+  notesAppend: string; notes: string; variant: string; customer: string; product: string
+  shipping: string; trackingNo: string; mentions: string[]; appliedTags: string[]
 }>): Promise<{ ok: true; discordSynced: boolean }> {
   const wp = await prisma.workingProject.findUnique({ where: { discordThreadId: threadId } })
   if (!wp) throw new Error(`WorkingProject not found for discordThreadId=${threadId}`)
@@ -127,11 +128,16 @@ export async function updateWorkingProject(threadId: string, patch: Partial<{
   if (patch.invoiceAmountRaw !== undefined) data.invoiceAmount = parseAmount(patch.invoiceAmountRaw)
   if (patch.paidAmountRaw !== undefined) data.paidAmount = parseAmount(patch.paidAmountRaw)
   if (patch.notesAppend !== undefined) data.notes = appendNoteWithTimestamp(wp.notes, patch.notesAppend)
+  // Direct notes replacement (dashboard's Notes & Checklist modal) — takes
+  // precedence over notesAppend if both are somehow sent in the same patch.
+  if (patch.notes !== undefined) data.notes = patch.notes
   if (patch.variant !== undefined) data.variant = patch.variant
   if (patch.customer !== undefined) data.customer = patch.customer
   if (patch.product !== undefined) data.product = patch.product
   if (patch.shipping !== undefined) data.shipping = patch.shipping
   if (patch.trackingNo !== undefined) data.trackingNo = patch.trackingNo
+  if (patch.mentions !== undefined) data.mentions = patch.mentions
+  if (patch.appliedTags !== undefined) data.appliedTags = patch.appliedTags
 
   // If any title-affecting field changed, rebuild the title too — otherwise
   // editing a customer/product/variant leaves the thread name stale even
@@ -149,6 +155,8 @@ export async function updateWorkingProject(threadId: string, patch: Partial<{
   const updated = await prisma.workingProject.update({ where: { discordThreadId: threadId }, data })
   const discordSynced = await syncEditOrError(wp.id, wp.discordThreadId, {
     ...(newTitle ? { name: newTitle } : {}),
+    ...(patch.mentions !== undefined ? { mentions: patch.mentions } : {}),
+    ...(patch.appliedTags !== undefined ? { appliedTags: patch.appliedTags } : {}),
     starterContent: rebuildStarterContent(updated),
   })
   return { ok: true, discordSynced }
@@ -184,6 +192,7 @@ export async function runChecklistOp(threadId: string, op:
   | { type: 'edit'; id: number; text: string }
   | { type: 'copy'; fromThreadId: string }
   | { type: 'setByLabel'; label: string; done: boolean; by: string }
+  | { type: 'reorder'; orderedIds: number[] }
 ): Promise<{ ok: true; discordSynced: boolean }> {
   const wp = await prisma.workingProject.findUnique({ where: { discordThreadId: threadId } })
   if (!wp) throw new Error(`WorkingProject not found for discordThreadId=${threadId}`)
@@ -208,6 +217,23 @@ export async function runChecklistOp(threadId: string, op:
       if (src.deleted) continue
       checklist.push({ ...src, id: nextId++, done: false, done_at: null, done_by: null })
     }
+  } else if (op.type === 'reorder') {
+    // Reorder by the given id sequence; any id not present in the checklist
+    // (already deleted, or a stale client) is skipped, and any existing item
+    // missing from orderedIds (e.g. added concurrently) is appended at the
+    // end so a partial/stale reorder request never silently drops items.
+    const byId = new Map(checklist.map(i => [i.id, i]))
+    const reordered: ChecklistItem[] = []
+    for (const id of op.orderedIds) {
+      const item = byId.get(id)
+      if (item) {
+        reordered.push(item)
+        byId.delete(id)
+      }
+    }
+    reordered.push(...byId.values())
+    checklist.length = 0
+    checklist.push(...reordered)
   } else if (op.type === 'setByLabel') {
     // Match the same way the GL Ring tab's read side matches (case-insensitive
     // substring), so a legacy inconsistently-labeled item (e.g. "A — Print

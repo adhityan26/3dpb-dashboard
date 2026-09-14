@@ -75,6 +75,9 @@ export interface WorkingProjectUpdatePatch {
   shipping?: string
   trackingNo?: string
   notesAppend?: string
+  notes?: string
+  mentions?: string[]
+  appliedTags?: string[]
 }
 
 export function useUpdateWorkingProject() {
@@ -111,6 +114,30 @@ export function useSetChecklistByLabel() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type: "setByLabel", label, done, by }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: WORKING_PROJECTS_KEY })
+    },
+  })
+}
+
+export type ChecklistOp =
+  | { type: 'add'; text: string; addedBy: string }
+  | { type: 'check' | 'uncheck' | 'remove'; id: number; by: string }
+  | { type: 'edit'; id: number; text: string }
+  | { type: 'reorder'; orderedIds: number[] }
+
+// Generic checklist mutation for the Notes & Checklist modal (add/edit/
+// remove/reorder). useSetChecklistByLabel above stays separate since the
+// GL Ring tab's optimistic-override flow is keyed by label, not id.
+export function useChecklistOp() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, op }: { id: string; op: ChecklistOp }) =>
+      apiFetch(`/api/working-projects/${id}/checklist`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(op),
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: WORKING_PROJECTS_KEY })

@@ -111,6 +111,30 @@ describe('updateWorkingProject', () => {
     const updateCall = (prisma.workingProject.update as any).mock.calls[0][0]
     expect(updateCall.data.title).toBe('Budi Santoso - Cincin')
   })
+
+  it('replaces notes directly (not appended) when patch.notes is given', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1', notes: 'old', title: 'T', customer: 'Budi', product: 'Cincin', variant: null })
+    ;(prisma.workingProject.update as any).mockResolvedValue({})
+    ;(editRelayThread as any).mockResolvedValue(undefined)
+
+    await updateWorkingProject('t1', { notes: 'replaced entirely' })
+    const call = (prisma.workingProject.update as any).mock.calls[0][0]
+    expect(call.data.notes).toBe('replaced entirely')
+  })
+
+  it('sends mentions and appliedTags to the relay when patched, and persists them', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1', notes: null, title: 'T', customer: 'Budi', product: 'Cincin', variant: null })
+    ;(prisma.workingProject.update as any).mockResolvedValue({ customer: 'Budi', product: 'Cincin', variant: null, status: 'Open', payment: 'Belum', mentions: ['123'], checklist: [] })
+    ;(editRelayThread as any).mockResolvedValue(undefined)
+
+    await updateWorkingProject('t1', { mentions: ['123'], appliedTags: ['Cincin'] })
+    const updateCall = (prisma.workingProject.update as any).mock.calls[0][0]
+    expect(updateCall.data.mentions).toEqual(['123'])
+    expect(updateCall.data.appliedTags).toEqual(['Cincin'])
+    const relayCall = (editRelayThread as any).mock.calls[0]
+    expect(relayCall[1].mentions).toEqual(['123'])
+    expect(relayCall[1].appliedTags).toEqual(['Cincin'])
+  })
 })
 
 describe('resyncWorkingProject', () => {
@@ -184,6 +208,30 @@ describe('runChecklistOp', () => {
     expect(created.done).toBe(true)
     expect(created.deleted).toBe(false)
     expect(created.done_by).toBe('user1')
+  })
+
+  it('reorder reorders items by the given id sequence', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({
+      id: 'wp1', discordThreadId: 't1',
+      checklist: [{ id: 1, text: 'a', done: false, deleted: false }, { id: 2, text: 'b', done: false, deleted: false }, { id: 3, text: 'c', done: false, deleted: false }],
+    })
+    ;(prisma.workingProject.update as any).mockResolvedValue({})
+
+    await runChecklistOp('t1', { type: 'reorder', orderedIds: [3, 1, 2] })
+    const call = (prisma.workingProject.update as any).mock.calls[0][0]
+    expect(call.data.checklist.map((i: any) => i.id)).toEqual([3, 1, 2])
+  })
+
+  it('reorder appends items missing from orderedIds at the end instead of dropping them', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({
+      id: 'wp1', discordThreadId: 't1',
+      checklist: [{ id: 1, text: 'a', done: false, deleted: false }, { id: 2, text: 'b', done: false, deleted: false }],
+    })
+    ;(prisma.workingProject.update as any).mockResolvedValue({})
+
+    await runChecklistOp('t1', { type: 'reorder', orderedIds: [2] })
+    const call = (prisma.workingProject.update as any).mock.calls[0][0]
+    expect(call.data.checklist.map((i: any) => i.id)).toEqual([2, 1])
   })
 })
 

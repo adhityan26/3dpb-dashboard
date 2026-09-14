@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import {
   useWorkingProjects,
   useUpdateWorkingProject,
@@ -8,21 +8,37 @@ import {
   type WorkingProjectChecklistItem,
 } from "@/lib/hooks/use-working-projects"
 import { WorkingProjectEditModal } from "./WorkingProjectEditModal"
+import { WorkingProjectNotesModal } from "./WorkingProjectNotesModal"
 
-const COLUMNS = [
-  "Customer/Contact",
-  "Produk",
-  "Variant",
-  "Platform",
-  "No. Order",
-  "Due Date",
-  "Status",
-  "Payment",
-  "Nominal",
-  "Checklist",
-  "Discord",
-  "Aksi",
+const ALL_STATUSES = ["Open", "Proses", "Waiting Customer", "Siap Kirim", "Done", "Canceled"] as const
+const DEFAULT_HIDDEN_STATUSES = new Set(["Done", "Canceled"])
+const PAGE_SIZES = [10, 25, 50, 100] as const
+
+type SortColumn = "customer" | "dueDate" | "status" | "invoiceAmount"
+
+const COLUMNS: { key: SortColumn | null; label: string }[] = [
+  { key: "customer", label: "Customer/Contact" },
+  { key: null, label: "Produk" },
+  { key: null, label: "Variant" },
+  { key: null, label: "Platform" },
+  { key: null, label: "No. Order" },
+  { key: "dueDate", label: "Due Date" },
+  { key: "status", label: "Status" },
+  { key: null, label: "Payment" },
+  { key: "invoiceAmount", label: "Nominal" },
+  { key: null, label: "Checklist" },
+  { key: null, label: "Discord" },
+  { key: null, label: "Aksi" },
 ]
+
+function sortValue(wp: WorkingProject, col: SortColumn): string | number {
+  switch (col) {
+    case "customer": return wp.customer.toLowerCase()
+    case "dueDate": return wp.dueDate ?? ""
+    case "status": return wp.status
+    case "invoiceAmount": return wp.invoiceAmount
+  }
+}
 
 function MarketplaceDetailPanel({ wp, onClose }: { wp: WorkingProject; onClose: () => void }) {
   const [state, setState] = useState<
@@ -53,14 +69,14 @@ function MarketplaceDetailPanel({ wp, onClose }: { wp: WorkingProject; onClose: 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ background: "rgba(0,0,0,0.6)" }}
+      style={{ background: "rgba(0,0,0,0.7)" }}
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
       <div
         className="w-full max-w-lg rounded-[5px] p-5 max-h-[80vh] overflow-y-auto"
-        style={{ background: "var(--g-card)", border: "1px solid var(--g-card-border)" }}
+        style={{ background: "var(--g-modal)", border: "1px solid var(--g-card-border)" }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between mb-3">
@@ -79,38 +95,175 @@ function MarketplaceDetailPanel({ wp, onClose }: { wp: WorkingProject; onClose: 
   )
 }
 
+const STATUS_COLOR: Record<string, string> = {
+  Open: "dark:bg-blue-900/40 dark:text-blue-300 bg-blue-100 text-blue-800",
+  Proses: "dark:bg-amber-900/40 dark:text-amber-300 bg-amber-100 text-amber-800",
+  "Waiting Customer": "dark:bg-orange-900/40 dark:text-orange-300 bg-orange-100 text-orange-800",
+  "Siap Kirim": "dark:bg-purple-900/40 dark:text-purple-300 bg-purple-100 text-purple-800",
+  Done: "dark:bg-green-900/40 dark:text-green-300 bg-green-100 text-green-800",
+  Canceled: "dark:bg-red-900/40 dark:text-red-300 bg-red-100 text-red-800",
+}
+
 export function WorkingProjectOrdersTab() {
   const { data, isLoading } = useWorkingProjects()
   const updateMutation = useUpdateWorkingProject()
   const [editing, setEditing] = useState<WorkingProject | null>(null)
+  const [editingNotes, setEditingNotes] = useState<WorkingProject | null>(null)
   const [viewingMarketplace, setViewingMarketplace] = useState<WorkingProject | null>(null)
+
+  const [search, setSearch] = useState("")
+  const [platform, setPlatform] = useState("")
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(
+    () => new Set(ALL_STATUSES.filter((s) => !DEFAULT_HIDDEN_STATUSES.has(s))),
+  )
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false)
+  const [sortCol, setSortCol] = useState<SortColumn>("customer")
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
+  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(25)
+  const [page, setPage] = useState(1)
+
+  const platformOptions = useMemo(
+    () => Array.from(new Set((data ?? []).map((wp) => wp.platform).filter((p): p is string => !!p))).sort(),
+    [data],
+  )
+
+  const filtered = useMemo(() => {
+    let out = data ?? []
+    if (search.trim()) {
+      const q = search.trim().toLowerCase()
+      out = out.filter(
+        (wp) =>
+          wp.customer.toLowerCase().includes(q) ||
+          wp.product.toLowerCase().includes(q) ||
+          (wp.sourceOrderNo ?? wp.orderNoLegacy ?? "").toLowerCase().includes(q),
+      )
+    }
+    if (platform) out = out.filter((wp) => wp.platform === platform)
+    out = out.filter((wp) => statusFilter.has(wp.status))
+    return out
+  }, [data, search, platform, statusFilter])
+
+  const sorted = useMemo(() => {
+    const copy = [...filtered]
+    copy.sort((a, b) => {
+      const va = sortValue(a, sortCol)
+      const vb = sortValue(b, sortCol)
+      const cmp = typeof va === "number" && typeof vb === "number" ? va - vb : String(va).localeCompare(String(vb))
+      return sortDir === "asc" ? cmp : -cmp
+    })
+    return copy
+  }, [filtered, sortCol, sortDir])
+
+  const totalPages = Math.max(1, Math.ceil(sorted.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const pageRows = sorted.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
+  function handleSort(col: SortColumn) {
+    setPage(1)
+    if (sortCol === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"))
+    } else {
+      setSortCol(col)
+      setSortDir("asc")
+    }
+  }
+
+  function toggleStatus(status: string) {
+    setPage(1)
+    setStatusFilter((prev) => {
+      const next = new Set(prev)
+      if (next.has(status)) next.delete(status)
+      else next.add(status)
+      return next
+    })
+  }
 
   if (isLoading) return <div className="py-12 text-center text-sm g-t4">Loading...</div>
 
-  const STATUS_COLOR: Record<string, string> = {
-    Open: "dark:bg-blue-900/40 dark:text-blue-300 bg-blue-100 text-blue-800",
-    Proses: "dark:bg-amber-900/40 dark:text-amber-300 bg-amber-100 text-amber-800",
-    "Waiting Customer": "dark:bg-orange-900/40 dark:text-orange-300 bg-orange-100 text-orange-800",
-    "Siap Kirim": "dark:bg-purple-900/40 dark:text-purple-300 bg-purple-100 text-purple-800",
-    Done: "dark:bg-green-900/40 dark:text-green-300 bg-green-100 text-green-800",
-    Canceled: "dark:bg-red-900/40 dark:text-red-300 bg-red-100 text-red-800",
-  }
-
   return (
     <>
+      <div className="flex flex-wrap gap-2 items-center mb-3">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => {
+            setSearch(e.target.value)
+            setPage(1)
+          }}
+          placeholder="🔍 Cari customer / produk / no. order..."
+          className="glass-input flex-1 min-w-[160px] h-9 rounded-[5px] px-3 text-sm"
+        />
+        <select
+          value={platform}
+          onChange={(e) => {
+            setPlatform(e.target.value)
+            setPage(1)
+          }}
+          className="glass-input h-9 rounded-[5px] px-2 text-sm"
+          aria-label="Platform"
+        >
+          <option value="">Semua Platform</option>
+          {platformOptions.map((p) => (
+            <option key={p} value={p}>{p}</option>
+          ))}
+        </select>
+
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setStatusMenuOpen((v) => !v)}
+            className="glass-input h-9 rounded-[5px] px-3 text-sm"
+          >
+            Status: {statusFilter.size} dipilih ▾
+          </button>
+          {statusMenuOpen ? (
+            <div
+              className="absolute top-full left-0 mt-1 z-10 min-w-[180px] rounded-[5px] p-2"
+              style={{ background: "var(--g-modal)", border: "1px solid var(--g-card-border)" }}
+            >
+              {ALL_STATUSES.map((s) => (
+                <label key={s} className="flex items-center gap-2 px-1.5 py-1 rounded-[4px] hover:bg-white/5 text-sm cursor-pointer">
+                  <input type="checkbox" checked={statusFilter.has(s)} onChange={() => toggleStatus(s)} />
+                  {s}
+                </label>
+              ))}
+            </div>
+          ) : null}
+        </div>
+
+        <select
+          value={pageSize}
+          onChange={(e) => {
+            setPageSize(Number(e.target.value) as (typeof PAGE_SIZES)[number])
+            setPage(1)
+          }}
+          className="glass-input h-9 rounded-[5px] px-2 text-sm"
+          aria-label="Ukuran halaman"
+        >
+          {PAGE_SIZES.map((n) => (
+            <option key={n} value={n}>{n} / halaman</option>
+          ))}
+        </select>
+      </div>
+
       <div className="overflow-x-auto rounded-[5px]" style={{ border: "1px solid var(--g-card-border)" }}>
         <table className="min-w-full border-collapse">
           <thead className="text-xs uppercase" style={{ background: "var(--g-card)" }}>
             <tr>
               {COLUMNS.map((c) => (
-                <th key={c} className="px-3 py-2 text-left font-semibold whitespace-nowrap g-t4">
-                  {c}
+                <th
+                  key={c.label}
+                  onClick={c.key ? () => handleSort(c.key as SortColumn) : undefined}
+                  className={`px-3 py-2 text-left font-semibold whitespace-nowrap g-t4 ${c.key ? "cursor-pointer select-none hover:g-t1" : ""}`}
+                >
+                  {c.label}
+                  {c.key === sortCol ? (sortDir === "asc" ? " ▲" : " ▼") : c.key ? " ↕" : ""}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {data?.map((wp) => {
+            {pageRows.map((wp) => {
               const active = ((wp.checklist ?? []) as WorkingProjectChecklistItem[]).filter((i) => !i.deleted)
               const done = active.filter((i) => i.done).length
 
@@ -149,21 +302,34 @@ export function WorkingProjectOrdersTab() {
                     )}
                   </td>
                   <td className="px-3 py-2 text-sm whitespace-nowrap">
-                    <div className="flex flex-col gap-1 items-start">
+                    <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={() => setEditing(wp)}
-                        className="text-xs g-accent hover:underline"
+                        className="g-accent hover:opacity-80 text-base leading-none"
+                        title="Edit"
+                        aria-label="Edit"
                       >
-                        Edit
+                        ✏️
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setEditingNotes(wp)}
+                        className="g-accent hover:opacity-80 text-base leading-none"
+                        title="Notes & Checklist"
+                        aria-label="Notes & Checklist"
+                      >
+                        📝
                       </button>
                       {wp.sourceOrderNo ? (
                         <button
                           type="button"
                           onClick={() => setViewingMarketplace(wp)}
-                          className="text-xs g-accent hover:underline"
+                          className="g-accent hover:opacity-80 text-base leading-none"
+                          title="Lihat Data Marketplace"
+                          aria-label="Lihat Data Marketplace"
                         >
-                          Lihat Data Marketplace
+                          🛒
                         </button>
                       ) : null}
                     </div>
@@ -173,6 +339,32 @@ export function WorkingProjectOrdersTab() {
             })}
           </tbody>
         </table>
+      </div>
+
+      <div className="flex justify-between items-center mt-3 text-xs g-t4">
+        <span>
+          Menampilkan {sorted.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}–
+          {Math.min(currentPage * pageSize, sorted.length)} dari {sorted.length}
+        </span>
+        <div className="flex gap-1">
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            disabled={currentPage <= 1}
+            className="h-8 px-2 rounded-[5px] g-btn-ghost disabled:opacity-40"
+          >
+            ‹ Prev
+          </button>
+          <span className="px-2 py-1">{currentPage} / {totalPages}</span>
+          <button
+            type="button"
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            disabled={currentPage >= totalPages}
+            className="h-8 px-2 rounded-[5px] g-btn-ghost disabled:opacity-40"
+          >
+            Next ›
+          </button>
+        </div>
       </div>
 
       <WorkingProjectEditModal
@@ -189,6 +381,8 @@ export function WorkingProjectOrdersTab() {
           )
         }}
       />
+
+      <WorkingProjectNotesModal project={editingNotes} onClose={() => setEditingNotes(null)} />
 
       {viewingMarketplace ? (
         <MarketplaceDetailPanel wp={viewingMarketplace} onClose={() => setViewingMarketplace(null)} />

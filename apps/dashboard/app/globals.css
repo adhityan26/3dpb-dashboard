@@ -169,6 +169,11 @@
   /* Surfaces */
   --g-card:         rgba(0,0,0,0.025);
   --g-card-border:  rgba(0,0,0,0.09);
+  /* Modal/popover surface — deliberately near-opaque, unlike --g-card (a
+     subtle tint meant to sit on top of the page's own background). A modal
+     floats over arbitrary page content, so it needs its own solid backing
+     or it reads as "transparent" regardless of what --g-card is tuned for. */
+  --g-modal:        #f7f8fc;
   --g-inner:        rgba(0,0,0,0.03);
   --g-inner-border: rgba(0,0,0,0.07);
   --g-row-border:   rgba(0,0,0,0.05);
@@ -203,6 +208,7 @@
   /* Surfaces */
   --g-card:         rgba(255,255,255,0.03);
   --g-card-border:  rgba(255,255,255,0.07);
+  --g-modal:        #14161f;
   --g-inner:        rgba(255,255,255,0.025);
   --g-inner-border: rgba(255,255,255,0.06);
   --g-row-border:   rgba(255,255,255,0.04);

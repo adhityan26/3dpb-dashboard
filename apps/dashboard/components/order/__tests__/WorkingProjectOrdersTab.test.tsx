@@ -33,6 +33,7 @@ vi.mock('@/lib/hooks/use-working-projects', () => ({
     isLoading: false,
   }),
   useUpdateWorkingProject: () => updateMutationState,
+  useChecklistOp: () => ({ mutate: vi.fn(), isPending: false }),
 }))
 import { WorkingProjectOrdersTab } from '../WorkingProjectOrdersTab'
 
@@ -43,12 +44,12 @@ beforeEach(() => {
 })
 
 describe('WorkingProjectOrdersTab', () => {
-  it('renders exactly the legacy column set in order', () => {
+  it('renders exactly the legacy column set in order (sortable columns carry a sort indicator)', () => {
     render(<WorkingProjectOrdersTab />)
     const headers = screen.getAllByRole('columnheader').map(h => h.textContent)
     expect(headers).toEqual([
-      'Customer/Contact', 'Produk', 'Variant', 'Platform', 'No. Order',
-      'Due Date', 'Status', 'Payment', 'Nominal', 'Checklist', 'Discord', 'Aksi',
+      'Customer/Contact ▲', 'Produk', 'Variant', 'Platform', 'No. Order',
+      'Due Date ↕', 'Status ↕', 'Payment', 'Nominal ↕', 'Checklist', 'Discord', 'Aksi',
     ])
   })
   it('prefers sourceOrderNo over orderNoLegacy for the No. Order column', () => {
@@ -66,6 +67,38 @@ describe('WorkingProjectOrdersTab', () => {
   })
 })
 
+describe('WorkingProjectOrdersTab filters and pagination', () => {
+  it('defaults the status filter to everything except Done and Canceled', () => {
+    render(<WorkingProjectOrdersTab />)
+    expect(screen.getByRole('button', { name: /status: 4 dipilih/i })).toBeInTheDocument()
+  })
+
+  it('hides Done/Canceled rows via the default filter but keeps other statuses', () => {
+    projects.push(
+      { id: 'wp-done', customer: 'Cici', contact: null, product: 'Vas', variant: null, platform: 'Shopee', sourceOrderNo: 'SN3', orderNoLegacy: null, dueDate: null, status: 'Done', payment: 'Marketplace', invoiceAmount: 0, checklist: [], discordThreadId: null, discordThreadUrl: null } as any,
+    )
+    try {
+      render(<WorkingProjectOrdersTab />)
+      expect(screen.queryByText('Cici')).not.toBeInTheDocument()
+      expect(screen.getByText(/Budi/)).toBeInTheDocument()
+    } finally {
+      projects.pop()
+    }
+  })
+
+  it('filters rows by the search box across customer/product/order no', () => {
+    render(<WorkingProjectOrdersTab />)
+    fireEvent.change(screen.getByPlaceholderText(/cari customer/i), { target: { value: 'Ani' } })
+    expect(screen.getByText('Ani')).toBeInTheDocument()
+    expect(screen.queryByText('Budi')).not.toBeInTheDocument()
+  })
+
+  it('shows a page-size selector defaulting to 25', () => {
+    render(<WorkingProjectOrdersTab />)
+    expect((screen.getByRole('option', { name: '25 / halaman' }) as HTMLOptionElement).selected).toBe(true)
+  })
+})
+
 describe('WorkingProjectOrdersTab actions', () => {
   it('shows an edit action on every row', () => {
     render(<WorkingProjectOrdersTab />)
@@ -74,7 +107,7 @@ describe('WorkingProjectOrdersTab actions', () => {
 
   it('shows Lihat Data Marketplace only for rows with a sourceOrderNo', () => {
     render(<WorkingProjectOrdersTab />)
-    expect(screen.getAllByText(/lihat data marketplace/i).length).toBe(1)
+    expect(screen.getAllByRole('button', { name: /lihat data marketplace/i }).length).toBe(1)
   })
 
   it('shows a visible error and keeps the edit modal open when the save mutation fails', async () => {

@@ -3,6 +3,8 @@ import { useMemo, useState } from 'react'
 import { useWorkingProjects, useSetChecklistByLabel, useGLRingProductIds, type WorkingProject } from '@/lib/hooks/use-working-projects'
 import { splitProductVariants, variantShort, parseSize, isGLRing, notesSegmentForKey } from '@/lib/working-projects/format'
 
+const PAGE_SIZES = [10, 25, 50, 100] as const
+
 const STEP_TYPES = ['Print Frame', 'Print Stone', 'Print Ring', 'Cat Frame', 'Cat Stone', 'Cat Ring', 'Assembly'] as const
 type StepType = (typeof STEP_TYPES)[number]
 
@@ -113,6 +115,8 @@ export function WorkingProjectGLRingTab() {
   const [size, setSize] = useState('')
   const [step, setStep] = useState<StepType | ''>('')
   const [stepStatus, setStepStatus] = useState<'' | 'done' | 'not-done'>('')
+  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(25)
+  const [page, setPage] = useState(1)
 
   // Local optimistic overrides applied on top of server data, keyed by
   // `${wpId}::${label}`, so a checkbox flips immediately while the mutation
@@ -179,7 +183,12 @@ export function WorkingProjectGLRingTab() {
     return sorted
   }, [rowsWithOverrides, search, platform, variant, size, step, stepStatus, sortKeys])
 
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
+  const currentPage = Math.min(page, totalPages)
+  const pageRows = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
+
   function handleHeaderClick(col: SortColumn, e: React.MouseEvent) {
+    setPage(1)
     setSortKeys(prev => {
       if (e.shiftKey) {
         const next = [...prev.filter(k => k !== col), col]
@@ -262,6 +271,16 @@ export function WorkingProjectGLRingTab() {
             <option value="not-done">Belum</option>
           </select>
         </label>
+        <label>
+          Ukuran Halaman
+          <select
+            aria-label="Ukuran Halaman"
+            value={pageSize}
+            onChange={e => { setPageSize(Number(e.target.value) as (typeof PAGE_SIZES)[number]); setPage(1) }}
+          >
+            {PAGE_SIZES.map(n => <option key={n} value={n}>{n} / halaman</option>)}
+          </select>
+        </label>
       </div>
 
       <table>
@@ -284,7 +303,7 @@ export function WorkingProjectGLRingTab() {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r, i) => {
+          {pageRows.map((r, i) => {
             const doneCount = STEP_TYPES.filter(s => r.checklistDone[s]).length
             return (
               <tr key={`${r.wpId}-${r.key}-${i}`}>
@@ -317,6 +336,13 @@ export function WorkingProjectGLRingTab() {
           })}
         </tbody>
       </table>
+
+      <div>
+        <span>Menampilkan {rows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, rows.length)} dari {rows.length}</span>
+        <button type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1}>‹ Prev</button>
+        <span>{currentPage} / {totalPages}</span>
+        <button type="button" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>Next ›</button>
+      </div>
     </div>
   )
 }
