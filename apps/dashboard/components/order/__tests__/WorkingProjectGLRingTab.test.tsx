@@ -29,6 +29,7 @@ vi.mock('@/lib/hooks/use-working-projects', async (importOriginal) => {
   return {
     ...actual,
     useWorkingProjects: () => ({ data: MOCK_PROJECTS, isLoading: false }),
+    useGLRingProductIds: () => ({ data: [], isLoading: false }),
   }
 })
 import { WorkingProjectGLRingTab } from '../WorkingProjectGLRingTab'
