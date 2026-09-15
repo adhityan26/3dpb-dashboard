@@ -146,11 +146,24 @@ export function parseSize(notes: string): { usSize: string | null; scalePct: num
 // contained by, or contains the key (handles both a full key like
 // "Cincin A" appearing verbatim, and a short field like "A" that is the
 // trailing/short form of that key).
+// A field may also be a labelled value like "GL Ring Cosplay: US 7 scale 74%"
+// (real production shape) — the label before the ':' is what identifies the
+// variant, so it is tested on its own as well as the full field.
 function fieldIdentifiesKey(field: string, lowerKey: string): boolean {
   const f = field.trim().toLowerCase()
   if (!f) return false
-  return f === lowerKey || lowerKey.includes(f) || f.includes(lowerKey)
+  if (f === lowerKey || lowerKey.includes(f) || f.includes(lowerKey)) return true
+  const colon = f.indexOf(':')
+  if (colon > 0) {
+    const label = f.slice(0, colon).trim()
+    return !!label && (label === lowerKey || lowerKey.includes(label) || label.includes(lowerKey))
+  }
+  return false
 }
+
+// Any of the size encodings parseSize understands ("size ...", "ukuran ...",
+// bare "US 9.5") terminates a variant's data segment.
+const SIZE_TOKEN = /size|ukuran|\bus\s*\d/i
 
 export function notesSegmentForKey(notes: string, key: string, variantCount: number): string {
   if (variantCount <= 1) return notes
@@ -165,15 +178,19 @@ export function notesSegmentForKey(notes: string, key: string, variantCount: num
 
   // Shape (b): flat '|'-delimited sequence, segments in any order. Find the
   // field identifying this variant, then take the contiguous run of fields
-  // from there through the next field carrying a `size` token (inclusive) —
-  // that's the data segment this variant's identifier field introduces.
+  // from there through the next field carrying a size token (inclusive) —
+  // that's the data segment this variant's identifier field introduces. If
+  // the identifying field itself carries the size ("Label: US 7 ..."), the
+  // segment is just that field — never bleed into the next variant's.
   const fields = notes.split('|').map(f => f.trim())
   const matchIdx = fields.findIndex(f => fieldIdentifiesKey(f, lowerKey))
   if (matchIdx !== -1) {
     let end = matchIdx
-    for (let i = matchIdx + 1; i < fields.length; i++) {
-      end = i
-      if (/size/i.test(fields[i])) break
+    if (!SIZE_TOKEN.test(fields[matchIdx])) {
+      for (let i = matchIdx + 1; i < fields.length; i++) {
+        end = i
+        if (SIZE_TOKEN.test(fields[i])) break
+      }
     }
     return fields.slice(matchIdx, end + 1).join('|')
   }

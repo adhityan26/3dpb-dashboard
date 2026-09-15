@@ -165,6 +165,22 @@ describe('notesSegmentForKey', () => {
     expect(parseSize(notesSegmentForKey(notes, 'Cincin A', 2)).usSize).toBe('8')
     expect(parseSize(notesSegmentForKey(notes, 'Cincin B', 2)).usSize).toBe('6')
   })
+
+  // Real production shape: "<label>: US <n> scale <p>%" fields where the label
+  // is a short form of the variant key. Previously the full field never
+  // matched the key, so the whole notes string fell through and BOTH variants
+  // got the first field's size.
+  it('matches a "Label: US n ..." field by its label prefix and keeps each variant on its own size', () => {
+    const notes = 'GL Ring Cosplay: US 7 scale 74% | GL Ring 2026: US 9 scale 100%'
+    expect(parseSize(notesSegmentForKey(notes, '3D Print GL Ring Cosplay', 2)).usSize).toBe('7')
+    expect(parseSize(notesSegmentForKey(notes, 'GL Ring 2026 3D Print', 2)).usSize).toBe('9')
+  })
+
+  it('terminates a variant segment at an "ukuran"/bare "US" field, not only at a literal "size" field', () => {
+    const notes = 'Cincin X|ukuran 9|catatan X|Cincin Y|US 11|catatan Y'
+    expect(parseSize(notesSegmentForKey(notes, 'Cincin X', 2)).usSize).toBe('9')
+    expect(parseSize(notesSegmentForKey(notes, 'Cincin Y', 2)).usSize).toBe('11')
+  })
 })
 
 describe('allowedMentionsPayload', () => {

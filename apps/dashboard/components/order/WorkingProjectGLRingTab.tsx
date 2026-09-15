@@ -106,6 +106,16 @@ const COLUMN_LABELS: Record<SortColumn, string> = {
 // rendered separately from the leading sortable-header block below.
 const LEADING_SORT_COLUMNS: SortColumn[] = ['dueDate', 'orderDate', 'orderNo', 'platform', 'variant', 'usSize']
 
+// Same palette as WorkingProjectOrdersTab so both tabs on the page match.
+const STATUS_COLOR: Record<string, string> = {
+  Open: 'dark:bg-blue-900/40 dark:text-blue-300 bg-blue-100 text-blue-800',
+  Proses: 'dark:bg-amber-900/40 dark:text-amber-300 bg-amber-100 text-amber-800',
+  'Waiting Customer': 'dark:bg-orange-900/40 dark:text-orange-300 bg-orange-100 text-orange-800',
+  'Siap Kirim': 'dark:bg-purple-900/40 dark:text-purple-300 bg-purple-100 text-purple-800',
+  Done: 'dark:bg-green-900/40 dark:text-green-300 bg-green-100 text-green-800',
+  Canceled: 'dark:bg-red-900/40 dark:text-red-300 bg-red-100 text-red-800',
+}
+
 export function WorkingProjectGLRingTab() {
   const { data, isLoading } = useWorkingProjects()
   const [sortKeys, setSortKeys] = useState<SortColumn[]>(['dueDate'])
@@ -211,138 +221,175 @@ export function WorkingProjectGLRingTab() {
     }
   }
 
-  if (isLoading) return <div>Loading...</div>
+  if (isLoading) return <div className="py-12 text-center text-sm g-t4">Loading...</div>
 
   const activeCount = rowsWithOverrides.length
   const missingSizeCount = rowsWithOverrides.filter(r => !r.usSize).length
   const fullyDoneCount = rowsWithOverrides.filter(r => STEP_TYPES.every(s => r.checklistDone[s])).length
 
+  const selectClass = 'glass-input h-9 rounded-[5px] px-2 text-sm'
+  const thBase = 'px-3 py-2 text-left font-semibold whitespace-nowrap g-t4'
+  const tdBase = 'px-3 py-2 text-sm whitespace-nowrap'
+
+  function sortIndicator(col: SortColumn) {
+    const idx = sortKeys.indexOf(col)
+    if (idx === -1) return <span className="opacity-50"> ↕</span>
+    return <span className="g-accent"> ▲{sortKeys.length > 1 ? <sup>{idx + 1}</sup> : null}</span>
+  }
+
   return (
-    <div>
-      <div>
-        <span>Aktif: {activeCount}</span>
-        <span>Tanpa Ukuran: {missingSizeCount}</span>
-        <span>Selesai Semua: {fullyDoneCount}</span>
+    <>
+      <div className="flex flex-wrap gap-2 items-center mb-3 text-xs">
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full g-t2" style={{ background: 'var(--g-card)', border: '1px solid var(--g-card-border)' }}>
+          Aktif: <b className="g-t1">{activeCount}</b>
+        </span>
+        <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full ${missingSizeCount > 0 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'g-t2'}`} style={missingSizeCount > 0 ? undefined : { background: 'var(--g-card)', border: '1px solid var(--g-card-border)' }}>
+          Tanpa Ukuran: <b>{missingSizeCount}</b>
+        </span>
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300">
+          Selesai Semua: <b>{fullyDoneCount}</b>
+        </span>
+        <span className="g-t4 ml-auto hidden sm:inline">Shift+klik header untuk multi-sort (maks 3)</span>
       </div>
 
       {checklistError && (
-        <div role="alert" style={{ color: '#dc2626' }}>{checklistError}</div>
+        <div role="alert" className="mb-3 px-3 py-2 rounded-[5px] text-sm bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300">
+          {checklistError}
+        </div>
       )}
 
-      <div>
+      <div className="flex flex-wrap gap-2 items-center mb-3">
         <input
-          placeholder="Cari order no / customer..."
+          type="text"
+          placeholder="🔍 Cari order no / customer..."
           value={search}
-          onChange={e => setSearch(e.target.value)}
+          onChange={e => { setSearch(e.target.value); setPage(1) }}
+          className="glass-input flex-1 min-w-[160px] h-9 rounded-[5px] px-3 text-sm"
         />
-        <label>
-          Platform
-          <select aria-label="Platform" value={platform} onChange={e => setPlatform(e.target.value)}>
-            <option value="">Semua</option>
-            {platformOptions.map(p => <option key={p} value={p}>{p}</option>)}
-          </select>
-        </label>
-        <label>
-          Variant
-          <select aria-label="Variant" value={variant} onChange={e => setVariant(e.target.value)}>
-            <option value="">Semua</option>
-            {variantOptions.map(v => <option key={v} value={v}>{`Variant: ${v}`}</option>)}
-          </select>
-        </label>
-        <label>
-          Ukuran
-          <select aria-label="Ukuran" value={size} onChange={e => setSize(e.target.value)}>
-            <option value="">Semua</option>
-            {sizeOptions.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </label>
-        <label>
-          Tahap Produksi
-          <select aria-label="Tahap Produksi" value={step} onChange={e => setStep(e.target.value as StepType | '')}>
-            <option value="">Semua</option>
-            {STEP_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
-          </select>
-        </label>
-        <label>
-          Status Tahap
-          <select aria-label="Status Tahap" value={stepStatus} onChange={e => setStepStatus(e.target.value as '' | 'done' | 'not-done')}>
-            <option value="">Semua</option>
-            <option value="done">Selesai</option>
-            <option value="not-done">Belum</option>
-          </select>
-        </label>
-        <label>
-          Ukuran Halaman
-          <select
-            aria-label="Ukuran Halaman"
-            value={pageSize}
-            onChange={e => { setPageSize(Number(e.target.value) as (typeof PAGE_SIZES)[number]); setPage(1) }}
-          >
-            {PAGE_SIZES.map(n => <option key={n} value={n}>{n} / halaman</option>)}
-          </select>
-        </label>
+        <select aria-label="Platform" value={platform} onChange={e => { setPlatform(e.target.value); setPage(1) }} className={selectClass}>
+          <option value="">Semua Platform</option>
+          {platformOptions.map(p => <option key={p} value={p}>{p}</option>)}
+        </select>
+        <select aria-label="Variant" value={variant} onChange={e => { setVariant(e.target.value); setPage(1) }} className={selectClass}>
+          <option value="">Semua Variant</option>
+          {variantOptions.map(v => <option key={v} value={v}>{`Variant: ${v}`}</option>)}
+        </select>
+        <select aria-label="Ukuran" value={size} onChange={e => { setSize(e.target.value); setPage(1) }} className={selectClass}>
+          <option value="">Semua Ukuran</option>
+          {sizeOptions.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select aria-label="Tahap Produksi" value={step} onChange={e => { setStep(e.target.value as StepType | ''); setPage(1) }} className={selectClass}>
+          <option value="">Semua Tahap</option>
+          {STEP_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select aria-label="Status Tahap" value={stepStatus} onChange={e => { setStepStatus(e.target.value as '' | 'done' | 'not-done'); setPage(1) }} className={selectClass}>
+          <option value="">Status Tahap: Semua</option>
+          <option value="done">Tahap: Selesai</option>
+          <option value="not-done">Tahap: Belum</option>
+        </select>
+        <select
+          aria-label="Ukuran Halaman"
+          value={pageSize}
+          onChange={e => { setPageSize(Number(e.target.value) as (typeof PAGE_SIZES)[number]); setPage(1) }}
+          className={selectClass}
+        >
+          {PAGE_SIZES.map(n => <option key={n} value={n}>{n} / halaman</option>)}
+        </select>
       </div>
 
-      <table>
-        <thead>
-          <tr>
-            {LEADING_SORT_COLUMNS.map(col => (
-              <th key={col} onClick={e => handleHeaderClick(col, e)} style={{ cursor: 'pointer' }}>
-                {COLUMN_LABELS[col]}
-                {sortKeys.includes(col) ? ` (${sortKeys.indexOf(col) + 1})` : ''}
+      <div className="overflow-x-auto rounded-[5px]" style={{ border: '1px solid var(--g-card-border)' }}>
+        <table className="min-w-full border-collapse">
+          <thead className="text-xs uppercase" style={{ background: 'var(--g-card)' }}>
+            <tr>
+              {LEADING_SORT_COLUMNS.map(col => (
+                <th key={col} onClick={e => handleHeaderClick(col, e)} className={`${thBase} cursor-pointer select-none hover:g-t1`}>
+                  {COLUMN_LABELS[col]}{sortIndicator(col)}
+                </th>
+              ))}
+              <th className={thBase}>Scale</th>
+              {STEP_TYPES.map(s => (
+                <th key={s} className={`${thBase} text-center leading-tight`} title={s}>
+                  {s.split(' ').map((w, i) => <span key={i} className="block">{w}</span>)}
+                </th>
+              ))}
+              <th className={`${thBase} text-center`}>Progress</th>
+              <th onClick={e => handleHeaderClick('status', e)} className={`${thBase} cursor-pointer select-none hover:g-t1`}>
+                {COLUMN_LABELS.status}{sortIndicator('status')}
               </th>
-            ))}
-            <th>Scale</th>
-            {STEP_TYPES.map(s => <th key={s}>{s}</th>)}
-            <th>Progress</th>
-            <th onClick={e => handleHeaderClick('status', e)} style={{ cursor: 'pointer' }}>
-              {COLUMN_LABELS.status}
-              {sortKeys.includes('status') ? ` (${sortKeys.indexOf('status') + 1})` : ''}
-            </th>
-            <th>Discord</th>
-          </tr>
-        </thead>
-        <tbody>
-          {pageRows.map((r, i) => {
-            const doneCount = STEP_TYPES.filter(s => r.checklistDone[s]).length
-            return (
-              <tr key={`${r.wpId}-${r.key}-${i}`}>
-                <td>{r.dueDate ?? '-'}</td>
-                <td>{r.orderDate ?? '-'}</td>
-                <td>{r.orderNo}</td>
-                <td>{r.platform ?? '-'}</td>
-                <td>{r.key}</td>
-                <td>{r.usSize ? `US ${r.usSize}` : '-'}</td>
-                <td>{r.scalePct ? `${r.scalePct}%` : '-'}</td>
-                {STEP_TYPES.map((s, si) => (
-                  <td key={s}>
-                    <input
-                      type="checkbox"
-                      checked={r.checklistDone[s]}
-                      onChange={() => toggleChecklist(r, s, r.checklistLabels[si])}
-                      aria-label={r.checklistLabels[si]}
-                    />
-                  </td>
-                ))}
-                <td>{doneCount}/7</td>
-                <td>{r.status}</td>
-                <td>
-                  {r.discordThreadUrl ? (
-                    <a href={r.discordThreadUrl} target="_blank" rel="noreferrer">Discord</a>
-                  ) : '-'}
+              <th className={thBase}>Discord</th>
+            </tr>
+          </thead>
+          <tbody>
+            {pageRows.length === 0 ? (
+              <tr>
+                <td colSpan={LEADING_SORT_COLUMNS.length + STEP_TYPES.length + 4} className="px-3 py-8 text-center text-sm g-t4">
+                  Tidak ada baris yang cocok dengan filter.
                 </td>
               </tr>
-            )
-          })}
-        </tbody>
-      </table>
-
-      <div>
-        <span>Menampilkan {rows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, rows.length)} dari {rows.length}</span>
-        <button type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1}>‹ Prev</button>
-        <span>{currentPage} / {totalPages}</span>
-        <button type="button" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}>Next ›</button>
+            ) : pageRows.map((r, i) => {
+              const doneCount = STEP_TYPES.filter(s => r.checklistDone[s]).length
+              return (
+                <tr key={`${r.wpId}-${r.key}-${i}`} className="border-b dark:border-white/5 border-black/5 hover:bg-white/5 align-middle">
+                  <td className={tdBase}>{r.dueDate ? new Date(r.dueDate).toLocaleDateString('id-ID') : '-'}</td>
+                  <td className={tdBase}>{r.orderDate ? new Date(r.orderDate).toLocaleDateString('id-ID') : '-'}</td>
+                  <td className={tdBase}>
+                    <div className="font-medium">{r.orderNo}</div>
+                    <div className="text-xs g-t4 truncate max-w-[160px]" title={r.customer}>{r.customer}</div>
+                  </td>
+                  <td className={tdBase}>{r.platform ?? '-'}</td>
+                  <td className={`${tdBase} max-w-[200px]`}><div className="truncate" title={r.entry}>{r.key}</div></td>
+                  <td className={tdBase}>
+                    {r.usSize ? (
+                      <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium g-accent" style={{ background: 'var(--g-card)', border: '1px solid var(--g-card-border)' }}>
+                        US {r.usSize}
+                      </span>
+                    ) : (
+                      <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300" title="Ukuran tidak ditemukan di notes">
+                        -
+                      </span>
+                    )}
+                  </td>
+                  <td className={`${tdBase} g-t2`}>{r.scalePct ? `${r.scalePct}%` : '-'}</td>
+                  {STEP_TYPES.map((s, si) => (
+                    <td key={s} className={`${tdBase} text-center`}>
+                      <input
+                        type="checkbox"
+                        checked={r.checklistDone[s]}
+                        onChange={() => toggleChecklist(r, s, r.checklistLabels[si])}
+                        aria-label={r.checklistLabels[si]}
+                        title={r.checklistLabels[si]}
+                        className="h-4 w-4 cursor-pointer accent-[var(--g-accent)]"
+                      />
+                    </td>
+                  ))}
+                  <td className={`${tdBase} text-center`}>
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${doneCount === STEP_TYPES.length ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' : doneCount > 0 ? 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300' : 'g-t4'}`} style={doneCount === 0 ? { background: 'var(--g-card)', border: '1px solid var(--g-card-border)' } : undefined}>
+                      {doneCount}/{STEP_TYPES.length}
+                    </span>
+                  </td>
+                  <td className={tdBase}>
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLOR[r.status] ?? ''}`}>{r.status}</span>
+                  </td>
+                  <td className={tdBase}>
+                    {r.discordThreadUrl ? (
+                      <a href={r.discordThreadUrl} target="_blank" rel="noreferrer" className="g-accent underline">Buka</a>
+                    ) : '-'}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
       </div>
-    </div>
+
+      <div className="flex justify-between items-center mt-3 text-xs g-t4">
+        <span>Menampilkan {rows.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, rows.length)} dari {rows.length}</span>
+        <div className="flex gap-1">
+          <button type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1} className="h-8 px-2 rounded-[5px] g-btn-ghost disabled:opacity-40">‹ Prev</button>
+          <span className="px-2 py-1">{currentPage} / {totalPages}</span>
+          <button type="button" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages} className="h-8 px-2 rounded-[5px] g-btn-ghost disabled:opacity-40">Next ›</button>
+        </div>
+      </div>
+    </>
   )
 }
