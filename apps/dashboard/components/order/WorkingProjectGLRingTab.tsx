@@ -42,8 +42,18 @@ function expandToRows(projects: WorkingProject[], configuredProductIds: string[]
     const single = variants.length <= 1
     variants.forEach((entry) => {
       const key = variantShort(entry)
+      // Prefer the row's own `variant` field — for single-variant rows this
+      // is the marketplace's variant/SKU text and often carries the size
+      // directly (e.g. "US 10.5") even when notes is empty, which is the
+      // common case for orders bulk-created from Shopee/Tokopedia. It's
+      // only meaningful when there's exactly one variant on the row; a
+      // multi-variant row's single `variant` field can't be attributed to
+      // any one of the several product variants, so fall through to notes.
+      const fromVariantField = single ? parseSize(wp.variant ?? '') : { usSize: null, scalePct: null }
       const segment = notesSegmentForKey(wp.notes ?? '', key, variants.length)
-      const { usSize, scalePct } = parseSize(segment)
+      const fromNotes = parseSize(segment)
+      const usSize = fromVariantField.usSize ?? fromNotes.usSize
+      const scalePct = fromVariantField.scalePct ?? fromNotes.scalePct
       const labels = checklistLabelsFor(key, single)
       const checklistDone = {} as Record<StepType, boolean>
       STEP_TYPES.forEach((step, i) => {

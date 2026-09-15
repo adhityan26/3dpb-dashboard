@@ -22,6 +22,16 @@ const MOCK_PROJECTS = [
     appliedTags: ['Cincin'],
     checklist: [],
   },
+  // Real production shape: bulk-created from Shopee/Tokopedia with the size
+  // captured into `variant` but notes left empty — parseSize must fall back
+  // to the variant field, not just notes.
+  {
+    id: 'wp3', customer: 'Cici', product: 'Green Lantern Ring 2026 3D Print', variant: 'US 10.5', notes: '',
+    status: 'Open', platform: 'Shopee', sourceOrderNo: 'SN3', orderNoLegacy: null,
+    dueDate: null, orderDate: null, discordThreadUrl: null,
+    appliedTags: ['Cincin'],
+    checklist: [],
+  },
 ]
 
 vi.mock('@/lib/hooks/use-working-projects', async (importOriginal) => {
@@ -54,6 +64,11 @@ describe('WorkingProjectGLRingTab', () => {
   it('hides Canceled projects by default via the status filter', () => {
     renderWithClient()
     expect(screen.queryByText('Cincin C')).not.toBeInTheDocument()
+  })
+
+  it('falls back to the variant field for size when notes is empty (single-variant row)', () => {
+    renderWithClient()
+    expect(screen.getByText(/US 10\.5/)).toBeInTheDocument()
   })
 
   it('shows a Canceled row once its status is re-checked in the status filter', () => {
