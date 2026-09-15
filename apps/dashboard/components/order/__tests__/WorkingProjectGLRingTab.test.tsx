@@ -51,9 +51,16 @@ describe('WorkingProjectGLRingTab', () => {
     expect(screen.getByText('Cincin A')).toBeInTheDocument()
     expect(screen.getByText('Cincin B')).toBeInTheDocument()
   })
-  it('excludes Canceled projects entirely', () => {
+  it('hides Canceled projects by default via the status filter', () => {
     renderWithClient()
     expect(screen.queryByText('Cincin C')).not.toBeInTheDocument()
+  })
+
+  it('shows a Canceled row once its status is re-checked in the status filter', () => {
+    renderWithClient()
+    fireEvent.click(screen.getByRole('button', { name: /status: 4 dipilih/i }))
+    fireEvent.click(screen.getByLabelText('Canceled'))
+    expect(screen.getByText('Cincin C')).toBeInTheDocument()
   })
 })
 

@@ -5,6 +5,9 @@ import { splitProductVariants, variantShort, parseSize, isGLRing, notesSegmentFo
 
 const PAGE_SIZES = [10, 25, 50, 100] as const
 
+const ALL_STATUSES = ['Open', 'Proses', 'Waiting Customer', 'Siap Kirim', 'Done', 'Canceled'] as const
+const DEFAULT_HIDDEN_STATUSES = new Set(['Done', 'Canceled'])
+
 const STEP_TYPES = ['Print Frame', 'Print Stone', 'Print Ring', 'Cat Frame', 'Cat Stone', 'Cat Ring', 'Assembly'] as const
 type StepType = (typeof STEP_TYPES)[number]
 
@@ -34,7 +37,6 @@ function checklistLabelsFor(key: string, single: boolean): string[] {
 function expandToRows(projects: WorkingProject[], configuredProductIds: string[]): RingRow[] {
   const rows: RingRow[] = []
   for (const wp of projects) {
-    if (wp.status === 'Canceled') continue
     if (!isGLRing(wp.appliedTags ?? [], wp.forumChannelId, wp.product, wp.sourceProductId, configuredProductIds)) continue
     const variants = splitProductVariants(wp.product)
     const single = variants.length <= 1
@@ -125,6 +127,10 @@ export function WorkingProjectGLRingTab() {
   const [size, setSize] = useState('')
   const [step, setStep] = useState<StepType | ''>('')
   const [stepStatus, setStepStatus] = useState<'' | 'done' | 'not-done'>('')
+  const [statusFilter, setStatusFilter] = useState<Set<string>>(
+    () => new Set(ALL_STATUSES.filter(s => !DEFAULT_HIDDEN_STATUSES.has(s))),
+  )
+  const [statusMenuOpen, setStatusMenuOpen] = useState(false)
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(25)
   const [page, setPage] = useState(1)
 
@@ -177,6 +183,7 @@ export function WorkingProjectGLRingTab() {
     if (platform) out = out.filter(r => r.platform === platform)
     if (variant) out = out.filter(r => r.key === variant)
     if (size) out = out.filter(r => r.usSize === size)
+    out = out.filter(r => statusFilter.has(r.status))
     if (step && stepStatus) {
       out = out.filter(r => {
         const done = r.checklistDone[step]
@@ -191,7 +198,17 @@ export function WorkingProjectGLRingTab() {
       return 0
     })
     return sorted
-  }, [rowsWithOverrides, search, platform, variant, size, step, stepStatus, sortKeys])
+  }, [rowsWithOverrides, search, platform, variant, size, statusFilter, step, stepStatus, sortKeys])
+
+  function toggleStatus(status: string) {
+    setPage(1)
+    setStatusFilter(prev => {
+      const next = new Set(prev)
+      if (next.has(status)) next.delete(status)
+      else next.add(status)
+      return next
+    })
+  }
 
   const totalPages = Math.max(1, Math.ceil(rows.length / pageSize))
   const currentPage = Math.min(page, totalPages)
@@ -223,9 +240,9 @@ export function WorkingProjectGLRingTab() {
 
   if (isLoading) return <div className="py-12 text-center text-sm g-t4">Loading...</div>
 
-  const activeCount = rowsWithOverrides.length
-  const missingSizeCount = rowsWithOverrides.filter(r => !r.usSize).length
-  const fullyDoneCount = rowsWithOverrides.filter(r => STEP_TYPES.every(s => r.checklistDone[s])).length
+  const activeCount = rows.length
+  const missingSizeCount = rows.filter(r => !r.usSize).length
+  const fullyDoneCount = rows.filter(r => STEP_TYPES.every(s => r.checklistDone[s])).length
 
   const selectClass = 'glass-input h-9 rounded-[5px] px-2 text-sm'
   const thBase = 'px-3 py-2 text-left font-semibold whitespace-nowrap g-t4'
@@ -270,6 +287,28 @@ export function WorkingProjectGLRingTab() {
           <option value="">Semua Platform</option>
           {platformOptions.map(p => <option key={p} value={p}>{p}</option>)}
         </select>
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => setStatusMenuOpen(v => !v)}
+            className={selectClass}
+          >
+            Status: {statusFilter.size} dipilih ▾
+          </button>
+          {statusMenuOpen ? (
+            <div
+              className="absolute top-full left-0 mt-1 z-10 min-w-[180px] rounded-[5px] p-2"
+              style={{ background: 'var(--g-modal)', border: '1px solid var(--g-card-border)' }}
+            >
+              {ALL_STATUSES.map(s => (
+                <label key={s} className="flex items-center gap-2 px-1.5 py-1 rounded-[4px] hover:bg-white/5 text-sm cursor-pointer">
+                  <input type="checkbox" checked={statusFilter.has(s)} onChange={() => toggleStatus(s)} />
+                  {s}
+                </label>
+              ))}
+            </div>
+          ) : null}
+        </div>
         <select aria-label="Variant" value={variant} onChange={e => { setVariant(e.target.value); setPage(1) }} className={selectClass}>
           <option value="">Semua Variant</option>
           {variantOptions.map(v => <option key={v} value={v}>{`Variant: ${v}`}</option>)}
