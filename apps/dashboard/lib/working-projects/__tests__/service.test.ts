@@ -3,18 +3,20 @@ vi.mock('../discord-sync', () => ({
   createRelayThread: vi.fn(),
   editRelayThread: vi.fn(),
   archiveRelayThread: vi.fn(),
+  deleteRelayThread: vi.fn(),
 }))
 vi.mock('@/lib/db', () => ({
   prisma: {
     workingProject: {
       create: vi.fn(),
       update: vi.fn(),
+      delete: vi.fn(),
       findUnique: vi.fn(),
     },
   },
 }))
-import { createWorkingProject, setStatus, updateWorkingProject, resyncWorkingProject, runChecklistOp, markReminderSent } from '../service'
-import { createRelayThread, editRelayThread } from '../discord-sync'
+import { createWorkingProject, setStatus, updateWorkingProject, resyncWorkingProject, runChecklistOp, markReminderSent, deleteWorkingProject } from '../service'
+import { createRelayThread, editRelayThread, deleteRelayThread } from '../discord-sync'
 import { prisma } from '@/lib/db'
 
 beforeEach(() => {
@@ -290,5 +292,36 @@ describe('markReminderSent', () => {
 
     await expect(markReminderSent('unknown', 3)).rejects.toThrow(/not found/i)
     expect(prisma.workingProject.update).not.toHaveBeenCalled()
+  })
+})
+
+describe('deleteWorkingProject', () => {
+  it('deletes the DB row by id and the Discord thread by threadId', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1' })
+    ;(prisma.workingProject.delete as any).mockResolvedValue({})
+    ;(deleteRelayThread as any).mockResolvedValue(undefined)
+
+    const result = await deleteWorkingProject('t1')
+    expect(prisma.workingProject.delete).toHaveBeenCalledWith({ where: { id: 'wp1' } })
+    expect(deleteRelayThread).toHaveBeenCalledWith('t1')
+    expect(result).toEqual({ ok: true, discordDeleted: true })
+  })
+
+  it('still deletes the DB row and reports discordDeleted:false when the relay call fails', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1' })
+    ;(prisma.workingProject.delete as any).mockResolvedValue({})
+    ;(deleteRelayThread as any).mockRejectedValue(new Error('discord-relay 404'))
+
+    const result = await deleteWorkingProject('t1')
+    expect(prisma.workingProject.delete).toHaveBeenCalledWith({ where: { id: 'wp1' } })
+    expect(result).toEqual({ ok: true, discordDeleted: false })
+  })
+
+  it('throws a clean not-found error for an unknown threadId instead of deleting anything', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue(null)
+
+    await expect(deleteWorkingProject('unknown')).rejects.toThrow(/not found/i)
+    expect(prisma.workingProject.delete).not.toHaveBeenCalled()
+    expect(deleteRelayThread).not.toHaveBeenCalled()
   })
 })

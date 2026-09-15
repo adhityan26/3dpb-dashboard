@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db'
 import { buildTitle, buildPostContent, parseDueDate, parseOrderDate, parseAmount, appendNoteWithTimestamp } from './format'
-import { createRelayThread, editRelayThread, archiveRelayThread } from './discord-sync'
+import { createRelayThread, editRelayThread, archiveRelayThread, deleteRelayThread } from './discord-sync'
 
 export async function createWorkingProject(input: {
   source: 'shopee' | 'tokopedia' | 'manual'
@@ -116,6 +116,26 @@ export async function markDone(threadId: string): Promise<{ ok: true; discordSyn
   const discordSynced = await syncEditOrError(wp.id, wp.discordThreadId, { starterContent: rebuildStarterContent(updated) })
   await archiveRelayThread(threadId).catch(() => {})
   return { ok: true, discordSynced }
+}
+
+// Permanently removes a WorkingProject row and (best-effort) its Discord
+// thread — used for cleaning up genuine duplicates (e.g. two threads
+// created for the same marketplace order). The DB row is deleted first: if
+// the Discord delete fails (thread already gone, relay down), the WP row
+// is still gone and doesn't linger as an orphaned duplicate in the
+// dashboard/rekap — discordDeleted:false just means the Discord thread
+// itself needs manual cleanup.
+export async function deleteWorkingProject(threadId: string): Promise<{ ok: true; discordDeleted: boolean }> {
+  const wp = await prisma.workingProject.findUnique({ where: { discordThreadId: threadId } })
+  if (!wp) throw new Error(`WorkingProject not found for discordThreadId=${threadId}`)
+  await prisma.workingProject.delete({ where: { id: wp.id } })
+  let discordDeleted = true
+  try {
+    await deleteRelayThread(threadId)
+  } catch {
+    discordDeleted = false
+  }
+  return { ok: true, discordDeleted }
 }
 
 const UPDATE_PATCH_KEYS = new Set([

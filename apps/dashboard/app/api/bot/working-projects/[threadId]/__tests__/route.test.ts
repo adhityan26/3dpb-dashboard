@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/db', () => ({ prisma: { workingProject: { findUnique: vi.fn() } } }))
-vi.mock('@/lib/working-projects/service', () => ({ updateWorkingProject: vi.fn() }))
+vi.mock('@/lib/working-projects/service', () => ({ updateWorkingProject: vi.fn(), deleteWorkingProject: vi.fn() }))
 vi.mock('@/lib/bot/auth', () => ({ requireBotToken: vi.fn(() => true) }))
-import { GET, PATCH } from '../route'
+import { GET, PATCH, DELETE } from '../route'
 import { prisma } from '@/lib/db'
-import { updateWorkingProject } from '@/lib/working-projects/service'
+import { updateWorkingProject, deleteWorkingProject } from '@/lib/working-projects/service'
 import { requireBotToken } from '@/lib/bot/auth'
 
 function req(method: string, body?: unknown) {
@@ -60,5 +60,31 @@ describe('PATCH /api/bot/working-projects/[threadId]', () => {
     const body = await res.json()
     expect(body.error).toBe('unknown_patch_field')
     expect(body.message).toContain('orderDate')
+  })
+})
+
+describe('DELETE /api/bot/working-projects/[threadId]', () => {
+  beforeEach(() => {
+    ;(requireBotToken as any).mockReturnValue(true)
+  })
+
+  it('401s when requireBotToken returns false', async () => {
+    ;(requireBotToken as any).mockReturnValue(false)
+    const res = await DELETE(req('DELETE'), { params: Promise.resolve({ threadId: 't1' }) })
+    expect(res.status).toBe(401)
+    expect(deleteWorkingProject).not.toHaveBeenCalled()
+  })
+
+  it('delegates to deleteWorkingProject and returns its result', async () => {
+    ;(deleteWorkingProject as any).mockResolvedValue({ ok: true, discordDeleted: true })
+    const res = await DELETE(req('DELETE'), { params: Promise.resolve({ threadId: 't1' }) })
+    expect(deleteWorkingProject).toHaveBeenCalledWith('t1')
+    expect(await res.json()).toEqual({ ok: true, discordDeleted: true })
+  })
+
+  it('404s cleanly when the threadId does not match any project', async () => {
+    ;(deleteWorkingProject as any).mockRejectedValue(new Error('WorkingProject not found for discordThreadId=t1'))
+    const res = await DELETE(req('DELETE'), { params: Promise.resolve({ threadId: 't1' }) })
+    expect(res.status).toBe(404)
   })
 })
