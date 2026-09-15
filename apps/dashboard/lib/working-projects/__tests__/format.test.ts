@@ -57,6 +57,28 @@ describe('parseSize', () => {
   it('returns nulls when no size segment present', () => {
     expect(parseSize('warna emas')).toEqual({ usSize: null, scalePct: null })
   })
+
+  // Real production notes (found 2026-09-16 after a batch of orders showed
+  // "-" for every row on the GL Ring tab) use several shapes besides
+  // "size US <n>" — the strict "size" keyword requirement missed all of them.
+  it('extracts a bare "US <n>" segment with no "size"/"ukuran" label', () => {
+    const r = parseSize('yang sesuai gambar ya kak GL 2026 ukuran 7.5 | US 9.5 | scale 83%')
+    expect(r.usSize).toBe('9.5')
+  })
+  it('extracts size from an Indonesian "Ukuran: US <n>" label', () => {
+    expect(parseSize('Ukuran: US 13').usSize).toBe('13')
+  })
+  it('extracts size from an Indonesian "Ukuran <n>" label with no US token', () => {
+    expect(parseSize('Ukuran 9').usSize).toBe('9')
+  })
+  it('interpolates scalePct for a half size between two known whole sizes', () => {
+    const r = parseSize('size US 9.5')
+    expect(r.usSize).toBe('9.5')
+    expect(r.scalePct).toBe(Math.round((SIZE_SCALE['9'] + SIZE_SCALE['10']) / 2))
+  })
+  it('resolves size 13 (extended range beyond the original 5-12 table)', () => {
+    expect(parseSize('size US 13').scalePct).toBe(SIZE_SCALE['13'])
+  })
 })
 
 describe('splitProductVariants', () => {
