@@ -6,7 +6,13 @@ import type {
   ShopeeOrderStatus,
 } from "@/lib/shopee/types"
 
-const FIFTEEN_DAYS_SEC = 15 * 24 * 60 * 60
+// Shopee's order-list API filters by create_time, not "still unshipped" —
+// an order created more than 15 days ago that's STILL stuck READY_TO_SHIP/
+// PROCESSED used to fall out of the single 15-day window getReadyToShipOrders()
+// queried, silently disappearing from "belum dikirim" counts (found via a
+// Shopee export showing orders as old as 23 days still Perlu Dikirim, 2026-09-15).
+// 90 days covers realistic backlogs while keeping the chunked call count sane.
+const UNSHIPPED_LOOKBACK_SEC = 90 * 24 * 60 * 60
 
 /**
  * Fetch all order_sn in a SINGLE 15-day window. Shopee API hard limit.
@@ -42,14 +48,14 @@ async function getOrderSnsInWindow(params: {
 
 /**
  * Fetch all order_sn in the given time range, optionally filtered by status.
- * Returns full order details. Automatically chunks the range into ≤15-day
- * windows because Shopee Order API enforces that limit per call.
+ * Automatically chunks the range into ≤15-day windows because Shopee Order
+ * API enforces that limit per call.
  */
-export async function getOrdersInRange(params: {
-  timeFrom: number // unix seconds
+async function getOrderSnsInRange(params: {
+  timeFrom: number
   timeTo: number
   status?: ShopeeOrderStatus
-}): Promise<ShopeeOrderDetail[]> {
+}): Promise<string[]> {
   // Chunk into ≤15-day windows (use 14 days to stay safely under)
   const windowSize = 14 * 24 * 60 * 60
   const allSns: string[] = []
@@ -66,6 +72,21 @@ export async function getOrdersInRange(params: {
     windowStart = windowEnd
   }
 
+  return allSns
+}
+
+/**
+ * Fetch all order_sn in the given time range, optionally filtered by status.
+ * Returns full order details. Automatically chunks the range into ≤15-day
+ * windows because Shopee Order API enforces that limit per call.
+ */
+export async function getOrdersInRange(params: {
+  timeFrom: number // unix seconds
+  timeTo: number
+  status?: ShopeeOrderStatus
+}): Promise<ShopeeOrderDetail[]> {
+  const allSns = await getOrderSnsInRange(params)
+
   // Dedupe in case chunk boundaries produce overlap (shouldn't, but safe)
   const uniqueSns = Array.from(new Set(allSns))
 
@@ -81,23 +102,17 @@ export async function getOrdersInRange(params: {
 
 export async function getReadyToShipOrders(): Promise<OrderListResult> {
   const now = Math.floor(Date.now() / 1000)
-  const from = now - FIFTEEN_DAYS_SEC
+  const from = now - UNSHIPPED_LOOKBACK_SEC
 
-  // Fetch both unshipped statuses in parallel
+  // Fetch both unshipped statuses in parallel, each chunked across the full
+  // lookback window (a single 15-day window would silently miss orders
+  // still stuck unshipped from further back — see UNSHIPPED_LOOKBACK_SEC).
   const statuses = ["READY_TO_SHIP", "PROCESSED"] as const
   const allSns: string[] = []
 
   await Promise.all(statuses.map(async (status) => {
-    let cursor: string | undefined
-    let hasMore = true
-    let safety = 0
-    while (hasMore && safety < 20) {
-      const page = await getOrderList({ timeFrom: from, timeTo: now, status, pageSize: 50, cursor })
-      for (const entry of page.order_list) allSns.push(entry.order_sn)
-      hasMore = page.more
-      cursor = page.next_cursor
-      safety++
-    }
+    const sns = await getOrderSnsInRange({ timeFrom: from, timeTo: now, status })
+    allSns.push(...sns)
   }))
 
   // Deduplicate
@@ -161,20 +176,10 @@ export async function getReadyToShipOrders(): Promise<OrderListResult> {
 
 export async function countBelumCetak(): Promise<number> {
   const now = Math.floor(Date.now() / 1000)
-  const from = now - FIFTEEN_DAYS_SEC
+  const from = now - UNSHIPPED_LOOKBACK_SEC
 
   // Count only READY_TO_SHIP — these are orders not yet processed/printed in Shopee
-  const sns: string[] = []
-  let cursor: string | undefined
-  let hasMore = true
-  let safety = 0
-  while (hasMore && safety < 20) {
-    const page = await getOrderList({ timeFrom: from, timeTo: now, status: "READY_TO_SHIP", pageSize: 100, cursor })
-    for (const entry of page.order_list) sns.push(entry.order_sn)
-    hasMore = page.more
-    cursor = page.next_cursor
-    safety++
-  }
+  const sns = await getOrderSnsInRange({ timeFrom: from, timeTo: now, status: "READY_TO_SHIP" })
 
   return Array.from(new Set(sns)).length
 }
