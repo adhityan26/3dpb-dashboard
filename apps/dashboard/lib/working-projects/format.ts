@@ -99,23 +99,6 @@ export function buildPostContent(wp: {
   return lines.join('\n')
 }
 
-export const SIZE_SCALE: Record<string, number> = {
-  '5': 88, '6': 91, '7': 94, '8': 97, '9': 100, '10': 103, '11': 106, '12': 109, '13': 112,
-}
-
-// SIZE_SCALE only has whole-size entries (the +3-per-size progression the
-// business uses) — half sizes (e.g. "9.5") interpolate between their
-// neighbors rather than falling back to null.
-function scaleForSize(usSize: string): number | null {
-  if (SIZE_SCALE[usSize] != null) return SIZE_SCALE[usSize]
-  const n = Number(usSize)
-  if (Number.isNaN(n)) return null
-  const lo = SIZE_SCALE[String(Math.floor(n))]
-  const hi = SIZE_SCALE[String(Math.ceil(n))]
-  if (lo == null || hi == null) return null
-  return Math.round((lo + hi) / 2)
-}
-
 // Real order notes encode size in several ways found in production data:
 //   "size US 8" / "size US 9.5"      — original expected shape
 //   "US 9.5" (no "size"/"ukuran")    — bare segment, e.g. from a
@@ -123,25 +106,28 @@ function scaleForSize(usSize: string): number | null {
 //                                       "... ukuran 7.5 | US 9.5 | scale 83%"
 //   "Ukuran: US 13"                  — Indonesian label, with colon
 //   "Ukuran 7.5" (no "US" at all)    — Indonesian label, no US token
-// "US <n>" is preferred over a bare "ukuran <n>" when both appear, since US
-// is the canonical scale SIZE_SCALE is keyed on.
-export function parseSize(notes: string): { usSize: string | null; scalePct: number | null } {
+// "US <n>" is preferred over a bare "ukuran <n>" when both appear.
+//
+// NOTE: this only extracts the US size string — it does NOT compute a print
+// scale percentage. An earlier version of this function fabricated one from
+// a made-up lookup table (`SIZE_SCALE`, +3%-per-size); that table didn't
+// match the real formula the Ring Resizer feature actually uses
+// (lib/ring-resizer/sizing.ts's computeScale, keyed off a per-model
+// baseBoreMm) and was actively wrong (e.g. claimed US 9 = 100% when the real
+// figure, using the "Green Lantern 2026" model's baseBoreMm, is 81%). Scale
+// display now goes through computeScale() with a real baseBoreMm instead —
+// see WorkingProjectGLRingTab.tsx.
+export function parseSize(notes: string): { usSize: string | null } {
   const segments = notes.split('|').map(s => s.trim())
   for (const seg of segments) {
     const m = seg.match(/(?:size|ukuran)?\s*:?\s*\bus\s*(\d{1,2}(?:\.\d)?)/i)
-    if (m) {
-      const usSize = m[1]
-      return { usSize, scalePct: scaleForSize(usSize) }
-    }
+    if (m) return { usSize: m[1] }
   }
   for (const seg of segments) {
     const m = seg.match(/(?:size|ukuran)\s*:?\s*(\d{1,2}(?:\.\d)?)/i)
-    if (m) {
-      const usSize = m[1]
-      return { usSize, scalePct: scaleForSize(usSize) }
-    }
+    if (m) return { usSize: m[1] }
   }
-  return { usSize: null, scalePct: null }
+  return { usSize: null }
 }
 
 // The `variant` field on a GL Ring row is sometimes JUST the bare number
@@ -151,15 +137,12 @@ export function parseSize(notes: string): { usSize: string | null; scalePct: num
 // field IS the variant/size value, nothing else. Try parseSize() first (it
 // still handles "US 11" etc. in this field), then fall back to a bare
 // number occupying the entire trimmed string.
-export function parseSizeFromVariantField(variant: string): { usSize: string | null; scalePct: number | null } {
+export function parseSizeFromVariantField(variant: string): { usSize: string | null } {
   const viaParseSize = parseSize(variant)
   if (viaParseSize.usSize) return viaParseSize
   const bare = variant.trim().match(/^(\d{1,2}(?:\.\d)?)$/)
-  if (bare) {
-    const usSize = bare[1]
-    return { usSize, scalePct: scaleForSize(usSize) }
-  }
-  return { usSize: null, scalePct: null }
+  if (bare) return { usSize: bare[1] }
+  return { usSize: null }
 }
 
 // Notes for a multi-variant project encode a size/notes block per variant.

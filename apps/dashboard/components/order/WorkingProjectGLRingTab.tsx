@@ -1,7 +1,23 @@
 'use client'
 import { useMemo, useState } from 'react'
-import { useWorkingProjects, useSetChecklistByLabel, useGLRingProductIds, type WorkingProject } from '@/lib/hooks/use-working-projects'
+import { useWorkingProjects, useSetChecklistByLabel, useGLRingProductIds, useGLRingBaseBoreMm, type WorkingProject } from '@/lib/hooks/use-working-projects'
 import { splitProductVariants, variantShort, parseSize, parseSizeFromVariantField, isGLRing, notesSegmentForKey } from '@/lib/working-projects/format'
+import { computeScale } from '@/lib/ring-resizer/sizing'
+
+// Same 0.3mm clearance the Ring Resizer's production form defaults to
+// ("+ 0.3 mm kelonggaran (rekomendasi)") — this tab has no per-row toggle
+// for it, so it always assumes the recommended default.
+const CLEARANCE_MM = 0.3
+
+// Uses scaleCeil (rounded UP to the whole percent), matching the Ring
+// Resizer production form's own "bulatkan ke atas" convention — this is the
+// scale factor production actually applies, not the exact/unrounded value.
+function scalePctFor(usSize: string | null, baseBoreMm: number | null): number | null {
+  if (!usSize || baseBoreMm == null) return null
+  const value = Number(usSize)
+  if (Number.isNaN(value) || value <= 0) return null
+  return Math.round(computeScale({ mode: 'us', value, clearanceMm: CLEARANCE_MM, baseBoreMm }).scaleCeil * 100)
+}
 
 const PAGE_SIZES = [10, 25, 50, 100] as const
 
@@ -34,7 +50,7 @@ function checklistLabelsFor(key: string, single: boolean): string[] {
   return STEP_TYPES.map(step => (single ? step : `${key} — ${step}`))
 }
 
-function expandToRows(projects: WorkingProject[], configuredProductIds: string[]): RingRow[] {
+function expandToRows(projects: WorkingProject[], configuredProductIds: string[], baseBoreMm: number | null): RingRow[] {
   const rows: RingRow[] = []
   for (const wp of projects) {
     if (!isGLRing(wp.appliedTags ?? [], wp.forumChannelId, wp.product, wp.sourceProductId, configuredProductIds)) continue
@@ -49,11 +65,11 @@ function expandToRows(projects: WorkingProject[], configuredProductIds: string[]
       // only meaningful when there's exactly one variant on the row; a
       // multi-variant row's single `variant` field can't be attributed to
       // any one of the several product variants, so fall through to notes.
-      const fromVariantField = single ? parseSizeFromVariantField(wp.variant ?? '') : { usSize: null, scalePct: null }
+      const fromVariantField = single ? parseSizeFromVariantField(wp.variant ?? '') : { usSize: null }
       const segment = notesSegmentForKey(wp.notes ?? '', key, variants.length)
       const fromNotes = parseSize(segment)
       const usSize = fromVariantField.usSize ?? fromNotes.usSize
-      const scalePct = fromVariantField.scalePct ?? fromNotes.scalePct
+      const scalePct = scalePctFor(usSize, baseBoreMm)
       const labels = checklistLabelsFor(key, single)
       const checklistDone = {} as Record<StepType, boolean>
       STEP_TYPES.forEach((step, i) => {
@@ -154,10 +170,11 @@ export function WorkingProjectGLRingTab() {
   const [checklistError, setChecklistError] = useState<string | null>(null)
   const setChecklistByLabel = useSetChecklistByLabel()
   const { data: configuredProductIds } = useGLRingProductIds()
+  const { data: baseBoreMm } = useGLRingBaseBoreMm()
 
   const allRows = useMemo(
-    () => expandToRows(data ?? [], configuredProductIds ?? []),
-    [data, configuredProductIds],
+    () => expandToRows(data ?? [], configuredProductIds ?? [], baseBoreMm),
+    [data, configuredProductIds, baseBoreMm],
   )
 
   const rowsWithOverrides = useMemo(() => {

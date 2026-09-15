@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildTitle, buildPostContent, parseDueDate, parseOrderDate, SIZE_SCALE, parseSize, parseSizeFromVariantField, isGLRing, variantShort, splitProductVariants, parseAmount, appendNoteWithTimestamp, allowedMentionsPayload, notesSegmentForKey } from '../format'
+import { buildTitle, buildPostContent, parseDueDate, parseOrderDate, parseSize, parseSizeFromVariantField, isGLRing, variantShort, splitProductVariants, parseAmount, appendNoteWithTimestamp, allowedMentionsPayload, notesSegmentForKey } from '../format'
 
 describe('buildTitle', () => {
   it('joins customer, product, variant', () => {
@@ -53,21 +53,13 @@ describe('buildPostContent', () => {
   })
 })
 
-describe('SIZE_SCALE', () => {
-  it('maps US ring sizes to scale percentages', () => {
-    expect(SIZE_SCALE['8']).toBeTypeOf('number')
-    expect(SIZE_SCALE['6']).toBeLessThan(SIZE_SCALE['10'])
-  })
-})
-
 describe('parseSize', () => {
   it('extracts US size from pipe-delimited notes', () => {
     const r = parseSize('warna emas | size US 8 | catatan lain')
     expect(r.usSize).toBe('8')
-    expect(r.scalePct).toBe(SIZE_SCALE['8'])
   })
   it('returns nulls when no size segment present', () => {
-    expect(parseSize('warna emas')).toEqual({ usSize: null, scalePct: null })
+    expect(parseSize('warna emas')).toEqual({ usSize: null })
   })
 
   // Real production notes (found 2026-09-16 after a batch of orders showed
@@ -83,13 +75,11 @@ describe('parseSize', () => {
   it('extracts size from an Indonesian "Ukuran <n>" label with no US token', () => {
     expect(parseSize('Ukuran 9').usSize).toBe('9')
   })
-  it('interpolates scalePct for a half size between two known whole sizes', () => {
-    const r = parseSize('size US 9.5')
-    expect(r.usSize).toBe('9.5')
-    expect(r.scalePct).toBe(Math.round((SIZE_SCALE['9'] + SIZE_SCALE['10']) / 2))
+  it('extracts a half size verbatim, with no scale computation (that lives in the GL Ring tab via the real Ring Resizer formula)', () => {
+    expect(parseSize('size US 9.5')).toEqual({ usSize: '9.5' })
   })
-  it('resolves size 13 (extended range beyond the original 5-12 table)', () => {
-    expect(parseSize('size US 13').scalePct).toBe(SIZE_SCALE['13'])
+  it('resolves size 13', () => {
+    expect(parseSize('size US 13').usSize).toBe('13')
   })
 })
 
@@ -101,9 +91,7 @@ describe('parseSizeFromVariantField', () => {
     expect(parseSizeFromVariantField('11').usSize).toBe('11')
   })
   it('accepts a bare half size occupying the entire field', () => {
-    const r = parseSizeFromVariantField('8.5')
-    expect(r.usSize).toBe('8.5')
-    expect(r.scalePct).toBe(Math.round((SIZE_SCALE['8'] + SIZE_SCALE['9']) / 2))
+    expect(parseSizeFromVariantField('8.5').usSize).toBe('8.5')
   })
   it('still prefers a "US n" match when present, over treating it as a bare number', () => {
     expect(parseSizeFromVariantField('US 9').usSize).toBe('9')

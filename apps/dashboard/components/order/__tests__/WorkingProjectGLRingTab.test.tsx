@@ -48,9 +48,13 @@ vi.mock('@/lib/hooks/use-working-projects', async (importOriginal) => {
     ...actual,
     useWorkingProjects: () => ({ data: MOCK_PROJECTS, isLoading: false }),
     useGLRingProductIds: () => ({ data: [], isLoading: false }),
+    // Real "Green Lantern 2026" model baseBoreMm from production, so scale%
+    // assertions below match the real Ring Resizer formula's output.
+    useGLRingBaseBoreMm: () => ({ data: 23.871, isLoading: false }),
   }
 })
 import { WorkingProjectGLRingTab } from '../WorkingProjectGLRingTab'
+import { computeScale } from '@/lib/ring-resizer/sizing'
 
 function renderWithClient(client = new QueryClient()) {
   const wrapper = ({ children }: { children: ReactNode }) => (
@@ -82,6 +86,18 @@ describe('WorkingProjectGLRingTab', () => {
   it('reads a bare-number variant field ("11", no US/size token) as the size', () => {
     renderWithClient()
     expect(screen.getByText(/US 11\b/)).toBeInTheDocument()
+  })
+
+  it('computes Scale % via the real Ring Resizer formula, not a fabricated lookup table', () => {
+    // wp3 = US 10.5 with the mocked baseBoreMm (23.871mm, the real
+    // "Green Lantern 2026" model figure) and the tab's fixed 0.3mm
+    // clearance — this used to come from a hardcoded +3%-per-size table
+    // that was simply wrong (e.g. claimed US 9 = 100%, real figure is 81%).
+    const expectedPct = Math.round(
+      computeScale({ mode: 'us', value: 10.5, clearanceMm: 0.3, baseBoreMm: 23.871 }).scaleCeil * 100,
+    )
+    renderWithClient()
+    expect(screen.getByText(`${expectedPct}%`)).toBeInTheDocument()
   })
 
   it('shows a Canceled row once its status is re-checked in the status filter', () => {

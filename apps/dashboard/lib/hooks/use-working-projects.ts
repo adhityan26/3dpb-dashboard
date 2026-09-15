@@ -170,3 +170,15 @@ export function useUpdateGLRingProductIds() {
     },
   })
 }
+
+// baseBoreMm for the Ring Resizer's real scale formula (see
+// lib/ring-resizer/sizing.ts) — used by the GL Ring tab's Scale % column.
+export const GL_RING_MODEL_KEY = ["working-projects", "gl-ring-model"] as const
+
+export function useGLRingBaseBoreMm() {
+  const query = useQuery({
+    queryKey: GL_RING_MODEL_KEY,
+    queryFn: () => apiFetch<{ baseBoreMm: number | null }>("/api/working-projects/gl-ring-model"),
+  })
+  return { ...query, data: query.data?.baseBoreMm ?? null, isLoading: query.isLoading }
+}
