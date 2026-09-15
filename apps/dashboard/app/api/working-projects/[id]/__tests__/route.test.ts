@@ -47,6 +47,16 @@ describe('PATCH /api/working-projects/:id', () => {
     expect(res.status).toBe(409)
     expect(updateWorkingProject).not.toHaveBeenCalled()
   })
+
+  it('400s with a clear message when updateWorkingProject rejects an unknown patch field, instead of leaking a 500', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1' })
+    ;(updateWorkingProject as any).mockRejectedValue(new Error('updateWorkingProject: unknown patch field(s): orderDate'))
+    const res = await PATCH(req('PATCH', { orderDate: '2026-09-01' }), { params: Promise.resolve({ id: 'wp1' }) })
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error).toBe('unknown_patch_field')
+    expect(body.message).toContain('orderDate')
+  })
 })
 
 describe('DELETE /api/working-projects/:id', () => {

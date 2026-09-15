@@ -19,8 +19,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     )
   }
   const body = await req.json()
-  const result = await updateWorkingProject(wp.discordThreadId, body)
-  return NextResponse.json(result)
+  try {
+    const result = await updateWorkingProject(wp.discordThreadId, body)
+    return NextResponse.json(result)
+  } catch (err) {
+    if (err instanceof Error && err.message.includes("unknown patch field")) {
+      return NextResponse.json({ error: "unknown_patch_field", message: err.message }, { status: 400 })
+    }
+    throw err
+  }
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

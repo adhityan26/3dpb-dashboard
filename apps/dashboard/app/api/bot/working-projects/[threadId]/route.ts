@@ -15,5 +15,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ th
   if (!requireBotToken(req)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { threadId } = await params
   const body = await req.json()
-  return NextResponse.json(await updateWorkingProject(threadId, body))
+  try {
+    return NextResponse.json(await updateWorkingProject(threadId, body))
+  } catch (err) {
+    if (err instanceof Error && err.message.includes('unknown patch field')) {
+      return NextResponse.json({ error: 'unknown_patch_field', message: err.message }, { status: 400 })
+    }
+    throw err
+  }
 }

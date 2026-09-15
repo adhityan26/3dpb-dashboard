@@ -58,6 +58,22 @@ describe('createWorkingProject', () => {
     expect(result.threadUrl).toBeNull()
     expect(result.syncState).toBe('error')
   })
+
+  it('persists orderDateRaw as a parsed orderDate and includes it in the Discord post', async () => {
+    ;(prisma.workingProject.create as any).mockResolvedValue({ id: 'wp3' })
+    ;(createRelayThread as any).mockResolvedValue({ threadId: 't3', threadUrl: 'https://discord/t3' })
+    ;(prisma.workingProject.update as any).mockResolvedValue({})
+
+    await createWorkingProject({
+      source: 'shopee', forumChannelId: 'FORUM_CINCIN_ID',
+      customer: 'Budi', product: 'Cincin', orderDateRaw: '2026-09-01',
+    })
+
+    const createCall = (prisma.workingProject.create as any).mock.calls[0][0]
+    expect((createCall.data.orderDate as Date).toISOString().slice(0, 10)).toBe('2026-09-01')
+    const relayCall = (createRelayThread as any).mock.calls[0][0]
+    expect(relayCall.message).toContain('2026-09-01')
+  })
 })
 
 describe('setStatus', () => {
@@ -144,6 +160,17 @@ describe('updateWorkingProject', () => {
     const relayCall = (editRelayThread as any).mock.calls[0]
     expect(relayCall[1].mentions).toEqual(['123'])
     expect(relayCall[1].appliedTags).toEqual(['Cincin'])
+  })
+
+  it('throws instead of silently no-opping when the patch has no recognized field (e.g. a typo\'d or made-up field name)', async () => {
+    await expect(updateWorkingProject('t1', { orderDate: '2026-09-01' } as any)).rejects.toThrow(/unknown patch field/)
+    expect(prisma.workingProject.findUnique).not.toHaveBeenCalled()
+    expect(prisma.workingProject.update).not.toHaveBeenCalled()
+  })
+
+  it('throws even when the patch mixes a recognized field with an unrecognized one, rather than silently applying only the recognized one', async () => {
+    await expect(updateWorkingProject('t1', { customer: 'Budi', foo: 'bar' } as any)).rejects.toThrow(/unknown patch field/)
+    expect(prisma.workingProject.update).not.toHaveBeenCalled()
   })
 })
 

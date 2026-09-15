@@ -14,11 +14,13 @@ export async function createWorkingProject(input: {
   product: string
   variant?: string
   dueDateRaw?: string
+  orderDateRaw?: string
   notes?: string
   invoiceAmountRaw?: string
   mentions?: string[]
 }): Promise<{ id: string; threadUrl: string | null; syncState: string }> {
   const { dueDate, dueDateRaw } = input.dueDateRaw ? parseDueDate(input.dueDateRaw) : { dueDate: null, dueDateRaw: null }
+  const orderDate = input.orderDateRaw ? parseOrderDate(input.orderDateRaw) : null
   const title = buildTitle({ customer: input.customer, product: input.product, variant: input.variant })
 
   const wp = await prisma.workingProject.create({
@@ -38,6 +40,7 @@ export async function createWorkingProject(input: {
       title,
       dueDate,
       dueDateRaw,
+      orderDate,
       notes: input.notes ?? null,
       invoiceAmount: input.invoiceAmountRaw ? parseAmount(input.invoiceAmountRaw) : 0,
       mentions: input.mentions ?? [],
@@ -47,7 +50,7 @@ export async function createWorkingProject(input: {
   const message = buildPostContent({
     customer: input.customer, contact: input.contact, product: input.product, variant: input.variant,
     platform: input.platform, sourceOrderNo: input.sourceOrderNo, orderNoLegacy: input.orderNoLegacy,
-    dueDate, dueDateRaw, notes: input.notes, mentions: input.mentions,
+    orderDate, dueDate, dueDateRaw, notes: input.notes, mentions: input.mentions,
   })
 
   try {
@@ -115,11 +118,28 @@ export async function markDone(threadId: string): Promise<{ ok: true; discordSyn
   return { ok: true, discordSynced }
 }
 
+const UPDATE_PATCH_KEYS = new Set([
+  'dueDateRaw', 'orderDateRaw', 'paymentRaw', 'invoiceAmountRaw', 'paidAmountRaw',
+  'notesAppend', 'notes', 'variant', 'customer', 'product',
+  'shipping', 'trackingNo', 'mentions', 'appliedTags',
+])
+
 export async function updateWorkingProject(threadId: string, patch: Partial<{
   dueDateRaw: string; orderDateRaw: string; paymentRaw: string; invoiceAmountRaw: string; paidAmountRaw: string
   notesAppend: string; notes: string; variant: string; customer: string; product: string
   shipping: string; trackingNo: string; mentions: string[]; appliedTags: string[]
 }>): Promise<{ ok: true; discordSynced: boolean }> {
+  // A patch with only unrecognized keys (a typo'd field name, or a field
+  // that doesn't exist on WorkingProject at all — e.g. the Discord bot's AI
+  // assistant guessing at a field it was never told about) used to silently
+  // no-op: `data` stayed empty, the Prisma update + Discord resync still
+  // ran and reported {ok:true, discordSynced:true}, and the caller had no
+  // way to tell nothing actually changed. Fail loud instead.
+  const unknownKeys = Object.keys(patch).filter((k) => !UPDATE_PATCH_KEYS.has(k))
+  if (unknownKeys.length > 0) {
+    throw new Error(`updateWorkingProject: unknown patch field(s): ${unknownKeys.join(', ')}`)
+  }
+
   const wp = await prisma.workingProject.findUnique({ where: { discordThreadId: threadId } })
   if (!wp) throw new Error(`WorkingProject not found for discordThreadId=${threadId}`)
   const data: Record<string, unknown> = {}
