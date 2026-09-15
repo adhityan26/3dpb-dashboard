@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildTitle, buildPostContent, parseDueDate, parseOrderDate, SIZE_SCALE, parseSize, isGLRing, variantShort, splitProductVariants, parseAmount, appendNoteWithTimestamp, allowedMentionsPayload, notesSegmentForKey } from '../format'
+import { buildTitle, buildPostContent, parseDueDate, parseOrderDate, SIZE_SCALE, parseSize, parseSizeFromVariantField, isGLRing, variantShort, splitProductVariants, parseAmount, appendNoteWithTimestamp, allowedMentionsPayload, notesSegmentForKey } from '../format'
 
 describe('buildTitle', () => {
   it('joins customer, product, variant', () => {
@@ -90,6 +90,29 @@ describe('parseSize', () => {
   })
   it('resolves size 13 (extended range beyond the original 5-12 table)', () => {
     expect(parseSize('size US 13').scalePct).toBe(SIZE_SCALE['13'])
+  })
+})
+
+describe('parseSizeFromVariantField', () => {
+  // Real production shape: the `variant` field on a bulk-created GL Ring row
+  // is sometimes just the bare number, no "US"/"size" token at all — found
+  // 2026-09-16 after the notes-based fallback still left 53 rows blank.
+  it('accepts a bare whole number occupying the entire field', () => {
+    expect(parseSizeFromVariantField('11').usSize).toBe('11')
+  })
+  it('accepts a bare half size occupying the entire field', () => {
+    const r = parseSizeFromVariantField('8.5')
+    expect(r.usSize).toBe('8.5')
+    expect(r.scalePct).toBe(Math.round((SIZE_SCALE['8'] + SIZE_SCALE['9']) / 2))
+  })
+  it('still prefers a "US n" match when present, over treating it as a bare number', () => {
+    expect(parseSizeFromVariantField('US 9').usSize).toBe('9')
+  })
+  it('does not treat a number embedded in other text as a bare size (too ambiguous outside this field)', () => {
+    expect(parseSizeFromVariantField('Warna Emas 11').usSize).toBeNull()
+  })
+  it('returns null for an empty field', () => {
+    expect(parseSizeFromVariantField('').usSize).toBeNull()
   })
 })
 

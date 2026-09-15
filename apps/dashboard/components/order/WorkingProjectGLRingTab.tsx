@@ -1,7 +1,7 @@
 'use client'
 import { useMemo, useState } from 'react'
 import { useWorkingProjects, useSetChecklistByLabel, useGLRingProductIds, type WorkingProject } from '@/lib/hooks/use-working-projects'
-import { splitProductVariants, variantShort, parseSize, isGLRing, notesSegmentForKey } from '@/lib/working-projects/format'
+import { splitProductVariants, variantShort, parseSize, parseSizeFromVariantField, isGLRing, notesSegmentForKey } from '@/lib/working-projects/format'
 
 const PAGE_SIZES = [10, 25, 50, 100] as const
 
@@ -49,7 +49,7 @@ function expandToRows(projects: WorkingProject[], configuredProductIds: string[]
       // only meaningful when there's exactly one variant on the row; a
       // multi-variant row's single `variant` field can't be attributed to
       // any one of the several product variants, so fall through to notes.
-      const fromVariantField = single ? parseSize(wp.variant ?? '') : { usSize: null, scalePct: null }
+      const fromVariantField = single ? parseSizeFromVariantField(wp.variant ?? '') : { usSize: null, scalePct: null }
       const segment = notesSegmentForKey(wp.notes ?? '', key, variants.length)
       const fromNotes = parseSize(segment)
       const usSize = fromVariantField.usSize ?? fromNotes.usSize

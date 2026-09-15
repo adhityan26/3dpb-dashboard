@@ -144,6 +144,24 @@ export function parseSize(notes: string): { usSize: string | null; scalePct: num
   return { usSize: null, scalePct: null }
 }
 
+// The `variant` field on a GL Ring row is sometimes JUST the bare number
+// (e.g. "11", "8.5") with no "US"/"size"/"ukuran" token at all — a shape
+// parseSize() deliberately doesn't accept for free-text notes (a bare
+// number there is too ambiguous), but is unambiguous here since the whole
+// field IS the variant/size value, nothing else. Try parseSize() first (it
+// still handles "US 11" etc. in this field), then fall back to a bare
+// number occupying the entire trimmed string.
+export function parseSizeFromVariantField(variant: string): { usSize: string | null; scalePct: number | null } {
+  const viaParseSize = parseSize(variant)
+  if (viaParseSize.usSize) return viaParseSize
+  const bare = variant.trim().match(/^(\d{1,2}(?:\.\d)?)$/)
+  if (bare) {
+    const usSize = bare[1]
+    return { usSize, scalePct: scaleForSize(usSize) }
+  }
+  return { usSize: null, scalePct: null }
+}
+
 // Notes for a multi-variant project encode a size/notes block per variant.
 // Two storage shapes are in use:
 //   (a) legacy: variant blocks separated by ' / ', each block itself

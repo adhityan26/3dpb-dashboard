@@ -32,6 +32,14 @@ const MOCK_PROJECTS = [
     appliedTags: ['Cincin'],
     checklist: [],
   },
+  // variant field with just the bare number, no "US"/"size" token.
+  {
+    id: 'wp4', customer: 'Dedi', product: 'Green Lantern Ring 2026 3D Print', variant: '11', notes: '',
+    status: 'Open', platform: 'Shopee', sourceOrderNo: 'SN4', orderNoLegacy: null,
+    dueDate: null, orderDate: null, discordThreadUrl: null,
+    appliedTags: ['Cincin'],
+    checklist: [],
+  },
 ]
 
 vi.mock('@/lib/hooks/use-working-projects', async (importOriginal) => {
@@ -69,6 +77,11 @@ describe('WorkingProjectGLRingTab', () => {
   it('falls back to the variant field for size when notes is empty (single-variant row)', () => {
     renderWithClient()
     expect(screen.getByText(/US 10\.5/)).toBeInTheDocument()
+  })
+
+  it('reads a bare-number variant field ("11", no US/size token) as the size', () => {
+    renderWithClient()
+    expect(screen.getByText(/US 11\b/)).toBeInTheDocument()
   })
 
   it('shows a Canceled row once its status is re-checked in the status filter', () => {
