@@ -112,6 +112,16 @@ describe('updateWorkingProject', () => {
     expect(updateCall.data.title).toBe('Budi Santoso - Cincin')
   })
 
+  it('persists orderDateRaw as a parsed Date', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1', notes: null, title: 'T', customer: 'Budi', product: 'Cincin', variant: null })
+    ;(prisma.workingProject.update as any).mockResolvedValue({ customer: 'Budi', product: 'Cincin', variant: null, status: 'Open', payment: 'Belum', mentions: [], checklist: [] })
+    ;(editRelayThread as any).mockResolvedValue(undefined)
+
+    await updateWorkingProject('t1', { orderDateRaw: '2026-09-01' })
+    const call = (prisma.workingProject.update as any).mock.calls[0][0]
+    expect((call.data.orderDate as Date).toISOString().slice(0, 10)).toBe('2026-09-01')
+  })
+
   it('replaces notes directly (not appended) when patch.notes is given', async () => {
     ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1', notes: 'old', title: 'T', customer: 'Budi', product: 'Cincin', variant: null })
     ;(prisma.workingProject.update as any).mockResolvedValue({})

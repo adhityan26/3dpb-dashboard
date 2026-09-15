@@ -70,6 +70,7 @@ export interface WorkingProjectUpdatePatch {
   product?: string
   variant?: string
   dueDateRaw?: string
+  orderDateRaw?: string
   paymentRaw?: string
   invoiceAmountRaw?: string
   shipping?: string

@@ -8,6 +8,7 @@ export interface WorkingProjectEditPatch {
   product?: string
   variant?: string
   dueDateRaw?: string
+  orderDateRaw?: string
   paymentRaw?: string
   invoiceAmountRaw?: string
   shipping?: string
@@ -35,12 +36,19 @@ function dueDateDisplayValue(project: WorkingProject): string {
   return ""
 }
 
+// orderDate has no "raw" text fallback (unlike due date) — it's a plain
+// <input type="date">, so the display value is just its ISO date slice.
+function orderDateDisplayValue(project: WorkingProject): string {
+  return project.orderDate ? new Date(project.orderDate).toISOString().slice(0, 10) : ""
+}
+
 function initialValues(project: WorkingProject) {
   return {
     customer: project.customer,
     product: project.product,
     variant: project.variant ?? "",
     dueDateRaw: dueDateDisplayValue(project),
+    orderDateRaw: orderDateDisplayValue(project),
     paymentRaw: project.payment,
     invoiceAmountRaw: String(project.invoiceAmount),
     shipping: project.shipping ?? "",
@@ -58,6 +66,7 @@ export function WorkingProjectEditModal({ project, onClose, onSave, isPending, e
   const [product, setProduct] = useState(project?.product ?? "")
   const [variant, setVariant] = useState(project?.variant ?? "")
   const [dueDateRaw, setDueDateRaw] = useState(project ? dueDateDisplayValue(project) : "")
+  const [orderDateRaw, setOrderDateRaw] = useState(project ? orderDateDisplayValue(project) : "")
   const [paymentRaw, setPaymentRaw] = useState(project?.payment ?? "")
   const [invoiceAmountRaw, setInvoiceAmountRaw] = useState(
     project ? String(project.invoiceAmount) : "",
@@ -85,6 +94,7 @@ export function WorkingProjectEditModal({ project, onClose, onSave, isPending, e
     setProduct(values.product)
     setVariant(values.variant)
     setDueDateRaw(values.dueDateRaw)
+    setOrderDateRaw(values.orderDateRaw)
     setPaymentRaw(values.paymentRaw)
     setInvoiceAmountRaw(values.invoiceAmountRaw)
     setShipping(values.shipping)
@@ -95,7 +105,7 @@ export function WorkingProjectEditModal({ project, onClose, onSave, isPending, e
 
   function handleSave() {
     if (!project || !initial) return
-    const current = { customer, product, variant, dueDateRaw, paymentRaw, invoiceAmountRaw, shipping, trackingNo }
+    const current = { customer, product, variant, dueDateRaw, orderDateRaw, paymentRaw, invoiceAmountRaw, shipping, trackingNo }
     const patch: WorkingProjectEditPatch = {}
     let key: keyof typeof current
     for (key in current) {
@@ -161,6 +171,15 @@ export function WorkingProjectEditModal({ project, onClose, onSave, isPending, e
               placeholder="mis. 20 Sep 2026"
               value={dueDateRaw}
               onChange={(e) => setDueDateRaw(e.target.value)}
+              className="glass-input w-full h-10 rounded-[5px] px-3 text-sm"
+            />
+          </div>
+          <div>
+            <label className={`${fieldLabel} g-accent`}>Order Date</label>
+            <input
+              type="date"
+              value={orderDateRaw}
+              onChange={(e) => setOrderDateRaw(e.target.value)}
               className="glass-input w-full h-10 rounded-[5px] px-3 text-sm"
             />
           </div>

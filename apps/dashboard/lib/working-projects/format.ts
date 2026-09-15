@@ -13,6 +13,16 @@ export function parseDueDate(raw: string): { dueDate: Date | null; dueDateRaw: s
   return { dueDate: null, dueDateRaw: trimmed }
 }
 
+// orderDate has no "raw" fallback column (unlike dueDate) — it's always
+// edited via a plain <input type="date">, so a bare ISO date parse is
+// enough. An empty/unparseable value clears the field.
+export function parseOrderDate(raw: string): Date | null {
+  const trimmed = raw.trim()
+  if (!trimmed) return null
+  const parsed = new Date(trimmed)
+  return Number.isNaN(parsed.getTime()) ? null : parsed
+}
+
 function formatRp(amount: number): string {
   return `Rp${amount.toLocaleString('id-ID')}`
 }

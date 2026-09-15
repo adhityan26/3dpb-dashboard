@@ -67,6 +67,35 @@ describe('WorkingProjectEditModal', () => {
     expect(patch).not.toHaveProperty('dueDateRaw')
   })
 
+  it('prefills the Order Date field from project.orderDate', () => {
+    render(
+      <WorkingProjectEditModal
+        project={{ ...project, orderDate: '2026-09-01T00:00:00.000Z' }}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        isPending={false}
+      />,
+    )
+    expect(screen.getByDisplayValue('2026-09-01')).toBeInTheDocument()
+  })
+
+  it('includes orderDateRaw in the patch when the Order Date field changes', () => {
+    const onSave = vi.fn()
+    render(
+      <WorkingProjectEditModal
+        project={{ ...project, orderDate: '2026-09-01T00:00:00.000Z' }}
+        onClose={vi.fn()}
+        onSave={onSave}
+        isPending={false}
+      />,
+    )
+    fireEvent.change(screen.getByDisplayValue('2026-09-01'), { target: { value: '2026-09-05' } })
+    fireEvent.click(screen.getByRole('button', { name: /simpan/i }))
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'wp1', patch: { orderDateRaw: '2026-09-05' } }),
+    )
+  })
+
   it('calls onClose when cancel is clicked', () => {
     const onClose = vi.fn()
     render(<WorkingProjectEditModal project={project} onClose={onClose} onSave={vi.fn()} isPending={false} />)

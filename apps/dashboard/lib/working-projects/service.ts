@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db'
-import { buildTitle, buildPostContent, parseDueDate, parseAmount, appendNoteWithTimestamp } from './format'
+import { buildTitle, buildPostContent, parseDueDate, parseOrderDate, parseAmount, appendNoteWithTimestamp } from './format'
 import { createRelayThread, editRelayThread, archiveRelayThread } from './discord-sync'
 
 export async function createWorkingProject(input: {
@@ -116,7 +116,7 @@ export async function markDone(threadId: string): Promise<{ ok: true; discordSyn
 }
 
 export async function updateWorkingProject(threadId: string, patch: Partial<{
-  dueDateRaw: string; paymentRaw: string; invoiceAmountRaw: string; paidAmountRaw: string
+  dueDateRaw: string; orderDateRaw: string; paymentRaw: string; invoiceAmountRaw: string; paidAmountRaw: string
   notesAppend: string; notes: string; variant: string; customer: string; product: string
   shipping: string; trackingNo: string; mentions: string[]; appliedTags: string[]
 }>): Promise<{ ok: true; discordSynced: boolean }> {
@@ -124,6 +124,7 @@ export async function updateWorkingProject(threadId: string, patch: Partial<{
   if (!wp) throw new Error(`WorkingProject not found for discordThreadId=${threadId}`)
   const data: Record<string, unknown> = {}
   if (patch.dueDateRaw !== undefined) Object.assign(data, parseDueDate(patch.dueDateRaw))
+  if (patch.orderDateRaw !== undefined) data.orderDate = parseOrderDate(patch.orderDateRaw)
   if (patch.paymentRaw !== undefined) data.payment = patch.paymentRaw
   if (patch.invoiceAmountRaw !== undefined) data.invoiceAmount = parseAmount(patch.invoiceAmountRaw)
   if (patch.paidAmountRaw !== undefined) data.paidAmount = parseAmount(patch.paidAmountRaw)

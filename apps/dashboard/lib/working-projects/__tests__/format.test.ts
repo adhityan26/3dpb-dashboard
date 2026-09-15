@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildTitle, buildPostContent, parseDueDate, SIZE_SCALE, parseSize, isGLRing, variantShort, splitProductVariants, parseAmount, appendNoteWithTimestamp, allowedMentionsPayload, notesSegmentForKey } from '../format'
+import { buildTitle, buildPostContent, parseDueDate, parseOrderDate, SIZE_SCALE, parseSize, isGLRing, variantShort, splitProductVariants, parseAmount, appendNoteWithTimestamp, allowedMentionsPayload, notesSegmentForKey } from '../format'
 
 describe('buildTitle', () => {
   it('joins customer, product, variant', () => {
@@ -26,6 +26,18 @@ describe('parseDueDate', () => {
     const r = parseDueDate('')
     expect(r.dueDate).toBeNull()
     expect(r.dueDateRaw).toBeNull()
+  })
+})
+
+describe('parseOrderDate', () => {
+  it('parses an ISO date string', () => {
+    expect(parseOrderDate('2026-09-01')?.toISOString().slice(0, 10)).toBe('2026-09-01')
+  })
+  it('returns null for an empty string', () => {
+    expect(parseOrderDate('')).toBeNull()
+  })
+  it('returns null for unparseable text (no raw fallback for order date)', () => {
+    expect(parseOrderDate('akhir bulan')).toBeNull()
   })
 })
 
