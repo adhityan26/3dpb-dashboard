@@ -9,6 +9,8 @@ import {
   type Logger,
 } from "@3pb/agent-core";
 import type { FastifyInstance } from "fastify";
+import { realpathSync } from "node:fs";
+import { pathToFileURL } from "node:url";
 import { NodePathProvider, NodeLogAdapter, NodeLogFileProvider, getNodeBuildInfo } from "./platform-node";
 import { createHttpServer } from "./http-server";
 
@@ -110,8 +112,24 @@ async function main(): Promise<void> {
 }
 
 // Hanya jalan kalau file ini dieksekusi langsung (node dist/index.mjs), bukan saat di-import
-// oleh test.
-if (import.meta.url === `file://${process.argv[1]}`) {
+// oleh test. Perbandingan literal `process.argv[1]` vs `import.meta.url` GAGAL kalau file
+// diakses lewat symlink -- Node me-resolve import.meta.url ke real path, tapi process.argv[1]
+// tetap path literal yang diketik (lewat symlink). Ini persis pola install.sh: ExecStart/
+// --print-token selalu lewat symlink /opt/slizebiz-agent/current -> releases/<timestamp> --
+// tanpa realpathSync di sini, main() diam-diam TIDAK PERNAH terpanggil di instalasi nyata
+// (exit 0 tanpa error, tanpa daemon jalan, tanpa systemd restart karena dianggap sukses).
+const isDirectlyExecuted = process.argv[1] !== undefined && (() => {
+  try {
+    // pathToFileURL (bukan template literal `file://${...}`) supaya path dengan spasi/karakter
+    // spesial ikut ter-percent-encode dengan benar, sama seperti import.meta.url sendiri.
+    return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href;
+  } catch {
+    // process.argv[1] mungkin bukan path file valid (misal saat dipanggil lewat -e) --
+    // fail closed, jangan jalankan main() secara tak sengaja.
+    return false;
+  }
+})();
+if (isDirectlyExecuted) {
   main().catch((err) => {
     console.error("[agent-headless] bootstrap gagal total", err);
     process.exit(1);
