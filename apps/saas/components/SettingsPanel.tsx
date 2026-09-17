@@ -30,7 +30,11 @@ function Section({ title, purpose, locked, children }: { title: string; purpose:
       <div>
         <h2 className="text-[13px] font-medium g-t1 flex items-center gap-2">
           {title}
-          {locked && <span className="text-[10px] g-t5 font-normal">🔒 Edit di Pro</span>}
+          {locked && (
+            <Link href="/beli" className="text-[10px] g-t5 font-normal underline">
+              🔒 Edit di Pro
+            </Link>
+          )}
         </h2>
         <p className="text-[11px] g-t4 mt-[2px]">{purpose}</p>
       </div>
@@ -65,7 +69,11 @@ export function SettingsPanel({ editable, userId }: { editable: boolean; userId:
   const disabled = !editable;
   const [rincian, setRincian] = useState(false);
 
-  useEffect(() => { if (editable && userId) loadSettings(userId).then(setS); }, [editable, userId]);
+  // Section "Harga jual" boleh diedit SEMUA user sejak 2026-09 (lihat komentarnya di bawah) --
+  // jadi data ASLI tersimpan harus dimuat buat semua user berlogin, bukan cuma Pro. Field lain
+  // tetap `disabled` di JSX di bawah (read-only lewat UI), jadi aman: Save tetap menulis balik
+  // nilai section lain apa adanya (tak sempat berubah), cuma Harga-jual yang genuinely baru.
+  useEffect(() => { if (userId) loadSettings(userId).then(setS); }, [userId]);
   // Reads a localStorage preference, unavailable during SSR; must run once after mount.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setRincian(getRincianPref()); }, []);
@@ -143,17 +151,20 @@ export function SettingsPanel({ editable, userId }: { editable: boolean; userId:
         </div>
       </Section>
 
-      {/* 2 — dari modal jadi harga */}
-      <Section title="Harga jual" purpose="Dari modal, jadi berapa harga jualnya." locked={disabled}>
+      {/* 2 — dari modal jadi harga. SENGAJA selalu editable (Free termasuk) sejak 2026-09 --
+          bukan fitur berbayar lagi, beda dari section lain di file ini. Kalkulator sendiri
+          (Calculator.tsx) menyaring lewat freeTierSettings() supaya perubahan di sini genuinely
+          kepakai buat Free, TANPA membuka section lain lewat jalur yang sama. */}
+      <Section title="Harga jual" purpose="Dari modal, jadi berapa harga jualnya. Bisa diubah semua pengguna.">
         <div className="grid grid-cols-2 gap-2">
-          <NumField label="FDM harga jual/g" hint="Tarif jual filament FDM per gram. Menentukan Harga jual minimum (bukan Biaya modal)." value={s.material.FDM.jualPerGram} disabled={disabled} onChange={(n) => setMat("FDM", "jualPerGram", n)} />
-          <NumField label="SLA harga jual/g" hint="Tarif jual resin per gram. Menentukan Harga jual minimum." value={s.material.SLA.jualPerGram} disabled={disabled} onChange={(n) => setMat("SLA", "jualPerGram", n)} />
-          <NumField label={`Margin ${MARGIN_TIER_LABEL.A}`} hint="Pengali dari Harga jual minimum untuk tier termurah. 1,1 = jual 1,1× harga minimum." value={s.margin.A} disabled={disabled} onChange={(n) => setMargin("A", n)} />
-          <NumField label={`Margin ${MARGIN_TIER_LABEL.B}`} hint="Pengali tier tengah — ini yang dipakai sebagai Rekomendasi harga jual." value={s.margin.B} disabled={disabled} onChange={(n) => setMargin("B", n)} />
-          <NumField label={`Margin ${MARGIN_TIER_LABEL.C}`} hint="Pengali tier tertinggi, untuk produk yang bisa dijual premium." value={s.margin.C} disabled={disabled} onChange={(n) => setMargin("C", n)} />
-          <NumField label="Reseller bulk ×" hint="Pengali harga khusus reseller yang beli banyak. Di bawah margin normal." value={s.resellerBulkMultiplier} disabled={disabled} onChange={(n) => setS((p) => ({ ...p, resellerBulkMultiplier: n }))} />
-          <NumField label="Fee Offline ×" hint="Pengali channel offline. 1,0 = tanpa potongan." value={s.channels.offline} disabled={disabled} onChange={(n) => setChan("offline", n)} />
-          <NumField label="Fee Shopee ×" hint="Pengali untuk menutup potongan Shopee. 1,2 = naikkan harga 20%." value={s.channels.shopee} disabled={disabled} onChange={(n) => setChan("shopee", n)} />
+          <NumField label="FDM harga jual/g" hint="Tarif jual filament FDM per gram. Menentukan Harga jual minimum (bukan Biaya modal)." value={s.material.FDM.jualPerGram} disabled={false} onChange={(n) => setMat("FDM", "jualPerGram", n)} />
+          <NumField label="SLA harga jual/g" hint="Tarif jual resin per gram. Menentukan Harga jual minimum." value={s.material.SLA.jualPerGram} disabled={false} onChange={(n) => setMat("SLA", "jualPerGram", n)} />
+          <NumField label={`Margin ${MARGIN_TIER_LABEL.A}`} hint="Pengali dari Harga jual minimum untuk tier termurah. 1,1 = jual 1,1× harga minimum." value={s.margin.A} disabled={false} onChange={(n) => setMargin("A", n)} />
+          <NumField label={`Margin ${MARGIN_TIER_LABEL.B}`} hint="Pengali tier tengah — ini yang dipakai sebagai Rekomendasi harga jual." value={s.margin.B} disabled={false} onChange={(n) => setMargin("B", n)} />
+          <NumField label={`Margin ${MARGIN_TIER_LABEL.C}`} hint="Pengali tier tertinggi, untuk produk yang bisa dijual premium." value={s.margin.C} disabled={false} onChange={(n) => setMargin("C", n)} />
+          <NumField label="Reseller bulk ×" hint="Pengali harga khusus reseller yang beli banyak. Di bawah margin normal." value={s.resellerBulkMultiplier} disabled={false} onChange={(n) => setS((p) => ({ ...p, resellerBulkMultiplier: n }))} />
+          <NumField label="Fee Offline ×" hint="Pengali channel offline. 1,0 = tanpa potongan." value={s.channels.offline} disabled={false} onChange={(n) => setChan("offline", n)} />
+          <NumField label="Fee Shopee ×" hint="Pengali untuk menutup potongan Shopee. 1,2 = naikkan harga 20%." value={s.channels.shopee} disabled={false} onChange={(n) => setChan("shopee", n)} />
         </div>
       </Section>
 
@@ -244,15 +255,19 @@ export function SettingsPanel({ editable, userId }: { editable: boolean; userId:
         </label>
       </Section>
 
-      {editable ? (
-        <div className="flex items-center gap-3 pt-4 border-t border-[color:var(--g-row-border)]">
-          <GlassButton onClick={save} disabled={saving}>{saving ? "Menyimpan…" : "Simpan"}</GlassButton>
-          <button type="button" onClick={reset} className="text-[12px] g-t4 underline">Reset ke default</button>
-          {msg && <span className="text-[12px] g-t4">{msg}</span>}
-        </div>
-      ) : (
-        <Link href="/beli" className="g-btn-ghost rounded-[10px] px-4 h-9 inline-flex items-center text-sm self-start">Buka semua ini di Pro →</Link>
-      )}
+      {/* Simpan sekarang tampil buat SEMUA user (Free perlu ini buat simpan perubahan Harga
+          jual) -- "Reset ke default" TETAP Pro-only: field lain di JSX di atas sudah `disabled`
+          jadi Free tak bisa mengubahnya, tapi tombol reset menghapus SELURUH blok tersimpan
+          (termasuk Biaya-produksi dkk yang mungkin pernah di-set semasa Pro) -- terlalu
+          berisiko diberikan ke Free yang tak bisa lihat dampaknya di UI. */}
+      <div className="flex items-center gap-3 pt-4 border-t border-[color:var(--g-row-border)] flex-wrap">
+        <GlassButton onClick={save} disabled={saving}>{saving ? "Menyimpan…" : "Simpan"}</GlassButton>
+        {editable && <button type="button" onClick={reset} className="text-[12px] g-t4 underline">Reset ke default</button>}
+        {msg && <span className="text-[12px] g-t4">{msg}</span>}
+        {!editable && (
+          <Link href="/beli" className="g-btn-ghost rounded-[10px] px-4 h-9 inline-flex items-center text-sm">Buka semua ini di Pro →</Link>
+        )}
+      </div>
     </div>
   );
 }

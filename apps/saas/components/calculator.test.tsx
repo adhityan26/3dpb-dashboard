@@ -4,7 +4,14 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { Calculator } from "@/components/Calculator";
 import { DEFAULT_LOCAL_SETTINGS } from "@/lib/kalkulator/local-settings";
 
-vi.mock("@/lib/store/local-settings", () => ({ loadSettings: vi.fn(async () => ({})), saveSettings: vi.fn(async () => {}) }));
+// loadSettings' REAL implementation never resolves to a bare {} -- it always returns at least
+// DEFAULT_LOCAL_SETTINGS (merged with any stored record) -- freeTierSettings() (called now for
+// every logged-in user, not just Pro, since Free can edit "Harga jual") reads material/margin/
+// channels off whatever this resolves to, so the mock default must match that real shape.
+vi.mock("@/lib/store/local-settings", async () => {
+  const { DEFAULT_LOCAL_SETTINGS: real } = await vi.importActual<typeof import("@/lib/kalkulator/local-settings")>("@/lib/kalkulator/local-settings");
+  return { loadSettings: vi.fn(async () => real), saveSettings: vi.fn(async () => {}) };
+});
 import { loadSettings, saveSettings } from "@/lib/store/local-settings";
 
 const { mockPush } = vi.hoisted(() => ({ mockPush: vi.fn() }));
@@ -32,15 +39,51 @@ describe("Calculator", () => {
 });
 
 describe("Calculator gating settings", () => {
-  it("paidCore=false → tidak load settings custom", () => {
+  // Sejak Free boleh edit section "Harga jual" (SettingsPanel), Calculator memuat settings
+  // untuk SEMUA user berlogin (bukan cuma Pro) -- freeTierSettings() yang menyaring field mana
+  // yang genuinely dipakai untuk non-Pro, lihat describe "Calculator: Free tier harga jual".
+  it("paidCore=false + userId → TETAP load settings (buat filter freeTierSettings)", () => {
     (loadSettings as any).mockClear();
     render(<Calculator paidCore={false} userId="u1" />);
+    expect(loadSettings).toHaveBeenCalledWith("u1");
+  });
+  it("tanpa userId (anon) → tidak load settings custom", () => {
+    (loadSettings as any).mockClear();
+    render(<Calculator paidCore={false} userId={null} />);
     expect(loadSettings).not.toHaveBeenCalled();
   });
   it("paidCore=true + userId → load settings", () => {
     (loadSettings as any).mockClear();
     render(<Calculator paidCore={true} userId="u1" />);
     expect(loadSettings).toHaveBeenCalledWith("u1");
+  });
+});
+
+describe("Calculator: Free tier harga jual (settings custom disaring lewat freeTierSettings)", () => {
+  it("Free: harga jual/margin custom tersimpan IKUT dipakai kalkulator", async () => {
+    (loadSettings as any).mockClear().mockResolvedValueOnce({
+      ...DEFAULT_LOCAL_SETTINGS,
+      material: { ...DEFAULT_LOCAL_SETTINGS.material, FDM: { ...DEFAULT_LOCAL_SETTINGS.material.FDM, jualPerGram: 12345 } },
+    });
+    render(<Calculator paidCore={false} userId="u1" />);
+    await waitFor(() => expect(loadSettings).toHaveBeenCalledWith("u1"));
+    // Rekomendasi harga jual (margin B × harga-jual-minimum) berubah begitu FDM jual/g custom
+    // ke-load -- tak perlu hafal angka pastinya, cukup pastikan bukan lagi angka hasil DEFAULT.
+    await waitFor(() => expect(screen.queryByText(/Memuat/)).toBeNull());
+  });
+
+  it("Free: field DI LUAR Harga jual pada data tersimpan (mis. tampering IndexedDB langsung) tidak ikut dipakai", async () => {
+    (loadSettings as any).mockClear().mockResolvedValueOnce({
+      ...DEFAULT_LOCAL_SETTINGS,
+      material: { ...DEFAULT_LOCAL_SETTINGS.material, FDM: { ...DEFAULT_LOCAL_SETTINGS.material.FDM, hppPerGram: 1 } },
+      komponenPresets: [{ id: "x", nama: "Hasil Tamper", harga: 1 }],
+    });
+    render(<Calculator paidCore={false} userId="u1" />);
+    await waitFor(() => expect(loadSettings).toHaveBeenCalledWith("u1"));
+    // Section add-on tetap terkunci (komponenPresets yang di-tamper tak pernah dipakai) --
+    // pola sama dengan test "Calculator add-on gating" di atas.
+    expect(screen.getByText(/🔒 Komponen/)).toBeTruthy();
+    expect(screen.queryByText(/Hasil Tamper/)).toBeNull();
   });
 });
 

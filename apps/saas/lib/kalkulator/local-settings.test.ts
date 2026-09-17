@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { defaultSettings } from "@/lib/kalkulator/default-settings";
-import { DEFAULT_LOCAL_SETTINGS, toSettingsV2, validateLocalSettings, newFilamentEntry, type LocalSettings } from "@/lib/kalkulator/local-settings";
+import { DEFAULT_LOCAL_SETTINGS, toSettingsV2, validateLocalSettings, newFilamentEntry, freeTierSettings, type LocalSettings } from "@/lib/kalkulator/local-settings";
 
 describe("toSettingsV2 parity", () => {
   it("DEFAULT_LOCAL_SETTINGS → deep-equal defaultSettings existing", () => {
@@ -123,5 +123,48 @@ describe("1b-6a filament catalog", () => {
   it("menerima katalog filament kosong", () => {
     const empty: LocalSettings = { ...DEFAULT_LOCAL_SETTINGS, filaments: [] };
     expect(validateLocalSettings(empty)).toEqual([]);
+  });
+});
+
+describe("freeTierSettings (buka section Harga jual untuk Free, sisanya tetap default)", () => {
+  const saved: LocalSettings = {
+    ...DEFAULT_LOCAL_SETTINGS,
+    material: {
+      FDM: { hppPerGram: 1, jualPerGram: 999, failureRatePct: 1 },
+      SLA: { hppPerGram: 1, jualPerGram: 888, failureRatePct: 1 },
+    },
+    mesinPerJam: 1,
+    failureSpreadPct: 1,
+    testLayerPct: 1,
+    margin: { A: 1.11, B: 1.22, C: 1.33 },
+    resellerBulkMultiplier: 0.5,
+    channels: { offline: 2, shopee: 3 },
+    komponenPresets: [{ id: "tampered", nama: "hasil tamper", harga: 1 }],
+    filaments: [],
+  };
+
+  it("8 field section Harga jual diambil dari data tersimpan", () => {
+    const r = freeTierSettings(saved);
+    expect(r.material.FDM.jualPerGram).toBe(999);
+    expect(r.material.SLA.jualPerGram).toBe(888);
+    expect(r.margin).toEqual({ A: 1.11, B: 1.22, C: 1.33 });
+    expect(r.resellerBulkMultiplier).toBe(0.5);
+    expect(r.channels).toEqual({ offline: 2, shopee: 3 });
+  });
+
+  it("field di luar Harga jual TETAP default, walau data tersimpan sudah di-tamper", () => {
+    const r = freeTierSettings(saved);
+    expect(r.material.FDM.hppPerGram).toBe(DEFAULT_LOCAL_SETTINGS.material.FDM.hppPerGram);
+    expect(r.material.FDM.failureRatePct).toBe(DEFAULT_LOCAL_SETTINGS.material.FDM.failureRatePct);
+    expect(r.material.SLA.hppPerGram).toBe(DEFAULT_LOCAL_SETTINGS.material.SLA.hppPerGram);
+    expect(r.mesinPerJam).toBe(DEFAULT_LOCAL_SETTINGS.mesinPerJam);
+    expect(r.failureSpreadPct).toBe(DEFAULT_LOCAL_SETTINGS.failureSpreadPct);
+    expect(r.testLayerPct).toBe(DEFAULT_LOCAL_SETTINGS.testLayerPct);
+    expect(r.komponenPresets).toEqual(DEFAULT_LOCAL_SETTINGS.komponenPresets);
+    expect(r.filaments).toEqual(DEFAULT_LOCAL_SETTINGS.filaments);
+  });
+
+  it("hasilnya tetap lolos validateLocalSettings (kombinasi default + Harga jual custom valid)", () => {
+    expect(validateLocalSettings(freeTierSettings(saved))).toEqual([]);
   });
 });

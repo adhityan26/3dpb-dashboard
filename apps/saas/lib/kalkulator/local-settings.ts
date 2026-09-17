@@ -105,6 +105,29 @@ export function toSettingsV2(ls: LocalSettings): SettingsV2 {
   };
 }
 
+/**
+ * Free tier boleh edit section "Harga jual" (SettingsPanel) SEJAK 2026-09, tapi kalkulator tetap
+ * tak boleh percaya sisa `LocalSettings` tersimpan begitu saja untuk user non-Pro -- itu jalur
+ * yang sama dipakai fitur berbayar (Biaya produksi/Tambahan/Daftar pekerjaan/Daftar filament),
+ * dan user Free bisa saja langsung tulis IndexedDB tanpa lewat UI (bypass atribut `disabled`).
+ * Fungsi ini yang jadi satu-satunya titik hitung "apa yang genuinely berlaku buat Free": ambil
+ * PERSIS 8 field section Harga jual dari data tersimpan, sisanya DIPAKSA balik ke default apa
+ * pun isinya -- prinsip sama seperti addon (komponen/labor/packing) yang sudah lebih dulu
+ * di-gate `paidCore` di Calculator.tsx, cuma sekarang berlaku granular per-field bukan per-blok.
+ */
+export function freeTierSettings(saved: LocalSettings): LocalSettings {
+  return {
+    ...DEFAULT_LOCAL_SETTINGS,
+    material: {
+      FDM: { ...DEFAULT_LOCAL_SETTINGS.material.FDM, jualPerGram: saved.material.FDM.jualPerGram },
+      SLA: { ...DEFAULT_LOCAL_SETTINGS.material.SLA, jualPerGram: saved.material.SLA.jualPerGram },
+    },
+    margin: { ...saved.margin },
+    resellerBulkMultiplier: saved.resellerBulkMultiplier,
+    channels: { ...saved.channels },
+  };
+}
+
 export function newFilamentEntry(): FilamentEntry {
   return { id: "", brand: "", material: "", tipe: "FDM", warna: "", hppPerGram: 0, jualPerGram: 0 };
 }

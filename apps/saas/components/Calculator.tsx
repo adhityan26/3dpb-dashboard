@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { MarginTier } from "@3pb/kalkulator-core";
 import { GlassInput } from "@3pb/ui";
 import { fullView, type CalcPlate } from "@/lib/kalkulator/compute";
-import { DEFAULT_LOCAL_SETTINGS, type LocalSettings } from "@/lib/kalkulator/local-settings";
+import { DEFAULT_LOCAL_SETTINGS, freeTierSettings, type LocalSettings } from "@/lib/kalkulator/local-settings";
 import { loadSettings, saveSettings } from "@/lib/store/local-settings";
 import { getKalkulasi, putKalkulasi, type KalkulasiRecord } from "@/lib/store/kalkulasi-history";
 import { getRincianPref } from "@/lib/store/display-prefs";
@@ -42,8 +42,13 @@ export function Calculator({ paidCore = false, userId = null, kalkulasiId }: { p
   const [saveMsg, setSaveMsg] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // Free tier sekarang boleh edit section "Harga jual" di Settings (2026-09) -- jadi settings
+  // dimuat untuk SEMUA user berlogin, bukan cuma Pro. Untuk non-Pro, `freeTierSettings` yang
+  // menyaring: cuma 8 field Harga jual dari data tersimpan, sisanya dipaksa default (lihat
+  // komentar fungsinya di local-settings.ts) -- jaga pertahanan lama biar user Free tak bisa
+  // "buka" fitur Biaya-produksi/Tambahan/dst lewat tulis IndexedDB langsung.
   useEffect(() => {
-    if (paidCore && userId) loadSettings(userId).then(setSettings);
+    if (userId) loadSettings(userId).then((loaded) => setSettings(paidCore ? loaded : freeTierSettings(loaded)));
   }, [paidCore, userId]);
 
   // Reads a localStorage preference, unavailable during SSR; must run once after mount.
@@ -72,7 +77,7 @@ export function Calculator({ paidCore = false, userId = null, kalkulasiId }: { p
   }, [kalkulasiId, userId]);
 
   const refreshTarif = () => {
-    if (paidCore && userId) loadSettings(userId).then(setSettings);
+    if (userId) loadSettings(userId).then((loaded) => setSettings(paidCore ? loaded : freeTierSettings(loaded)));
   };
 
   const toCalcPlate = (p: PlateRow): CalcPlate => ({

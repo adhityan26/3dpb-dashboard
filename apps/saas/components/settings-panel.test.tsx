@@ -19,11 +19,16 @@ import { DEFAULT_LOCAL_SETTINGS } from "@/lib/kalkulator/local-settings";
 beforeEach(() => { saveMock.mockReset(); resetMock.mockReset(); saveMock.mockResolvedValue(undefined); window.localStorage.clear(); });
 
 describe("SettingsPanel", () => {
-  it("Free (editable=false) → input disabled + CTA Beli, tak ada tombol Simpan", () => {
+  // Sejak Free boleh edit section "Harga jual" (2026-09), tombol Simpan tampil buat SEMUA
+  // user (dipakai buat simpan perubahan Harga jual mereka) -- field section LAIN (Biaya
+  // produksi dst) tetap disabled + CTA Beli tetap ada. "Reset ke default" TETAP Pro-only,
+  // lihat describe "SettingsPanel: Harga jual editable untuk Free" di bawah.
+  it("Free (editable=false) → field Biaya produksi disabled + CTA Beli + tombol Simpan TETAP tampil", () => {
     render(<SettingsPanel editable={false} userId="u1" />);
     expect((screen.getByLabelText(/FDM harga modal/i) as HTMLInputElement).disabled).toBe(true);
     expect(screen.getByText(/Buka semua ini di Pro/i)).toBeTruthy();
-    expect(screen.queryByText("Simpan")).toBeNull();
+    expect(screen.getByRole("button", { name: /^Simpan$/ })).toBeTruthy();
+    expect(screen.queryByText(/Reset ke default/i)).toBeNull();
   });
   it("Beli (editable=true) → Simpan panggil saveSettings", async () => {
     render(<SettingsPanel editable={true} userId="u1" />);
@@ -125,8 +130,54 @@ describe("SettingsPanel struktur & tooltip", () => {
 
   it("Free: section berbayar terkunci, tapi Tampilan tetap bisa diubah", () => {
     render(<SettingsPanel editable={false} userId={null} />);
-    expect(screen.getAllByText(/Edit di Pro/i).length).toBeGreaterThanOrEqual(3);
+    // 4 section terkunci sejak Harga jual dibuka (Biaya produksi/Tambahan/Daftar pekerjaan/
+    // Daftar filament) -- Harga jual sendiri TIDAK ikut, lihat describe khusus di bawah.
+    expect(screen.getAllByText(/Edit di Pro/i).length).toBe(4);
     expect((screen.getByLabelText(/rincian perhitungan/i) as HTMLInputElement).disabled).toBe(false);
+  });
+
+  it("badge 'Edit di Pro' adalah link ke /beli, bukan teks mati", () => {
+    render(<SettingsPanel editable={false} userId={null} />);
+    const badge = screen.getAllByText(/Edit di Pro/i)[0];
+    const anchor = badge.closest("a");
+    expect(anchor).toBeTruthy();
+    expect(anchor!.getAttribute("href")).toBe("/beli");
+  });
+});
+
+describe("SettingsPanel: Harga jual editable untuk Free (sejak 2026-09)", () => {
+  it("Free: field 'FDM harga jual/g' dan margin TIDAK disabled, section lain tetap disabled", () => {
+    render(<SettingsPanel editable={false} userId={null} />);
+    expect((screen.getByLabelText(/FDM harga jual\/g/i) as HTMLInputElement).disabled).toBe(false);
+    expect((screen.getByLabelText(/SLA harga jual\/g/i) as HTMLInputElement).disabled).toBe(false);
+    expect((screen.getByLabelText(/Fee Shopee/i) as HTMLInputElement).disabled).toBe(false);
+    // Biaya produksi (section lain) tetap terkunci -- pastikan bukan semuanya kebuka.
+    expect((screen.getByLabelText(/FDM harga modal\/g/i) as HTMLInputElement).disabled).toBe(true);
+  });
+
+  it("Free: section 'Harga jual' sendiri tak lagi menampilkan badge 'Edit di Pro'", () => {
+    render(<SettingsPanel editable={false} userId={null} />);
+    const heading = screen.getByText("Harga jual").closest("h2")!;
+    expect(heading.textContent).not.toMatch(/Edit di Pro/i);
+  });
+
+  it("Free: bisa mengetik nilai baru di FDM harga jual/g", () => {
+    render(<SettingsPanel editable={false} userId={null} />);
+    const input = screen.getByLabelText(/FDM harga jual\/g/i) as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "1234" } });
+    expect(input.value).toBe("1234");
+  });
+
+  it("Free: klik Simpan memanggil saveSettings dengan Harga-jual yang diubah", async () => {
+    render(<SettingsPanel editable={false} userId="u1" />);
+    fireEvent.change(screen.getByLabelText(/FDM harga jual\/g/i), { target: { value: "1234" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Simpan$/ }));
+    await waitFor(() =>
+      expect(saveMock).toHaveBeenCalledWith(
+        "u1",
+        expect.objectContaining({ material: expect.objectContaining({ FDM: expect.objectContaining({ jualPerGram: 1234 }) }) })
+      )
+    );
   });
 });
 
