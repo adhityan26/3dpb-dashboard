@@ -24,8 +24,9 @@ node_modules/
 # Printer monitor config (secrets)
 services/printer-monitor/config.json
 
-# agent-headless esbuild output
+# agent-headless esbuild output + release tarball
 apps/agent-headless/dist/
+apps/agent-headless/release/
 
 # design-sync
 .ds-sync/

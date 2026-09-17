@@ -18,6 +18,8 @@
     "@types/node": "^22",
     "typescript": "^5",
     "vitest": "^1.6.1",
-    "esbuild": "^0.24.0"
+    "esbuild": "^0.24.0",
+    "aws4fetch": "^1.0.20",
+    "dotenv": "^17.4.2"
   }
 }
