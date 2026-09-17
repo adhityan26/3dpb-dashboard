@@ -168,6 +168,28 @@ describe("SettingsPanel: Harga jual editable untuk Free (sejak 2026-09)", () => 
     expect(input.value).toBe("1234");
   });
 
+  it("Free: data section terkunci yang sudah invalid (mis. sisa akun lapsed-Pro) TIDAK menghalangi Simpan Harga-jual", async () => {
+    // Simulasikan blob tersimpan yang locked section-nya sudah invalid (filament harga modal
+    // 0) -- validateLocalSettings ATAS SELURUH `s` akan menolak ini, tapi Free tak bisa
+    // memperbaikinya sendiri (field itu disabled, Reset disembunyikan). Save Harga-jual mereka
+    // harus tetap lolos karena validasi Free di-scope ke freeTierSettings(s), bukan `s` mentah.
+    (loadSettings as any).mockResolvedValueOnce({
+      ...DEFAULT_LOCAL_SETTINGS,
+      filaments: [{ id: "f1", brand: "A", material: "PLA", tipe: "FDM", warna: "Putih", hppPerGram: 0, jualPerGram: 500 }],
+    });
+    render(<SettingsPanel editable={false} userId="u1" />);
+    await waitFor(() => expect(loadSettings).toHaveBeenCalledWith("u1"));
+    fireEvent.change(screen.getByLabelText(/FDM harga jual\/g/i), { target: { value: "1234" } });
+    fireEvent.click(screen.getByRole("button", { name: /^Simpan$/ }));
+    await waitFor(() =>
+      expect(saveMock).toHaveBeenCalledWith(
+        "u1",
+        expect.objectContaining({ material: expect.objectContaining({ FDM: expect.objectContaining({ jualPerGram: 1234 }) }) })
+      )
+    );
+    expect(screen.queryByText(/harga modal harus > 0/i)).toBeNull();
+  });
+
   it("Free: klik Simpan memanggil saveSettings dengan Harga-jual yang diubah", async () => {
     render(<SettingsPanel editable={false} userId="u1" />);
     fireEvent.change(screen.getByLabelText(/FDM harga jual\/g/i), { target: { value: "1234" } });

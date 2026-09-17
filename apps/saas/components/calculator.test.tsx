@@ -60,16 +60,25 @@ describe("Calculator gating settings", () => {
 });
 
 describe("Calculator: Free tier harga jual (settings custom disaring lewat freeTierSettings)", () => {
-  it("Free: harga jual/margin custom tersimpan IKUT dipakai kalkulator", async () => {
+  it("Free: harga jual/margin custom tersimpan IKUT dipakai kalkulator (angka hasil BENERAN berubah)", async () => {
+    // "Harga jual minimum" langsung fungsi dari material.FDM.jualPerGram -- baseline dulu
+    // dengan DEFAULT_LOCAL_SETTINGS (default FDM jualPerGram = 900), lalu bandingkan dengan
+    // override besar (90000) supaya perubahan jelas kelihatan, bukan cuma "tidak crash".
+    const hargaJualMinimumText = () =>
+      screen.getByText(/Harga jual minimum \(aman\)/).closest("span.flex-col")!.parentElement!.querySelector("span.font-medium")!.textContent;
+
+    const { unmount } = render(<Calculator paidCore={false} userId="u1" />);
+    await waitFor(() => expect(loadSettings).toHaveBeenCalledWith("u1"));
+    const baseline = hargaJualMinimumText();
+    unmount();
+
     (loadSettings as any).mockClear().mockResolvedValueOnce({
       ...DEFAULT_LOCAL_SETTINGS,
-      material: { ...DEFAULT_LOCAL_SETTINGS.material, FDM: { ...DEFAULT_LOCAL_SETTINGS.material.FDM, jualPerGram: 12345 } },
+      material: { ...DEFAULT_LOCAL_SETTINGS.material, FDM: { ...DEFAULT_LOCAL_SETTINGS.material.FDM, jualPerGram: 90000 } },
     });
     render(<Calculator paidCore={false} userId="u1" />);
     await waitFor(() => expect(loadSettings).toHaveBeenCalledWith("u1"));
-    // Rekomendasi harga jual (margin B × harga-jual-minimum) berubah begitu FDM jual/g custom
-    // ke-load -- tak perlu hafal angka pastinya, cukup pastikan bukan lagi angka hasil DEFAULT.
-    await waitFor(() => expect(screen.queryByText(/Memuat/)).toBeNull());
+    await waitFor(() => expect(hargaJualMinimumText()).not.toBe(baseline));
   });
 
   it("Free: field DI LUAR Harga jual pada data tersimpan (mis. tampering IndexedDB langsung) tidak ikut dipakai", async () => {

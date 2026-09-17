@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 import { MARGIN_TIER_LABEL } from "@3pb/kalkulator-core";
 import { GlassButton, GlassInput, isValidHexColor } from "@3pb/ui";
-import { DEFAULT_LOCAL_SETTINGS, validateLocalSettings, type LocalSettings, type KomponenPreset, type LaborItemInput, type LaborJob, type FilamentEntry, newFilamentEntry } from "@/lib/kalkulator/local-settings";
+import { DEFAULT_LOCAL_SETTINGS, validateLocalSettings, freeTierSettings, type LocalSettings, type KomponenPreset, type LaborItemInput, type LaborJob, type FilamentEntry, newFilamentEntry } from "@/lib/kalkulator/local-settings";
 import { loadSettings, saveSettings, resetSettings } from "@/lib/store/local-settings";
 import { getRincianPref, setRincianPref } from "@/lib/store/display-prefs";
 import { InfoTip } from "./InfoTip";
@@ -121,7 +121,13 @@ export function SettingsPanel({ editable, userId }: { editable: boolean; userId:
   const delFil = (i: number) => setS((p) => ({ ...p, filaments: p.filaments.filter((_, k) => k !== i) }));
 
   async function save() {
-    const errs = validateLocalSettings(s);
+    // Free tier: validasi di-scope ke freeTierSettings(s) (default + 8 field Harga-jual
+    // mereka), BUKAN `s` mentah -- section terkunci itu read-only buat mereka (input disabled,
+    // Reset disembunyikan), jadi kalau kebetulan datanya sudah invalid dari sebelumnya (mis.
+    // sisa akun lapsed-Pro), mereka tak boleh jadi permanen tak bisa Simpan Harga-jual sendiri
+    // gara-gara error di field yang bukan urusan mereka. `saveSettings` di bawah tetap menulis
+    // `s` APA ADANYA (data lama yang tak tersentuh itu tetap ikut tersimpan, tak hilang).
+    const errs = validateLocalSettings(editable ? s : freeTierSettings(s));
     if (errs.length) { setMsg(errs[0]); return; }
     if (!userId) return;
     setSaving(true);
