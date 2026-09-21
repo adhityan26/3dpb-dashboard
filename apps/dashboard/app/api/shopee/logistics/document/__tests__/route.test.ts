@@ -2,13 +2,16 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }))
 vi.mock("@/lib/shopee/logistics", () => ({ generateShippingDocument: vi.fn() }))
+vi.mock("@/lib/shopee/pdf-margin", () => ({ addPageMargin: vi.fn() }))
 
 import { POST } from "../route"
 import { auth } from "@/lib/auth"
 import { generateShippingDocument } from "@/lib/shopee/logistics"
+import { addPageMargin } from "@/lib/shopee/pdf-margin"
 
 const mockAuth = auth as any
 const mockGenerate = generateShippingDocument as any
+const mockAddMargin = addPageMargin as any
 
 function makeRequest(body: unknown) {
   return new Request("http://localhost/api/shopee/logistics/document", {
@@ -18,7 +21,11 @@ function makeRequest(body: unknown) {
 }
 
 describe("POST /api/shopee/logistics/document", () => {
-  beforeEach(() => { vi.clearAllMocks() })
+  beforeEach(() => {
+    vi.clearAllMocks()
+    // default: margin step is a pass-through so the existing cases keep asserting on the raw bytes
+    mockAddMargin.mockImplementation(async (pdf: Buffer) => pdf)
+  })
 
   it("returns 401 when unauthenticated", async () => {
     mockAuth.mockResolvedValue(null)
@@ -81,5 +88,32 @@ describe("POST /api/shopee/logistics/document", () => {
     expect(res.status).toBe(400)
     const json = await res.json()
     expect(json).toEqual({ error: "Invalid JSON body" })
+  })
+
+  it("serves the margin-framed PDF (4mm) instead of Shopee's full-bleed original", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "u1" } })
+    mockGenerate.mockResolvedValue({ pdf: Buffer.from("original-pdf"), failedOrderSns: [] })
+    mockAddMargin.mockResolvedValue(Buffer.from("framed-pdf"))
+
+    const res = await POST(makeRequest({ orderSnList: ["S1"] }))
+
+    expect(mockAddMargin).toHaveBeenCalledWith(Buffer.from("original-pdf"), 4)
+    expect(res.status).toBe(200)
+    expect(Buffer.from(await res.arrayBuffer()).toString()).toBe("framed-pdf")
+  })
+
+  it("falls back to Shopee's original PDF (still 200) when the margin step throws, so the resi stays printable", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "u1" } })
+    mockGenerate.mockResolvedValue({ pdf: Buffer.from("original-pdf"), failedOrderSns: ["S2"] })
+    mockAddMargin.mockRejectedValue(new Error("unexpected PDF structure"))
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {})
+
+    const res = await POST(makeRequest({ orderSnList: ["S1", "S2"] }))
+
+    expect(res.status).toBe(200)
+    expect(res.headers.get("X-Failed-Orders")).toBe("S2")
+    expect(Buffer.from(await res.arrayBuffer()).toString()).toBe("original-pdf")
+    expect(errSpy).toHaveBeenCalled()
+    errSpy.mockRestore()
   })
 })

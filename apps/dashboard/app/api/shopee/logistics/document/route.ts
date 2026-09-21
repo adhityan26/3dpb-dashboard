@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { generateShippingDocument } from "@/lib/shopee/logistics"
+import { addPageMargin } from "@/lib/shopee/pdf-margin"
+
+// Blank paper left on every side of each resi page. Shopee's thermal PDF is
+// full-bleed, so without this the printer's unprintable band clips the edges.
+const LABEL_MARGIN_MM = 4
 
 export interface ShippingDocumentInput {
   orderSnList: string[]
@@ -21,7 +26,15 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { pdf, failedOrderSns } = await generateShippingDocument(body.orderSnList)
+    const { pdf: originalPdf, failedOrderSns } = await generateShippingDocument(body.orderSnList)
+    // Cosmetic re-framing only — if it fails for any reason (unexpected PDF
+    // structure), still hand back Shopee's original so the resi is printable.
+    let pdf = originalPdf
+    try {
+      pdf = await addPageMargin(originalPdf, LABEL_MARGIN_MM)
+    } catch (marginErr) {
+      console.error("[shopee/logistics/document] addPageMargin failed, serving original PDF:", marginErr)
+    }
     const headers: Record<string, string> = { "Content-Type": "application/pdf" }
     if (failedOrderSns.length > 0) {
       headers["X-Failed-Orders"] = failedOrderSns.join(",")
