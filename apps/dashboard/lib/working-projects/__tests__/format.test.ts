@@ -83,6 +83,13 @@ describe('parseSize', () => {
   })
 })
 
+describe('parseSize latest mention', () => {
+  it('takes the last size when several are mentioned', () => {
+    expect(parseSize('awalnya US 5, ganti US 9').usSize).toBe('9')
+    expect(parseSize('size US 5 | catatan | ganti size US 9.5').usSize).toBe('9.5')
+  })
+})
+
 describe('parseSizeFromVariantField', () => {
   // Real production shape: the `variant` field on a bulk-created GL Ring row
   // is sometimes just the bare number, no "US"/"size" token at all — found

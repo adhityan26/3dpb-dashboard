@@ -40,6 +40,15 @@ const MOCK_PROJECTS = [
     appliedTags: ['Cincin'],
     checklist: [],
   },
+  // Customer changed the size via chat: marketplace variant says US 5, the
+  // admin's note says US 9 — notes must win, with the discrepancy flagged.
+  {
+    id: 'wp5', customer: 'Eko', product: 'Green Lantern Ring 2026 3D Print', variant: 'US 5', notes: 'ganti ukuran US 9 ya',
+    status: 'Open', platform: 'Shopee', sourceOrderNo: 'SN5', orderNoLegacy: null,
+    dueDate: null, orderDate: null, discordThreadUrl: null,
+    appliedTags: ['Cincin'],
+    checklist: [],
+  },
 ]
 
 
@@ -174,6 +183,20 @@ describe('WorkingProjectGLRingTab full parity', () => {
         expect.objectContaining({ queryKey: ['working-projects'] }),
       )
     })
+  })
+})
+
+describe('WorkingProjectGLRingTab size precedence', () => {
+  it('uses the size from notes over the variant field and flags the difference', () => {
+    renderWithClient()
+    const row = within(screen.getByText('SN5').closest('tr') as HTMLElement)
+    expect(row.getByText(/^US 9/)).toBeInTheDocument()
+    expect(row.getByLabelText('Berbeda dari variant: US 5')).toBeInTheDocument()
+  })
+  it('shows no marker when notes and variant agree or only one is present', () => {
+    renderWithClient()
+    const row = within(screen.getByText('SN3').closest('tr') as HTMLElement)
+    expect(row.queryByLabelText(/Berbeda dari variant/)).not.toBeInTheDocument()
   })
 })
 

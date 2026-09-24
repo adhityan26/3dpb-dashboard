@@ -124,16 +124,17 @@ export function buildPostContent(wp: {
 // display now goes through computeScale() with a real baseBoreMm instead —
 // see WorkingProjectGLRingTab.tsx.
 export function parseSize(notes: string): { usSize: string | null } {
-  const segments = notes.split('|').map(s => s.trim())
-  for (const seg of segments) {
-    const m = seg.match(/(?:size|ukuran)?\s*:?\s*\bus\s*(\d{1,2}(?:\.\d)?)/i)
-    if (m) return { usSize: m[1] }
+  // When the text mentions several sizes ("awalnya US 5, ganti US 9") the
+  // LAST one wins: notes are appended chronologically, so the latest mention
+  // is the customer's final decision.
+  const last = (re: RegExp): string | null => {
+    const all = [...notes.matchAll(re)]
+    return all.length ? all[all.length - 1][1] : null
   }
-  for (const seg of segments) {
-    const m = seg.match(/(?:size|ukuran)\s*:?\s*(\d{1,2}(?:\.\d)?)/i)
-    if (m) return { usSize: m[1] }
-  }
-  return { usSize: null }
+  const viaUs = last(/\bus\s*(\d{1,2}(?:\.\d)?)/gi)
+  if (viaUs) return { usSize: viaUs }
+  const viaLabel = last(/(?:size|ukuran)\s*:?\s*(\d{1,2}(?:\.\d)?)/gi)
+  return { usSize: viaLabel }
 }
 
 // The `variant` field on a GL Ring row is sometimes JUST the bare number

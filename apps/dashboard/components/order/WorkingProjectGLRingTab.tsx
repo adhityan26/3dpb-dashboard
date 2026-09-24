@@ -43,6 +43,9 @@ interface RingRow {
   orderDate: string | null
   status: string
   usSize: string | null
+  // Size the marketplace variant field says, set only when the notes name a
+  // DIFFERENT size (customer changed it via chat) — drives the ⚠ marker.
+  variantUsSize: string | null
   scalePct: number | null
   discordThreadUrl: string | null
   checklistLabels: string[]
@@ -61,17 +64,21 @@ function expandToRows(projects: WorkingProject[], configuredProductIds: string[]
     const single = variants.length <= 1
     variants.forEach((entry) => {
       const key = variantShort(entry)
-      // Prefer the row's own `variant` field — for single-variant rows this
-      // is the marketplace's variant/SKU text and often carries the size
-      // directly (e.g. "US 10.5") even when notes is empty, which is the
-      // common case for orders bulk-created from Shopee/Tokopedia. It's
-      // only meaningful when there's exactly one variant on the row; a
-      // multi-variant row's single `variant` field can't be attributed to
-      // any one of the several product variants, so fall through to notes.
+      // Notes win over the marketplace `variant` field: notes are where the
+      // admin records a size the customer changed after ordering, so they are
+      // the newer information. The variant field (only attributable when the
+      // row has exactly one variant; for bulk-created Shopee/Tokopedia orders
+      // it often carries the size while notes is empty) is the fallback.
+      // When both name different sizes the variant size is kept in
+      // `variantUsSize` so the UI can flag the discrepancy.
       const fromVariantField = single ? parseSizeFromVariantField(wp.variant ?? '') : { usSize: null }
       const segment = notesSegmentForKey(wp.notes ?? '', key, variants.length)
       const fromNotes = parseSize(segment)
-      const usSize = fromVariantField.usSize ?? fromNotes.usSize
+      const usSize = fromNotes.usSize ?? fromVariantField.usSize
+      const variantUsSize =
+        fromNotes.usSize && fromVariantField.usSize && Number(fromNotes.usSize) !== Number(fromVariantField.usSize)
+          ? fromVariantField.usSize
+          : null
       const scalePct = scalePctFor(usSize, baseBoreMm)
       const labels = checklistLabelsFor(key, single)
       const checklistDone = {} as Record<StepType, boolean>
@@ -93,6 +100,7 @@ function expandToRows(projects: WorkingProject[], configuredProductIds: string[]
         orderDate: wp.orderDate ?? null,
         status: wp.status,
         usSize,
+        variantUsSize,
         scalePct,
         discordThreadUrl: wp.discordThreadUrl ?? null,
         checklistLabels: labels,
@@ -427,6 +435,15 @@ export function WorkingProjectGLRingTab() {
                     {r.usSize ? (
                       <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium g-accent" style={{ background: 'var(--g-card)', border: '1px solid var(--g-card-border)' }}>
                         US {r.usSize}
+                        {r.variantUsSize ? (
+                          <span
+                            className="ml-1 text-amber-600 dark:text-amber-300"
+                            title={`Ukuran di notes (US ${r.usSize}) berbeda dari variant marketplace (US ${r.variantUsSize}). Yang dipakai: notes.`}
+                            aria-label={`Berbeda dari variant: US ${r.variantUsSize}`}
+                          >
+                            ⚠ variant: US {r.variantUsSize}
+                          </span>
+                        ) : null}
                       </span>
                     ) : (
                       <span className="inline-block px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300" title="Ukuran tidak ditemukan di notes">
