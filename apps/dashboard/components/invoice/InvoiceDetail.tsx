@@ -71,6 +71,7 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
   const methods = paymentMethods ?? ["Bank Jago", "Cash", "QRIS", "Shopee", "Tokopedia", "TikTok"]
   const printRef = useRef<HTMLDivElement>(null)
   const [exportingJpeg, setExportingJpeg] = useState(false)
+  const [awb, setAwb] = useState("")
 
   // Payment form state
   const [showPayForm, setShowPayForm] = useState(false)
@@ -250,7 +251,7 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
       alert("Info pengirim belum diisi — isi dulu di Settings > Info Pengirim.")
       return
     }
-    printShippingLabel(invoice, senderInfo)
+    printShippingLabel(invoice, senderInfo, awb)
   }
 
   function handlePrint() {
@@ -478,6 +479,8 @@ export function InvoiceDetail({ invoiceId, onBack }: Props) {
                 style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t2)" }}>
           {exportingJpeg ? "⋯" : "📸 JPEG"}
         </button>
+        <input type="text" value={awb} onChange={e => setAwb(e.target.value)} placeholder="No. Resi / AWB (opsional)"
+               aria-label="No. Resi / AWB" className="glass-input h-8 w-44 rounded-[5px] px-2 text-xs" />
         <button onClick={handlePrintLabel}
                 className="h-8 px-3 rounded-[5px] text-xs font-semibold"
                 style={{ background: "var(--g-inner)", border: "1px solid var(--g-inner-border)", color: "var(--g-t2)" }}>

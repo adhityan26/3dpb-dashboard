@@ -14,7 +14,7 @@ function esc(s: string) {
  * than a mounted DOM ref — no printable content needs to be shown on
  * screen first, unlike the full invoice print in InvoiceDetail.
  */
-export function printShippingLabel(invoice: QuotationData, sender: SenderInfo): void {
+export function printShippingLabel(invoice: QuotationData, sender: SenderInfo, awb?: string): void {
   const win = window.open("", "_blank", "width=420,height=620")
   if (!win) return
 
@@ -35,6 +35,9 @@ export function printShippingLabel(invoice: QuotationData, sender: SenderInfo): 
     .recipient .nama{font-weight:700;font-size:14px}
     .recipient .alamat{line-height:1.5;margin-top:2px}
     .recipient .telp{color:#555;margin-top:4px}
+    .awb{padding:6px 0;border-top:1px dashed #999;border-bottom:1px dashed #999;text-align:center}
+    .awb .label-text{color:#888;font-size:10px}
+    .awb .no{font-weight:700;font-size:18px;letter-spacing:1px;word-break:break-all}
     .items{padding-top:8px;border-top:1px dashed #999;display:flex;flex-direction:column;gap:2px}
     .items .label-text{color:#888;font-size:10px;margin-bottom:2px}
     .item{display:flex;justify-content:space-between;gap:8px}
@@ -54,6 +57,7 @@ export function printShippingLabel(invoice: QuotationData, sender: SenderInfo): 
         <div class="alamat">${esc(invoice.buyerAlamat ?? "")}</div>
         ${invoice.buyerContact ? `<div class="telp">${esc(invoice.buyerContact)}</div>` : ""}
       </div>
+      ${awb?.trim() ? `<div class="awb"><div class="label-text">No. Resi / AWB</div><div class="no">${esc(awb.trim())}</div></div>` : ""}
       <div class="items">
         <div class="label-text">Isi paket</div>
         ${itemsHtml}

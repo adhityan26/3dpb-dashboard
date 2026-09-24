@@ -94,4 +94,13 @@ describe("printShippingLabel", () => {
     vi.spyOn(window, "open").mockReturnValue(null)
     expect(() => printShippingLabel(makeInvoice(), sender)).not.toThrow()
   })
+
+  it("prints the AWB block only when an AWB is given", () => {
+    printShippingLabel(makeInvoice(), sender, " JP1234567890 ")
+    expect(written).toContain("No. Resi / AWB")
+    expect(written).toContain("JP1234567890")
+    written = ""
+    printShippingLabel(makeInvoice(), sender)
+    expect(written).not.toContain("No. Resi / AWB")
+  })
 })
