@@ -125,4 +125,14 @@ describe('WorkingProjectEditModal', () => {
     render(<WorkingProjectEditModal project={project} onClose={vi.fn()} onSave={vi.fn()} isPending={false} />)
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
+
+  it('has a Status select prefilled and includes only status in the patch when changed', () => {
+    const onSave = vi.fn()
+    render(<WorkingProjectEditModal project={project} onClose={vi.fn()} onSave={onSave} isPending={false} />)
+    const select = screen.getByLabelText('Status') as HTMLSelectElement
+    expect(select.value).toBe('Open')
+    fireEvent.change(select, { target: { value: 'Done' } })
+    fireEvent.click(screen.getByRole('button', { name: /simpan/i }))
+    expect(onSave).toHaveBeenCalledWith({ id: 'wp1', patch: { status: 'Done' } })
+  })
 })

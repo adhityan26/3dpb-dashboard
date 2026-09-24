@@ -1,8 +1,10 @@
 'use client'
 import { useMemo, useState } from 'react'
-import { useWorkingProjects, useSetChecklistByLabel, useGLRingProductIds, useGLRingBaseBoreMm, type WorkingProject } from '@/lib/hooks/use-working-projects'
+import { useWorkingProjects, useUpdateWorkingProject, useSetChecklistByLabel, useGLRingProductIds, useGLRingBaseBoreMm, type WorkingProject } from '@/lib/hooks/use-working-projects'
 import { splitProductVariants, variantShort, parseSize, parseSizeFromVariantField, isGLRing, notesSegmentForKey } from '@/lib/working-projects/format'
 import { computeScale } from '@/lib/ring-resizer/sizing'
+import { WorkingProjectEditModal } from './WorkingProjectEditModal'
+import { InlineEditCell, WorkingProjectStatusSelect, useInlineWorkingProjectUpdate } from './WorkingProjectInline'
 
 // Same 0.3mm clearance the Ring Resizer's production form defaults to
 // ("+ 0.3 mm kelonggaran (rekomendasi)") — this tab has no per-row toggle
@@ -134,18 +136,11 @@ const COLUMN_LABELS: Record<SortColumn, string> = {
 // rendered separately from the leading sortable-header block below.
 const LEADING_SORT_COLUMNS: SortColumn[] = ['dueDate', 'orderDate', 'orderNo', 'platform', 'variant', 'usSize']
 
-// Same palette as WorkingProjectOrdersTab so both tabs on the page match.
-const STATUS_COLOR: Record<string, string> = {
-  Open: 'dark:bg-blue-900/40 dark:text-blue-300 bg-blue-100 text-blue-800',
-  Proses: 'dark:bg-amber-900/40 dark:text-amber-300 bg-amber-100 text-amber-800',
-  'Waiting Customer': 'dark:bg-orange-900/40 dark:text-orange-300 bg-orange-100 text-orange-800',
-  'Siap Kirim': 'dark:bg-purple-900/40 dark:text-purple-300 bg-purple-100 text-purple-800',
-  Done: 'dark:bg-green-900/40 dark:text-green-300 bg-green-100 text-green-800',
-  Canceled: 'dark:bg-red-900/40 dark:text-red-300 bg-red-100 text-red-800',
-}
-
 export function WorkingProjectGLRingTab() {
   const { data, isLoading } = useWorkingProjects()
+  const updateMutation = useUpdateWorkingProject()
+  const inline = useInlineWorkingProjectUpdate()
+  const [editing, setEditing] = useState<WorkingProject | null>(null)
   const [sortKeys, setSortKeys] = useState<SortColumn[]>(['dueDate'])
   const [search, setSearch] = useState('')
   const [platform, setPlatform] = useState('')
@@ -296,6 +291,12 @@ export function WorkingProjectGLRingTab() {
         <span className="g-t4 ml-auto hidden sm:inline">Shift+klik header untuk multi-sort (maks 3)</span>
       </div>
 
+      {inline.error && (
+        <div role="alert" className="mb-3 px-3 py-2 rounded-[5px] text-sm bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300">
+          {inline.error}
+        </div>
+      )}
+
       {checklistError && (
         <div role="alert" className="mb-3 px-3 py-2 rounded-[5px] text-sm bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300">
           {checklistError}
@@ -383,12 +384,13 @@ export function WorkingProjectGLRingTab() {
                 {COLUMN_LABELS.status}{sortIndicator('status')}
               </th>
               <th className={thBase}>Discord</th>
+              <th className={thBase}>Aksi</th>
             </tr>
           </thead>
           <tbody>
             {pageRows.length === 0 ? (
               <tr>
-                <td colSpan={LEADING_SORT_COLUMNS.length + STEP_TYPES.length + 4} className="px-3 py-8 text-center text-sm g-t4">
+                <td colSpan={LEADING_SORT_COLUMNS.length + STEP_TYPES.length + 5} className="px-3 py-8 text-center text-sm g-t4">
                   Tidak ada baris yang cocok dengan filter.
                 </td>
               </tr>
@@ -396,8 +398,24 @@ export function WorkingProjectGLRingTab() {
               const doneCount = STEP_TYPES.filter(s => r.checklistDone[s]).length
               return (
                 <tr key={`${r.wpId}-${r.key}-${i}`} className="border-b dark:border-white/5 border-black/5 hover:bg-white/5 align-middle">
-                  <td className={tdBase}>{r.dueDate ? new Date(r.dueDate).toLocaleDateString('id-ID') : '-'}</td>
-                  <td className={tdBase}>{r.orderDate ? new Date(r.orderDate).toLocaleDateString('id-ID') : '-'}</td>
+                  <td className={tdBase}>
+                    <InlineEditCell
+                      label="due date"
+                      type="date"
+                      value={r.dueDate ? r.dueDate.slice(0, 10) : ''}
+                      display={r.dueDate ? new Date(r.dueDate).toLocaleDateString('id-ID') : '-'}
+                      onSave={v => inline.save(r.wpId, { dueDateRaw: v }, 'due date')}
+                    />
+                  </td>
+                  <td className={tdBase}>
+                    <InlineEditCell
+                      label="order date"
+                      type="date"
+                      value={r.orderDate ? r.orderDate.slice(0, 10) : ''}
+                      display={r.orderDate ? new Date(r.orderDate).toLocaleDateString('id-ID') : '-'}
+                      onSave={v => inline.save(r.wpId, { orderDateRaw: v }, 'order date')}
+                    />
+                  </td>
                   <td className={tdBase}>
                     <div className="font-medium">{r.orderNo}</div>
                     <div className="text-xs g-t4 truncate max-w-[160px]" title={r.customer}>{r.customer}</div>
@@ -434,12 +452,26 @@ export function WorkingProjectGLRingTab() {
                     </span>
                   </td>
                   <td className={tdBase}>
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLOR[r.status] ?? ''}`}>{r.status}</span>
+                    <WorkingProjectStatusSelect
+                      value={inline.statusOverride[r.wpId] ?? r.status}
+                      onChange={st => inline.setStatus(r.wpId, st)}
+                    />
                   </td>
                   <td className={tdBase}>
                     {r.discordThreadUrl ? (
                       <a href={r.discordThreadUrl} target="_blank" rel="noreferrer" className="g-accent underline">Buka</a>
                     ) : '-'}
+                  </td>
+                  <td className={tdBase}>
+                    <button
+                      type="button"
+                      onClick={() => setEditing((data ?? []).find(w => w.id === r.wpId) ?? null)}
+                      className="g-accent hover:opacity-80 text-base leading-none"
+                      title="Edit"
+                      aria-label={`Edit ${r.orderNo}`}
+                    >
+                      ✏️
+                    </button>
                   </td>
                 </tr>
               )
@@ -456,6 +488,16 @@ export function WorkingProjectGLRingTab() {
           <button type="button" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages} className="h-8 px-2 rounded-[5px] g-btn-ghost disabled:opacity-40">Next ›</button>
         </div>
       </div>
+
+      <WorkingProjectEditModal
+        project={editing}
+        onClose={() => setEditing(null)}
+        isPending={updateMutation.isPending}
+        error={updateMutation.error instanceof Error ? updateMutation.error.message : null}
+        onSave={({ id, patch }) => {
+          updateMutation.mutate({ id, patch }, { onSuccess: () => setEditing(null) })
+        }}
+      />
     </>
   )
 }

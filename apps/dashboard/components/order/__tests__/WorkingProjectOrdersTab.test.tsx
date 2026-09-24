@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 const projects = [
@@ -23,6 +23,7 @@ const projects = [
 
 const updateMutationState = vi.hoisted(() => ({
   mutate: vi.fn(),
+  mutateAsync: vi.fn(),
   isPending: false,
   error: null as Error | null,
 }))
@@ -39,6 +40,8 @@ import { WorkingProjectOrdersTab } from '../WorkingProjectOrdersTab'
 
 beforeEach(() => {
   updateMutationState.mutate.mockReset()
+  updateMutationState.mutateAsync.mockReset()
+  updateMutationState.mutateAsync.mockResolvedValue({})
   updateMutationState.isPending = false
   updateMutationState.error = null
 })
@@ -123,5 +126,44 @@ describe('WorkingProjectOrdersTab actions', () => {
     })
     // Modal stays open (still shows the Batal/Simpan buttons) rather than unmounting.
     expect(screen.getByRole('button', { name: /batal/i })).toBeInTheDocument()
+  })
+})
+
+describe('WorkingProjectOrdersTab inline editing', () => {
+  // Rows are sorted by customer (Ani first), so target wp1 by its order no.
+  const wp1Row = () => within(screen.getByText('SN1').closest('tr') as HTMLElement)
+
+  it('changing the status select PATCHes only status', async () => {
+    render(<WorkingProjectOrdersTab />)
+    fireEvent.change(wp1Row().getByLabelText('Status'), { target: { value: 'Proses' } })
+    await waitFor(() =>
+      expect(updateMutationState.mutateAsync).toHaveBeenCalledWith({ id: 'wp1', patch: { status: 'Proses' } }),
+    )
+  })
+  it('click-to-edit customer saves on Enter and only when changed', async () => {
+    render(<WorkingProjectOrdersTab />)
+    fireEvent.click(wp1Row().getByLabelText('Ganti customer'))
+    const input = screen.getByLabelText('customer')
+    fireEvent.change(input, { target: { value: 'Budi S' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() =>
+      expect(updateMutationState.mutateAsync).toHaveBeenCalledWith({ id: 'wp1', patch: { customer: 'Budi S' } }),
+    )
+  })
+  it('Escape cancels and unchanged blur does not save', () => {
+    render(<WorkingProjectOrdersTab />)
+    fireEvent.click(wp1Row().getByLabelText('Ganti customer'))
+    fireEvent.change(screen.getByLabelText('customer'), { target: { value: 'X' } })
+    fireEvent.keyDown(screen.getByLabelText('customer'), { key: 'Escape' })
+    fireEvent.click(wp1Row().getByLabelText('Ganti produk'))
+    fireEvent.blur(screen.getByLabelText('produk'))
+    expect(updateMutationState.mutateAsync).not.toHaveBeenCalled()
+  })
+  it('shows an error banner and reverts when the save fails', async () => {
+    updateMutationState.mutateAsync.mockRejectedValue(new Error('invalid_patch_value'))
+    render(<WorkingProjectOrdersTab />)
+    fireEvent.change(wp1Row().getByLabelText('Status'), { target: { value: 'Done' } })
+    expect(await screen.findByRole('alert')).toHaveTextContent('Gagal menyimpan status: invalid_patch_value')
+    await waitFor(() => expect((wp1Row().getByLabelText('Status') as HTMLSelectElement).value).toBe('Open'))
   })
 })

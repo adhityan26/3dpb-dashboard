@@ -7,7 +7,8 @@ import {
   type WorkingProject,
   type WorkingProjectChecklistItem,
 } from "@/lib/hooks/use-working-projects"
-import { WorkingProjectEditModal } from "./WorkingProjectEditModal"
+import { WorkingProjectEditModal, dueDateDisplayValue } from "./WorkingProjectEditModal"
+import { InlineEditCell, WorkingProjectStatusSelect, useInlineWorkingProjectUpdate } from "./WorkingProjectInline"
 import { WorkingProjectNotesModal } from "./WorkingProjectNotesModal"
 
 const ALL_STATUSES = ["Open", "Proses", "Waiting Customer", "Siap Kirim", "Done", "Canceled"] as const
@@ -95,18 +96,10 @@ function MarketplaceDetailPanel({ wp, onClose }: { wp: WorkingProject; onClose: 
   )
 }
 
-const STATUS_COLOR: Record<string, string> = {
-  Open: "dark:bg-blue-900/40 dark:text-blue-300 bg-blue-100 text-blue-800",
-  Proses: "dark:bg-amber-900/40 dark:text-amber-300 bg-amber-100 text-amber-800",
-  "Waiting Customer": "dark:bg-orange-900/40 dark:text-orange-300 bg-orange-100 text-orange-800",
-  "Siap Kirim": "dark:bg-purple-900/40 dark:text-purple-300 bg-purple-100 text-purple-800",
-  Done: "dark:bg-green-900/40 dark:text-green-300 bg-green-100 text-green-800",
-  Canceled: "dark:bg-red-900/40 dark:text-red-300 bg-red-100 text-red-800",
-}
-
 export function WorkingProjectOrdersTab() {
   const { data, isLoading } = useWorkingProjects()
   const updateMutation = useUpdateWorkingProject()
+  const inline = useInlineWorkingProjectUpdate()
   const [editing, setEditing] = useState<WorkingProject | null>(null)
   const [editingNotes, setEditingNotes] = useState<WorkingProject | null>(null)
   const [viewingMarketplace, setViewingMarketplace] = useState<WorkingProject | null>(null)
@@ -246,6 +239,12 @@ export function WorkingProjectOrdersTab() {
         </select>
       </div>
 
+      {inline.error ? (
+        <div role="alert" className="mb-3 px-3 py-2 rounded-[5px] text-sm bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300">
+          {inline.error}
+        </div>
+      ) : null}
+
       <div className="overflow-x-auto rounded-[5px]" style={{ border: "1px solid var(--g-card-border)" }}>
         <table className="min-w-full border-collapse">
           <thead className="text-xs uppercase" style={{ background: "var(--g-card)" }}>
@@ -270,27 +269,66 @@ export function WorkingProjectOrdersTab() {
               return (
                 <tr key={wp.id} className="border-b dark:border-white/5 border-black/5 hover:bg-white/5 align-top">
                   <td className="px-3 py-2 text-sm max-w-[180px]">
-                    <div className="truncate" title={`${wp.customer}${wp.contact ? ` (${wp.contact})` : ""}`}>
-                      {wp.customer}
-                      {wp.contact ? ` (${wp.contact})` : ""}
-                    </div>
+                    <InlineEditCell
+                      label="customer"
+                      value={wp.customer}
+                      display={
+                        <div className="truncate" title={`${wp.customer}${wp.contact ? ` (${wp.contact})` : ""}`}>
+                          {wp.customer}
+                          {wp.contact ? ` (${wp.contact})` : ""}
+                        </div>
+                      }
+                      onSave={(v) => inline.save(wp.id, { customer: v }, "customer")}
+                    />
                   </td>
                   <td className="px-3 py-2 text-sm max-w-[200px]">
-                    <div className="truncate" title={wp.product}>{wp.product}</div>
+                    <InlineEditCell
+                      label="produk"
+                      value={wp.product}
+                      display={<div className="truncate" title={wp.product}>{wp.product}</div>}
+                      onSave={(v) => inline.save(wp.id, { product: v }, "produk")}
+                    />
                   </td>
-                  <td className="px-3 py-2 text-sm whitespace-nowrap">{wp.variant ?? "-"}</td>
+                  <td className="px-3 py-2 text-sm whitespace-nowrap">
+                    <InlineEditCell
+                      label="variant"
+                      value={wp.variant ?? ""}
+                      onSave={(v) => inline.save(wp.id, { variant: v }, "variant")}
+                    />
+                  </td>
                   <td className="px-3 py-2 text-sm whitespace-nowrap">{wp.platform ?? "-"}</td>
                   <td className="px-3 py-2 text-sm whitespace-nowrap">{wp.sourceOrderNo ?? wp.orderNoLegacy ?? "-"}</td>
                   <td className="px-3 py-2 text-sm whitespace-nowrap">
-                    {wp.dueDate ? new Date(wp.dueDate).toLocaleDateString("id-ID") : (wp.dueDateRaw ?? "-")}
+                    <InlineEditCell
+                      label="due date"
+                      value={dueDateDisplayValue(wp)}
+                      display={wp.dueDate ? new Date(wp.dueDate).toLocaleDateString("id-ID") : (wp.dueDateRaw ?? "-")}
+                      onSave={(v) => inline.save(wp.id, { dueDateRaw: v }, "due date")}
+                    />
                   </td>
                   <td className="px-3 py-2 text-sm whitespace-nowrap">
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${STATUS_COLOR[wp.status] ?? ""}`}>
-                      {wp.status}
-                    </span>
+                    <WorkingProjectStatusSelect
+                      value={inline.statusOverride[wp.id] ?? wp.status}
+                      onChange={(s) => inline.setStatus(wp.id, s)}
+                    />
                   </td>
-                  <td className="px-3 py-2 text-sm whitespace-nowrap">{wp.payment}</td>
-                  <td className="px-3 py-2 text-sm text-right whitespace-nowrap">Rp{wp.invoiceAmount.toLocaleString("id-ID")}</td>
+                  <td className="px-3 py-2 text-sm whitespace-nowrap">
+                    <InlineEditCell
+                      label="payment"
+                      value={wp.payment}
+                      onSave={(v) => inline.save(wp.id, { paymentRaw: v }, "payment")}
+                    />
+                  </td>
+                  <td className="px-3 py-2 text-sm text-right whitespace-nowrap">
+                    <InlineEditCell
+                      label="nominal"
+                      type="numeric"
+                      value={String(wp.invoiceAmount)}
+                      display={`Rp${wp.invoiceAmount.toLocaleString("id-ID")}`}
+                      onSave={(v) => inline.save(wp.id, { invoiceAmountRaw: v }, "nominal")}
+                      className="text-right"
+                    />
+                  </td>
                   <td className="px-3 py-2 text-sm text-center whitespace-nowrap">{`${done}/${active.length}`}</td>
                   <td className="px-3 py-2 text-sm whitespace-nowrap">
                     {wp.discordThreadUrl ? (

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { render, screen, fireEvent, waitFor } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, within } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
@@ -167,5 +167,43 @@ describe('WorkingProjectGLRingTab full parity', () => {
         expect.objectContaining({ queryKey: ['working-projects'] }),
       )
     })
+  })
+})
+
+describe('WorkingProjectGLRingTab inline editing', () => {
+  // Default sort puts rows without a due date first, so target wp1 by order no.
+  const wp1Row = () => within(screen.getAllByText('SN1')[0].closest('tr') as HTMLElement)
+
+  it('changing a row status PATCHes /api/working-projects/:id with only status', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) }) as unknown as typeof fetch
+    renderWithClient()
+    fireEvent.change(wp1Row().getByLabelText('Status'), { target: { value: 'Siap Kirim' } })
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/working-projects/wp1',
+        expect.objectContaining({ method: 'PATCH', body: JSON.stringify({ status: 'Siap Kirim' }) }),
+      )
+    })
+  })
+
+  it('inline due date sends dueDateRaw as an ISO date', async () => {
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true }) }) as unknown as typeof fetch
+    renderWithClient()
+    fireEvent.click(wp1Row().getByLabelText('Ganti due date'))
+    const input = screen.getByLabelText('due date')
+    fireEvent.change(input, { target: { value: '2026-10-01' } })
+    fireEvent.keyDown(input, { key: 'Enter' })
+    await waitFor(() => {
+      expect(global.fetch).toHaveBeenCalledWith(
+        '/api/working-projects/wp1',
+        expect.objectContaining({ body: JSON.stringify({ dueDateRaw: '2026-10-01' }) }),
+      )
+    })
+  })
+
+  it('the Edit button opens the existing edit popup for that order', () => {
+    renderWithClient()
+    fireEvent.click(screen.getAllByRole('button', { name: /^Edit SN1/ })[0])
+    expect(screen.getByText('Edit Order')).toBeInTheDocument()
   })
 })

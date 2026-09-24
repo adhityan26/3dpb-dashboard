@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import type { WorkingProject } from "@/lib/hooks/use-working-projects"
+import { WORKING_PROJECT_STATUSES } from "@/lib/working-projects/format"
 
 export interface WorkingProjectEditPatch {
   customer?: string
@@ -13,6 +14,7 @@ export interface WorkingProjectEditPatch {
   invoiceAmountRaw?: string
   shipping?: string
   trackingNo?: string
+  status?: string
 }
 
 interface Props {
@@ -30,7 +32,7 @@ const fieldLabel = "text-[10px] font-semibold uppercase tracking-wider mb-1"
 // successfully parsed into `dueDate`), so a project with a parsed due date
 // must fall back to formatting `dueDate` itself — otherwise the field opens
 // blank and saving would send `dueDateRaw: ""`, silently wiping the due date.
-function dueDateDisplayValue(project: WorkingProject): string {
+export function dueDateDisplayValue(project: WorkingProject): string {
   if (project.dueDateRaw) return project.dueDateRaw
   if (project.dueDate) return new Date(project.dueDate).toISOString().slice(0, 10)
   return ""
@@ -53,6 +55,7 @@ function initialValues(project: WorkingProject) {
     invoiceAmountRaw: String(project.invoiceAmount),
     shipping: project.shipping ?? "",
     trackingNo: project.trackingNo ?? "",
+    status: project.status,
   }
 }
 
@@ -73,6 +76,7 @@ export function WorkingProjectEditModal({ project, onClose, onSave, isPending, e
   )
   const [shipping, setShipping] = useState(project?.shipping ?? "")
   const [trackingNo, setTrackingNo] = useState(project?.trackingNo ?? "")
+  const [status, setStatus] = useState(project?.status ?? "")
 
   // Body scroll lock while open — the page behind can be very long (100+
   // rows); letting it scroll behind a near-transparent backdrop is what
@@ -99,13 +103,14 @@ export function WorkingProjectEditModal({ project, onClose, onSave, isPending, e
     setInvoiceAmountRaw(values.invoiceAmountRaw)
     setShipping(values.shipping)
     setTrackingNo(values.trackingNo)
+    setStatus(values.status)
   }
 
   if (!project) return null
 
   function handleSave() {
     if (!project || !initial) return
-    const current = { customer, product, variant, dueDateRaw, orderDateRaw, paymentRaw, invoiceAmountRaw, shipping, trackingNo }
+    const current = { customer, product, variant, dueDateRaw, orderDateRaw, paymentRaw, invoiceAmountRaw, shipping, trackingNo, status }
     const patch: WorkingProjectEditPatch = {}
     let key: keyof typeof current
     for (key in current) {
@@ -137,6 +142,22 @@ export function WorkingProjectEditModal({ project, onClose, onSave, isPending, e
         </div>
 
         <div className="space-y-3">
+          <div>
+            <label htmlFor="wp-edit-status" className={`${fieldLabel} g-accent`}>Status</label>
+            <select
+              id="wp-edit-status"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+              className="glass-input w-full h-10 rounded-[5px] px-3 text-sm"
+            >
+              {(WORKING_PROJECT_STATUSES.includes(status as never)
+                ? [...WORKING_PROJECT_STATUSES]
+                : [status, ...WORKING_PROJECT_STATUSES]
+              ).map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className={`${fieldLabel} g-accent`}>Customer</label>
             <input

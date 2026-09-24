@@ -79,6 +79,10 @@ export interface WorkingProjectUpdatePatch {
   notes?: string
   mentions?: string[]
   appliedTags?: string[]
+  status?: string
+  platform?: string
+  contact?: string
+  source?: string
 }
 
 export function useUpdateWorkingProject() {
@@ -90,9 +94,9 @@ export function useUpdateWorkingProject() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
       }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: WORKING_PROJECTS_KEY })
-    },
+    // Returned so mutateAsync resolves only after the list refetch — inline
+    // edits rely on this to drop their optimistic value without a flicker.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: WORKING_PROJECTS_KEY }),
   })
 }
 
