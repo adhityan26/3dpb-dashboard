@@ -200,6 +200,14 @@ describe('updateWorkingProject', () => {
     expect(call.data).toMatchObject({ platform: 'Tokopedia', contact: '0812', source: 'tokopedia' })
   })
 
+  it('links and unlinks an invoice via quotationId (null unlinks)', async () => {
+    await updateWorkingProject('t1', { quotationId: 'q1' })
+    expect((prisma.workingProject.update as any).mock.calls[0][0].data).toMatchObject({ quotationId: 'q1' })
+    ;(prisma.workingProject.update as any).mockClear()
+    await updateWorkingProject('t1', { quotationId: null })
+    expect((prisma.workingProject.update as any).mock.calls[0][0].data).toMatchObject({ quotationId: null })
+  })
+
   it.each([
     ['status', { status: 'done' }, /status must be one of/],
     ['status', { status: 'Selesai' }, /status must be one of/],
@@ -207,6 +215,8 @@ describe('updateWorkingProject', () => {
     ['source', { source: 'lazada' }, /source must be one of/],
     ['platform', { platform: 123 }, /platform must be a string/],
     ['contact', { contact: null }, /contact must be a string/],
+    ['quotationId', { quotationId: '  ' }, /quotationId must be a non-empty string or null/],
+    ['quotationId', { quotationId: 7 }, /quotationId must be a non-empty string or null/],
   ])('rejects an invalid %s value before touching the DB: %j', async (_name, patch, message) => {
     await expect(updateWorkingProject('t1', patch as any)).rejects.toThrow(message)
     await expect(updateWorkingProject('t1', patch as any)).rejects.toThrow(/invalid patch value/)

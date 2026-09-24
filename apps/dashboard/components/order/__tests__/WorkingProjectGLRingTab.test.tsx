@@ -42,6 +42,13 @@ const MOCK_PROJECTS = [
   },
 ]
 
+
+const invoiceMocks = vi.hoisted(() => ({ createAsync: vi.fn() }))
+vi.mock('@/lib/hooks/use-invoice', () => ({
+  useInvoiceList: () => ({ data: [{ id: 'q1', nomor: 'INV-1', buyerNama: 'Budi', status: 'SENT' }] }),
+  useCreateInvoice: () => ({ mutateAsync: invoiceMocks.createAsync, isPending: false }),
+}))
+
 vi.mock('@/lib/hooks/use-working-projects', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/lib/hooks/use-working-projects')>()
   return {

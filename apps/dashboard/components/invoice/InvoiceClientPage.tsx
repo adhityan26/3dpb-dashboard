@@ -20,11 +20,11 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })
 }
 
-export function InvoiceClientPage() {
+export function InvoiceClientPage({ initialViewId = null }: { initialViewId?: string | null }) {
   const { data: items, isLoading } = useInvoiceList()
   const deleteMut = useDeleteInvoice()
   const [showForm, setShowForm] = useState(false)
-  const [viewId, setViewId] = useState<string | null>(null)
+  const [viewId, setViewId] = useState<string | null>(initialViewId)
   const [filterStatus, setFilterStatus] = useState<QuotationStatus | "all">("all")
 
   const allItems = items ?? []

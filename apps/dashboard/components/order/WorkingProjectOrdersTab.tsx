@@ -8,6 +8,7 @@ import {
   type WorkingProjectChecklistItem,
 } from "@/lib/hooks/use-working-projects"
 import { WorkingProjectEditModal, dueDateDisplayValue } from "./WorkingProjectEditModal"
+import { WorkingProjectInvoiceButton } from "./WorkingProjectInvoiceButton"
 import { InlineEditCell, WorkingProjectStatusSelect, useInlineWorkingProjectUpdate } from "./WorkingProjectInline"
 import { WorkingProjectNotesModal } from "./WorkingProjectNotesModal"
 
@@ -350,6 +351,7 @@ export function WorkingProjectOrdersTab() {
                       >
                         ✏️
                       </button>
+                      <WorkingProjectInvoiceButton wp={wp} />
                       <button
                         type="button"
                         onClick={() => setEditingNotes(wp)}

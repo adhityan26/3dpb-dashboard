@@ -83,6 +83,7 @@ export interface WorkingProjectUpdatePatch {
   platform?: string
   contact?: string
   source?: string
+  quotationId?: string | null
 }
 
 export function useUpdateWorkingProject() {

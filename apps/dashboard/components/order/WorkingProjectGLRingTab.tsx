@@ -4,6 +4,7 @@ import { useWorkingProjects, useUpdateWorkingProject, useSetChecklistByLabel, us
 import { splitProductVariants, variantShort, parseSize, parseSizeFromVariantField, isGLRing, notesSegmentForKey } from '@/lib/working-projects/format'
 import { computeScale } from '@/lib/ring-resizer/sizing'
 import { WorkingProjectEditModal } from './WorkingProjectEditModal'
+import { WorkingProjectInvoiceButton } from './WorkingProjectInvoiceButton'
 import { InlineEditCell, WorkingProjectStatusSelect, useInlineWorkingProjectUpdate } from './WorkingProjectInline'
 
 // Same 0.3mm clearance the Ring Resizer's production form defaults to
@@ -462,7 +463,7 @@ export function WorkingProjectGLRingTab() {
                       <a href={r.discordThreadUrl} target="_blank" rel="noreferrer" className="g-accent underline">Buka</a>
                     ) : '-'}
                   </td>
-                  <td className={tdBase}>
+                  <td className={`${tdBase} space-x-2`}>
                     <button
                       type="button"
                       onClick={() => setEditing((data ?? []).find(w => w.id === r.wpId) ?? null)}
@@ -472,6 +473,10 @@ export function WorkingProjectGLRingTab() {
                     >
                       ✏️
                     </button>
+                    {(() => {
+                      const wp = (data ?? []).find(w => w.id === r.wpId)
+                      return wp ? <WorkingProjectInvoiceButton wp={wp} /> : null
+                    })()}
                   </td>
                 </tr>
               )

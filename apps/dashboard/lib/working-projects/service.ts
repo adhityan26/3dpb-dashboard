@@ -142,7 +142,7 @@ const UPDATE_PATCH_KEYS = new Set([
   'dueDateRaw', 'orderDateRaw', 'paymentRaw', 'invoiceAmountRaw', 'paidAmountRaw',
   'notesAppend', 'notes', 'variant', 'customer', 'product',
   'shipping', 'trackingNo', 'mentions', 'appliedTags',
-  'status', 'platform', 'contact', 'source',
+  'status', 'platform', 'contact', 'source', 'quotationId',
 ])
 
 // Validates the enum/string fields opened up for PATCH. Throws
@@ -150,12 +150,17 @@ const UPDATE_PATCH_KEYS = new Set([
 // "unknown patch field" guard, so a caller passing e.g. status:"done"
 // (wrong case) gets told instead of silently writing a value every status
 // filter/badge in the UI would then fail to recognize.
-function assertValidPatchValues(patch: { status?: unknown; source?: unknown; platform?: unknown; contact?: unknown }): void {
+function assertValidPatchValues(patch: { status?: unknown; source?: unknown; platform?: unknown; contact?: unknown; quotationId?: unknown }): void {
   if (patch.status !== undefined && !(WORKING_PROJECT_STATUSES as readonly unknown[]).includes(patch.status)) {
     throw new Error(`updateWorkingProject: invalid patch value: status must be one of ${WORKING_PROJECT_STATUSES.join(', ')} (got ${JSON.stringify(patch.status)})`)
   }
   if (patch.source !== undefined && !(WORKING_PROJECT_SOURCES as readonly unknown[]).includes(patch.source)) {
     throw new Error(`updateWorkingProject: invalid patch value: source must be one of ${WORKING_PROJECT_SOURCES.join(', ')} (got ${JSON.stringify(patch.source)})`)
+  }
+  // null unlinks the invoice; otherwise it must be a non-empty id.
+  if (patch.quotationId !== undefined && patch.quotationId !== null
+    && (typeof patch.quotationId !== 'string' || !patch.quotationId.trim())) {
+    throw new Error('updateWorkingProject: invalid patch value: quotationId must be a non-empty string or null')
   }
   for (const key of ['platform', 'contact'] as const) {
     if (patch[key] !== undefined && typeof patch[key] !== 'string') {
@@ -168,7 +173,7 @@ export async function updateWorkingProject(threadId: string, patch: Partial<{
   dueDateRaw: string; orderDateRaw: string; paymentRaw: string; invoiceAmountRaw: string; paidAmountRaw: string
   notesAppend: string; notes: string; variant: string; customer: string; product: string
   shipping: string; trackingNo: string; mentions: string[]; appliedTags: string[]
-  status: string; platform: string; contact: string; source: string
+  status: string; platform: string; contact: string; source: string; quotationId: string | null
 }>): Promise<{ ok: true; discordSynced: boolean }> {
   // A patch with only unrecognized keys (a typo'd field name, or a field
   // that doesn't exist on WorkingProject at all — e.g. the Discord bot's AI
@@ -208,6 +213,7 @@ export async function updateWorkingProject(threadId: string, patch: Partial<{
   if (patch.platform !== undefined) data.platform = patch.platform
   if (patch.contact !== undefined) data.contact = patch.contact
   if (patch.source !== undefined) data.source = patch.source
+  if (patch.quotationId !== undefined) data.quotationId = patch.quotationId
 
   // If any title-affecting field changed, rebuild the title too — otherwise
   // editing a customer/product/variant leaves the thread name stale even

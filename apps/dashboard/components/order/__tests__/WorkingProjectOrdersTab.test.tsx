@@ -36,6 +36,13 @@ vi.mock('@/lib/hooks/use-working-projects', () => ({
   useUpdateWorkingProject: () => updateMutationState,
   useChecklistOp: () => ({ mutate: vi.fn(), isPending: false }),
 }))
+
+const invoiceMocks = vi.hoisted(() => ({ createAsync: vi.fn() }))
+vi.mock('@/lib/hooks/use-invoice', () => ({
+  useInvoiceList: () => ({ data: [{ id: 'q1', nomor: 'INV-1', buyerNama: 'Budi', status: 'SENT' }] }),
+  useCreateInvoice: () => ({ mutateAsync: invoiceMocks.createAsync, isPending: false }),
+}))
+
 import { WorkingProjectOrdersTab } from '../WorkingProjectOrdersTab'
 
 beforeEach(() => {
@@ -165,5 +172,30 @@ describe('WorkingProjectOrdersTab inline editing', () => {
     fireEvent.change(wp1Row().getByLabelText('Status'), { target: { value: 'Done' } })
     expect(await screen.findByRole('alert')).toHaveTextContent('Gagal menyimpan status: invalid_patch_value')
     await waitFor(() => expect((wp1Row().getByLabelText('Status') as HTMLSelectElement).value).toBe('Open'))
+  })
+})
+
+describe('WorkingProjectOrdersTab invoice link', () => {
+  const wp1Row = () => within(screen.getByText('SN1').closest('tr') as HTMLElement)
+  beforeEach(() => invoiceMocks.createAsync.mockReset())
+
+  it('creates an invoice prefilled from the order and links it via quotationId', async () => {
+    invoiceMocks.createAsync.mockResolvedValue({ id: 'q9' })
+    render(<WorkingProjectOrdersTab />)
+    fireEvent.click(wp1Row().getByRole('button', { name: /^Invoice SN1/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Buat Invoice Baru' }))
+    await waitFor(() => expect(updateMutationState.mutateAsync).toHaveBeenCalledWith({ id: 'wp1', patch: { quotationId: 'q9' } }))
+    expect(invoiceMocks.createAsync).toHaveBeenCalledWith(expect.objectContaining({
+      buyerNama: 'Budi',
+      items: [expect.objectContaining({ namaProduk: 'Cincin (Emas)', qty: 1, hargaPerUnit: 150000 })],
+    }))
+  })
+
+  it('links an existing invoice from the dropdown', async () => {
+    render(<WorkingProjectOrdersTab />)
+    fireEvent.click(wp1Row().getByRole('button', { name: /^Invoice SN1/ }))
+    fireEvent.change(screen.getByLabelText('Pilih invoice'), { target: { value: 'q1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Tautkan' }))
+    await waitFor(() => expect(updateMutationState.mutateAsync).toHaveBeenCalledWith({ id: 'wp1', patch: { quotationId: 'q1' } }))
   })
 })
