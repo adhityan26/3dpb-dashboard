@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/db'
-import { buildTitle, buildPostContent, parseDueDate, parseOrderDate, parseAmount, appendNoteWithTimestamp } from './format'
+import { buildTitle, buildPostContent, parseDueDate, parseOrderDate, parseAmount, appendNoteWithTimestamp, WORKING_PROJECT_STATUSES, WORKING_PROJECT_SOURCES } from './format'
 import { createRelayThread, editRelayThread, archiveRelayThread, deleteRelayThread } from './discord-sync'
 
 export async function createWorkingProject(input: {
@@ -142,12 +142,33 @@ const UPDATE_PATCH_KEYS = new Set([
   'dueDateRaw', 'orderDateRaw', 'paymentRaw', 'invoiceAmountRaw', 'paidAmountRaw',
   'notesAppend', 'notes', 'variant', 'customer', 'product',
   'shipping', 'trackingNo', 'mentions', 'appliedTags',
+  'status', 'platform', 'contact', 'source',
 ])
+
+// Validates the enum/string fields opened up for PATCH. Throws
+// "invalid patch value: ..." — the routes map that to a 400, same as the
+// "unknown patch field" guard, so a caller passing e.g. status:"done"
+// (wrong case) gets told instead of silently writing a value every status
+// filter/badge in the UI would then fail to recognize.
+function assertValidPatchValues(patch: { status?: unknown; source?: unknown; platform?: unknown; contact?: unknown }): void {
+  if (patch.status !== undefined && !(WORKING_PROJECT_STATUSES as readonly unknown[]).includes(patch.status)) {
+    throw new Error(`updateWorkingProject: invalid patch value: status must be one of ${WORKING_PROJECT_STATUSES.join(', ')} (got ${JSON.stringify(patch.status)})`)
+  }
+  if (patch.source !== undefined && !(WORKING_PROJECT_SOURCES as readonly unknown[]).includes(patch.source)) {
+    throw new Error(`updateWorkingProject: invalid patch value: source must be one of ${WORKING_PROJECT_SOURCES.join(', ')} (got ${JSON.stringify(patch.source)})`)
+  }
+  for (const key of ['platform', 'contact'] as const) {
+    if (patch[key] !== undefined && typeof patch[key] !== 'string') {
+      throw new Error(`updateWorkingProject: invalid patch value: ${key} must be a string`)
+    }
+  }
+}
 
 export async function updateWorkingProject(threadId: string, patch: Partial<{
   dueDateRaw: string; orderDateRaw: string; paymentRaw: string; invoiceAmountRaw: string; paidAmountRaw: string
   notesAppend: string; notes: string; variant: string; customer: string; product: string
   shipping: string; trackingNo: string; mentions: string[]; appliedTags: string[]
+  status: string; platform: string; contact: string; source: string
 }>): Promise<{ ok: true; discordSynced: boolean }> {
   // A patch with only unrecognized keys (a typo'd field name, or a field
   // that doesn't exist on WorkingProject at all — e.g. the Discord bot's AI
@@ -159,6 +180,7 @@ export async function updateWorkingProject(threadId: string, patch: Partial<{
   if (unknownKeys.length > 0) {
     throw new Error(`updateWorkingProject: unknown patch field(s): ${unknownKeys.join(', ')}`)
   }
+  assertValidPatchValues(patch)
 
   const wp = await prisma.workingProject.findUnique({ where: { discordThreadId: threadId } })
   if (!wp) throw new Error(`WorkingProject not found for discordThreadId=${threadId}`)
@@ -179,6 +201,13 @@ export async function updateWorkingProject(threadId: string, patch: Partial<{
   if (patch.trackingNo !== undefined) data.trackingNo = patch.trackingNo
   if (patch.mentions !== undefined) data.mentions = patch.mentions
   if (patch.appliedTags !== undefined) data.appliedTags = patch.appliedTags
+  // status behaves like setStatus(): DB + starter-post resync only. Unlike
+  // markDone() it does NOT archive the Discord thread — use the /done
+  // endpoint for that.
+  if (patch.status !== undefined) data.status = patch.status
+  if (patch.platform !== undefined) data.platform = patch.platform
+  if (patch.contact !== undefined) data.contact = patch.contact
+  if (patch.source !== undefined) data.source = patch.source
 
   // If any title-affecting field changed, rebuild the title too — otherwise
   // editing a customer/product/variant leaves the thread name stale even

@@ -1,3 +1,9 @@
+// Canonical value sets for the two enum-like WorkingProject columns. The UI
+// tabs still carry their own copies of the status list (for ordering/colors);
+// server-side validation of writes lives here.
+export const WORKING_PROJECT_STATUSES = ['Open', 'Proses', 'Waiting Customer', 'Siap Kirim', 'Done', 'Canceled'] as const
+export const WORKING_PROJECT_SOURCES = ['shopee', 'tokopedia', 'manual'] as const
+
 export function buildTitle(wp: { customer: string; product: string; variant?: string | null }): string {
   const base = `${wp.customer} - ${wp.product}`
   return wp.variant ? `${base} (${wp.variant})` : base

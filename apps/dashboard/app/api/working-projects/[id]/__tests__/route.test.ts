@@ -57,6 +57,16 @@ describe('PATCH /api/working-projects/:id', () => {
     expect(body.error).toBe('unknown_patch_field')
     expect(body.message).toContain('orderDate')
   })
+
+  it('400s with invalid_patch_value when updateWorkingProject rejects a bad enum value', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1' })
+    ;(updateWorkingProject as any).mockRejectedValue(new Error('updateWorkingProject: invalid patch value: source must be one of shopee, tokopedia, manual (got "lazada")'))
+    const res = await PATCH(req('PATCH', { source: 'lazada' }), { params: Promise.resolve({ id: 'wp1' }) })
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error).toBe('invalid_patch_value')
+    expect(body.message).toContain('source must be one of')
+  })
 })
 
 describe('DELETE /api/working-projects/:id', () => {

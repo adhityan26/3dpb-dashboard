@@ -61,6 +61,15 @@ describe('PATCH /api/bot/working-projects/[threadId]', () => {
     expect(body.error).toBe('unknown_patch_field')
     expect(body.message).toContain('orderDate')
   })
+
+  it('400s with invalid_patch_value (not a 500) when updateWorkingProject rejects a bad enum value like status "done"', async () => {
+    ;(updateWorkingProject as any).mockRejectedValue(new Error('updateWorkingProject: invalid patch value: status must be one of Open, Proses (got "done")'))
+    const res = await PATCH(req('PATCH', { status: 'done' }), { params: Promise.resolve({ threadId: 't1' }) })
+    expect(res.status).toBe(400)
+    const body = await res.json()
+    expect(body.error).toBe('invalid_patch_value')
+    expect(body.message).toContain('status must be one of')
+  })
 })
 
 describe('DELETE /api/bot/working-projects/[threadId]', () => {

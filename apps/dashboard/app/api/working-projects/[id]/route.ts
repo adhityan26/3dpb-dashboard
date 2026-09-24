@@ -26,6 +26,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (err instanceof Error && err.message.includes("unknown patch field")) {
       return NextResponse.json({ error: "unknown_patch_field", message: err.message }, { status: 400 })
     }
+    if (err instanceof Error && err.message.includes("invalid patch value")) {
+      return NextResponse.json({ error: "invalid_patch_value", message: err.message }, { status: 400 })
+    }
     throw err
   }
 }

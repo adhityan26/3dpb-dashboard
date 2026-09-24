@@ -16,7 +16,7 @@ vi.mock('@/lib/db', () => ({
   },
 }))
 import { createWorkingProject, setStatus, updateWorkingProject, resyncWorkingProject, runChecklistOp, markReminderSent, deleteWorkingProject } from '../service'
-import { createRelayThread, editRelayThread, deleteRelayThread } from '../discord-sync'
+import { createRelayThread, editRelayThread, archiveRelayThread, deleteRelayThread } from '../discord-sync'
 import { prisma } from '@/lib/db'
 
 beforeEach(() => {
@@ -166,6 +166,50 @@ describe('updateWorkingProject', () => {
 
   it('throws instead of silently no-opping when the patch has no recognized field (e.g. a typo\'d or made-up field name)', async () => {
     await expect(updateWorkingProject('t1', { orderDate: '2026-09-01' } as any)).rejects.toThrow(/unknown patch field/)
+    expect(prisma.workingProject.findUnique).not.toHaveBeenCalled()
+    expect(prisma.workingProject.update).not.toHaveBeenCalled()
+  })
+
+  it.each(['Open', 'Proses', 'Waiting Customer', 'Siap Kirim', 'Done', 'Canceled'])('persists status "%s" and resyncs the starter post', async (status) => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1', notes: null, title: 'T', customer: 'Budi', product: 'Cincin', variant: null })
+    ;(prisma.workingProject.update as any).mockResolvedValue({ customer: 'Budi', product: 'Cincin', variant: null, status, payment: 'Belum', mentions: [], checklist: [] })
+    ;(editRelayThread as any).mockResolvedValue(undefined)
+
+    await updateWorkingProject('t1', { status })
+    const call = (prisma.workingProject.update as any).mock.calls[0][0]
+    expect(call.data.status).toBe(status)
+    expect((editRelayThread as any).mock.calls[0][1].starterContent).toContain(status)
+  })
+
+  it('does not archive the Discord thread when status is set to Done via patch (that is markDone\'s job)', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1', notes: null, title: 'T', customer: 'Budi', product: 'Cincin', variant: null })
+    ;(prisma.workingProject.update as any).mockResolvedValue({ customer: 'Budi', product: 'Cincin', variant: null, status: 'Done', payment: 'Belum', mentions: [], checklist: [] })
+    ;(editRelayThread as any).mockResolvedValue(undefined)
+
+    await updateWorkingProject('t1', { status: 'Done' })
+    expect(archiveRelayThread).not.toHaveBeenCalled()
+  })
+
+  it('persists platform, contact and source', async () => {
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1', notes: null, title: 'T', customer: 'Budi', product: 'Cincin', variant: null })
+    ;(prisma.workingProject.update as any).mockResolvedValue({ customer: 'Budi', product: 'Cincin', variant: null, status: 'Open', payment: 'Belum', platform: 'Tokopedia', contact: '0812', mentions: [], checklist: [] })
+    ;(editRelayThread as any).mockResolvedValue(undefined)
+
+    await updateWorkingProject('t1', { platform: 'Tokopedia', contact: '0812', source: 'tokopedia' })
+    const call = (prisma.workingProject.update as any).mock.calls[0][0]
+    expect(call.data).toMatchObject({ platform: 'Tokopedia', contact: '0812', source: 'tokopedia' })
+  })
+
+  it.each([
+    ['status', { status: 'done' }, /status must be one of/],
+    ['status', { status: 'Selesai' }, /status must be one of/],
+    ['status', { status: 5 }, /status must be one of/],
+    ['source', { source: 'lazada' }, /source must be one of/],
+    ['platform', { platform: 123 }, /platform must be a string/],
+    ['contact', { contact: null }, /contact must be a string/],
+  ])('rejects an invalid %s value before touching the DB: %j', async (_name, patch, message) => {
+    await expect(updateWorkingProject('t1', patch as any)).rejects.toThrow(message)
+    await expect(updateWorkingProject('t1', patch as any)).rejects.toThrow(/invalid patch value/)
     expect(prisma.workingProject.findUnique).not.toHaveBeenCalled()
     expect(prisma.workingProject.update).not.toHaveBeenCalled()
   })
