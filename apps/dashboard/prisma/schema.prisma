@@ -563,6 +563,10 @@ model RingPart {
   sizeBytes Int
   triCount  Int
   boreMm    Float?
+  // Print orientation applied to the exported STL (degrees, X then Y then Z)
+  rotXDeg   Float        @default(0)
+  rotYDeg   Float        @default(0)
+  rotZDeg   Float        @default(0)
   createdAt DateTime     @default(now())
   anchors   RingAnchor[]
 

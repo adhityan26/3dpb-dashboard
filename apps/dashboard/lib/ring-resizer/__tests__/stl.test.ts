@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { parseBinaryStl, exportBinaryStl, scaleMesh, makeCubeStl } from "../mesh/stl"
+import { parseBinaryStl, exportBinaryStl, scaleMesh, rotateMesh, makeCubeStl } from "../mesh/stl"
 
 describe("binary STL parse/weld/export", () => {
   it("parses a cube and welds shared vertices", () => {
@@ -27,5 +27,23 @@ describe("binary STL parse/weld/export", () => {
   it("rejects garbage input", () => {
     expect(() => parseBinaryStl(Buffer.from("solid ascii\n"))).toThrow(/binary STL/)
     expect(() => parseBinaryStl(Buffer.alloc(10))).toThrow(/binary STL/)
+  })
+})
+
+describe("rotateMesh", () => {
+  it("applies X then Y then Z", () => {
+    const mesh = { vertProperties: new Float32Array([1, 0, 0]), triVerts: new Uint32Array() }
+    // X-rot leaves (1,0,0); Y +90 → (0,0,-1); Z +90 leaves it
+    rotateMesh(mesh, [90, 90, 90])
+    expect(mesh.vertProperties[0]).toBeCloseTo(0, 6)
+    expect(mesh.vertProperties[1]).toBeCloseTo(0, 6)
+    expect(mesh.vertProperties[2]).toBeCloseTo(-1, 6)
+  })
+
+  it("Z +90 maps +X to +Y", () => {
+    const mesh = { vertProperties: new Float32Array([1, 0, 0]), triVerts: new Uint32Array() }
+    rotateMesh(mesh, [0, 0, 90])
+    expect(mesh.vertProperties[0]).toBeCloseTo(0, 6)
+    expect(mesh.vertProperties[1]).toBeCloseTo(1, 6)
   })
 })

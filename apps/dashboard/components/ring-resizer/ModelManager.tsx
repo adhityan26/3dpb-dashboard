@@ -114,6 +114,72 @@ function PartName({ part, onChanged }: { part: { id: string; name: string }; onC
   )
 }
 
+type RotKey = "rotXDeg" | "rotYDeg" | "rotZDeg"
+const ROT_AXES: { key: RotKey; label: string }[] = [
+  { key: "rotXDeg", label: "X" }, { key: "rotYDeg", label: "Y" }, { key: "rotZDeg", label: "Z" },
+]
+
+/** Print orientation applied to the downloaded STL (X then Y then Z, degrees). */
+function PartRotation({ part, onChanged }: {
+  part: { id: string; rotXDeg: number; rotYDeg: number; rotZDeg: number }
+  onChanged: () => Promise<void>
+}) {
+  const saved = { rotXDeg: part.rotXDeg ?? 0, rotYDeg: part.rotYDeg ?? 0, rotZDeg: part.rotZDeg ?? 0 }
+  const [draft, setDraft] = useState<Record<RotKey, string>>({
+    rotXDeg: String(saved.rotXDeg), rotYDeg: String(saved.rotYDeg), rotZDeg: String(saved.rotZDeg),
+  })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const dirty = ROT_AXES.some(({ key }) => Number(draft[key]) !== saved[key])
+
+  async function save() {
+    const body: Record<RotKey, number> = { rotXDeg: 0, rotYDeg: 0, rotZDeg: 0 }
+    for (const { key, label } of ROT_AXES) {
+      const n = Number(draft[key])
+      if (!Number.isFinite(n) || Math.abs(n) > 360) { setError(`${label}: -360…360`); return }
+      body[key] = n
+    }
+    setBusy(true); setError(null)
+    try {
+      const res = await fetch(`/api/ring-resizer/parts/${part.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error((await res.json()).error ?? `HTTP ${res.status}`)
+      await onChanged()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1 g-t4" title="Rotasi diterapkan ke STL hasil download (urutan X → Y → Z), lalu diletakkan rata di bed">
+      Rotasi
+      {ROT_AXES.map(({ key, label }) => (
+        <label key={key} className="inline-flex items-center gap-0.5">
+          {label}
+          <input type="number" step={90} min={-360} max={360} value={draft[key]}
+            aria-label={`Rotasi ${label}`}
+            onChange={(e) => setDraft((d) => ({ ...d, [key]: e.target.value }))}
+            onKeyDown={(e) => { if (e.key === "Enter" && dirty) void save() }}
+            className="glass-input w-16 rounded px-1.5 py-0.5 text-xs" />
+        </label>
+      ))}
+      °
+      {dirty && (
+        <button type="button" onClick={save} disabled={busy}
+          className="rounded bg-indigo-500/80 px-2 py-0.5 text-xs font-semibold text-white disabled:opacity-50">
+          {busy ? "…" : "Simpan"}
+        </button>
+      )}
+      {error && <span className="g-t3">{error}</span>}
+    </span>
+  )
+}
+
 function PartUpload({ modelId, onChanged }: { modelId: string; onChanged: () => Promise<void> }) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [name, setName] = useState("")
@@ -235,6 +301,7 @@ export function ModelManager({ models, loading, onChanged, onEditAnchors }: Mode
                   {fmtBytes(p.sizeBytes)} · {p.triCount.toLocaleString()} tri · {p.anchors.length} anchor
                   {p.boreMm != null && <> · bore {p.boreMm.toFixed(2)} mm</>}
                 </span>
+                <PartRotation part={p} onChanged={onChanged} />
                 {p.boreMm != null && m.baseBoreMm !== p.boreMm && (
                   <button type="button" onClick={() => applyBaseBore(m.id, p.boreMm!)}
                     className="rounded-lg px-2 py-1 font-semibold g-t3 hover:bg-white/10">

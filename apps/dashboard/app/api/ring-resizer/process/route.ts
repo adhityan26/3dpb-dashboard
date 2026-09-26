@@ -60,7 +60,10 @@ export async function POST(req: NextRequest) {
       textHeightMm: a.textHeightMm,
       depthMm: a.depthMm,
     }))
-    const result = await processPart({ stl, scale, anchors, text })
+    const result = await processPart({
+      stl, scale, anchors, text,
+      rotationDeg: [part.rotXDeg, part.rotYDeg, part.rotZDeg],
+    })
 
     // Part names have no uniqueness constraint — dedupe sanitized keys so two
     // parts with the same (or same-sanitized) name don't silently overwrite

@@ -72,6 +72,39 @@ export function scaleMesh(mesh: WeldedMesh, factor: number): void {
   for (let i = 0; i < p.length; i++) p[i] *= factor
 }
 
+/**
+ * In-place rotation around the origin, applied X, then Y, then Z (degrees,
+ * right-hand rule, Z up). A proper rotation keeps triangle winding valid.
+ */
+export function rotateMesh(mesh: WeldedMesh, deg: [number, number, number]): void {
+  const [ax, ay, az] = deg.map((d) => (d * Math.PI) / 180)
+  const cx = Math.cos(ax), sx = Math.sin(ax)
+  const cy = Math.cos(ay), sy = Math.sin(ay)
+  const cz = Math.cos(az), sz = Math.sin(az)
+  // R = Rz * Ry * Rx
+  const m = [
+    cz * cy, cz * sy * sx - sz * cx, cz * sy * cx + sz * sx,
+    sz * cy, sz * sy * sx + cz * cx, sz * sy * cx - cz * sx,
+    -sy, cy * sx, cy * cx,
+  ]
+  const p = mesh.vertProperties
+  for (let i = 0; i < p.length; i += 3) {
+    const x = p[i], y = p[i + 1], z = p[i + 2]
+    p[i] = m[0] * x + m[1] * y + m[2] * z
+    p[i + 1] = m[3] * x + m[4] * y + m[5] * z
+    p[i + 2] = m[6] * x + m[7] * y + m[8] * z
+  }
+}
+
+/** Translate so the lowest vertex sits on the build plate (min Z = 0). */
+export function dropToBed(mesh: WeldedMesh): void {
+  const p = mesh.vertProperties
+  let minZ = Infinity
+  for (let i = 2; i < p.length; i += 3) if (p[i] < minZ) minZ = p[i]
+  if (!Number.isFinite(minZ)) return
+  for (let i = 2; i < p.length; i += 3) p[i] -= minZ
+}
+
 /** Test helper: axis-aligned cube [0,size]^3 as binary STL (12 tris). */
 export function makeCubeStl(sizeMm: number): Buffer {
   const s = sizeMm

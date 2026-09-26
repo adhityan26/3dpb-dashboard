@@ -1,15 +1,19 @@
 import type { AnchorInput, PartResult } from "../types"
-import { parseBinaryStl, exportBinaryStl, scaleMesh } from "./stl"
+import { parseBinaryStl, exportBinaryStl, scaleMesh, rotateMesh, dropToBed } from "./stl"
 import { engraveWelded } from "./engrave"
 import { detectCylinderFrame } from "./bore"
 import { loadEngraveFont } from "./text"
 
-/** Scale (exact, origin pivot) then engrave one part. */
+/**
+ * Scale (exact, origin pivot), engrave, then orient one part for printing.
+ * Rotation runs last because anchors live in the unrotated base-STL frame.
+ */
 export async function processPart(opts: {
   stl: Buffer
   scale: number
   anchors: AnchorInput[]
   text: string
+  rotationDeg?: [number, number, number]
 }): Promise<PartResult> {
   const mesh = parseBinaryStl(opts.stl)
   scaleMesh(mesh, opts.scale)
@@ -24,6 +28,11 @@ export async function processPart(opts: {
     scale: opts.scale,
     cylFrame,
   })
+  const rot = opts.rotationDeg
+  if (rot && rot.some((d) => d % 360 !== 0)) {
+    rotateMesh(r.mesh, rot)
+    dropToBed(r.mesh)
+  }
   return { stl: exportBinaryStl(r.mesh), engraved: r.engraved, warning: r.warning }
 }
 

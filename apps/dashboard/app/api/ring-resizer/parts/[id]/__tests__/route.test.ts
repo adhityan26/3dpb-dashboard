@@ -60,6 +60,31 @@ describe("PATCH /api/ring-resizer/parts/[id]", () => {
   })
 })
 
+describe("PATCH /api/ring-resizer/parts/[id] rotation", () => {
+  it("simpan rotasi tanpa name", async () => {
+    vi.mocked(prisma.ringPart.findUnique).mockResolvedValue({ id: "p1" } as unknown as PartRow)
+    vi.mocked(prisma.ringPart.update).mockResolvedValue({ id: "p1" } as unknown as NonNullable<PartRow>)
+    const res = await PATCH(jsonReq({ rotXDeg: 90, rotYDeg: 0, rotZDeg: -45 }), ctx("p1"))
+    expect(res.status).toBe(200)
+    expect(vi.mocked(prisma.ringPart.update).mock.calls[0][0]).toEqual({
+      where: { id: "p1" },
+      data: { rotXDeg: 90, rotYDeg: 0, rotZDeg: -45 },
+    })
+  })
+
+  it("400 kalau rotasi bukan angka / di luar range", async () => {
+    vi.mocked(prisma.ringPart.findUnique).mockResolvedValue({ id: "p1" } as unknown as PartRow)
+    expect((await PATCH(jsonReq({ rotXDeg: "90" }), ctx("p1"))).status).toBe(400)
+    expect((await PATCH(jsonReq({ rotZDeg: 720 }), ctx("p1"))).status).toBe(400)
+    expect(prisma.ringPart.update).not.toHaveBeenCalled()
+  })
+
+  it("400 kalau body kosong", async () => {
+    vi.mocked(prisma.ringPart.findUnique).mockResolvedValue({ id: "p1" } as unknown as PartRow)
+    expect((await PATCH(jsonReq({}), ctx("p1"))).status).toBe(400)
+  })
+})
+
 describe("DELETE /api/ring-resizer/parts/[id]", () => {
   it("404 kalau part tidak ada", async () => {
     vi.mocked(prisma.ringPart.findUnique).mockResolvedValue(null)
