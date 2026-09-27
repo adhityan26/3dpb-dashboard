@@ -4,6 +4,7 @@ import { useWorkingProjects, useUpdateWorkingProject, useSetChecklistByLabel, us
 import { splitProductVariants, variantShort, parseSize, parseSizeFromVariantField, isGLRing, notesSegmentForKey } from '@/lib/working-projects/format'
 import { computeScale } from '@/lib/ring-resizer/sizing'
 import { WorkingProjectEditModal } from './WorkingProjectEditModal'
+import { downloadRowsAsXlsx } from '@/lib/export/xlsx'
 import { WorkingProjectInvoiceButton } from './WorkingProjectInvoiceButton'
 import { InlineEditCell, WorkingProjectStatusSelect, useInlineWorkingProjectUpdate } from './WorkingProjectInline'
 
@@ -54,6 +55,30 @@ interface RingRow {
 
 function checklistLabelsFor(key: string, single: boolean): string[] {
   return STEP_TYPES.map(step => (single ? step : `${key} — ${step}`))
+}
+
+// Exported as its own row-shaping function so it's unit-testable without a
+// browser download API (see lib/export/xlsx.ts).
+export function glRingRowsToExportRows(rows: RingRow[]): Record<string, unknown>[] {
+  return rows.map(r => {
+    const doneCount = STEP_TYPES.filter(s => r.checklistDone[s]).length
+    const stepCols = Object.fromEntries(STEP_TYPES.map(s => [s, r.checklistDone[s] ? '✅' : '']))
+    return {
+      'Due Date': r.dueDate ? new Date(r.dueDate).toLocaleDateString('id-ID') : '',
+      'Order Date': r.orderDate ? new Date(r.orderDate).toLocaleDateString('id-ID') : '',
+      'No Order': r.orderNo,
+      Customer: r.customer,
+      Platform: r.platform ?? '',
+      Variant: r.key,
+      Ukuran: r.usSize ? `US ${r.usSize}` : '',
+      'Ukuran Variant (beda)': r.variantUsSize ? `US ${r.variantUsSize}` : '',
+      Scale: r.scalePct ? `${r.scalePct}%` : '',
+      ...stepCols,
+      Progress: `${doneCount}/${STEP_TYPES.length}`,
+      Status: r.status,
+      Discord: r.discordThreadUrl ?? '',
+    }
+  })
 }
 
 function expandToRows(projects: WorkingProject[], configuredProductIds: string[], baseBoreMm: number | null): RingRow[] {
@@ -371,6 +396,19 @@ export function WorkingProjectGLRingTab() {
         >
           {PAGE_SIZES.map(n => <option key={n} value={n}>{n} / halaman</option>)}
         </select>
+        <button
+          type="button"
+          onClick={() => downloadRowsAsXlsx(
+            `working-projects-gl-ring-${new Date().toISOString().slice(0, 10)}.xlsx`,
+            'GL Ring',
+            glRingRowsToExportRows(rows),
+          )}
+          disabled={rows.length === 0}
+          className={`${selectClass} disabled:opacity-50`}
+          title="Export baris yang sedang difilter (semua halaman) ke Excel"
+        >
+          📊 Export Excel
+        </button>
       </div>
 
       <div className="overflow-x-auto rounded-[5px]" style={{ border: '1px solid var(--g-card-border)' }}>

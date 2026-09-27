@@ -43,7 +43,7 @@ vi.mock('@/lib/hooks/use-invoice', () => ({
   useCreateInvoice: () => ({ mutateAsync: invoiceMocks.createAsync, isPending: false }),
 }))
 
-import { WorkingProjectOrdersTab } from '../WorkingProjectOrdersTab'
+import { WorkingProjectOrdersTab, ordersToExportRows } from '../WorkingProjectOrdersTab'
 
 beforeEach(() => {
   updateMutationState.mutate.mockReset()
@@ -197,5 +197,17 @@ describe('WorkingProjectOrdersTab invoice link', () => {
     fireEvent.change(screen.getByLabelText('Pilih invoice'), { target: { value: 'q1' } })
     fireEvent.click(screen.getByRole('button', { name: 'Tautkan' }))
     await waitFor(() => expect(updateMutationState.mutateAsync).toHaveBeenCalledWith({ id: 'wp1', patch: { quotationId: 'q1' } }))
+  })
+})
+
+describe('ordersToExportRows', () => {
+  it('shapes each WP into a flat export row', () => {
+    const rows = ordersToExportRows(projects as any)
+    expect(rows[0]).toEqual({
+      Customer: 'Budi', Kontak: '0812', Produk: 'Cincin', Variant: 'Emas', Platform: 'Shopee',
+      'No. Order': 'SN1', 'Due Date': new Date('2026-09-20').toLocaleDateString('id-ID'),
+      Status: 'Open', Payment: 'Marketplace', Nominal: 150000, Checklist: '1/1', Discord: 'https://discord.com/channels/123/t1',
+    })
+    expect(rows[1]).toMatchObject({ Customer: 'Ani', Kontak: '', 'No. Order': 'manual-1', Checklist: '0/0', Discord: '' })
   })
 })

@@ -11,6 +11,7 @@ import { WorkingProjectEditModal, dueDateDisplayValue } from "./WorkingProjectEd
 import { WorkingProjectInvoiceButton } from "./WorkingProjectInvoiceButton"
 import { InlineEditCell, WorkingProjectStatusSelect, useInlineWorkingProjectUpdate } from "./WorkingProjectInline"
 import { WorkingProjectNotesModal } from "./WorkingProjectNotesModal"
+import { downloadRowsAsXlsx } from "@/lib/export/xlsx"
 
 const ALL_STATUSES = ["Open", "Proses", "Waiting Customer", "Siap Kirim", "Done", "Canceled"] as const
 const DEFAULT_HIDDEN_STATUSES = new Set(["Done", "Canceled"])
@@ -40,6 +41,29 @@ function sortValue(wp: WorkingProject, col: SortColumn): string | number {
     case "status": return wp.status
     case "invoiceAmount": return wp.invoiceAmount
   }
+}
+
+// Exported as its own row-shaping function so it's unit-testable without a
+// browser download API (see lib/export/xlsx.ts).
+export function ordersToExportRows(projects: WorkingProject[]): Record<string, unknown>[] {
+  return projects.map((wp) => {
+    const active = ((wp.checklist ?? []) as WorkingProjectChecklistItem[]).filter((i) => !i.deleted)
+    const done = active.filter((i) => i.done).length
+    return {
+      Customer: wp.customer,
+      Kontak: wp.contact ?? "",
+      Produk: wp.product,
+      Variant: wp.variant ?? "",
+      Platform: wp.platform ?? "",
+      "No. Order": wp.sourceOrderNo ?? wp.orderNoLegacy ?? "",
+      "Due Date": wp.dueDate ? new Date(wp.dueDate).toLocaleDateString("id-ID") : (wp.dueDateRaw ?? ""),
+      Status: wp.status,
+      Payment: wp.payment,
+      Nominal: wp.invoiceAmount,
+      Checklist: `${done}/${active.length}`,
+      Discord: wp.discordThreadUrl ?? "",
+    }
+  })
 }
 
 function MarketplaceDetailPanel({ wp, onClose }: { wp: WorkingProject; onClose: () => void }) {
@@ -238,6 +262,19 @@ export function WorkingProjectOrdersTab() {
             <option key={n} value={n}>{n} / halaman</option>
           ))}
         </select>
+        <button
+          type="button"
+          onClick={() => downloadRowsAsXlsx(
+            `working-projects-orders-${new Date().toISOString().slice(0, 10)}.xlsx`,
+            "Orders",
+            ordersToExportRows(sorted),
+          )}
+          disabled={sorted.length === 0}
+          className="glass-input h-9 rounded-[5px] px-3 text-sm disabled:opacity-50"
+          title="Export baris yang sedang difilter (semua halaman) ke Excel"
+        >
+          📊 Export Excel
+        </button>
       </div>
 
       {inline.error ? (

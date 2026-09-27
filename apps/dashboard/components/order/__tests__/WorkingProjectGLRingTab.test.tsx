@@ -69,7 +69,7 @@ vi.mock('@/lib/hooks/use-working-projects', async (importOriginal) => {
     useGLRingBaseBoreMm: () => ({ data: 23.871, isLoading: false }),
   }
 })
-import { WorkingProjectGLRingTab } from '../WorkingProjectGLRingTab'
+import { WorkingProjectGLRingTab, glRingRowsToExportRows } from '../WorkingProjectGLRingTab'
 import { computeScale } from '@/lib/ring-resizer/sizing'
 
 function renderWithClient(client = new QueryClient()) {
@@ -235,5 +235,35 @@ describe('WorkingProjectGLRingTab inline editing', () => {
     renderWithClient()
     fireEvent.click(screen.getAllByRole('button', { name: /^Edit SN1/ })[0])
     expect(screen.getByText('Edit Order')).toBeInTheDocument()
+  })
+})
+
+describe('glRingRowsToExportRows', () => {
+  it('shapes a ring row into a flat export row with a checklist column per step', () => {
+    const row = {
+      wpId: 'wp1', key: 'Cincin A', entry: 'Cincin A', customer: 'Budi', platform: 'Shopee', orderNo: 'SN1',
+      dueDate: '2026-09-20T00:00:00.000Z', orderDate: '2026-09-01T00:00:00.000Z', status: 'Open',
+      usSize: '9', variantUsSize: '5', scalePct: 90, discordThreadUrl: 'https://discord.com/x',
+      checklistLabels: ['Print Frame', 'Print Stone', 'Print Ring', 'Cat Frame', 'Cat Stone', 'Cat Ring', 'Assembly'],
+      checklistDone: {
+        'Print Frame': true, 'Print Stone': false, 'Print Ring': false,
+        'Cat Frame': false, 'Cat Stone': false, 'Cat Ring': false, 'Assembly': false,
+      },
+    }
+    const exported = glRingRowsToExportRows([row as any])[0]
+    expect(exported).toMatchObject({
+      'No Order': 'SN1', Customer: 'Budi', Variant: 'Cincin A', Ukuran: 'US 9', 'Ukuran Variant (beda)': 'US 5',
+      Scale: '90%', 'Print Frame': '✅', 'Print Stone': '', Progress: '1/7', Status: 'Open', Discord: 'https://discord.com/x',
+    })
+  })
+
+  it('leaves size/scale/discrepancy columns blank when absent', () => {
+    const row = {
+      wpId: 'wp2', key: 'Cincin B', entry: 'Cincin B', customer: 'Ani', platform: null, orderNo: 'SN2',
+      dueDate: null, orderDate: null, status: 'Canceled', usSize: null, variantUsSize: null, scalePct: null,
+      discordThreadUrl: null, checklistLabels: [], checklistDone: {} as any,
+    }
+    const exported = glRingRowsToExportRows([row as any])[0]
+    expect(exported).toMatchObject({ 'Due Date': '', 'Order Date': '', Ukuran: '', 'Ukuran Variant (beda)': '', Scale: '', Discord: '' })
   })
 })
