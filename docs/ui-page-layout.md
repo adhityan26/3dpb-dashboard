@@ -36,7 +36,7 @@ Design system: **Glass UI 3DPB** — Deep Space (dark) + Liquid Glass (light), a
 
 | | `apps/saas` | `apps/dashboard` |
 |---|---|---|
-| Lebar konten | `max-w-3xl` (form & hasil) | `max-w-6xl` (tabel padat, data ops) |
+| Lebar konten | `max-w-3xl` (form & hasil) | penuh (mengikuti lebar layar, sejak 2026-09-27 — dulu `max-w-6xl`) |
 | Nav | Island atas (`AppHeader`) — 7 tab modul, sebagian `soon` | Island atas (`TabNav`) + **bottom-nav mobile** terpisah |
 | Kontrol kanan | ThemeToggle · avatar · ⏻ | ThemeToggle · avatar · ⏻ (`ControlIsland`) |
 | Akses tab | `owner` (owner-only Admin) | `role` per tab + badge angka |
@@ -150,7 +150,7 @@ Sudah ada di `app/(dashboard)/layout.tsx`:
 <div className="relative min-h-screen bg-glass-page">
   <AmbientOrbs />
   <TabNav role={...} badges={...} userName={...} />
-  <main className="relative z-10 max-w-6xl mx-auto p-4 pb-24 md:pb-4">{children}</main>
+  <main className="relative z-10 w-full p-4 lg:px-8 pb-24 md:pb-4">{children}</main>
   <MobileBottomNav role={...} badges={...} userName={...} />
 </div>
 ```

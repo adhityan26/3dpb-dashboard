@@ -20,13 +20,17 @@ import { GlassPageHeader } from "@3pb/ui"
  * `SectionSidebar`, jadi area konten butuh treatment serupa biar kebaca sebagai
  * section terpisah, bukan flat). `children` dibungkus card glass tipis (lebih halus
  * dari SectionSidebar biar sidebar tetap jadi fokus visual utama).
+ *
+ * Lebar: `app/(dashboard)/layout.tsx`'s `<main>` sudah full-width (mengikuti
+ * lebar layar, bukan `max-w-6xl` lagi) sejak 2026-09-27, jadi PageShell tidak
+ * perlu opt-in lebar sendiri — `wide` yang dulu ada di sini sekarang no-op
+ * dan sudah dihapus dari semua pemanggil.
  */
 export function PageShell({
   title,
   description,
   actions,
   children,
-  wide,
 }: {
   /** Judul halaman (wajib) — tampil sebagai H1 gradient. */
   title: string
@@ -35,12 +39,8 @@ export function PageShell({
   /** Aksi di kanan judul (tombol/link). Opsional. */
   actions?: ReactNode
   children: ReactNode
-  /** Opt-in: lepas dari `max-w-6xl` layout dashboard, re-center ke 1700px
-   * (header + card sama-sama ikut, biar background card benar-benar
-   * membungkus semua konten). Default falsy = perilaku lama, byte-identik. */
-  wide?: boolean
 }) {
-  const content = (
+  return (
     <>
       <GlassPageHeader title={title} subtitle={description}>
         {actions}
@@ -58,13 +58,5 @@ export function PageShell({
         {children}
       </div>
     </>
-  )
-
-  if (!wide) return content
-
-  return (
-    <div className="relative left-1/2 right-1/2 -mx-[50vw] w-screen px-4">
-      <div className="w-full max-w-[1700px] mx-auto">{content}</div>
-    </div>
   )
 }

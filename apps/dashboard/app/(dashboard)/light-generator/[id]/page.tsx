@@ -149,7 +149,7 @@ export default function LgOrderEditorV2Page({ params }: { params: Promise<{ id: 
   const retryPreview = () => preview.request(effectiveConfig)
 
   return (
-    <PageShell title={`${order.id} · editor`} wide>
+    <PageShell title={`${order.id} · editor`}>
       <LgEditorShell
         orderId={order.id}
         customerName={order.customerName}

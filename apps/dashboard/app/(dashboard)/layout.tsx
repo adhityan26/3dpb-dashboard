@@ -57,7 +57,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       <TabNav role={session.user.role} badges={badges} userName={userName} />
 
       {/* Page content — pb-24 on mobile to clear bottom nav */}
-      <main className="relative z-10 max-w-6xl mx-auto p-4 pb-24 md:pb-4">
+      <main className="relative z-10 w-full p-4 lg:px-8 pb-24 md:pb-4">
         {children}
       </main>
 
