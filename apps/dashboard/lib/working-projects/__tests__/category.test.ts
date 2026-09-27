@@ -12,6 +12,10 @@ describe('detectProductCategory', () => {
     expect(detectProductCategory({ product: 'Camera Shutter Clicker', configuredProductIds: EMPTY })).toBe('clicker')
   })
 
+  it('does not treat "Earrings" as a ring (substring false positive found 2026-09-27)', () => {
+    expect(detectProductCategory({ product: '3D Print Agnes Tachyon Earrings - Umamusume', configuredProductIds: EMPTY })).toBeNull()
+  })
+
   it('returns null (general) when nothing matches', () => {
     expect(detectProductCategory({ product: 'Gantungan Kunci Custom', configuredProductIds: EMPTY })).toBeNull()
     expect(detectProductCategory({ product: null, configuredProductIds: EMPTY })).toBeNull()
@@ -41,7 +45,7 @@ describe('forumChannelIdForCategory', () => {
     process.env = { ...ORIGINAL }
   })
 
-  it('resolves each category to its own forum channel', () => {
+  it('resolves each category to its own forum channel from the NEXT_PUBLIC_ fallback var', () => {
     expect(forumChannelIdForCategory('cincin')).toBe('cincin-channel')
     expect(forumChannelIdForCategory('topeng')).toBe('topeng-channel')
     expect(forumChannelIdForCategory('clicker')).toBe('clicker-channel')
@@ -49,5 +53,16 @@ describe('forumChannelIdForCategory', () => {
 
   it('resolves null to the general/orders forum', () => {
     expect(forumChannelIdForCategory(null)).toBe('general-channel')
+  })
+
+  it('prefers the plain server-only env var over the NEXT_PUBLIC_ one', () => {
+    process.env.FORUM_CINCIN_ID = 'server-cincin-channel'
+    expect(forumChannelIdForCategory('cincin')).toBe('server-cincin-channel')
+  })
+
+  it('falls back to the literal placeholder when neither env var is set (found 2026-09-27: this is what actually shipped to production, causing every auto-created WP that night to fail Discord thread creation with forbidden_channel)', () => {
+    delete process.env.NEXT_PUBLIC_FORUM_CINCIN_ID
+    delete process.env.FORUM_CINCIN_ID
+    expect(forumChannelIdForCategory('cincin')).toBe('FORUM_CINCIN_ID')
   })
 })

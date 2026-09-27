@@ -133,6 +133,9 @@ describe('isGLRing', () => {
   it('false otherwise', () => {
     expect(isGLRing(['Topeng'])).toBe(false)
   })
+  it('does not treat "Earrings" as a ring by product name (substring false positive found 2026-09-27)', () => {
+    expect(isGLRing([], null, '3D Print Agnes Tachyon Earrings - Umamusume')).toBe(false)
+  })
   it('true when appliedTags is empty but forumChannelId matches the Cincin forum channel env fallback', () => {
     const cincinId = process.env.NEXT_PUBLIC_FORUM_CINCIN_ID ?? 'FORUM_CINCIN_ID'
     expect(isGLRing([], cincinId)).toBe(true)

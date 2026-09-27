@@ -11,10 +11,13 @@ export type CategoryProductIds = Record<ProductCategory, string[]>
 // Checked in this fixed order when a product name could match more than one
 // pattern (shouldn't happen in practice, but "cincin" wins ties — matches
 // isGLRing()'s existing precedence in format.ts).
+// \b on "ring" — found 2026-09-27: a bare /ring/i matched "Earrings" (it
+// contains the substring "ring"), routing an earring order into the cincin
+// forum. Word boundaries required for every short/common-substring token.
 const CATEGORY_NAME_PATTERN: Record<ProductCategory, RegExp> = {
-  cincin: /ring|cincin/i,
+  cincin: /\bring\b|cincin/i,
   topeng: /topeng|\bmask\b/i,
-  clicker: /clicker/i,
+  clicker: /\bclicker\b/i,
 }
 
 /**
@@ -44,21 +47,36 @@ export function detectProductCategory(input: {
   return null
 }
 
-const CATEGORY_FORUM_ENV: Record<ProductCategory, { public: string; fallback: string }> = {
-  cincin: { public: 'NEXT_PUBLIC_FORUM_CINCIN_ID', fallback: 'FORUM_CINCIN_ID' },
-  topeng: { public: 'NEXT_PUBLIC_FORUM_TOPENG_ID', fallback: 'FORUM_TOPENG_ID' },
-  clicker: { public: 'NEXT_PUBLIC_FORUM_CLICKER_ID', fallback: 'FORUM_CLICKER_ID' },
+const CATEGORY_FORUM_ENV: Record<ProductCategory, string> = {
+  cincin: 'FORUM_CINCIN_ID',
+  topeng: 'FORUM_TOPENG_ID',
+  clicker: 'FORUM_CLICKER_ID',
+}
+
+// Found 2026-09-27: the dashboard container's runtime env has NONE of the
+// NEXT_PUBLIC_FORUM_* vars set (confirmed via `docker exec shopee-dashboard
+// printenv`) — .dockerignore excludes every real .env file from the build
+// context, so `next build` never sees a value to inline into the client
+// bundle either. Every WP the daily auto-create job created that night (72
+// rows) got the literal placeholder string as forumChannelId and failed
+// Discord thread creation with 403 forbidden_channel. The historical rows
+// with REAL channel IDs all came from the ai-assistant bot, which resolves
+// forum routing itself and passes the real id directly in its own
+// `POST /api/bot/working-projects` calls — this dashboard's own env-based
+// resolution had never actually worked.
+// Fix: read plain (non-NEXT_PUBLIC_) server-only env vars, set directly in
+// .env.deploy — see deploy.sh's `-e FORUM_CINCIN_ID=...` etc. NEXT_PUBLIC_
+// versions are checked second only so a value set there (e.g. by a future
+// client-side consumer) still works without duplicating config.
+function resolveForumEnv(name: string, literalFallback: string): string {
+  return process.env[name] ?? process.env[`NEXT_PUBLIC_${name}`] ?? literalFallback
 }
 
 /** Discord forum-channel ID for a detected category, or the general/orders
- * forum when `category` is null. Same env vars as
- * WORKING_PROJECT_FORUM_CHANNELS (NEXT_PUBLIC_-prefixed so the manual-create
- * row UI can also inline them at build time); read here for the server-only
- * auto-create job. */
+ * forum when `category` is null. */
 export function forumChannelIdForCategory(category: ProductCategory | null): string {
   if (category === null) {
-    return process.env.NEXT_PUBLIC_ORDERS_FORUM_CHANNEL_ID ?? 'ORDERS_FORUM_CHANNEL_ID'
+    return resolveForumEnv('ORDERS_FORUM_CHANNEL_ID', 'ORDERS_FORUM_CHANNEL_ID')
   }
-  const env = CATEGORY_FORUM_ENV[category]
-  return process.env[env.public] ?? env.fallback
+  return resolveForumEnv(CATEGORY_FORUM_ENV[category], CATEGORY_FORUM_ENV[category])
 }

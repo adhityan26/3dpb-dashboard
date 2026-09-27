@@ -246,8 +246,11 @@ export function isGLRing(
   configuredProductIds?: string[],
 ): boolean {
   if (sourceProductId && configuredProductIds?.includes(sourceProductId)) return true
-  if (product && /ring|cincin/i.test(product)) return true
-  if (appliedTags.some(t => /ring|cincin/i.test(t))) return true
+  // \b on "ring" — a bare /ring/i also matches "Earrings" (contains "ring"
+  // as a substring), which put a Tachyon Earrings order in this tab and
+  // routed it into the auto-create cincin forum (found 2026-09-27).
+  if (product && /\bring\b|cincin/i.test(product)) return true
+  if (appliedTags.some(t => /\bring\b|cincin/i.test(t))) return true
   if (forumChannelId) {
     const cincinId = process.env.NEXT_PUBLIC_FORUM_CINCIN_ID ?? "FORUM_CINCIN_ID"
     if (forumChannelId === cincinId) return true

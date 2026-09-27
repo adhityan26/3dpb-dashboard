@@ -146,6 +146,10 @@ docker run -d \
   -e GOPAY_LOGIN_BRIDGE_URL="${GOPAY_LOGIN_BRIDGE_URL:-}" \
   -e GOPAY_LOGIN_BRIDGE_API_KEY="${GOPAY_LOGIN_BRIDGE_API_KEY:-}" \
   -e GOPAY_GATEWAY_URL="${GOPAY_GATEWAY_URL:-}" \
+  -e FORUM_CINCIN_ID="${FORUM_CINCIN_ID:-}" \
+  -e FORUM_TOPENG_ID="${FORUM_TOPENG_ID:-}" \
+  -e FORUM_CLICKER_ID="${FORUM_CLICKER_ID:-}" \
+  -e ORDERS_FORUM_CHANNEL_ID="${ORDERS_FORUM_CHANNEL_ID:-}" \
   "$DEPLOY_IMAGE"
 
 # ── Health check ───────────────────────────────────────────────────────────────
