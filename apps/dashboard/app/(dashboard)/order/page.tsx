@@ -29,6 +29,7 @@ import { TokopediaOrderRow } from "@/components/order/TokopediaOrderRow"
 import { WorkingProjectOrdersTab } from "@/components/order/WorkingProjectOrdersTab"
 import { WorkingProjectTimelineTab } from "@/components/order/WorkingProjectTimelineTab"
 import { WorkingProjectGLRingTab } from "@/components/order/WorkingProjectGLRingTab"
+import { WorkingProjectShippingScheduleTab } from "@/components/order/WorkingProjectShippingScheduleTab"
 
 // ── ShopeeOrderView ────────────────────────────────────────────────────────
 
@@ -348,8 +349,8 @@ function TokopediaOrderView() {
 
 // ── WorkingProjectView ──────────────────────────────────────────────────────
 
-type WorkingProjectTab = "orders" | "green-lantern-ring" | "timeline"
-const VALID_WORKING_PROJECT_TABS: WorkingProjectTab[] = ["orders", "green-lantern-ring", "timeline"]
+type WorkingProjectTab = "orders" | "green-lantern-ring" | "shipping-schedule" | "timeline"
+const VALID_WORKING_PROJECT_TABS: WorkingProjectTab[] = ["orders", "green-lantern-ring", "shipping-schedule", "timeline"]
 
 function WorkingProjectView() {
   const router = useRouter()
@@ -368,7 +369,7 @@ function WorkingProjectView() {
   return (
     <div data-testid="working-project-channel" className="space-y-4">
       <div className="flex items-center gap-2 flex-wrap">
-        {([["orders", "Orders"], ["green-lantern-ring", "Green Lantern Ring"], ["timeline", "Timeline"]] as const).map(([t, label]) => (
+        {([["orders", "Orders"], ["green-lantern-ring", "Green Lantern Ring"], ["shipping-schedule", "Jadwal Kirim"], ["timeline", "Timeline"]] as const).map(([t, label]) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-3 py-1 rounded-full text-sm font-medium border ${tab === t ? "bg-indigo-600 text-white border-indigo-600" : "border-border text-muted-foreground hover:bg-muted"}`}>
             {label}
@@ -377,6 +378,7 @@ function WorkingProjectView() {
       </div>
       {tab === "orders" && <div data-testid="wp-tab-orders"><WorkingProjectOrdersTab /></div>}
       {tab === "green-lantern-ring" && <div data-testid="wp-tab-green-lantern-ring"><WorkingProjectGLRingTab /></div>}
+      {tab === "shipping-schedule" && <div data-testid="wp-tab-shipping-schedule"><WorkingProjectShippingScheduleTab /></div>}
       {tab === "timeline" && <div data-testid="wp-tab-timeline"><WorkingProjectTimelineTab /></div>}
     </div>
   )

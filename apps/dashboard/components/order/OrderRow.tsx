@@ -77,6 +77,7 @@ export function OrderRow({ order, onToggleLabel, isPending, linkedInvoice, onCre
       customer: order.buyerUsername ?? order.orderSn,
       product: firstItem?.productName ?? "",
       variant: firstItem?.variantName ?? undefined,
+      shipping: order.shippingCarrier ?? undefined,
     })
   }
   const totalQty = order.items.reduce((s, it) => s + it.qty, 0)

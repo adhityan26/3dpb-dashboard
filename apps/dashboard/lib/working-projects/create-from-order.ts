@@ -26,6 +26,7 @@ export interface CreateWorkingProjectFromOrderInput {
   contact?: string
   product: string
   variant?: string
+  shipping?: string
 }
 
 export async function createWorkingProjectFromOrder(

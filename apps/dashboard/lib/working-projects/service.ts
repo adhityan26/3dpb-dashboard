@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db'
 import { buildTitle, buildPostContent, parseDueDate, parseOrderDate, parseAmount, appendNoteWithTimestamp, WORKING_PROJECT_STATUSES, WORKING_PROJECT_SOURCES } from './format'
 import { createRelayThread, editRelayThread, archiveRelayThread, deleteRelayThread } from './discord-sync'
+import { DEFAULT_FAST_COURIERS } from './courier'
 
 export async function createWorkingProject(input: {
   source: 'shopee' | 'tokopedia' | 'manual'
@@ -18,6 +19,7 @@ export async function createWorkingProject(input: {
   notes?: string
   invoiceAmountRaw?: string
   mentions?: string[]
+  shipping?: string
 }): Promise<{ id: string; threadUrl: string | null; syncState: string; skipped: boolean }> {
   // Idempotency guard: a manual "Buat WP" double-click, a page that hasn't
   // refetched yet, or the daily auto-create job re-scanning the same order
@@ -60,6 +62,7 @@ export async function createWorkingProject(input: {
       notes: input.notes ?? null,
       invoiceAmount: input.invoiceAmountRaw ? parseAmount(input.invoiceAmountRaw) : 0,
       mentions: input.mentions ?? [],
+      shipping: input.shipping ?? null,
     },
   })
 
@@ -453,6 +456,32 @@ export async function setAutoCreateLastRunDate(dateWib: string): Promise<void> {
     where: { key: AUTO_CREATE_LAST_RUN_KEY },
     update: { value: dateWib },
     create: { key: AUTO_CREATE_LAST_RUN_KEY, value: dateWib },
+  })
+}
+
+const FAST_COURIERS_KEY = 'workingProjects.fastCouriers'
+
+// Which couriers pick up fast (Anteraja/Paxel/Grab/Gojek) vs regular
+// (SPX/J&T/JNE) — configurable in Settings rather than hardcoded (see
+// isFastCourier in courier.ts) so the mix can be corrected without a
+// deploy. Falls back to DEFAULT_FAST_COURIERS the first time, before
+// anyone has saved a custom list.
+export async function getFastCouriers(): Promise<string[]> {
+  const row = await prisma.config.findUnique({ where: { key: FAST_COURIERS_KEY } })
+  if (!row?.value) return [...DEFAULT_FAST_COURIERS]
+  try {
+    const parsed = JSON.parse(row.value)
+    return Array.isArray(parsed) ? parsed.map(String) : [...DEFAULT_FAST_COURIERS]
+  } catch {
+    return [...DEFAULT_FAST_COURIERS]
+  }
+}
+
+export async function setFastCouriers(couriers: string[]): Promise<void> {
+  await prisma.config.upsert({
+    where: { key: FAST_COURIERS_KEY },
+    update: { value: JSON.stringify(couriers) },
+    create: { key: FAST_COURIERS_KEY, value: JSON.stringify(couriers) },
   })
 }
 

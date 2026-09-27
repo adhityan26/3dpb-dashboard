@@ -14,9 +14,14 @@ vi.mock('@/lib/db', () => ({
       findUnique: vi.fn(),
       findFirst: vi.fn(),
     },
+    config: {
+      findUnique: vi.fn(),
+      upsert: vi.fn(),
+    },
   },
 }))
-import { createWorkingProject, setStatus, updateWorkingProject, resyncWorkingProject, runChecklistOp, markReminderSent, deleteWorkingProject } from '../service'
+import { createWorkingProject, setStatus, updateWorkingProject, resyncWorkingProject, runChecklistOp, markReminderSent, deleteWorkingProject, getFastCouriers, setFastCouriers } from '../service'
+import { DEFAULT_FAST_COURIERS } from '../courier'
 import { createRelayThread, editRelayThread, archiveRelayThread, deleteRelayThread } from '../discord-sync'
 import { prisma } from '@/lib/db'
 
@@ -27,6 +32,18 @@ beforeEach(() => {
 })
 
 describe('createWorkingProject', () => {
+  it('persists an optional shipping courier onto the new row', async () => {
+    ;(prisma.workingProject.create as any).mockResolvedValue({ id: 'wp-ship' })
+    ;(createRelayThread as any).mockResolvedValue({ threadId: 't1', threadUrl: 'https://discord/t1' })
+    await createWorkingProject({
+      source: 'shopee', sourceOrderNo: 'SN9', forumChannelId: 'FORUM_CINCIN_ID',
+      customer: 'Budi', product: 'Cincin', shipping: 'Anteraja',
+    })
+    expect(prisma.workingProject.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ shipping: 'Anteraja' }),
+    }))
+  })
+
   it('returns the existing WP instead of creating a duplicate when (source, sourceOrderNo) already exists', async () => {
     ;(prisma.workingProject.findFirst as any).mockResolvedValue({
       id: 'wp-existing', discordThreadUrl: 'https://discord/existing', syncState: 'ok',
@@ -405,5 +422,30 @@ describe('deleteWorkingProject', () => {
     await expect(deleteWorkingProject('unknown')).rejects.toThrow(/not found/i)
     expect(prisma.workingProject.delete).not.toHaveBeenCalled()
     expect(deleteRelayThread).not.toHaveBeenCalled()
+  })
+})
+
+describe('getFastCouriers / setFastCouriers', () => {
+  it('falls back to DEFAULT_FAST_COURIERS when nothing is saved', async () => {
+    ;(prisma.config.findUnique as any).mockResolvedValue(null)
+    expect(await getFastCouriers()).toEqual([...DEFAULT_FAST_COURIERS])
+  })
+
+  it('returns the saved list once one has been set', async () => {
+    ;(prisma.config.findUnique as any).mockResolvedValue({ value: JSON.stringify(['anteraja', 'lalamove']) })
+    expect(await getFastCouriers()).toEqual(['anteraja', 'lalamove'])
+  })
+
+  it('setFastCouriers upserts the Config row as JSON', async () => {
+    await setFastCouriers(['grab', 'gojek'])
+    expect(prisma.config.upsert).toHaveBeenCalledWith(expect.objectContaining({
+      where: { key: 'workingProjects.fastCouriers' },
+      update: { value: JSON.stringify(['grab', 'gojek']) },
+    }))
+  })
+
+  it('falls back to defaults on malformed stored JSON', async () => {
+    ;(prisma.config.findUnique as any).mockResolvedValue({ value: 'not json' })
+    expect(await getFastCouriers()).toEqual([...DEFAULT_FAST_COURIERS])
   })
 })

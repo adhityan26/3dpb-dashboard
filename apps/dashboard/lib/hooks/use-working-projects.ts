@@ -207,6 +207,31 @@ export function useUpdateCategoryProductIds(category: AutoRoutedCategory) {
   })
 }
 
+export const FAST_COURIERS_KEY = ["working-projects", "settings", "fast-couriers"] as const
+
+export function useFastCouriers() {
+  const query = useQuery({
+    queryKey: FAST_COURIERS_KEY,
+    queryFn: () => apiFetch<{ couriers: string[] }>("/api/working-projects/settings/fast-couriers"),
+  })
+  return { ...query, data: query.data?.couriers, isLoading: query.isLoading }
+}
+
+export function useUpdateFastCouriers() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (couriers: string[]) =>
+      apiFetch("/api/working-projects/settings/fast-couriers", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ couriers }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: FAST_COURIERS_KEY })
+    },
+  })
+}
+
 // baseBoreMm for the Ring Resizer's real scale formula (see
 // lib/ring-resizer/sizing.ts) — used by the GL Ring tab's Scale % column.
 export const GL_RING_MODEL_KEY = ["working-projects", "gl-ring-model"] as const

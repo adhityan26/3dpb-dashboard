@@ -17,6 +17,7 @@ interface OrderCandidate {
   customer: string
   product: string
   variant?: string
+  shipping?: string
 }
 
 export interface AutoCreateResult {
@@ -46,6 +47,7 @@ async function collectShopeeCandidates(errors: string[]): Promise<OrderCandidate
         customer: o.buyerUsername ?? o.orderSn,
         product: first?.productName ?? '',
         variant: first?.variantName ?? undefined,
+        shipping: o.shippingCarrier ?? undefined,
       }
     })
   } catch (err) {
@@ -71,6 +73,7 @@ async function collectTokopediaCandidates(errors: string[]): Promise<OrderCandid
             customer: summary.buyerNickname ?? summary.orderId,
             product: first?.name ?? '',
             variant: first?.variant ?? undefined,
+            shipping: summary.courier ?? undefined,
           })
         }
         if (raw.main_orders.length < TOKOPEDIA_PAGE_SIZE) break
@@ -118,6 +121,7 @@ export async function autoCreateWorkingProjectsFromNewOrders(): Promise<AutoCrea
         customer: candidate.customer,
         product: candidate.product,
         variant: candidate.variant,
+        shipping: candidate.shipping,
       })
       if (created.skipped) result.skipped++
       else result.created++

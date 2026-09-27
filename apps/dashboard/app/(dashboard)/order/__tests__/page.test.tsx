@@ -41,6 +41,7 @@ vi.mock('@/lib/hooks/use-working-projects', async (importOriginal) => {
     useWorkingProjects: () => ({ data: [], isLoading: false }),
     useGLRingProductIds: () => ({ data: [], isLoading: false }),
     useUpdateWorkingProject: () => ({ mutate: vi.fn(), isPending: false, error: null }),
+    useFastCouriers: () => ({ data: [], isLoading: false }),
   }
 })
 
@@ -91,6 +92,12 @@ describe('OrderPage channel/tab routing', () => {
     withParams('?channel=working-project&tab=green-lantern-ring')
     renderPage()
     expect(screen.getByTestId('wp-tab-green-lantern-ring')).toBeInTheDocument()
+  })
+
+  it('renders the shipping-schedule tab from ?channel=working-project&tab=shipping-schedule', () => {
+    withParams('?channel=working-project&tab=shipping-schedule')
+    renderPage()
+    expect(screen.getByTestId('wp-tab-shipping-schedule')).toBeInTheDocument()
   })
 })
 

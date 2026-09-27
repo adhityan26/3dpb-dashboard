@@ -69,6 +69,7 @@ export function TokopediaOrderRow({ order, defaultExpanded = false }: TokopediaO
       customer: order.buyerNickname ?? order.orderId,
       product: first?.name ?? "",
       variant: first?.variant || undefined,
+      shipping: order.courier ?? undefined,
     })
   }
 
