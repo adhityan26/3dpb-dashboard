@@ -70,6 +70,8 @@ export function TokopediaOrderRow({ order, defaultExpanded = false }: TokopediaO
       product: first?.name ?? "",
       variant: first?.variant || undefined,
       shipping: order.courier ?? undefined,
+      orderDateRaw: order.orderDate != null ? new Date(order.orderDate * 1000).toISOString().slice(0, 10) : undefined,
+      dueDateRaw: order.latestRtsTime != null ? new Date(order.latestRtsTime * 1000).toISOString().slice(0, 10) : undefined,
     })
   }
 

@@ -78,6 +78,8 @@ export function OrderRow({ order, onToggleLabel, isPending, linkedInvoice, onCre
       product: firstItem?.productName ?? "",
       variant: firstItem?.variantName ?? undefined,
       shipping: order.shippingCarrier ?? undefined,
+      orderDateRaw: new Date(order.createTime * 1000).toISOString().slice(0, 10),
+      dueDateRaw: order.shipByDate != null ? new Date(order.shipByDate * 1000).toISOString().slice(0, 10) : undefined,
     })
   }
   const totalQty = order.items.reduce((s, it) => s + it.qty, 0)

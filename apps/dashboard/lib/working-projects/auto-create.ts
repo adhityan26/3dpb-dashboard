@@ -18,6 +18,18 @@ interface OrderCandidate {
   product: string
   variant?: string
   shipping?: string
+  orderDateRaw?: string
+  dueDateRaw?: string
+}
+
+// Unix-seconds timestamp -> "YYYY-MM-DD" for createWorkingProject's
+// orderDateRaw/dueDateRaw inputs (parseOrderDate/parseDueDate in format.ts).
+// Returns undefined (rather than throwing) for a missing/invalid timestamp
+// so one bad order's date doesn't abort the whole batch it's mapped in.
+function isoDate(unixSec: number | null | undefined): string | undefined {
+  if (unixSec == null || !Number.isFinite(unixSec)) return undefined
+  const d = new Date(unixSec * 1000)
+  return Number.isNaN(d.getTime()) ? undefined : d.toISOString().slice(0, 10)
 }
 
 export interface AutoCreateResult {
@@ -48,6 +60,8 @@ async function collectShopeeCandidates(errors: string[]): Promise<OrderCandidate
         product: first?.productName ?? '',
         variant: first?.variantName ?? undefined,
         shipping: o.shippingCarrier ?? undefined,
+        orderDateRaw: isoDate(o.createTime),
+        dueDateRaw: isoDate(o.shipByDate),
       }
     })
   } catch (err) {
@@ -74,6 +88,8 @@ async function collectTokopediaCandidates(errors: string[]): Promise<OrderCandid
             product: first?.name ?? '',
             variant: first?.variant ?? undefined,
             shipping: summary.courier ?? undefined,
+            orderDateRaw: isoDate(summary.orderDate),
+            dueDateRaw: isoDate(summary.latestRtsTime),
           })
         }
         if (raw.main_orders.length < TOKOPEDIA_PAGE_SIZE) break
@@ -122,6 +138,8 @@ export async function autoCreateWorkingProjectsFromNewOrders(): Promise<AutoCrea
         product: candidate.product,
         variant: candidate.variant,
         shipping: candidate.shipping,
+        orderDateRaw: candidate.orderDateRaw,
+        dueDateRaw: candidate.dueDateRaw,
       })
       if (created.skipped) result.skipped++
       else result.created++
