@@ -21,6 +21,8 @@ import { FilamentAliasCard } from "@/components/settings/FilamentAliasCard"
 import { CydDeviceCard } from "@/components/settings/CydDeviceCard"
 import { CydFieldPresetCard } from "@/components/settings/CydFieldPresetCard"
 import { GLRingProductIdsCard } from "@/components/settings/GLRingProductIdsCard"
+import { CategoryProductIdsCard } from "@/components/settings/CategoryProductIdsCard"
+import { AutoCreateWorkingProjectsCard } from "@/components/settings/AutoCreateWorkingProjectsCard"
 import { useSettings } from "@/lib/hooks/use-settings"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
@@ -166,7 +168,10 @@ function SettingsPageInner() {
               />
             </div>
             <FilamentAliasCard />
+            <AutoCreateWorkingProjectsCard />
             <GLRingProductIdsCard />
+            <CategoryProductIdsCard category="topeng" title="🎭 Produk Topeng" productLabel="produk Topeng" />
+            <CategoryProductIdsCard category="clicker" title="📸 Produk Clicker" productLabel="produk Clicker" />
           </div>
         )}
       </div>

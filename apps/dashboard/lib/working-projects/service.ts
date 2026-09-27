@@ -18,7 +18,23 @@ export async function createWorkingProject(input: {
   notes?: string
   invoiceAmountRaw?: string
   mentions?: string[]
-}): Promise<{ id: string; threadUrl: string | null; syncState: string }> {
+}): Promise<{ id: string; threadUrl: string | null; syncState: string; skipped: boolean }> {
+  // Idempotency guard: a manual "Buat WP" double-click, a page that hasn't
+  // refetched yet, or the daily auto-create job re-scanning the same order
+  // used to each create a brand-new row + a brand-new Discord thread for the
+  // same marketplace order (found 2026-09-27: 4 Shopee orders duplicated 20
+  // minutes apart). One WP per (source, sourceOrderNo) — return the existing
+  // row instead of creating another. Orders without a sourceOrderNo (manual
+  // WPs) are never deduped this way.
+  if (input.sourceOrderNo) {
+    const existing = await prisma.workingProject.findFirst({
+      where: { source: input.source, sourceOrderNo: input.sourceOrderNo },
+    })
+    if (existing) {
+      return { id: existing.id, threadUrl: existing.discordThreadUrl, syncState: existing.syncState, skipped: true }
+    }
+  }
+
   const { dueDate, dueDateRaw } = input.dueDateRaw ? parseDueDate(input.dueDateRaw) : { dueDate: null, dueDateRaw: null }
   const orderDate = input.orderDateRaw ? parseOrderDate(input.orderDateRaw) : null
   const title = buildTitle({ customer: input.customer, product: input.product, variant: input.variant })
@@ -59,12 +75,12 @@ export async function createWorkingProject(input: {
       mentions: input.mentions ?? [], idempotencyKey: wp.id,
     })
     await prisma.workingProject.update({ where: { id: wp.id }, data: { discordThreadId: threadId, discordThreadUrl: threadUrl, syncState: 'ok' } })
-    return { id: wp.id, threadUrl, syncState: 'ok' }
+    return { id: wp.id, threadUrl, syncState: 'ok', skipped: false }
   } catch (err) {
     await prisma.workingProject.update({
       where: { id: wp.id }, data: { syncState: 'error', syncError: (err as Error).message },
     })
-    return { id: wp.id, threadUrl: null, syncState: 'error' }
+    return { id: wp.id, threadUrl: null, syncState: 'error', skipped: false }
   }
 }
 
@@ -388,6 +404,55 @@ export async function setGLRingProductIds(productIds: string[]): Promise<void> {
     where: { key: GL_RING_PRODUCT_IDS_KEY },
     update: { value: JSON.stringify(productIds) },
     create: { key: GL_RING_PRODUCT_IDS_KEY, value: JSON.stringify(productIds) },
+  })
+}
+
+// Same pattern as GL Ring's product-ID list above, generalized for the two
+// other auto-routed categories ([[category.ts]]'s ProductCategory). Cincin
+// keeps its own dedicated key/functions above for backward compat (existing
+// Settings card + isGLRing() already reference them).
+export type AutoRoutedCategory = 'topeng' | 'clicker'
+
+const CATEGORY_PRODUCT_IDS_KEY: Record<AutoRoutedCategory, string> = {
+  topeng: 'workingProjects.topengProductIds',
+  clicker: 'workingProjects.clickerProductIds',
+}
+
+export async function getCategoryProductIds(category: AutoRoutedCategory): Promise<string[]> {
+  const row = await prisma.config.findUnique({ where: { key: CATEGORY_PRODUCT_IDS_KEY[category] } })
+  if (!row?.value) return []
+  try {
+    const parsed = JSON.parse(row.value)
+    return Array.isArray(parsed) ? parsed.map(String) : []
+  } catch {
+    return []
+  }
+}
+
+export async function setCategoryProductIds(category: AutoRoutedCategory, productIds: string[]): Promise<void> {
+  const key = CATEGORY_PRODUCT_IDS_KEY[category]
+  await prisma.config.upsert({
+    where: { key },
+    update: { value: JSON.stringify(productIds) },
+    create: { key, value: JSON.stringify(productIds) },
+  })
+}
+
+const AUTO_CREATE_LAST_RUN_KEY = 'workingProjects.autoCreate.lastRunDate'
+
+// Stored as a WIB (Asia/Jakarta) calendar date string "YYYY-MM-DD" — the
+// daily auto-create job (lib/working-projects/auto-create.ts) compares
+// against this to run at most once per WIB day, after the 23:00 WIB cutoff.
+export async function getAutoCreateLastRunDate(): Promise<string | null> {
+  const row = await prisma.config.findUnique({ where: { key: AUTO_CREATE_LAST_RUN_KEY } })
+  return row?.value ?? null
+}
+
+export async function setAutoCreateLastRunDate(dateWib: string): Promise<void> {
+  await prisma.config.upsert({
+    where: { key: AUTO_CREATE_LAST_RUN_KEY },
+    update: { value: dateWib },
+    create: { key: AUTO_CREATE_LAST_RUN_KEY, value: dateWib },
   })
 }
 

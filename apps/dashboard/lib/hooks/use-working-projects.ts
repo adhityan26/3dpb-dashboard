@@ -176,6 +176,37 @@ export function useUpdateGLRingProductIds() {
   })
 }
 
+// Same pattern as GL Ring's product-ID list above, generalized for the two
+// other auto-routed categories (lib/working-projects/category.ts).
+export type AutoRoutedCategory = "topeng" | "clicker"
+
+function categoryProductIdsKey(category: AutoRoutedCategory) {
+  return ["working-projects", "settings", "category-product-ids", category] as const
+}
+
+export function useCategoryProductIds(category: AutoRoutedCategory) {
+  const query = useQuery({
+    queryKey: categoryProductIdsKey(category),
+    queryFn: () => apiFetch<{ productIds: string[] }>(`/api/working-projects/settings/category-product-ids/${category}`),
+  })
+  return { ...query, data: query.data?.productIds, isLoading: query.isLoading }
+}
+
+export function useUpdateCategoryProductIds(category: AutoRoutedCategory) {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (productIds: string[]) =>
+      apiFetch(`/api/working-projects/settings/category-product-ids/${category}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ productIds }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: categoryProductIdsKey(category) })
+    },
+  })
+}
+
 // baseBoreMm for the Ring Resizer's real scale formula (see
 // lib/ring-resizer/sizing.ts) — used by the GL Ring tab's Scale % column.
 export const GL_RING_MODEL_KEY = ["working-projects", "gl-ring-model"] as const

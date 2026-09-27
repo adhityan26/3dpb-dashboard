@@ -1,8 +1,16 @@
 // Next.js calls this once when the server starts.
-// Used to spin up a background notification poller.
+// Used to spin up background pollers: notifications, and the daily
+// Working Project auto-create job.
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 const INITIAL_DELAY_MS = 30_000
+
+// The auto-create job itself only actually runs once per WIB day (after the
+// 23:00 WIB cutoff — see runDailyAutoCreateIfDue in
+// lib/working-projects/auto-create.ts), so this poller can tick far more
+// often than that without spamming Shopee/Tokopedia — every tick just asks
+// "is today's run due yet?" and the endpoint no-ops otherwise.
+const AUTO_CREATE_POLL_INTERVAL_MS = 15 * 60 * 1000 // 15 minutes
 
 export async function register() {
   // Only run on the Node.js server runtime (not Edge)
@@ -15,23 +23,29 @@ export async function register() {
 
   if (!secret) {
     console.warn(
-      "[notifications] INTERNAL_NOTIFICATION_SECRET not set — background poller disabled. Add it to .env.local to enable.",
+      "[notifications] INTERNAL_NOTIFICATION_SECRET not set — background pollers disabled. Add it to .env.local to enable.",
     )
     return
   }
 
   console.log("[notifications] Background poller starting...")
-
-  // Initial delay so the server is ready before first poll
   setTimeout(() => {
-    void runPoll(baseUrl, secret)
+    void runNotificationPoll(baseUrl, secret)
     setInterval(() => {
-      void runPoll(baseUrl, secret)
+      void runNotificationPoll(baseUrl, secret)
     }, POLL_INTERVAL_MS)
+  }, INITIAL_DELAY_MS)
+
+  console.log("[working-projects] Auto-create poller starting...")
+  setTimeout(() => {
+    void runAutoCreatePoll(baseUrl, secret)
+    setInterval(() => {
+      void runAutoCreatePoll(baseUrl, secret)
+    }, AUTO_CREATE_POLL_INTERVAL_MS)
   }, INITIAL_DELAY_MS)
 }
 
-async function runPoll(baseUrl: string, secret: string): Promise<void> {
+async function runNotificationPoll(baseUrl: string, secret: string): Promise<void> {
   try {
     const res = await fetch(`${baseUrl}/api/notifications/poll`, {
       method: "POST",
@@ -56,5 +70,38 @@ async function runPoll(baseUrl: string, secret: string): Promise<void> {
     }
   } catch (err) {
     console.warn("[notifications] poll error:", err)
+  }
+}
+
+async function runAutoCreatePoll(baseUrl: string, secret: string): Promise<void> {
+  try {
+    const res = await fetch(`${baseUrl}/api/internal/working-projects/auto-create`, {
+      method: "POST",
+      headers: { "x-internal-secret": secret },
+    })
+    if (!res.ok) {
+      console.warn(
+        `[working-projects] Auto-create poll returned ${res.status}: ${await res.text()}`,
+      )
+      return
+    }
+    const result = (await res.json()) as {
+      ranToday: boolean
+      scanned?: number
+      created?: number
+      skipped?: number
+      failed?: number
+      errors?: string[]
+    }
+    if (result.ranToday) {
+      console.log(
+        `[working-projects] auto-create done: scanned=${result.scanned} created=${result.created} skipped=${result.skipped} failed=${result.failed}`,
+      )
+      if (result.errors?.length) {
+        console.warn("[working-projects] auto-create errors:", result.errors)
+      }
+    }
+  } catch (err) {
+    console.warn("[working-projects] auto-create poll error:", err)
   }
 }

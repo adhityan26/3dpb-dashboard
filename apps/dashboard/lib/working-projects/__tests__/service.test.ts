@@ -12,6 +12,7 @@ vi.mock('@/lib/db', () => ({
       update: vi.fn(),
       delete: vi.fn(),
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
     },
   },
 }))
@@ -21,9 +22,35 @@ import { prisma } from '@/lib/db'
 
 beforeEach(() => {
   vi.clearAllMocks()
+  // No existing WP for the same (source, sourceOrderNo) unless a test says otherwise.
+  ;(prisma.workingProject.findFirst as any).mockResolvedValue(null)
 })
 
 describe('createWorkingProject', () => {
+  it('returns the existing WP instead of creating a duplicate when (source, sourceOrderNo) already exists', async () => {
+    ;(prisma.workingProject.findFirst as any).mockResolvedValue({
+      id: 'wp-existing', discordThreadUrl: 'https://discord/existing', syncState: 'ok',
+    })
+
+    const result = await createWorkingProject({
+      source: 'shopee', sourceOrderNo: 'SN1', forumChannelId: 'FORUM_CINCIN_ID', customer: 'Budi', product: 'Cincin',
+    })
+
+    expect(result).toEqual({ id: 'wp-existing', threadUrl: 'https://discord/existing', syncState: 'ok', skipped: true })
+    expect(prisma.workingProject.create).not.toHaveBeenCalled()
+    expect(createRelayThread).not.toHaveBeenCalled()
+  })
+
+  it('does not dedupe manual WPs without a sourceOrderNo', async () => {
+    ;(prisma.workingProject.create as any).mockResolvedValue({ id: 'wp-manual' })
+    ;(createRelayThread as any).mockResolvedValue({ threadId: 't1', threadUrl: 'https://discord/t1' })
+
+    await createWorkingProject({ source: 'manual', forumChannelId: 'FORUM_CINCIN_ID', customer: 'Budi', product: 'Cincin' })
+
+    expect(prisma.workingProject.findFirst).not.toHaveBeenCalled()
+    expect(prisma.workingProject.create).toHaveBeenCalled()
+  })
+
   it('writes DB row first as pending, then syncs to Discord and marks ok', async () => {
     ;(prisma.workingProject.create as any).mockResolvedValue({ id: 'wp1' })
     ;(createRelayThread as any).mockResolvedValue({ threadId: 't1', threadUrl: 'https://discord/t1' })
@@ -42,7 +69,7 @@ describe('createWorkingProject', () => {
       where: { id: 'wp1' },
       data: expect.objectContaining({ discordThreadId: 't1', discordThreadUrl: 'https://discord/t1', syncState: 'ok' }),
     }))
-    expect(result).toEqual({ id: 'wp1', threadUrl: 'https://discord/t1', syncState: 'ok' })
+    expect(result).toEqual({ id: 'wp1', threadUrl: 'https://discord/t1', syncState: 'ok', skipped: false })
   })
 
   it('marks syncState error but does not throw when the relay call fails', async () => {
@@ -59,6 +86,7 @@ describe('createWorkingProject', () => {
     }))
     expect(result.threadUrl).toBeNull()
     expect(result.syncState).toBe('error')
+    expect(result.skipped).toBe(false)
   })
 
   it('persists orderDateRaw as a parsed orderDate and includes it in the Discord post', async () => {
