@@ -30,6 +30,7 @@ interface DoneResult {
   directUrl: string | null
   downloadUrl: string
   fileName: string
+  href: string
   via: "minio" | "server"
 }
 
@@ -49,7 +50,7 @@ function sizeLabel(usEquivalent: number): string {
  * answers "reachable?" without needing CORS on MinIO; any failure (offsite,
  * mixed-content block, timeout) falls back to the app-proxied URL.
  */
-async function pickDownload(json: ProcessResponse): Promise<DoneResult> {
+async function resolveDownload(json: ProcessResponse): Promise<DoneResult> {
   let href = json.downloadUrl
   let via: "minio" | "server" = "server"
   if (json.directUrl) {
@@ -64,11 +65,14 @@ async function pickDownload(json: ProcessResponse): Promise<DoneResult> {
       // unreachable — keep the server route
     }
   }
+  return { directUrl: json.directUrl, downloadUrl: json.downloadUrl, fileName: json.fileName, href, via }
+}
+
+function triggerDownload(r: DoneResult): void {
   const a = document.createElement("a")
-  a.href = href
-  a.download = json.fileName
+  a.href = r.href
+  a.download = r.fileName
   a.click()
-  return { directUrl: json.directUrl, downloadUrl: json.downloadUrl, fileName: json.fileName, via }
 }
 
 function DownloadLinks({ r }: { r: DoneResult }) {
@@ -141,7 +145,9 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
     try {
       const json = await processOne(value, effectiveText)
       setWarnings(json.warnings)
-      setLastResult(await pickDownload(json))
+      const r = await resolveDownload(json)
+      setLastResult(r)
+      triggerDownload(r)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -151,7 +157,7 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
 
   // Sizes run one request at a time: each one already takes up to ~1 min on
   // big meshes, and one ZIP per size keeps server memory bounded (a combined
-  // ZIP of ~100 MB/size would not be).
+  // ZIP of ~100 MB/size would not be). Results are listed, not auto-downloaded.
   async function submitBatch() {
     if (!model || batchSizes.length === 0) return
     setBusy(true); setError(null); setWarnings([]); setLastResult(null)
@@ -165,7 +171,7 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
       try {
         const json = await processOne(v, label)
         allWarnings.push(...json.warnings.map((w) => `[${label}] ${w}`))
-        items[i] = { value: v, label, status: "done", result: await pickDownload(json) }
+        items[i] = { value: v, label, status: "done", result: await resolveDownload(json) }
       } catch (err) {
         items[i] = { value: v, label, status: "error", error: err instanceof Error ? err.message : String(err) }
       }
@@ -270,7 +276,7 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
             ) : (
               <>
                 <div className="mb-2 g-t4">
-                  {batchSizes.length} ukuran × {model.parts.length} part — 1 ZIP per ukuran, text engrave = ukuran US
+                  {batchSizes.length} ukuran × {model.parts.length} part — 1 ZIP per ukuran (download manual dari list), text engrave = ukuran US
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {batchSizes.map((s) => (
@@ -294,16 +300,11 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
                 ? `Memproses ${batchDone + 1}/${batchItems.length}${running ? ` (${running.label})` : ""}…`
                 : "Memproses… (bisa ~1 menit)"
               : batch
-                ? `Proses ${batchSizes.length} ukuran & Download`
+                ? `Proses ${batchSizes.length} ukuran`
                 : "Proses & Download ZIP"}
           </button>
           {error && <span className="text-xs g-t3">{error}</span>}
         </div>
-        {batch && (
-          <div className="text-xs g-t4">
-            Tiap ukuran ter-download sebagai ZIP terpisah begitu selesai — kalau browser bertanya &quot;download multiple files&quot;, pilih Allow.
-          </div>
-        )}
       </div>
 
       {!batch && lastResult && (
@@ -323,7 +324,14 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
                 {b.status === "pending" && <span>menunggu</span>}
                 {b.status === "running" && <span className="text-indigo-400">memproses…</span>}
                 {b.status === "done" && (
-                  <span>✓ {b.result.fileName} — download ulang: <DownloadLinks r={b.result} /></span>
+                  <>
+                    <a href={b.result.href} download={b.result.fileName}
+                      className="rounded-lg bg-indigo-500/80 px-3 py-1 font-semibold text-white">
+                      Download
+                    </a>
+                    <span>{b.result.fileName}</span>
+                    <span className="g-t4">(alternatif: <DownloadLinks r={b.result} />)</span>
+                  </>
                 )}
                 {b.status === "error" && <span className="text-red-400">✗ {b.error}</span>}
               </li>
