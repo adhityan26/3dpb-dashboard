@@ -1,4 +1,5 @@
 import {
+  ListObjectsV2Command,
   PutObjectCommand,
   GetObjectCommand,
   DeleteObjectCommand,
@@ -10,6 +11,7 @@ import {
 } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
 import { getMinioClient } from "@/lib/minio"
+import { ZIP_TAIL_BYTES, zipEntryNamesFromTail } from "./zip-index"
 
 export const RING_BUCKET = process.env.RING_BUCKET ?? "ring-models"
 
@@ -70,7 +72,14 @@ export function ringResultKey(id: string): string {
   return `results/${id}.zip`
 }
 
-export async function uploadRingZip(id: string, body: Uint8Array): Promise<void> {
+/** Descriptive metadata stored on a result ZIP (ASCII-safe values only). */
+export interface RingResultMeta {
+  fileName: string
+  model: string
+  label: string
+}
+
+export async function uploadRingZip(id: string, body: Uint8Array, meta?: RingResultMeta): Promise<void> {
   await ensureBucket()
   await getMinioClient().send(
     new PutObjectCommand({
@@ -78,6 +87,66 @@ export async function uploadRingZip(id: string, body: Uint8Array): Promise<void>
       Key: ringResultKey(id),
       Body: body,
       ContentType: "application/zip",
+      Metadata: meta ? { filename: meta.fileName, model: meta.model, label: meta.label } : undefined,
+    }),
+  )
+}
+
+export interface RingResultInfo {
+  id: string
+  lastModified: string
+  sizeBytes: number
+  /** STL entry names inside the ZIP ([] when unreadable). */
+  entries: string[]
+  /** From object metadata; null for results stored before metadata existed. */
+  fileName: string | null
+  model: string | null
+  label: string | null
+}
+
+const RESULT_KEY_RE = /^results\/([0-9a-f-]{36})\.zip$/
+
+/** Newest result ZIPs first, with entry names read from each ZIP's tail. */
+export async function listRingResults(limit: number): Promise<RingResultInfo[]> {
+  const client = getMinioClient()
+  const objects: { id: string; lastModified: Date; size: number }[] = []
+  let token: string | undefined
+  do {
+    const page = await client.send(
+      new ListObjectsV2Command({ Bucket: RING_BUCKET, Prefix: "results/", ContinuationToken: token }),
+    )
+    for (const o of page.Contents ?? []) {
+      const m = o.Key ? RESULT_KEY_RE.exec(o.Key) : null
+      if (m && o.LastModified && o.Size) objects.push({ id: m[1], lastModified: o.LastModified, size: o.Size })
+    }
+    token = page.IsTruncated ? page.NextContinuationToken : undefined
+  } while (token)
+
+  objects.sort((a, b) => b.lastModified.getTime() - a.lastModified.getTime())
+  return Promise.all(
+    objects.slice(0, limit).map(async (o) => {
+      const key = ringResultKey(o.id)
+      const start = Math.max(0, o.size - ZIP_TAIL_BYTES)
+      let entries: string[] = []
+      let meta: Record<string, string> = {}
+      try {
+        const res = await client.send(
+          new GetObjectCommand({ Bucket: RING_BUCKET, Key: key, Range: `bytes=${start}-${o.size - 1}` }),
+        )
+        meta = res.Metadata ?? {}
+        if (res.Body) entries = zipEntryNamesFromTail(Buffer.from(await res.Body.transformToByteArray()), o.size)
+      } catch {
+        // unreadable tail — list the file anyway with unknown contents
+      }
+      return {
+        id: o.id,
+        lastModified: o.lastModified.toISOString(),
+        sizeBytes: o.size,
+        entries,
+        fileName: meta.filename ?? null,
+        model: meta.model ?? null,
+        label: meta.label ?? null,
+      }
     }),
   )
 }

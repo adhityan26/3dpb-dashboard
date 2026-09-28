@@ -96,8 +96,10 @@ export async function POST(req: NextRequest) {
   // the browser then downloads via a plain GET (cookies included, native
   // progress, and the same code path as the STL file proxy that works).
   const resultId = crypto.randomUUID()
-  await uploadRingZip(resultId, zip)
   const fileName = `${sanitizeLabel(model.name)}_${label}.zip`
+  // Metadata lets the "recent results" list name the file after a page
+  // refresh, when the browser has lost this response.
+  await uploadRingZip(resultId, zip, { fileName, model: sanitizeLabel(model.name), label })
   // directUrl: presigned MinIO link — LAN clients download straight from the
   // NAS, skipping the app (and any tunnel). The client probes reachability
   // and falls back to downloadUrl (app-proxied) automatically.
@@ -108,6 +110,7 @@ export async function POST(req: NextRequest) {
     // presign failure is non-fatal — proxy path still works
   }
   return NextResponse.json({
+    resultId,
     downloadUrl: `/api/ring-resizer/results/${resultId}?name=${encodeURIComponent(fileName)}`,
     directUrl,
     fileName,

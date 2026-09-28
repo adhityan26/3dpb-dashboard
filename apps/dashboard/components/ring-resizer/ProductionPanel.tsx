@@ -1,8 +1,9 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import type { RingModelWithParts } from "@/lib/hooks/use-ring-models"
 import { computeScale, sizeRange, MAX_BATCH_SIZES, type SizeMode } from "@/lib/ring-resizer/sizing"
+import { RecentResults } from "./RecentResults"
 
 export interface ProductionPanelProps {
   models: RingModelWithParts[]
@@ -20,6 +21,7 @@ const BATCH_DEFAULT: Record<SizeMode, { from: number; to: number; step: number }
 const CLEARANCE_MM = 0.3
 
 interface ProcessResponse {
+  resultId: string
   downloadUrl: string
   directUrl: string | null
   fileName: string
@@ -38,6 +40,48 @@ type BatchItem =
   | { value: number; label: string; status: "pending" | "running" }
   | { value: number; label: string; status: "done"; result: DoneResult }
   | { value: number; label: string; status: "error"; error: string }
+
+/** Settings a batch runs with — captured up front so a resume after refresh reuses them. */
+interface BatchCtx {
+  modelId: string
+  mode: SizeMode
+  clearanceMm: number
+}
+
+interface SavedBatch extends BatchCtx {
+  items: BatchItem[]
+}
+
+// Batch progress lives in localStorage so a refresh mid-batch can resume the
+// unfinished sizes instead of starting over.
+const BATCH_STORAGE_KEY = "ring-resizer:batch-v1"
+
+function saveBatch(b: SavedBatch | null): void {
+  try {
+    if (b) localStorage.setItem(BATCH_STORAGE_KEY, JSON.stringify(b))
+    else localStorage.removeItem(BATCH_STORAGE_KEY)
+  } catch {
+    // storage unavailable (private mode etc.) — resume just won't be offered
+  }
+}
+
+function loadBatch(): SavedBatch | null {
+  try {
+    const raw = localStorage.getItem(BATCH_STORAGE_KEY)
+    if (!raw) return null
+    const b = JSON.parse(raw) as SavedBatch
+    if (!b || !Array.isArray(b.items) || typeof b.modelId !== "string") return null
+    // A size that was "running" when the page died never reported back.
+    b.items = b.items.map((it) => (it.status === "running" ? { value: it.value, label: it.label, status: "pending" } : it))
+    return b
+  } catch {
+    return null
+  }
+}
+
+function isUnfinished(b: SavedBatch): boolean {
+  return b.items.some((it) => it.status !== "done")
+}
 
 /** Engrave label default: just the US number (e.g. "8" / "7.5"), no "US" prefix. */
 function sizeLabel(usEquivalent: number): string {
@@ -102,6 +146,25 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
   const [error, setError] = useState<string | null>(null)
   const [lastResult, setLastResult] = useState<DoneResult | null>(null)
   const [batchItems, setBatchItems] = useState<BatchItem[]>([])
+  const [resumable, setResumable] = useState<SavedBatch | null>(null)
+  const [resultsVersion, setResultsVersion] = useState(0)
+
+  // Offer to resume a batch interrupted by a refresh. Nested async IIFE keeps
+  // the setState out of the effect body (react-hooks/set-state-in-effect).
+  useEffect(() => {
+    void (async () => {
+      const saved = loadBatch()
+      if (saved && isUnfinished(saved)) setResumable(saved)
+    })()
+  }, [])
+
+  // Leaving the page mid-batch stops the remaining sizes — ask first.
+  useEffect(() => {
+    if (!busy) return
+    const onBeforeUnload = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = "" }
+    window.addEventListener("beforeunload", onBeforeUnload)
+    return () => window.removeEventListener("beforeunload", onBeforeUnload)
+  }, [busy])
 
   const model = models.find((m) => m.id === modelId) ?? models[0]
   const clearanceMm = clearance ? CLEARANCE_MM : 0
@@ -127,11 +190,11 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
   const defaultText = summary ? sizeLabel(summary.usEquivalent) : ""
   const effectiveText = text || defaultText
 
-  async function processOne(v: number, label: string): Promise<ProcessResponse> {
+  async function processOne(ctx: BatchCtx, v: number, label: string): Promise<ProcessResponse> {
     const res = await fetch("/api/ring-resizer/process", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ modelId: model!.id, mode, value: v, clearanceMm, text: label }),
+      body: JSON.stringify({ modelId: ctx.modelId, mode: ctx.mode, value: v, clearanceMm: ctx.clearanceMm, text: label }),
     })
     if (!res.ok) throw new Error((await res.json()).error ?? `HTTP ${res.status}`)
     // Small JSON payload; the ZIP itself is fetched by the browser natively
@@ -143,11 +206,12 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
     if (!model || !summary) return
     setBusy(true); setError(null); setWarnings([])
     try {
-      const json = await processOne(value, effectiveText)
+      const json = await processOne({ modelId: model.id, mode, clearanceMm }, value, effectiveText)
       setWarnings(json.warnings)
       const r = await resolveDownload(json)
       setLastResult(r)
       triggerDownload(r)
+      setResultsVersion((n) => n + 1)
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
@@ -158,27 +222,53 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
   // Sizes run one request at a time: each one already takes up to ~1 min on
   // big meshes, and one ZIP per size keeps server memory bounded (a combined
   // ZIP of ~100 MB/size would not be). Results are listed, not auto-downloaded.
-  async function submitBatch() {
-    if (!model || batchSizes.length === 0) return
-    setBusy(true); setError(null); setWarnings([]); setLastResult(null)
-    const items: BatchItem[] = batchSizes.map((s) => ({ value: s.value, label: s.label, status: "pending" }))
-    setBatchItems([...items])
+  // Only sizes not yet "done" are processed, so the same loop resumes a batch.
+  async function runBatch(ctx: BatchCtx, initial: BatchItem[]) {
+    setBusy(true); setError(null); setWarnings([]); setLastResult(null); setResumable(null)
+    const items = [...initial]
+    const sync = () => {
+      setBatchItems([...items])
+      saveBatch(isUnfinished({ ...ctx, items }) ? { ...ctx, items } : null)
+    }
+    sync()
     const allWarnings: string[] = []
     for (let i = 0; i < items.length; i++) {
-      const { value: v, label } = items[i]
+      const { value: v, label, status } = items[i]
+      if (status === "done") continue
       items[i] = { value: v, label, status: "running" }
-      setBatchItems([...items])
+      sync()
       try {
-        const json = await processOne(v, label)
+        const json = await processOne(ctx, v, label)
         allWarnings.push(...json.warnings.map((w) => `[${label}] ${w}`))
         items[i] = { value: v, label, status: "done", result: await resolveDownload(json) }
+        setResultsVersion((n) => n + 1)
       } catch (err) {
         items[i] = { value: v, label, status: "error", error: err instanceof Error ? err.message : String(err) }
       }
-      setBatchItems([...items])
+      sync()
       setWarnings([...allWarnings])
     }
     setBusy(false)
+  }
+
+  function submitBatch() {
+    if (!model || batchSizes.length === 0) return
+    void runBatch(
+      { modelId: model.id, mode, clearanceMm },
+      batchSizes.map((s) => ({ value: s.value, label: s.label, status: "pending" })),
+    )
+  }
+
+  function resumeBatch() {
+    if (!resumable) return
+    const { items, ...ctx } = resumable
+    setModelId(ctx.modelId); setMode(ctx.mode); setClearance(ctx.clearanceMm > 0); setBatch(true)
+    void runBatch(ctx, items)
+  }
+
+  function discardBatch() {
+    saveBatch(null)
+    setResumable(null)
   }
 
   if (loading) return <div className="glass-card p-6 text-sm g-t4">Memuat…</div>
@@ -189,8 +279,27 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
   const batchDone = batchItems.filter((b) => b.status === "done" || b.status === "error").length
   const running = batchItems.find((b) => b.status === "running")
 
+  const resumeModel = resumable ? models.find((m) => m.id === resumable.modelId) : undefined
+  const resumeDone = resumable ? resumable.items.filter((it) => it.status === "done").length : 0
+
   return (
     <div className="flex flex-col gap-4">
+      {resumable && !busy && (
+        <div className="glass-card flex flex-wrap items-center gap-3 border border-amber-500/40 p-3 text-xs g-t3">
+          <span>
+            Batch sebelumnya terhenti{resumeModel ? ` (${resumeModel.name})` : ""}: {resumeDone}/{resumable.items.length} ukuran
+            selesai — sisa: {resumable.items.filter((it) => it.status !== "done").map((it) => it.label).join(", ")}
+          </span>
+          <button type="button" onClick={resumeBatch} disabled={!resumeModel}
+            className="rounded-lg bg-indigo-500 px-3 py-1.5 font-semibold text-white disabled:opacity-50">
+            Lanjutkan sisa
+          </button>
+          <button type="button" onClick={discardBatch} className="rounded-lg px-3 py-1.5 font-semibold g-t4 hover:bg-white/10">
+            Buang
+          </button>
+        </div>
+      )}
+
       <div className="glass-card flex flex-col gap-4 p-4">
         <label className="flex flex-col gap-1 text-xs g-t4">
           Model cincin
@@ -305,6 +414,9 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
           </button>
           {error && <span className="text-xs g-t3">{error}</span>}
         </div>
+        {busy && batch && (
+          <div className="text-xs text-amber-400">Jangan refresh/tutup halaman selama batch berjalan.</div>
+        )}
       </div>
 
       {!batch && lastResult && (
@@ -346,6 +458,8 @@ export function ProductionPanel({ models, loading }: ProductionPanelProps) {
           <ul className="list-disc pl-4">{warnings.map((w, i) => <li key={i}>{w}</li>)}</ul>
         </div>
       )}
+
+      <RecentResults version={resultsVersion} />
     </div>
   )
 }
