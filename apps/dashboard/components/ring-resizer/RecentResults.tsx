@@ -2,6 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react"
 
+// Mirrors RESULT_RETENTION_DAYS in lib/ring-resizer/storage.ts (server-only module).
+const RESULT_RETENTION_DAYS = 3
+
 export interface RecentResultItem {
   id: string
   createdAt: string
@@ -72,7 +75,7 @@ export function RecentResults({ version }: { version: number }) {
     <div className="glass-card p-4 text-xs">
       <div className="mb-2 flex items-center gap-2">
         <span className="font-semibold g-t2">Hasil terbaru</span>
-        <span className="g-t4">— ZIP tersimpan di server, tetap ada walau halaman di-refresh</span>
+        <span className="g-t4">— ZIP tersimpan di server {RESULT_RETENTION_DAYS} hari (lalu terhapus otomatis), tetap ada walau halaman di-refresh</span>
         <button type="button" onClick={() => void load()}
           className="ml-auto rounded-lg px-2 py-1 font-semibold g-t4 hover:bg-white/10">
           Refresh

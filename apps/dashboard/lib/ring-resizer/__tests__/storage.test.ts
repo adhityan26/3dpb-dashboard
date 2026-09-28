@@ -3,6 +3,7 @@ import { NoSuchKey } from "@aws-sdk/client-s3"
 
 const sent: unknown[] = []
 let throwError: unknown = null
+const existingRules = [{ ID: "other-rule", Status: "Enabled", Filter: { Prefix: "tmp/" }, Expiration: { Days: 30 } }]
 
 vi.mock("@/lib/minio", () => ({
   getMinioClient: () => ({
@@ -12,6 +13,7 @@ vi.mock("@/lib/minio", () => ({
       }
       sent.push(cmd)
       const name = (cmd as { constructor: { name: string } }).constructor.name
+      if (name === "GetBucketLifecycleConfigurationCommand") return { Rules: existingRules }
       if (name === "GetObjectCommand") {
         return { Body: { transformToByteArray: async () => new Uint8Array([1, 2, 3]) } }
       }
@@ -20,7 +22,7 @@ vi.mock("@/lib/minio", () => ({
   }),
 }))
 
-import { ringPartKey, uploadRingStl, downloadRingStl, deleteRingStl } from "../storage"
+import { ringPartKey, uploadRingStl, downloadRingStl, deleteRingStl, uploadRingZip } from "../storage"
 
 beforeEach(() => {
   sent.length = 0
@@ -61,5 +63,20 @@ describe("ring storage", () => {
     const otherErr = new Error("Permission denied")
     throwError = otherErr
     await expect(deleteRingStl("m1", "p1")).rejects.toThrow("Permission denied")
+  })
+
+  it("uploadRingZip sets a 3-day expiry on results/ and keeps other lifecycle rules", async () => {
+    await uploadRingZip("id-1", new Uint8Array([1]), { fileName: "GL_7.zip", model: "GL", label: "7" })
+    const name = (c: unknown) => (c as { constructor: { name: string } }).constructor.name
+    const lc = sent.find((c) => name(c) === "PutBucketLifecycleConfigurationCommand") as {
+      input: { LifecycleConfiguration: { Rules: { ID: string; Filter?: { Prefix?: string }; Expiration?: { Days?: number } }[] } }
+    }
+    expect(lc).toBeDefined()
+    const rules = lc.input.LifecycleConfiguration.Rules
+    expect(rules.map((r) => r.ID)).toEqual(["other-rule", "expire-results"])
+    expect(rules[1]).toMatchObject({ Filter: { Prefix: "results/" }, Expiration: { Days: 3 } })
+    const put = sent.find((c) => name(c) === "PutObjectCommand") as { input: { Key: string; Metadata?: Record<string, string> } }
+    expect(put.input.Key).toBe("results/id-1.zip")
+    expect(put.input.Metadata).toEqual({ filename: "GL_7.zip", model: "GL", label: "7" })
   })
 })

@@ -1,4 +1,7 @@
 import {
+  GetBucketLifecycleConfigurationCommand,
+  PutBucketLifecycleConfigurationCommand,
+  type LifecycleRule,
   ListObjectsV2Command,
   PutObjectCommand,
   GetObjectCommand,
@@ -67,6 +70,53 @@ export async function deleteRingStl(modelId: string, partId: string): Promise<vo
   }
 }
 
+/** Days a processed-result ZIP is kept before MinIO deletes it. */
+export const RESULT_RETENTION_DAYS = 3
+const RESULT_LIFECYCLE_RULE_ID = "expire-results"
+
+/**
+ * MinIO lifecycle rule that expires results/ after RESULT_RETENTION_DAYS —
+ * the storage server does the cleanup, no app-side timer. Put replaces the
+ * whole bucket config, so other rules are read and kept. Applied once per
+ * process; failures are logged and retried on the next upload.
+ */
+let lifecycleEnsured = false
+export async function ensureResultLifecycle(): Promise<void> {
+  if (lifecycleEnsured) return
+  const client = getMinioClient()
+  try {
+    let rules: LifecycleRule[] = []
+    try {
+      const cur = await client.send(new GetBucketLifecycleConfigurationCommand({ Bucket: RING_BUCKET }))
+      rules = cur.Rules ?? []
+    } catch (err) {
+      if ((err as { name?: string }).name !== "NoSuchLifecycleConfiguration") throw err
+    }
+    const ours = rules.find((r) => r.ID === RESULT_LIFECYCLE_RULE_ID)
+    if (ours?.Expiration?.Days !== RESULT_RETENTION_DAYS || ours.Filter?.Prefix !== "results/") {
+      await client.send(
+        new PutBucketLifecycleConfigurationCommand({
+          Bucket: RING_BUCKET,
+          LifecycleConfiguration: {
+            Rules: [
+              ...rules.filter((r) => r.ID !== RESULT_LIFECYCLE_RULE_ID),
+              {
+                ID: RESULT_LIFECYCLE_RULE_ID,
+                Status: "Enabled",
+                Filter: { Prefix: "results/" },
+                Expiration: { Days: RESULT_RETENTION_DAYS },
+              },
+            ],
+          },
+        }),
+      )
+    }
+    lifecycleEnsured = true
+  } catch (err) {
+    console.error("[ring-resizer] failed to set results lifecycle rule:", err)
+  }
+}
+
 /** Key for a processed-result ZIP in the results/ prefix. */
 export function ringResultKey(id: string): string {
   return `results/${id}.zip`
@@ -81,6 +131,7 @@ export interface RingResultMeta {
 
 export async function uploadRingZip(id: string, body: Uint8Array, meta?: RingResultMeta): Promise<void> {
   await ensureBucket()
+  await ensureResultLifecycle()
   await getMinioClient().send(
     new PutObjectCommand({
       Bucket: RING_BUCKET,
