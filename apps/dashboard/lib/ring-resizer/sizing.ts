@@ -51,3 +51,17 @@ export function computeScale(opts: {
     circMm: diaMm * Math.PI,
   }
 }
+
+export const MAX_BATCH_SIZES = 30
+
+/**
+ * Inclusive list of sizes from..to in `step` increments, rounded to 3 decimals
+ * so float drift (0.1 steps) never skips the upper bound. Empty when the range
+ * is invalid or would exceed MAX_BATCH_SIZES.
+ */
+export function sizeRange(from: number, to: number, step: number): number[] {
+  if (!(from > 0) || !(to >= from) || !(step > 0)) return []
+  const count = Math.floor((to - from) / step + 1e-9) + 1
+  if (count > MAX_BATCH_SIZES) return []
+  return Array.from({ length: count }, (_, i) => Math.round((from + i * step) * 1000) / 1000)
+}

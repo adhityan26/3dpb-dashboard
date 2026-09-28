@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { computeScale } from "../sizing"
+import { computeScale, sizeRange } from "../sizing"
 
 describe("computeScale", () => {
   // Parity with the existing GL2026 resize calculator HTML:
@@ -27,5 +27,22 @@ describe("computeScale", () => {
   it("rejects non-positive input", () => {
     expect(() => computeScale({ mode: "us", value: 0, clearanceMm: 0.3, baseBoreMm: 23.871 })).toThrow()
     expect(() => computeScale({ mode: "dia", value: 18, clearanceMm: 0.3, baseBoreMm: 0 })).toThrow()
+  })
+})
+
+describe("sizeRange", () => {
+  it("includes both ends in half-size steps", () => {
+    expect(sizeRange(6, 8, 0.5)).toEqual([6, 6.5, 7, 7.5, 8])
+  })
+  it("survives float drift on 0.1 steps", () => {
+    expect(sizeRange(16, 16.5, 0.1)).toEqual([16, 16.1, 16.2, 16.3, 16.4, 16.5])
+  })
+  it("stops before overshooting the upper bound", () => {
+    expect(sizeRange(6, 7.2, 0.5)).toEqual([6, 6.5, 7])
+  })
+  it("returns [] for invalid or oversized ranges", () => {
+    expect(sizeRange(8, 6, 0.5)).toEqual([])
+    expect(sizeRange(6, 8, 0)).toEqual([])
+    expect(sizeRange(1, 100, 1)).toEqual([])
   })
 })
