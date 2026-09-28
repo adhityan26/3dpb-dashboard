@@ -10,6 +10,7 @@ import {
   WORKING_PROJECT_FORUM_CHANNELS,
   createWorkingProjectFromOrder,
 } from "@/lib/working-projects/create-from-order"
+import { buildMultiItemProduct } from "@/lib/working-projects/format"
 
 interface OrderRowProps {
   order: OrderSummary
@@ -75,8 +76,12 @@ export function OrderRow({ order, onToggleLabel, isPending, linkedInvoice, onCre
       sourceProductId: firstItem?.itemId ? String(firstItem.itemId) : undefined,
       forumChannelId: wpForumChannelId,
       customer: order.buyerUsername ?? order.orderSn,
-      product: firstItem?.productName ?? "",
-      variant: firstItem?.variantName ?? undefined,
+      // Every line item goes into `product` (buildMultiItemProduct embeds
+      // each item's variant so two items of the SAME product at different
+      // sizes stay distinguishable) — used to only take items[0], silently
+      // dropping the rest of a multi-item order (found 2026-09-28).
+      product: buildMultiItemProduct(order.items.map((it) => ({ name: it.productName, variant: it.variantName }))),
+      variant: order.items.length <= 1 ? (firstItem?.variantName ?? undefined) : undefined,
       shipping: order.shippingCarrier ?? undefined,
       orderDateRaw: new Date(order.createTime * 1000).toISOString().slice(0, 10),
       dueDateRaw: order.shipByDate != null ? new Date(order.shipByDate * 1000).toISOString().slice(0, 10) : undefined,

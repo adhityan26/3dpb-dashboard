@@ -5,6 +5,7 @@ import Image from "next/image"
 import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent } from "@/components/ui/card"
 import type { TokopediaOrderSummary } from "@/lib/tokopedia/types"
+import { buildMultiItemProduct } from "@/lib/working-projects/format"
 import {
   WORKING_PROJECT_FORUM_CHANNELS,
   createWorkingProjectFromOrder,
@@ -67,8 +68,10 @@ export function TokopediaOrderRow({ order, defaultExpanded = false }: TokopediaO
       sourceOrderNo: order.orderId,
       forumChannelId: wpForumChannelId,
       customer: order.buyerNickname ?? order.orderId,
-      product: first?.name ?? "",
-      variant: first?.variant || undefined,
+      // Every line item goes into `product` — used to only take products[0],
+      // silently dropping the rest of a multi-item order (found 2026-09-28).
+      product: buildMultiItemProduct(order.products.map((p) => ({ name: p.name, variant: p.variant }))),
+      variant: order.products.length <= 1 ? (first?.variant || undefined) : undefined,
       shipping: order.courier ?? undefined,
       orderDateRaw: order.orderDate != null ? new Date(order.orderDate * 1000).toISOString().slice(0, 10) : undefined,
       dueDateRaw: order.latestRtsTime != null ? new Date(order.latestRtsTime * 1000).toISOString().slice(0, 10) : undefined,

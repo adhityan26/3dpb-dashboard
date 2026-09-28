@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { buildTitle, buildPostContent, parseDueDate, parseOrderDate, parseSize, parseSizeFromVariantField, isGLRing, variantShort, splitProductVariants, parseAmount, appendNoteWithTimestamp, allowedMentionsPayload, notesSegmentForKey } from '../format'
+import { buildTitle, buildPostContent, parseDueDate, parseOrderDate, parseSize, parseSizeFromVariantField, isGLRing, variantShort, splitProductVariants, parseAmount, appendNoteWithTimestamp, allowedMentionsPayload, notesSegmentForKey, buildMultiItemProduct, resolveVariantEntrySize } from '../format'
 
 describe('buildTitle', () => {
   it('joins customer, product, variant', () => {
@@ -219,5 +219,56 @@ describe('notesSegmentForKey', () => {
 describe('allowedMentionsPayload', () => {
   it('never parses everyone/roles, only explicit user ids', () => {
     expect(allowedMentionsPayload(['123', '456'])).toEqual({ parse: [], users: ['123', '456'] })
+  })
+})
+
+describe('buildMultiItemProduct', () => {
+  it('returns the bare name for a single item (no size suffix, byte-identical to legacy behavior)', () => {
+    expect(buildMultiItemProduct([{ name: 'Green Lantern Ring 2026 3D Print', variant: 'US 9' }]))
+      .toBe('Green Lantern Ring 2026 3D Print')
+  })
+
+  it('embeds each item\'s variant so two identically-named items stay distinguishable', () => {
+    expect(buildMultiItemProduct([
+      { name: 'Green Lantern Ring 2026 3D Print', variant: 'US 6' },
+      { name: 'Green Lantern Ring 2026 3D Print', variant: 'US 7' },
+      { name: '3D Print Green Lantern Ring Cosplay', variant: 'US 7' },
+    ])).toBe(
+      'Green Lantern Ring 2026 3D Print (US 6), Green Lantern Ring 2026 3D Print (US 7), 3D Print Green Lantern Ring Cosplay (US 7)',
+    )
+  })
+
+  it('omits the parens for a multi-item entry with no variant', () => {
+    expect(buildMultiItemProduct([{ name: 'A' }, { name: 'B', variant: 'US 7' }])).toBe('A, B (US 7)')
+  })
+
+  it('returns empty string for zero items', () => {
+    expect(buildMultiItemProduct([])).toBe('')
+  })
+})
+
+describe('resolveVariantEntrySize', () => {
+  it('reads the size embedded in a multi-item entry when notes/variant field have nothing', () => {
+    const r = resolveVariantEntrySize({
+      entry: 'Green Lantern Ring 2026 3D Print (US 6)', key: 'GL Ring 2026 3D Print (US 6)',
+      notes: null, variant: null, variantCount: 3,
+    })
+    expect(r.usSize).toBe('6')
+  })
+
+  it('still lets notes override an entry-embedded size', () => {
+    const r = resolveVariantEntrySize({
+      entry: 'Green Lantern Ring 2026 3D Print (US 6)', key: 'GL Ring 2026 3D Print (US 6)',
+      notes: 'GL Ring 2026 3D Print (US 6): ganti ke US 8', variant: null, variantCount: 3,
+    })
+    expect(r.usSize).toBe('8')
+  })
+
+  it('does not use entry-embedded size for a legacy single-item row (no parens in a bare product name)', () => {
+    const r = resolveVariantEntrySize({
+      entry: 'Green Lantern Ring 2026 3D Print', key: 'GL Ring 2026 3D Print',
+      notes: null, variant: 'US 9', variantCount: 1,
+    })
+    expect(r.usSize).toBe('9')
   })
 })

@@ -179,6 +179,27 @@ function fieldIdentifiesKey(field: string, lowerKey: string): boolean {
   return false
 }
 
+/**
+ * A single order can contain several ring line items — including two with
+ * the EXACT SAME product name but different sizes (e.g. "Green Lantern Ring
+ * 2026 3D Print" size 6 and size 7 in one order) — found 2026-09-28: this
+ * used to collapse to a single line item (only `items[0]` was ever used
+ * when creating the WP), silently dropping the rest.
+ *
+ * The size is embedded directly into each entry ("Product Name (US 6)")
+ * rather than relying on `notesSegmentForKey`'s label-matching, because two
+ * same-named entries are otherwise indistinguishable as notes-segment keys.
+ * A single-item order is deliberately left untouched (no "(US n)" suffix,
+ * variant carried in the separate `variant` field as before) — every
+ * existing single-item WP's `product`/title text stays byte-identical.
+ */
+export function buildMultiItemProduct(items: { name: string; variant?: string | null }[]): string {
+  if (items.length <= 1) return items[0]?.name ?? ''
+  return items
+    .map(item => (item.variant?.trim() ? `${item.name} (${item.variant.trim()})` : item.name))
+    .join(', ')
+}
+
 // Any of the size encodings parseSize understands ("size ...", "ukuran ...",
 // bare "US 9.5") terminates a variant's data segment.
 const SIZE_TOKEN = /size|ukuran|\bus\s*\d/i
@@ -222,6 +243,32 @@ export function splitProductVariants(product: string): string[] {
 
 export function variantShort(entry: string): string {
   return entry.replace(/Green Lantern/gi, 'GL')
+}
+
+/**
+ * Resolves the US size for one split product-variant `entry` (one element
+ * of `splitProductVariants(wp.product)`). Was duplicated near-identically
+ * in WorkingProjectGLRingTab.tsx and shipping-schedule.ts — factored here so
+ * a precedence fix only needs to happen once.
+ *
+ * Precedence: notes (admin's latest correction, e.g. "ganti ukuran US 9")
+ * > the entry's own embedded size, e.g. "Product (US 6)" from
+ * buildMultiItemProduct > the WP's single `variant` field (only meaningful
+ * when there's exactly one variant on the row).
+ */
+export function resolveVariantEntrySize(input: {
+  entry: string
+  key: string
+  notes: string | null
+  variant: string | null
+  variantCount: number
+}): { usSize: string | null } {
+  const single = input.variantCount <= 1
+  const fromVariantField = single ? parseSizeFromVariantField(input.variant ?? '') : { usSize: null }
+  const segment = notesSegmentForKey(input.notes ?? '', input.key, input.variantCount)
+  const fromNotes = parseSize(segment)
+  const fromEntry = parseSize(input.entry)
+  return { usSize: fromNotes.usSize ?? fromEntry.usSize ?? fromVariantField.usSize }
 }
 
 // Detection signals, checked in order of reliability:

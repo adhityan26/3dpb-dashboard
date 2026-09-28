@@ -56,6 +56,29 @@ describe('autoCreateWorkingProjectsFromNewOrders', () => {
     expect(result).toEqual({ scanned: 2, created: 1, skipped: 1, failed: 0, errors: [] })
   })
 
+  it('keeps ALL items from a multi-item Shopee order, not just the first (found 2026-09-28)', async () => {
+    ;(getReadyToShipOrders as any).mockResolvedValue({
+      orders: [{
+        orderSn: 'SN9', buyerUsername: 'budi',
+        items: [
+          { itemId: 1, productName: 'Green Lantern Ring 2026 3D Print', variantName: 'US 6' },
+          { itemId: 1, productName: 'Green Lantern Ring 2026 3D Print', variantName: 'US 7' },
+          { itemId: 2, productName: '3D Print Green Lantern Ring Cosplay', variantName: 'US 7' },
+        ],
+        createTime: 1759000000, shipByDate: null,
+      }],
+    })
+    ;(createWorkingProject as any).mockResolvedValue({ id: 'wp9', threadUrl: null, syncState: 'ok', skipped: false })
+
+    await autoCreateWorkingProjectsFromNewOrders()
+
+    expect(createWorkingProject).toHaveBeenCalledWith(expect.objectContaining({
+      sourceOrderNo: 'SN9',
+      product: 'Green Lantern Ring 2026 3D Print (US 6), Green Lantern Ring 2026 3D Print (US 7), 3D Print Green Lantern Ring Cosplay (US 7)',
+      variant: undefined,
+    }))
+  })
+
   it('routes a Tokopedia order with no category match to the general forum', async () => {
     ;(listOrders as any).mockImplementation(async (tab: string) =>
       tab === 'perlu-dikirim' ? { main_orders: [{ id: 'raw1' }] } : { main_orders: [] },

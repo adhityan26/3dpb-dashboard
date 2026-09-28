@@ -9,6 +9,7 @@ import {
   setAutoCreateLastRunDate,
 } from './service'
 import { detectProductCategory, forumChannelIdForCategory, type CategoryProductIds } from './category'
+import { buildMultiItemProduct } from './format'
 
 interface OrderCandidate {
   source: 'shopee' | 'tokopedia'
@@ -52,13 +53,22 @@ async function collectShopeeCandidates(errors: string[]): Promise<OrderCandidate
     const { orders } = await getReadyToShipOrders()
     return orders.map((o) => {
       const first = o.items[0]
+      // Every item on the order becomes part of `product` (see
+      // buildMultiItemProduct) — a single-item order's product/variant
+      // fields stay exactly as before; a multi-item order (including two
+      // line items for the SAME product at different sizes) now keeps all
+      // of them instead of silently dropping everything but items[0].
       return {
         source: 'shopee' as const,
         sourceOrderNo: o.orderSn,
+        // Only the first item's id feeds the curated product-ID category
+        // list — a secondary signal behind the product-name regex, which
+        // runs against the full multi-item `product` string below and so
+        // still finds a ring/topeng/clicker match anywhere in the order.
         sourceProductId: first?.itemId != null ? String(first.itemId) : undefined,
         customer: o.buyerUsername ?? o.orderSn,
-        product: first?.productName ?? '',
-        variant: first?.variantName ?? undefined,
+        product: buildMultiItemProduct(o.items.map(it => ({ name: it.productName, variant: it.variantName }))),
+        variant: o.items.length <= 1 ? (first?.variantName ?? undefined) : undefined,
         shipping: o.shippingCarrier ?? undefined,
         orderDateRaw: isoDate(o.createTime),
         dueDateRaw: isoDate(o.shipByDate),
@@ -85,8 +95,8 @@ async function collectTokopediaCandidates(errors: string[]): Promise<OrderCandid
             source: 'tokopedia',
             sourceOrderNo: summary.orderId,
             customer: summary.buyerNickname ?? summary.orderId,
-            product: first?.name ?? '',
-            variant: first?.variant ?? undefined,
+            product: buildMultiItemProduct(summary.products.map(p => ({ name: p.name, variant: p.variant }))),
+            variant: summary.products.length <= 1 ? (first?.variant || undefined) : undefined,
             shipping: summary.courier ?? undefined,
             orderDateRaw: isoDate(summary.orderDate),
             dueDateRaw: isoDate(summary.latestRtsTime),

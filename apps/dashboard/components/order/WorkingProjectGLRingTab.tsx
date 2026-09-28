@@ -1,7 +1,7 @@
 'use client'
 import { useMemo, useState } from 'react'
 import { useWorkingProjects, useUpdateWorkingProject, useSetChecklistByLabel, useGLRingProductIds, useGLRingBaseBoreMm, type WorkingProject } from '@/lib/hooks/use-working-projects'
-import { splitProductVariants, variantShort, parseSize, parseSizeFromVariantField, isGLRing, notesSegmentForKey } from '@/lib/working-projects/format'
+import { splitProductVariants, variantShort, parseSizeFromVariantField, isGLRing, resolveVariantEntrySize } from '@/lib/working-projects/format'
 import { computeScale } from '@/lib/ring-resizer/sizing'
 import { WorkingProjectEditModal } from './WorkingProjectEditModal'
 import { downloadRowsAsXlsx } from '@/lib/export/xlsx'
@@ -89,19 +89,16 @@ function expandToRows(projects: WorkingProject[], configuredProductIds: string[]
     const single = variants.length <= 1
     variants.forEach((entry) => {
       const key = variantShort(entry)
-      // Notes win over the marketplace `variant` field: notes are where the
-      // admin records a size the customer changed after ordering, so they are
-      // the newer information. The variant field (only attributable when the
-      // row has exactly one variant; for bulk-created Shopee/Tokopedia orders
-      // it often carries the size while notes is empty) is the fallback.
-      // When both name different sizes the variant size is kept in
-      // `variantUsSize` so the UI can flag the discrepancy.
+      // Notes win over the marketplace `variant` field / the entry's own
+      // embedded size: notes are where the admin records a size the customer
+      // changed after ordering, so they are the newer information. See
+      // resolveVariantEntrySize's own doc for the full precedence.
+      // When notes and the variant field name different sizes, the variant
+      // size is kept in `variantUsSize` so the UI can flag the discrepancy.
       const fromVariantField = single ? parseSizeFromVariantField(wp.variant ?? '') : { usSize: null }
-      const segment = notesSegmentForKey(wp.notes ?? '', key, variants.length)
-      const fromNotes = parseSize(segment)
-      const usSize = fromNotes.usSize ?? fromVariantField.usSize
+      const { usSize } = resolveVariantEntrySize({ entry, key, notes: wp.notes ?? null, variant: wp.variant ?? null, variantCount: variants.length })
       const variantUsSize =
-        fromNotes.usSize && fromVariantField.usSize && Number(fromNotes.usSize) !== Number(fromVariantField.usSize)
+        usSize && fromVariantField.usSize && Number(usSize) !== Number(fromVariantField.usSize)
           ? fromVariantField.usSize
           : null
       const scalePct = scalePctFor(usSize, baseBoreMm)

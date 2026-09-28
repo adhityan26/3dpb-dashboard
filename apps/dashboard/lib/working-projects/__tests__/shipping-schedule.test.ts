@@ -50,3 +50,21 @@ describe('buildShippingScheduleRows', () => {
     expect(rows[0].shipping).toBeNull()
   })
 })
+
+describe('buildShippingScheduleRows multi-item order (found 2026-09-28)', () => {
+  it('produces one row per line item, each with its own embedded size and its own bucket', () => {
+    const wp = {
+      id: 'wp9', discordThreadId: 't9', source: 'shopee', sourceOrderNo: 'SN9', orderNoLegacy: null,
+      customer: 'Budi', contact: null, platform: 'Shopee',
+      product: 'Green Lantern Ring 2026 3D Print (US 6), Green Lantern Ring 2026 3D Print (US 7), 3D Print Green Lantern Ring Cosplay (US 7)',
+      variant: null, status: 'Open', payment: 'Belum', dueDate: '2026-10-01T00:00:00.000Z', dueDateRaw: null,
+      invoiceAmount: 100000, checklist: [], appliedTags: ['Cincin'], shipping: null,
+    } as any
+    const rows = buildShippingScheduleRows([wp], [])
+    expect(rows.map(r => ({ usSize: r.usSize, bucket: r.bucket }))).toEqual([
+      { usSize: '6', bucket: 'gl2026' },
+      { usSize: '7', bucket: 'gl2026' },
+      { usSize: '7', bucket: 'cosplay' },
+    ])
+  })
+})

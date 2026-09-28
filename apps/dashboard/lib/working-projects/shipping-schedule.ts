@@ -1,5 +1,5 @@
 import type { WorkingProject } from '@/lib/hooks/use-working-projects'
-import { splitProductVariants, variantShort, parseSize, parseSizeFromVariantField, isGLRing, notesSegmentForKey } from './format'
+import { splitProductVariants, variantShort, isGLRing, resolveVariantEntrySize } from './format'
 
 export type ProductBucket = 'gl2026' | 'cosplay' | 'lainnya'
 
@@ -38,13 +38,9 @@ export function buildShippingScheduleRows(
   for (const wp of projects) {
     if (!isGLRing(wp.appliedTags ?? [], wp.forumChannelId, wp.product, wp.sourceProductId, configuredProductIds)) continue
     const variants = splitProductVariants(wp.product)
-    const single = variants.length <= 1
     variants.forEach((entry) => {
       const key = variantShort(entry)
-      const fromVariantField = single ? parseSizeFromVariantField(wp.variant ?? '') : { usSize: null }
-      const segment = notesSegmentForKey(wp.notes ?? '', key, variants.length)
-      const fromNotes = parseSize(segment)
-      const usSize = fromNotes.usSize ?? fromVariantField.usSize
+      const { usSize } = resolveVariantEntrySize({ entry, key, notes: wp.notes ?? null, variant: wp.variant ?? null, variantCount: variants.length })
       rows.push({
         wpId: wp.id,
         key,
@@ -53,7 +49,12 @@ export function buildShippingScheduleRows(
         dueDate: wp.dueDate,
         status: wp.status,
         usSize,
-        bucket: detectProductBucket(wp.product),
+        // Per-entry, not per-whole-product-string — an order mixing a GL
+        // 2026 item with a Cosplay item in one WP would otherwise have both
+        // entries resolve to whichever token wp.product's full joined text
+        // happened to contain first (found 2026-09-28 alongside the
+        // multi-item creation bug this fixes).
+        bucket: detectProductBucket(entry),
         shipping: wp.shipping ?? null,
       })
     })
