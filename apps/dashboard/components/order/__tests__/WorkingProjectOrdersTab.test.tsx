@@ -59,7 +59,7 @@ describe('WorkingProjectOrdersTab', () => {
     const headers = screen.getAllByRole('columnheader').map(h => h.textContent)
     expect(headers).toEqual([
       'Customer/Contact ▲', 'Produk', 'Variant', 'Platform', 'No. Order',
-      'Due Date ↕', 'Status ↕', 'Payment', 'Nominal ↕', 'Checklist', 'Discord', 'Aksi',
+      'Due Date ↕', 'Status ↕', 'Kurir', 'Payment', 'Nominal ↕', 'Checklist', 'Discord', 'Aksi',
     ])
   })
   it('prefers sourceOrderNo over orderNoLegacy for the No. Order column', () => {

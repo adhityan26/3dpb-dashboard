@@ -43,6 +43,7 @@ interface RingRow {
   dueDate: string | null
   orderDate: string | null
   status: string
+  shipping: string | null
   usSize: string | null
   // Size the marketplace variant field says, set only when the notes name a
   // DIFFERENT size (customer changed it via chat) — drives the ⚠ marker.
@@ -76,6 +77,7 @@ export function glRingRowsToExportRows(rows: RingRow[]): Record<string, unknown>
       ...stepCols,
       Progress: `${doneCount}/${STEP_TYPES.length}`,
       Status: r.status,
+      Kurir: r.shipping ?? '',
       Discord: r.discordThreadUrl ?? '',
     }
   })
@@ -121,6 +123,7 @@ function expandToRows(projects: WorkingProject[], configuredProductIds: string[]
         dueDate: wp.dueDate,
         orderDate: wp.orderDate ?? null,
         status: wp.status,
+        shipping: wp.shipping ?? null,
         usSize,
         variantUsSize,
         scalePct,
@@ -427,6 +430,7 @@ export function WorkingProjectGLRingTab() {
               <th onClick={e => handleHeaderClick('status', e)} className={`${thBase} cursor-pointer select-none hover:g-t1`}>
                 {COLUMN_LABELS.status}{sortIndicator('status')}
               </th>
+              <th className={thBase}>Kurir</th>
               <th className={thBase}>Discord</th>
               <th className={thBase}>Aksi</th>
             </tr>
@@ -434,7 +438,7 @@ export function WorkingProjectGLRingTab() {
           <tbody>
             {pageRows.length === 0 ? (
               <tr>
-                <td colSpan={LEADING_SORT_COLUMNS.length + STEP_TYPES.length + 5} className="px-3 py-8 text-center text-sm g-t4">
+                <td colSpan={LEADING_SORT_COLUMNS.length + STEP_TYPES.length + 6} className="px-3 py-8 text-center text-sm g-t4">
                   Tidak ada baris yang cocok dengan filter.
                 </td>
               </tr>
@@ -508,6 +512,14 @@ export function WorkingProjectGLRingTab() {
                     <WorkingProjectStatusSelect
                       value={inline.statusOverride[r.wpId] ?? r.status}
                       onChange={st => inline.setStatus(r.wpId, st)}
+                    />
+                  </td>
+                  <td className={tdBase}>
+                    <InlineEditCell
+                      label="kurir"
+                      value={r.shipping ?? ''}
+                      display={r.shipping ?? '-'}
+                      onSave={v => inline.save(r.wpId, { shipping: v }, 'kurir')}
                     />
                   </td>
                   <td className={tdBase}>

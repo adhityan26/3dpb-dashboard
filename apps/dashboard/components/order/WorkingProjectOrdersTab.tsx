@@ -27,6 +27,7 @@ const COLUMNS: { key: SortColumn | null; label: string }[] = [
   { key: null, label: "No. Order" },
   { key: "dueDate", label: "Due Date" },
   { key: "status", label: "Status" },
+  { key: null, label: "Kurir" },
   { key: null, label: "Payment" },
   { key: "invoiceAmount", label: "Nominal" },
   { key: null, label: "Checklist" },
@@ -348,6 +349,14 @@ export function WorkingProjectOrdersTab() {
                     <WorkingProjectStatusSelect
                       value={inline.statusOverride[wp.id] ?? wp.status}
                       onChange={(s) => inline.setStatus(wp.id, s)}
+                    />
+                  </td>
+                  <td className="px-3 py-2 text-sm whitespace-nowrap">
+                    <InlineEditCell
+                      label="kurir"
+                      value={wp.shipping ?? ""}
+                      display={wp.shipping ?? "-"}
+                      onSave={(v) => inline.save(wp.id, { shipping: v }, "kurir")}
                     />
                   </td>
                   <td className="px-3 py-2 text-sm whitespace-nowrap">
