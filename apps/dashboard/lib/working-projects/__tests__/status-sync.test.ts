@@ -26,12 +26,15 @@ beforeEach(() => {
 })
 
 describe('classifyShopeeStatus', () => {
-  it('maps SHIPPED/COMPLETED/CANCELLED, leaves everything else unchanged', () => {
+  it('maps SHIPPED/TO_CONFIRM_RECEIVE/COMPLETED/CANCELLED, leaves everything else unchanged', () => {
     expect(classifyShopeeStatus('SHIPPED')).toBe('Waiting Customer')
+    expect(classifyShopeeStatus('TO_CONFIRM_RECEIVE')).toBe('Waiting Customer')
     expect(classifyShopeeStatus('COMPLETED')).toBe('Done')
     expect(classifyShopeeStatus('CANCELLED')).toBe('Canceled')
     expect(classifyShopeeStatus('READY_TO_SHIP')).toBeNull()
     expect(classifyShopeeStatus('PROCESSED')).toBeNull()
+    expect(classifyShopeeStatus('RETRY_SHIP')).toBeNull()
+    expect(classifyShopeeStatus('IN_CANCEL')).toBeNull()
   })
 })
 

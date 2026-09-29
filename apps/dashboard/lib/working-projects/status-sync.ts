@@ -14,9 +14,23 @@ import { updateWorkingProject, getStatusSyncLastRunDate, setStatusSyncLastRunDat
  * "SHIPPED" status only exists once pickup has happened, there is no
  * separate "label printed, not yet picked up" Shopee order_status (that
  * state is still READY_TO_SHIP/PROCESSED on the order_status field itself).
+ *
+ * TO_CONFIRM_RECEIVE (added 2026-09-29, found checking order
+ * 260908G6NP742M) — package delivered, awaiting the buyer's receipt
+ * confirmation before Shopee auto-completes it — is the same "ball is in
+ * the customer's court" state as SHIPPED, so it maps the same way. A daily
+ * job can plausibly see an order jump straight from PROCESSED to
+ * TO_CONFIRM_RECEIVE within one day, skipping SHIPPED entirely, without
+ * this the WP would stay stuck on "Open" until COMPLETED.
+ *
+ * RETRY_SHIP (pickup failed, rescheduled) and IN_CANCEL (cancellation
+ * requested but not yet final) are deliberately left unmapped (null) —
+ * neither has an obvious single WORKING_PROJECT_STATUSES equivalent, and
+ * both are transient (they resolve to another status Shopee-side; the next
+ * day's run picks up whatever they become).
  */
 export function classifyShopeeStatus(orderStatus: string): string | null {
-  if (orderStatus === 'SHIPPED') return 'Waiting Customer'
+  if (orderStatus === 'SHIPPED' || orderStatus === 'TO_CONFIRM_RECEIVE') return 'Waiting Customer'
   if (orderStatus === 'COMPLETED') return 'Done'
   if (orderStatus === 'CANCELLED') return 'Canceled'
   return null
