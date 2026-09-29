@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { NoSuchKey } from "@aws-sdk/client-s3"
 import { auth } from "@/lib/auth"
-import { downloadRingZip } from "@/lib/ring-resizer/storage"
+import { downloadRingZip, deleteRingZip } from "@/lib/ring-resizer/storage"
 import { sanitizeLabel } from "@/lib/ring-resizer/mesh/pipeline"
 
 const ID_RE = /^[0-9a-f-]{36}$/
@@ -34,4 +34,13 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       "Content-Disposition": `attachment; filename="${fileName}"`,
     },
   })
+}
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await auth()
+  if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  const { id } = await params
+  if (!ID_RE.test(id)) return NextResponse.json({ error: "invalid result id" }, { status: 400 })
+  await deleteRingZip(id)
+  return NextResponse.json({ ok: true })
 }

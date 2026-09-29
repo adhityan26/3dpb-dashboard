@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react"
 import type { RingModelWithParts } from "@/lib/hooks/use-ring-models"
 import { computeScale, sizeRange, MAX_BATCH_SIZES, type SizeMode } from "@/lib/ring-resizer/sizing"
 import { RecentResults } from "./RecentResults"
+import { probeDirect, safeDirectUrl } from "./direct-download"
 
 export interface ProductionPanelProps {
   models: RingModelWithParts[]
@@ -95,21 +96,15 @@ function sizeLabel(usEquivalent: number): string {
  * mixed-content block, timeout) falls back to the app-proxied URL.
  */
 async function resolveDownload(json: ProcessResponse): Promise<DoneResult> {
-  let href = json.downloadUrl
-  let via: "minio" | "server" = "server"
-  if (json.directUrl) {
-    try {
-      const ctl = new AbortController()
-      const timer = setTimeout(() => ctl.abort(), 1500)
-      await fetch(json.directUrl, { method: "HEAD", mode: "no-cors", signal: ctl.signal })
-      clearTimeout(timer)
-      href = json.directUrl
-      via = "minio"
-    } catch {
-      // unreachable — keep the server route
-    }
+  const directUrl = safeDirectUrl(json.directUrl)
+  const direct = directUrl != null && (await probeDirect(directUrl))
+  return {
+    directUrl,
+    downloadUrl: json.downloadUrl,
+    fileName: json.fileName,
+    href: direct ? directUrl : json.downloadUrl,
+    via: direct ? "minio" : "server",
   }
-  return { directUrl: json.directUrl, downloadUrl: json.downloadUrl, fileName: json.fileName, href, via }
 }
 
 function triggerDownload(r: DoneResult): void {

@@ -202,6 +202,11 @@ export async function listRingResults(limit: number): Promise<RingResultInfo[]> 
   )
 }
 
+/** Delete a result ZIP; S3 DeleteObject is idempotent, so a missing key is not an error. */
+export async function deleteRingZip(id: string): Promise<void> {
+  await getMinioClient().send(new DeleteObjectCommand({ Bucket: RING_BUCKET, Key: ringResultKey(id) }))
+}
+
 export async function downloadRingZip(id: string): Promise<Buffer> {
   const res = await getMinioClient().send(
     new GetObjectCommand({ Bucket: RING_BUCKET, Key: ringResultKey(id) }),

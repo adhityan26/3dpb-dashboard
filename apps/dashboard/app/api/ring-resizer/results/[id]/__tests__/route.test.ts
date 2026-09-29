@@ -5,11 +5,12 @@ import { NoSuchKey } from "@aws-sdk/client-s3"
 vi.mock("@/lib/auth", () => ({ auth: vi.fn() }))
 vi.mock("@/lib/ring-resizer/storage", () => ({
   downloadRingZip: vi.fn(),
+  deleteRingZip: vi.fn(),
 }))
 
 import { auth } from "@/lib/auth"
-import { downloadRingZip } from "@/lib/ring-resizer/storage"
-import { GET } from "../route"
+import { downloadRingZip, deleteRingZip } from "@/lib/ring-resizer/storage"
+import { GET, DELETE } from "../route"
 
 const mockAuth = vi.mocked(auth)
 const session = {
@@ -58,5 +59,24 @@ describe("GET /api/ring-resizer/results/[id]", () => {
     expect(cd).toContain("attachment")
     expect(cd).not.toMatch(/["]{2}|[/\\]/) // sanitized: no raw quotes/slashes inside name
     expect(Buffer.from(await res.arrayBuffer()).toString()).toBe("zip-bytes")
+  })
+})
+
+describe("DELETE /api/ring-resizer/results/[id]", () => {
+  it("401 tanpa session", async () => {
+    mockAuth.mockResolvedValue(null)
+    expect((await DELETE(req(), ctx(UUID))).status).toBe(401)
+    expect(deleteRingZip).not.toHaveBeenCalled()
+  })
+
+  it("400 untuk id yang bukan uuid (tidak bisa hapus key lain)", async () => {
+    expect((await DELETE(req(), ctx("../m1/p1"))).status).toBe(400)
+    expect(deleteRingZip).not.toHaveBeenCalled()
+  })
+
+  it("hapus result ZIP", async () => {
+    const res = await DELETE(req(), ctx(UUID))
+    expect(res.status).toBe(200)
+    expect(deleteRingZip).toHaveBeenCalledWith(UUID)
   })
 })
