@@ -39,8 +39,8 @@ describe('classifyShopeeStatus', () => {
 })
 
 describe('classifyTokopediaStatus', () => {
-  it('maps 112 (label made, not picked up) to Siap Kirim', () => {
-    expect(classifyTokopediaStatus(112)).toBe('Siap Kirim')
+  it('leaves 112 (label made, not picked up) unmapped — "Siap Kirim" is a manual production milestone, never set automatically', () => {
+    expect(classifyTokopediaStatus(112)).toBeNull()
   })
   it('maps 120/121/130 (courier has it) to Waiting Customer', () => {
     expect(classifyTokopediaStatus(120)).toBe('Waiting Customer')
@@ -121,7 +121,7 @@ describe('syncWorkingProjectStatusFromMarketplace', () => {
     ])
     ;(getOrderById as any)
       .mockRejectedValueOnce(new Error('502'))
-      .mockResolvedValueOnce({ order_status_module: [{ sku_display_status: 112 }] })
+      .mockResolvedValueOnce({ order_status_module: [{ sku_display_status: 140 }] })
     ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
 
     const result = await syncWorkingProjectStatusFromMarketplace()

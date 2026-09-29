@@ -37,13 +37,18 @@ export function classifyShopeeStatus(orderStatus: string): string | null {
 }
 
 /**
- * Same idea for Tokopedia's sku_display_status. 112 = "Paket sedang
- * disiapkan penjual dan akan diserahkan kepada ekspedisi" (label made,
- * NOT yet picked up) — decided 2026-09-29 this maps to "Siap Kirim", one
- * stage before "Waiting Customer" (120/121/130 = courier already has it).
+ * Same idea for Tokopedia's sku_display_status.
+ *
+ * "Siap Kirim" is NOT a shipping-progress status at all — corrected
+ * 2026-09-29 after checking order 260910KH47YVNB: it's a manual-only
+ * production milestone ("barang sudah jadi, siap dikirim"), set by hand
+ * once production finishes, unrelated to what the marketplace order status
+ * says. It must never be set automatically here. 112 ("Paket sedang
+ * disiapkan penjual dan akan diserahkan kepada ekspedisi" — label made, NOT
+ * yet picked up) is deliberately left unmapped (null, stays "Open") for the
+ * same reason "Siap Kirim" can't be inferred from it.
  */
 export function classifyTokopediaStatus(skuDisplayStatus: number | null | undefined): string | null {
-  if (skuDisplayStatus === 112) return 'Siap Kirim'
   if (skuDisplayStatus === 120 || skuDisplayStatus === 121 || skuDisplayStatus === 130) return 'Waiting Customer'
   if (skuDisplayStatus === 140) return 'Done'
   return null

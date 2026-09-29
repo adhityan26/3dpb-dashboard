@@ -43,8 +43,10 @@ export function StatusSyncCard() {
         <p className="text-xs text-gray-500">
           Tiap hari setelah jam 01:00 WIB, server otomatis mengecek WP berstatus Open dan
           menyamakan dengan status order asli di Shopee/Tokopedia: sudah dikirim kurir → Waiting
-          Customer, label dibuat tapi belum dijemput (khusus Tokopedia) → Siap Kirim, sudah
-          selesai → Done, dibatalkan → Canceled. Thread Discord ikut ter-update (bukan diarsipkan).
+          Customer, sudah selesai → Done, dibatalkan → Canceled. Thread Discord ikut ter-update
+          (bukan diarsipkan). &quot;Siap Kirim&quot; TIDAK pernah diset otomatis — itu penanda
+          manual kamu sendiri kalau produksi sudah selesai, tidak ada hubungannya dengan status
+          pengiriman marketplace.
         </p>
         <div className="flex items-center gap-3">
           <Button size="sm" disabled={state.status === "loading"} onClick={handleRunNow}>
