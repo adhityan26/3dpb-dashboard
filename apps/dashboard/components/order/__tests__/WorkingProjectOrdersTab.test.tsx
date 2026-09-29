@@ -7,7 +7,7 @@ const projects = [
     id: 'wp1', customer: 'Budi', contact: '0812', product: 'Cincin', variant: 'Emas',
     platform: 'Shopee', sourceOrderNo: 'SN1', orderNoLegacy: null, dueDate: '2026-09-20',
     status: 'Open', payment: 'Marketplace', invoiceAmount: 150000,
-    checklist: [{ id: 1, text: 'a', done: true, deleted: false }],
+    checklist: [{ id: 1, text: 'Print Frame', done: true, deleted: false }],
     discordThreadId: 't1',
     discordThreadUrl: 'https://discord.com/channels/123/t1',
   },
@@ -68,7 +68,7 @@ describe('WorkingProjectOrdersTab', () => {
   })
   it('shows checklist progress as done/total', () => {
     render(<WorkingProjectOrdersTab />)
-    expect(screen.getByText('1/1')).toBeInTheDocument()
+    expect(screen.getAllByText('1/1').length).toBeGreaterThan(0)
   })
   it('links to the real discordThreadUrl, not a reconstructed @me link', () => {
     render(<WorkingProjectOrdersTab />)
@@ -197,6 +197,24 @@ describe('WorkingProjectOrdersTab invoice link', () => {
     fireEvent.change(screen.getByLabelText('Pilih invoice'), { target: { value: 'q1' } })
     fireEvent.click(screen.getByRole('button', { name: 'Tautkan' }))
     await waitFor(() => expect(updateMutationState.mutateAsync).toHaveBeenCalledWith({ id: 'wp1', patch: { quotationId: 'q1' } }))
+  })
+
+})
+
+describe('WorkingProjectOrdersTab Due Date filter and checklist summary', () => {
+  it('filters rows to the Due Date range', () => {
+    render(<WorkingProjectOrdersTab />)
+    fireEvent.change(screen.getByLabelText('Due Date dari'), { target: { value: '2026-09-21' } })
+    expect(screen.queryByText('SN1')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Due Date dari'), { target: { value: '2026-09-20' } })
+    expect(screen.getByText('SN1')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Due Date sampai'), { target: { value: '2026-09-19' } })
+    expect(screen.queryByText('SN1')).not.toBeInTheDocument()
+  })
+
+  it('shows a per-part checklist progress summary that reflects the current filters', () => {
+    render(<WorkingProjectOrdersTab />)
+    expect(screen.getByText(/Print Frame/)).toHaveTextContent('Print Frame: 1/1')
   })
 })
 

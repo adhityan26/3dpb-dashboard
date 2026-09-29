@@ -49,6 +49,16 @@ const MOCK_PROJECTS = [
     appliedTags: ['Cincin'],
     checklist: [],
   },
+  // Single-item order (single=true -> checklist labels are the plain step
+  // names, e.g. "Print Frame", not "<variant> — Print Frame") — used to
+  // exercise the per-part checklist summary with an unambiguous match.
+  {
+    id: 'wp6', customer: 'Fani', product: 'Green Lantern Ring 2026 3D Print', variant: 'US 7', notes: '',
+    status: 'Open', platform: 'Shopee', sourceOrderNo: 'SN6', orderNoLegacy: null,
+    dueDate: '2026-09-20', orderDate: null, discordThreadUrl: null,
+    appliedTags: ['Cincin'],
+    checklist: [{ id: 1, text: 'Print Frame', done: true, deleted: false }],
+  },
 ]
 
 
@@ -121,6 +131,25 @@ describe('WorkingProjectGLRingTab', () => {
     fireEvent.click(screen.getByRole('button', { name: /status: 4 dipilih/i }))
     fireEvent.click(screen.getByLabelText('Canceled'))
     expect(screen.getByText('Cincin C')).toBeInTheDocument()
+  })
+
+  it('filters rows to the Due Date range', () => {
+    renderWithClient()
+    fireEvent.change(screen.getByLabelText('Due Date dari'), { target: { value: '2026-09-21' } })
+    expect(screen.queryByText('Cincin A')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Due Date dari'), { target: { value: '2026-09-20' } })
+    expect(screen.getByText('Cincin A')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Due Date sampai'), { target: { value: '2026-09-19' } })
+    expect(screen.queryByText('Cincin A')).not.toBeInTheDocument()
+  })
+
+  it('shows a per-part checklist progress summary that reflects the current filters', () => {
+    renderWithClient()
+    // Isolate wp6 (single-item order, "Print Frame" checklist item done).
+    fireEvent.change(screen.getByPlaceholderText(/cari/i), { target: { value: 'SN6' } })
+    const summary = within(screen.getByText('Progress per tahap:').parentElement as HTMLElement)
+    expect(summary.getByText(/^Print Frame/)).toHaveTextContent('Print Frame: 1/1')
+    expect(summary.getByText(/^Print Stone/)).toHaveTextContent('Print Stone: 0/1')
   })
 })
 

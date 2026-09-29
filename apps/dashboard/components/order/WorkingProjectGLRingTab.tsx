@@ -180,6 +180,8 @@ export function WorkingProjectGLRingTab() {
   const [platform, setPlatform] = useState('')
   const [variant, setVariant] = useState('')
   const [size, setSize] = useState('')
+  const [dueDateFrom, setDueDateFrom] = useState('')
+  const [dueDateTo, setDueDateTo] = useState('')
   const [step, setStep] = useState<StepType | ''>('')
   const [stepStatus, setStepStatus] = useState<'' | 'done' | 'not-done'>('')
   const [statusFilter, setStatusFilter] = useState<Set<string>>(
@@ -239,6 +241,8 @@ export function WorkingProjectGLRingTab() {
     if (platform) out = out.filter(r => r.platform === platform)
     if (variant) out = out.filter(r => r.key === variant)
     if (size) out = out.filter(r => r.usSize === size)
+    if (dueDateFrom) out = out.filter(r => r.dueDate && r.dueDate.slice(0, 10) >= dueDateFrom)
+    if (dueDateTo) out = out.filter(r => r.dueDate && r.dueDate.slice(0, 10) <= dueDateTo)
     out = out.filter(r => statusFilter.has(r.status))
     if (step && stepStatus) {
       out = out.filter(r => {
@@ -254,7 +258,7 @@ export function WorkingProjectGLRingTab() {
       return 0
     })
     return sorted
-  }, [rowsWithOverrides, search, platform, variant, size, statusFilter, step, stepStatus, sortKeys])
+  }, [rowsWithOverrides, search, platform, variant, size, dueDateFrom, dueDateTo, statusFilter, step, stepStatus, sortKeys])
 
   function toggleStatus(status: string) {
     setPage(1)
@@ -299,6 +303,10 @@ export function WorkingProjectGLRingTab() {
   const activeCount = rows.length
   const missingSizeCount = rows.filter(r => !r.usSize).length
   const fullyDoneCount = rows.filter(r => STEP_TYPES.every(s => r.checklistDone[s])).length
+  // Per-part progress within the currently filtered rows (respects the Due
+  // Date range and every other active filter) — "berapa tiap part udah
+  // dicetak/dicek dan assembly" summary.
+  const stepSummary = STEP_TYPES.map(s => ({ step: s, done: rows.filter(r => r.checklistDone[s]).length }))
 
   const selectClass = 'glass-input h-9 rounded-[5px] px-2 text-sm'
   const thBase = 'px-3 py-2 text-left font-semibold whitespace-nowrap g-t4'
@@ -323,6 +331,19 @@ export function WorkingProjectGLRingTab() {
           Selesai Semua: <b>{fullyDoneCount}</b>
         </span>
         <span className="g-t4 ml-auto hidden sm:inline">Shift+klik header untuk multi-sort (maks 3)</span>
+      </div>
+
+      <div className="flex flex-wrap gap-2 items-center mb-3 text-xs">
+        <span className="g-t4">Progress per tahap{dueDateFrom || dueDateTo ? ` (${dueDateFrom || '...'} s/d ${dueDateTo || '...'})` : ''}:</span>
+        {stepSummary.map(({ step: s, done }) => (
+          <span
+            key={s}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full g-t2"
+            style={{ background: 'var(--g-card)', border: '1px solid var(--g-card-border)' }}
+          >
+            {s}: <b className="g-t1">{done}/{activeCount}</b>
+          </span>
+        ))}
       </div>
 
       {inline.error && (
@@ -379,6 +400,26 @@ export function WorkingProjectGLRingTab() {
           <option value="">Semua Ukuran</option>
           {sizeOptions.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
+        <label className="flex items-center gap-1 text-xs g-t4">
+          Due
+          <input
+            type="date"
+            aria-label="Due Date dari"
+            value={dueDateFrom}
+            onChange={e => { setDueDateFrom(e.target.value); setPage(1) }}
+            className={`${selectClass} px-2`}
+          />
+        </label>
+        <label className="flex items-center gap-1 text-xs g-t4">
+          s/d
+          <input
+            type="date"
+            aria-label="Due Date sampai"
+            value={dueDateTo}
+            onChange={e => { setDueDateTo(e.target.value); setPage(1) }}
+            className={`${selectClass} px-2`}
+          />
+        </label>
         <select aria-label="Tahap Produksi" value={step} onChange={e => { setStep(e.target.value as StepType | ''); setPage(1) }} className={selectClass}>
           <option value="">Semua Tahap</option>
           {STEP_TYPES.map(s => <option key={s} value={s}>{s}</option>)}

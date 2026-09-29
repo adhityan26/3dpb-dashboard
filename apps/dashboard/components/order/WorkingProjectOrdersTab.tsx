@@ -17,6 +17,32 @@ const ALL_STATUSES = ["Open", "Proses", "Waiting Customer", "Siap Kirim", "Done"
 const DEFAULT_HIDDEN_STATUSES = new Set(["Done", "Canceled"])
 const PAGE_SIZES = [10, 25, 50, 100] as const
 
+// Same production-step convention as WorkingProjectGLRingTab's STEP_TYPES,
+// matched loosely (case-insensitive substring) against whatever checklist
+// item text a WP actually has — Orders lists every product category, not
+// just GL Ring, so unlike that tab this can't assume every WP has all 7
+// steps. A step only counts a WP if some non-deleted checklist item text
+// mentions it at all.
+const PART_STEPS = ["Print Frame", "Print Stone", "Print Ring", "Cat Frame", "Cat Stone", "Cat Ring", "Assembly"] as const
+
+function partSummary(rows: WorkingProject[]): { step: string; done: number; total: number }[] {
+  return PART_STEPS.map((step) => {
+    const lower = step.toLowerCase()
+    let done = 0
+    let total = 0
+    for (const wp of rows) {
+      const item = ((wp.checklist ?? []) as WorkingProjectChecklistItem[]).find(
+        (i) => !i.deleted && i.text.toLowerCase().includes(lower),
+      )
+      if (item) {
+        total++
+        if (item.done) done++
+      }
+    }
+    return { step, done, total }
+  })
+}
+
 type SortColumn = "customer" | "dueDate" | "status" | "invoiceAmount"
 
 const COLUMNS: { key: SortColumn | null; label: string }[] = [
@@ -136,6 +162,8 @@ export function WorkingProjectOrdersTab() {
     () => new Set(ALL_STATUSES.filter((s) => !DEFAULT_HIDDEN_STATUSES.has(s))),
   )
   const [statusMenuOpen, setStatusMenuOpen] = useState(false)
+  const [dueDateFrom, setDueDateFrom] = useState("")
+  const [dueDateTo, setDueDateTo] = useState("")
   const [sortCol, setSortCol] = useState<SortColumn>("customer")
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc")
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(25)
@@ -158,9 +186,11 @@ export function WorkingProjectOrdersTab() {
       )
     }
     if (platform) out = out.filter((wp) => wp.platform === platform)
+    if (dueDateFrom) out = out.filter((wp) => wp.dueDate && wp.dueDate.slice(0, 10) >= dueDateFrom)
+    if (dueDateTo) out = out.filter((wp) => wp.dueDate && wp.dueDate.slice(0, 10) <= dueDateTo)
     out = out.filter((wp) => statusFilter.has(wp.status))
     return out
-  }, [data, search, platform, statusFilter])
+  }, [data, search, platform, dueDateFrom, dueDateTo, statusFilter])
 
   const sorted = useMemo(() => {
     const copy = [...filtered]
@@ -250,6 +280,32 @@ export function WorkingProjectOrdersTab() {
           ) : null}
         </div>
 
+        <label className="flex items-center gap-1 text-xs g-t4">
+          Due
+          <input
+            type="date"
+            aria-label="Due Date dari"
+            value={dueDateFrom}
+            onChange={(e) => {
+              setDueDateFrom(e.target.value)
+              setPage(1)
+            }}
+            className="glass-input h-9 rounded-[5px] px-2 text-sm"
+          />
+        </label>
+        <label className="flex items-center gap-1 text-xs g-t4">
+          s/d
+          <input
+            type="date"
+            aria-label="Due Date sampai"
+            value={dueDateTo}
+            onChange={(e) => {
+              setDueDateTo(e.target.value)
+              setPage(1)
+            }}
+            className="glass-input h-9 rounded-[5px] px-2 text-sm"
+          />
+        </label>
         <select
           value={pageSize}
           onChange={(e) => {
@@ -276,6 +332,19 @@ export function WorkingProjectOrdersTab() {
         >
           📊 Export Excel
         </button>
+      </div>
+
+      <div className="flex flex-wrap gap-2 items-center mb-3 text-xs">
+        <span className="g-t4">Progress per tahap{dueDateFrom || dueDateTo ? ` (${dueDateFrom || "..."} s/d ${dueDateTo || "..."})` : ""}:</span>
+        {partSummary(filtered).map(({ step, done, total }) => (
+          <span
+            key={step}
+            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full g-t2"
+            style={{ background: "var(--g-card)", border: "1px solid var(--g-card-border)" }}
+          >
+            {step}: <b className="g-t1">{done}/{total}</b>
+          </span>
+        ))}
       </div>
 
       {inline.error ? (
