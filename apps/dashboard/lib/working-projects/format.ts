@@ -237,8 +237,29 @@ export function notesSegmentForKey(notes: string, key: string, variantCount: num
   return notes
 }
 
+// Splits on ',' EXCEPT inside parentheses — found 2026-09-29: a bare
+// `.split(',')` broke real production entries whose embedded variant
+// itself contains a comma, e.g. buildMultiItemProduct's
+// "...Jibbitz (SATUAN) (Galaxy Pearl,Kiri), ...Jibbitz (SATUAN) (Galaxy
+// Pearl,Kanan)" — "(Galaxy Pearl,Kiri)" got sliced into two fake entries
+// ("Galaxy Pearl" and "Kiri)") instead of staying one. Depth-tracked so
+// nested parens (unlikely here, but cheap to handle) don't confuse it.
 export function splitProductVariants(product: string): string[] {
-  return product.split(',').map(s => s.trim()).filter(Boolean)
+  const parts: string[] = []
+  let depth = 0
+  let current = ''
+  for (const char of product) {
+    if (char === '(') depth++
+    if (char === ')') depth = Math.max(0, depth - 1)
+    if (char === ',' && depth === 0) {
+      parts.push(current)
+      current = ''
+    } else {
+      current += char
+    }
+  }
+  parts.push(current)
+  return parts.map(s => s.trim()).filter(Boolean)
 }
 
 export function variantShort(entry: string): string {

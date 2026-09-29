@@ -115,6 +115,15 @@ describe('splitProductVariants', () => {
   it('splits comma-joined product string into variants', () => {
     expect(splitProductVariants('Cincin A, Cincin B')).toEqual(['Cincin A', 'Cincin B'])
   })
+
+  it('does not split on a comma that is inside parentheses (found 2026-09-29: real Crocs Charm entries embed "Kiri,Kanan"-style commas)', () => {
+    expect(splitProductVariants(
+      '3D Print Crocs Charm Jibbitz Swoosh Side Logo (SATUAN) (Galaxy Pearl,Kiri), 3D Print Crocs Charm Jibbitz Swoosh Side Logo (SATUAN) (Galaxy Pearl,Kanan)',
+    )).toEqual([
+      '3D Print Crocs Charm Jibbitz Swoosh Side Logo (SATUAN) (Galaxy Pearl,Kiri)',
+      '3D Print Crocs Charm Jibbitz Swoosh Side Logo (SATUAN) (Galaxy Pearl,Kanan)',
+    ])
+  })
 })
 
 describe('variantShort', () => {

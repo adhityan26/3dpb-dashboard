@@ -1,60 +1,78 @@
-import { describe, it, expect } from 'vitest'
-import { sizeCountsFor, groupByDay } from '../WorkingProjectShippingScheduleTab'
-import type { ShippingScheduleRow } from '@/lib/working-projects/shipping-schedule'
+// @vitest-environment jsdom
+import { render, screen, fireEvent } from '@testing-library/react'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-function row(overrides: Partial<ShippingScheduleRow>): ShippingScheduleRow {
-  return {
-    wpId: 'wp1', key: 'GL Ring', customer: 'Budi', orderNo: 'SN1', dueDate: '2026-10-01T00:00:00.000Z',
-    status: 'Open', usSize: '9', bucket: 'gl2026', shipping: 'Anteraja',
-    ...overrides,
-  }
-}
+const MOCK_PROJECTS = [
+  {
+    id: 'wp1', customer: 'Budi', product: 'Green Lantern Ring 2026 3D Print', variant: 'US 9', notes: '',
+    status: 'Open', platform: 'Shopee', sourceOrderNo: 'SN1', orderNoLegacy: null,
+    dueDate: new Date().toISOString(), discordThreadUrl: 'https://discord.com/x',
+    appliedTags: ['Cincin'], shipping: 'Anteraja', checklist: [],
+  },
+  {
+    id: 'wp2', customer: 'Ani', product: 'Topeng Dr Doom', variant: 'Merah', notes: '',
+    status: 'Open', platform: 'Shopee', sourceOrderNo: 'SN2', orderNoLegacy: null,
+    dueDate: new Date().toISOString(), discordThreadUrl: null,
+    appliedTags: [], shipping: 'JNE', checklist: [],
+  },
+  {
+    id: 'wp3', customer: 'Cici', product: 'Green Lantern Ring 2026 3D Print', variant: null, notes: '',
+    status: 'Done', platform: 'Shopee', sourceOrderNo: 'SN3', orderNoLegacy: null,
+    dueDate: new Date().toISOString(), discordThreadUrl: null,
+    appliedTags: ['Cincin'], shipping: 'Anteraja', checklist: [],
+  },
+]
 
-describe('sizeCountsFor', () => {
-  it('counts rows per size, numerically sorted, with order numbers attached', () => {
-    const counts = sizeCountsFor([
-      row({ usSize: '10', orderNo: 'SN2' }),
-      row({ usSize: '9', orderNo: 'SN1' }),
-      row({ usSize: '9', orderNo: 'SN3' }),
-    ])
-    expect(counts).toEqual([
-      { size: '9', count: 2, orderNos: ['SN1', 'SN3'] },
-      { size: '10', count: 1, orderNos: ['SN2'] },
-    ])
-  })
+vi.mock('@/lib/hooks/use-working-projects', () => ({
+  useWorkingProjects: () => ({ data: MOCK_PROJECTS, isLoading: false }),
+  useGLRingProductIds: () => ({ data: [], isLoading: false }),
+  useCategoryProductIds: () => ({ data: [], isLoading: false }),
+  useFastCouriers: () => ({ data: ['anteraja'], isLoading: false }),
+}))
 
-  it('buckets rows with no size under "Tanpa Ukuran"', () => {
-    const counts = sizeCountsFor([row({ usSize: null })])
-    expect(counts).toEqual([{ size: 'Tanpa Ukuran', count: 1, orderNos: ['SN1'] }])
-  })
+import { WorkingProjectShippingScheduleTab } from '../WorkingProjectShippingScheduleTab'
+
+beforeEach(() => {
+  vi.restoreAllMocks()
 })
 
-describe('groupByDay', () => {
-  it('splits into cepat/reguler by courier, then by product bucket, per due date', () => {
-    const rows = [
-      row({ dueDate: '2026-10-01T00:00:00.000Z', shipping: 'Anteraja', bucket: 'gl2026', usSize: '9' }),
-      row({ dueDate: '2026-10-01T00:00:00.000Z', shipping: 'SPX', bucket: 'cosplay', usSize: '7', orderNo: 'SN2' }),
-    ]
-    const groups = groupByDay(rows, ['anteraja', 'paxel', 'grab', 'gojek'])
-    expect(groups).toHaveLength(1)
-    expect(groups[0].byPriority.cepat.gl2026).toEqual([{ size: '9', count: 1, orderNos: ['SN1'] }])
-    expect(groups[0].byPriority.reguler.cosplay).toEqual([{ size: '7', count: 1, orderNos: ['SN2'] }])
-    expect(groups[0].byPriority.cepat.cosplay).toBeUndefined()
+describe('WorkingProjectShippingScheduleTab', () => {
+  it('renders one pivot table per cincin product and one per other category, hiding Done by default', () => {
+    render(<WorkingProjectShippingScheduleTab />)
+    expect(screen.getByText('GL Ring 2026 3D Print')).toBeInTheDocument()
+    expect(screen.getAllByText('Topeng').length).toBeGreaterThan(0)
   })
 
-  it('sorts due dates ascending and puts rows with no due date last', () => {
-    const groups = groupByDay([
-      row({ dueDate: null, orderNo: 'SN-none' }),
-      row({ dueDate: '2026-10-05T00:00:00.000Z', orderNo: 'SN-later' }),
-      row({ dueDate: '2026-10-01T00:00:00.000Z', orderNo: 'SN-earlier' }),
-    ], [])
-    expect(groups.map((g) => g.dateKey)).toEqual(['2026-10-01', '2026-10-05', 'no-due-date'])
-    expect(groups[2].dateLabel).toBe('Tanpa Due Date')
+  it('shows a due-date column with today\'s data given the default date range', () => {
+    render(<WorkingProjectShippingScheduleTab />)
+    // The default range includes today, so at least one row from wp1 should be counted (Total column shows 1).
+    expect(screen.getAllByText('1').length).toBeGreaterThan(0)
   })
 
-  it('treats an unconfigured courier as reguler (no fast couriers configured)', () => {
-    const groups = groupByDay([row({ shipping: 'Anteraja' })], [])
-    expect(groups[0].byPriority.reguler.gl2026).toBeDefined()
-    expect(groups[0].byPriority.cepat.gl2026).toBeUndefined()
+  it('the category pill total reflects visible (non-Done) rows only', () => {
+    render(<WorkingProjectShippingScheduleTab />)
+    const cincinPill = screen.getByRole('button', { name: 'Filter kategori Cincin' })
+    expect(cincinPill).toHaveTextContent('1') // wp1 only, wp3 is Done and hidden by default
+  })
+
+  it('clicking a category pill filters the table list', () => {
+    render(<WorkingProjectShippingScheduleTab />)
+    fireEvent.click(screen.getByRole('button', { name: 'Filter kategori Topeng' }))
+    expect(screen.queryByText('GL Ring 2026 3D Print')).not.toBeInTheDocument()
+    expect(screen.getAllByText('Topeng').length).toBeGreaterThan(0)
+  })
+
+  it('toggling "pisahkan kurir" splits each date column into cepat/reguler sub-headers', () => {
+    render(<WorkingProjectShippingScheduleTab />)
+    expect(screen.queryByText('🚀')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByLabelText(/Pisahkan kurir/))
+    expect(screen.getAllByText('🚀').length).toBeGreaterThan(0)
+  })
+
+  it('shows an empty state when the date range excludes every row', () => {
+    render(<WorkingProjectShippingScheduleTab />)
+    fireEvent.change(screen.getByLabelText('Dari tanggal'), { target: { value: '2020-01-01' } })
+    fireEvent.change(screen.getByLabelText('Sampai tanggal'), { target: { value: '2020-01-02' } })
+    expect(screen.getByText(/Tidak ada order yang cocok/)).toBeInTheDocument()
   })
 })
