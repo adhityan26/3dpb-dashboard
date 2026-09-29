@@ -503,6 +503,41 @@ export async function setFastCouriers(couriers: string[]): Promise<void> {
   })
 }
 
+// CincinTableGroup + DEFAULT_CINCIN_TABLE_GROUPS live in shipping-schedule.ts
+// (not here) — that module has no server-only dependency (no `prisma`
+// import), so client components (the Settings card, the Jadwal Kirim tab)
+// can safely import the default value from it. Importing it from THIS file
+// instead would pull `@/lib/db` (Prisma) into the client bundle.
+export type { CincinTableGroup } from './shipping-schedule'
+export { DEFAULT_CINCIN_TABLE_GROUPS } from './shipping-schedule'
+
+const CINCIN_TABLE_GROUPS_KEY = 'workingProjects.cincinTableGroups'
+
+// User-maintained (Settings > Jadwal Kirim) grouping of which cincin
+// product listings collapse into the same pivot table — added 2026-09-29
+// after Shopee listing-name drift ("...3D Print V.2 New Color") kept
+// rendering as separate tables from "...2026 3D Print" for the same
+// physical ring; hardcoding the keyword list needed a deploy every time a
+// new listing-name variant showed up, so it's configurable instead.
+export async function getCincinTableGroups(): Promise<CincinTableGroup[]> {
+  const row = await prisma.config.findUnique({ where: { key: CINCIN_TABLE_GROUPS_KEY } })
+  if (!row?.value) return DEFAULT_CINCIN_TABLE_GROUPS
+  try {
+    const parsed = JSON.parse(row.value)
+    return Array.isArray(parsed) ? parsed : DEFAULT_CINCIN_TABLE_GROUPS
+  } catch {
+    return DEFAULT_CINCIN_TABLE_GROUPS
+  }
+}
+
+export async function setCincinTableGroups(groups: CincinTableGroup[]): Promise<void> {
+  await prisma.config.upsert({
+    where: { key: CINCIN_TABLE_GROUPS_KEY },
+    update: { value: JSON.stringify(groups) },
+    create: { key: CINCIN_TABLE_GROUPS_KEY, value: JSON.stringify(groups) },
+  })
+}
+
 export async function getDueReminders() {
   const settings = await getReminderSettings()
   if (settings.reminderDays.length === 0) return []

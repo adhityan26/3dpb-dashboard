@@ -28,6 +28,7 @@ vi.mock('@/lib/hooks/use-working-projects', () => ({
   useGLRingProductIds: () => ({ data: [], isLoading: false }),
   useCategoryProductIds: () => ({ data: [], isLoading: false }),
   useFastCouriers: () => ({ data: ['anteraja'], isLoading: false }),
+  useCincinTableGroups: () => ({ data: undefined, isLoading: false }),
 }))
 
 import { WorkingProjectShippingScheduleTab } from '../WorkingProjectShippingScheduleTab'
@@ -39,7 +40,7 @@ beforeEach(() => {
 describe('WorkingProjectShippingScheduleTab', () => {
   it('renders one pivot table per cincin product and one per other category, hiding Done by default', () => {
     render(<WorkingProjectShippingScheduleTab />)
-    expect(screen.getByText('GL Ring 2026 3D Print')).toBeInTheDocument()
+    expect(screen.getByText('GL Ring 2026')).toBeInTheDocument()
     expect(screen.getAllByText('Topeng').length).toBeGreaterThan(0)
   })
 
@@ -58,7 +59,7 @@ describe('WorkingProjectShippingScheduleTab', () => {
   it('clicking a category pill filters the table list', () => {
     render(<WorkingProjectShippingScheduleTab />)
     fireEvent.click(screen.getByRole('button', { name: 'Filter kategori Topeng' }))
-    expect(screen.queryByText('GL Ring 2026 3D Print')).not.toBeInTheDocument()
+    expect(screen.queryByText('GL Ring 2026')).not.toBeInTheDocument()
     expect(screen.getAllByText('Topeng').length).toBeGreaterThan(0)
   })
 

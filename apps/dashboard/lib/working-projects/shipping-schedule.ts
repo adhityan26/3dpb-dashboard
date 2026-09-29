@@ -5,6 +5,21 @@ import { isFastCourier } from './courier'
 
 export type ScheduleCategory = ProductCategory | 'general'
 
+export interface CincinTableGroup {
+  title: string
+  keywords: string[]
+}
+
+// Checked top-to-bottom, first matching keyword wins — Cosplay must come
+// before the generic GL keyword so a Cosplay listing's "GL Ring Cosplay"
+// name doesn't get grabbed by the broader "gl" match first. A product
+// matching none of these keeps its own table under its raw name (see
+// resolveCincinTableTitle below).
+export const DEFAULT_CINCIN_TABLE_GROUPS: CincinTableGroup[] = [
+  { title: 'GL Ring Cosplay', keywords: ['cosplay'] },
+  { title: 'GL Ring 2026', keywords: ['gl', 'green lantern'] },
+]
+
 export interface ShippingScheduleRow {
   wpId: string
   orderNo: string
@@ -126,8 +141,56 @@ export const NO_DUE_DATE_COLUMN = 'no-date'
  * into many one-row tables. Their variant (color etc.) becomes the row
  * instead — see pivotRowLabel.
  */
-export function pivotTableKeyFor(row: ShippingScheduleRow): { key: string; title: string } {
-  if (row.category === 'cincin') return { key: `cincin:${row.product}`, title: row.product }
+/**
+ * Which pivot table title a cincin product folds into, per the user-
+ * maintained groups (Settings > Jadwal Kirim, see CincinTableGroup in
+ * service.ts) — added 2026-09-29 after Shopee listing-name drift
+ * ("Green Lantern Ring 2026 3D Print" vs "...3D Print V.2 New Color", the
+ * latter not even saying "2026") kept rendering as separate tables for the
+ * same physical ring; a fixed keyword regex needed a deploy every time a
+ * new listing-name variant showed up, so it's configurable instead.
+ *
+ * `groups` is checked top-to-bottom, first matching keyword (case-
+ * insensitive substring) wins — lets "Cosplay" be listed before a broader
+ * "gl"/"green lantern" group so a Cosplay listing's own "GL Ring Cosplay"
+ * name doesn't get grabbed by the broader group first. A product matching
+ * no group's keywords keeps its own table under its raw name.
+ */
+export function resolveCincinTableTitle(product: string, groups: CincinTableGroup[]): string {
+  const lower = product.toLowerCase()
+  for (const group of groups) {
+    if (group.keywords.some((k) => k.trim() && lower.includes(k.trim().toLowerCase()))) return group.title
+  }
+  return product
+}
+
+/**
+ * One keyword assigned to two different groups would make that product's
+ * table membership order-dependent (whichever group happens to come first
+ * wins) rather than an explicit choice — the constraint the Settings UI
+ * enforces ("1 produk hanya bisa 1 table"). Returns the first conflicting
+ * keyword found, or null when every keyword belongs to at most one group.
+ * Comparison is case-insensitive/trimmed, matching resolveCincinTableTitle.
+ */
+export function findDuplicateCincinKeyword(groups: CincinTableGroup[]): string | null {
+  const seen = new Map<string, string>() // normalized keyword -> group title that claimed it first
+  for (const group of groups) {
+    for (const raw of group.keywords) {
+      const k = raw.trim().toLowerCase()
+      if (!k) continue
+      const claimedBy = seen.get(k)
+      if (claimedBy && claimedBy !== group.title) return raw
+      seen.set(k, group.title)
+    }
+  }
+  return null
+}
+
+export function pivotTableKeyFor(row: ShippingScheduleRow, cincinGroups: CincinTableGroup[]): { key: string; title: string } {
+  if (row.category === 'cincin') {
+    const title = resolveCincinTableTitle(row.product, cincinGroups)
+    return { key: `cincin:${title}`, title }
+  }
   return { key: row.category, title: CATEGORY_TABLE_TITLE[row.category] }
 }
 
@@ -203,7 +266,7 @@ function compareRowLabels(a: string, b: string): number {
  * all (as a real column, at the end) — omit it to drop them instead.
  * Tables whose grand total is zero across all `dateColumns` are omitted.
  */
-export function buildPivotTables(rows: ShippingScheduleRow[], dateColumns: string[]): PivotTableData[] {
+export function buildPivotTables(rows: ShippingScheduleRow[], dateColumns: string[], cincinGroups: CincinTableGroup[]): PivotTableData[] {
   const dateColumnSet = new Set(dateColumns)
   const tables = new Map<string, { title: string; rows: Map<string, PivotRowData> }>()
 
@@ -211,7 +274,7 @@ export function buildPivotTables(rows: ShippingScheduleRow[], dateColumns: strin
     const dateCol = r.dueDate ? r.dueDate.slice(0, 10) : NO_DUE_DATE_COLUMN
     if (!dateColumnSet.has(dateCol)) continue
 
-    const { key, title } = pivotTableKeyFor(r)
+    const { key, title } = pivotTableKeyFor(r, cincinGroups)
     if (!tables.has(key)) tables.set(key, { title, rows: new Map() })
     const table = tables.get(key)!
 

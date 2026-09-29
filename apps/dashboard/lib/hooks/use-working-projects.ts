@@ -232,6 +232,55 @@ export function useUpdateFastCouriers() {
   })
 }
 
+export interface ShopeeProductOption {
+  itemId: string
+  name: string
+}
+
+// Whole-catalog fetch, cached client-side for the category product-ID
+// pickers' autocomplete — see the /shopee-products route for why this is a
+// separate, lighter call than the bot's own product listing endpoint.
+// 10 minutes is plenty: this only feeds a search-as-you-type picker in
+// Settings, not anything that needs to reflect a listing edited seconds ago.
+export function useShopeeProductCatalog() {
+  const query = useQuery({
+    queryKey: ["working-projects", "settings", "shopee-products"],
+    queryFn: () => apiFetch<{ products: ShopeeProductOption[] }>("/api/working-projects/settings/shopee-products"),
+    staleTime: 10 * 60 * 1000,
+  })
+  return { ...query, data: query.data?.products, isLoading: query.isLoading }
+}
+
+export interface CincinTableGroup {
+  title: string
+  keywords: string[]
+}
+
+export const CINCIN_TABLE_GROUPS_KEY = ["working-projects", "settings", "cincin-table-groups"] as const
+
+export function useCincinTableGroups() {
+  const query = useQuery({
+    queryKey: CINCIN_TABLE_GROUPS_KEY,
+    queryFn: () => apiFetch<{ groups: CincinTableGroup[] }>("/api/working-projects/settings/cincin-table-groups"),
+  })
+  return { ...query, data: query.data?.groups, isLoading: query.isLoading }
+}
+
+export function useUpdateCincinTableGroups() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: (groups: CincinTableGroup[]) =>
+      apiFetch("/api/working-projects/settings/cincin-table-groups", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ groups }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: CINCIN_TABLE_GROUPS_KEY })
+    },
+  })
+}
+
 // baseBoreMm for the Ring Resizer's real scale formula (see
 // lib/ring-resizer/sizing.ts) — used by the GL Ring tab's Scale % column.
 export const GL_RING_MODEL_KEY = ["working-projects", "gl-ring-model"] as const
