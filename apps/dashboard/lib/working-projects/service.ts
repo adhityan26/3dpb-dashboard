@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db'
 import { buildTitle, buildPostContent, parseDueDate, parseOrderDate, parseAmount, appendNoteWithTimestamp, WORKING_PROJECT_STATUSES, WORKING_PROJECT_SOURCES } from './format'
 import { createRelayThread, editRelayThread, archiveRelayThread, deleteRelayThread } from './discord-sync'
 import { DEFAULT_FAST_COURIERS } from './courier'
+import { DEFAULT_SHIPPING_TABLE_GROUPS, type ShippingTableGroup } from './shipping-schedule'
 
 export async function createWorkingProject(input: {
   source: 'shopee' | 'tokopedia' | 'manual'
@@ -509,8 +510,8 @@ export async function setFastCouriers(couriers: string[]): Promise<void> {
 // card, the Jadwal Kirim tab) can safely import the default value from it.
 // Importing it from THIS file instead would pull `@/lib/db` (Prisma) into
 // the client bundle.
-export type { ShippingTableGroup } from './shipping-schedule'
-export { DEFAULT_SHIPPING_TABLE_GROUPS } from './shipping-schedule'
+export type { ShippingTableGroup }
+export { DEFAULT_SHIPPING_TABLE_GROUPS }
 
 const SHIPPING_TABLE_GROUPS_KEY = 'workingProjects.shippingTableGroups'
 

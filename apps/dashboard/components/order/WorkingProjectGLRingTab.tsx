@@ -324,8 +324,25 @@ export function WorkingProjectGLRingTab() {
   const fullyDoneCount = rows.filter(r => STEP_TYPES.every(s => r.checklistDone[s])).length
   // Per-part progress within the currently filtered rows (respects the Due
   // Date range and every other active filter) — "berapa tiap part udah
-  // dicetak/dicek dan assembly" summary.
-  const stepSummary = STEP_TYPES.map(s => ({ step: s, done: rows.filter(r => r.checklistDone[s]).length }))
+  // dicetak/dicek dan assembly" summary, broken down per produk (key) +
+  // ukuran/variant so e.g. "GL Ring 2026 · US 9" and "GL Ring Cosplay · US 9"
+  // don't get lumped into one number.
+  const stepBreakdown = useMemo(() => {
+    const groups = new Map<string, { key: string; usSize: string | null; rows: RingRow[] }>()
+    for (const r of rows) {
+      const groupKey = `${r.key}::${r.usSize ?? ''}`
+      if (!groups.has(groupKey)) groups.set(groupKey, { key: r.key, usSize: r.usSize, rows: [] })
+      groups.get(groupKey)!.rows.push(r)
+    }
+    return [...groups.values()]
+      .sort((a, b) => a.key.localeCompare(b.key, 'id') || compareRows(a.rows[0], b.rows[0], 'usSize'))
+      .map(g => ({
+        key: g.key,
+        usSize: g.usSize,
+        total: g.rows.length,
+        steps: STEP_TYPES.map(s => ({ step: s, done: g.rows.filter(r => r.checklistDone[s]).length })),
+      }))
+  }, [rows])
 
   const selectClass = 'glass-input h-9 rounded-[5px] px-2 text-sm'
   const thBase = 'px-3 py-2 text-left font-semibold whitespace-nowrap g-t4'
@@ -353,18 +370,35 @@ export function WorkingProjectGLRingTab() {
         <span className="g-t4 ml-auto hidden sm:inline">Shift+klik header untuk multi-sort (maks 3)</span>
       </div>
 
-      <div className="flex flex-wrap gap-2 items-center mb-3 text-xs">
-        <span className="g-t4">Progress per tahap{dueDateFrom || dueDateTo ? ` (${dueDateFrom || '...'} s/d ${dueDateTo || '...'})` : ''}:</span>
-        {stepSummary.map(({ step: s, done }) => (
-          <span
-            key={s}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full g-t2"
-            style={{ background: 'var(--g-card)', border: '1px solid var(--g-card-border)' }}
-          >
-            {s}: <b className="g-t1">{done}/{activeCount}</b>
-          </span>
-        ))}
-      </div>
+      {stepBreakdown.length > 0 && (
+        <div className="mb-3 overflow-x-auto rounded-[5px]" style={{ border: '1px solid var(--g-card-border)' }}>
+          <table className="min-w-full border-collapse text-xs">
+            <caption className="text-left px-3 py-2 g-t4 caption-top">
+              Progress per Produk &amp; Ukuran{dueDateFrom || dueDateTo ? ` (${dueDateFrom || '...'} s/d ${dueDateTo || '...'})` : ''}
+            </caption>
+            <thead className="uppercase" style={{ background: 'var(--g-card)' }}>
+              <tr>
+                <th className={thBase}>Produk</th>
+                <th className={thBase}>Ukuran</th>
+                {STEP_TYPES.map(s => <th key={s} className={`${thBase} text-center`}>{s}</th>)}
+                <th className={`${thBase} text-center`}>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stepBreakdown.map(g => (
+                <tr key={`${g.key}::${g.usSize}`} className="border-b dark:border-white/5 border-black/5">
+                  <td className={tdBase}>{g.key}</td>
+                  <td className={tdBase}>{g.usSize ? `US ${g.usSize}` : 'Tanpa Ukuran'}</td>
+                  {g.steps.map(({ step: s, done }) => (
+                    <td key={s} className={`${tdBase} text-center`}>{done}/{g.total}</td>
+                  ))}
+                  <td className={`${tdBase} text-center g-t1`}><b>{g.total}</b></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {inline.error && (
         <div role="alert" className="mb-3 px-3 py-2 rounded-[5px] text-sm bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300">

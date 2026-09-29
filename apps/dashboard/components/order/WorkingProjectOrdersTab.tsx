@@ -25,7 +25,13 @@ const PAGE_SIZES = [10, 25, 50, 100] as const
 // mentions it at all.
 const PART_STEPS = ["Print Frame", "Print Stone", "Print Ring", "Cat Frame", "Cat Stone", "Cat Ring", "Assembly"] as const
 
-function partSummary(rows: WorkingProject[]): { step: string; done: number; total: number }[] {
+interface PartStepCount {
+  step: string
+  done: number
+  total: number
+}
+
+function stepCounts(rows: WorkingProject[]): PartStepCount[] {
   return PART_STEPS.map((step) => {
     const lower = step.toLowerCase()
     let done = 0
@@ -41,6 +47,30 @@ function partSummary(rows: WorkingProject[]): { step: string; done: number; tota
     }
     return { step, done, total }
   })
+}
+
+interface PartSummaryGroup {
+  product: string
+  variant: string
+  count: number
+  steps: PartStepCount[]
+}
+
+// Groups by product + variant (e.g. "Topeng Dr Doom · Merah") so a checklist
+// step's done/total isn't just one lump figure across every product —
+// matches GL Ring's per-produk-dan-ukuran breakdown, generalized since
+// Orders spans every product category, not just rings.
+function partSummaryByProduct(rows: WorkingProject[]): PartSummaryGroup[] {
+  const groups = new Map<string, { product: string; variant: string; rows: WorkingProject[] }>()
+  for (const wp of rows) {
+    const variant = wp.variant?.trim() || "Tanpa Varian"
+    const key = `${wp.product}::${variant}`
+    if (!groups.has(key)) groups.set(key, { product: wp.product, variant, rows: [] })
+    groups.get(key)!.rows.push(wp)
+  }
+  return [...groups.values()]
+    .sort((a, b) => a.product.localeCompare(b.product, "id") || a.variant.localeCompare(b.variant, "id"))
+    .map((g) => ({ product: g.product, variant: g.variant, count: g.rows.length, steps: stepCounts(g.rows) }))
 }
 
 type SortColumn = "customer" | "dueDate" | "status" | "invoiceAmount"
@@ -192,6 +222,8 @@ export function WorkingProjectOrdersTab() {
     return out
   }, [data, search, platform, dueDateFrom, dueDateTo, statusFilter])
 
+  const partBreakdown = useMemo(() => partSummaryByProduct(filtered), [filtered])
+
   const sorted = useMemo(() => {
     const copy = [...filtered]
     copy.sort((a, b) => {
@@ -334,18 +366,37 @@ export function WorkingProjectOrdersTab() {
         </button>
       </div>
 
-      <div className="flex flex-wrap gap-2 items-center mb-3 text-xs">
-        <span className="g-t4">Progress per tahap{dueDateFrom || dueDateTo ? ` (${dueDateFrom || "..."} s/d ${dueDateTo || "..."})` : ""}:</span>
-        {partSummary(filtered).map(({ step, done, total }) => (
-          <span
-            key={step}
-            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full g-t2"
-            style={{ background: "var(--g-card)", border: "1px solid var(--g-card-border)" }}
-          >
-            {step}: <b className="g-t1">{done}/{total}</b>
-          </span>
-        ))}
-      </div>
+      {partBreakdown.length > 0 && (
+        <div className="mb-3 overflow-x-auto rounded-[5px]" style={{ border: "1px solid var(--g-card-border)" }}>
+          <table className="min-w-full border-collapse text-xs">
+            <caption className="text-left px-3 py-2 g-t4 caption-top">
+              Progress per Produk &amp; Varian{dueDateFrom || dueDateTo ? ` (${dueDateFrom || "..."} s/d ${dueDateTo || "..."})` : ""}
+            </caption>
+            <thead className="uppercase" style={{ background: "var(--g-card)" }}>
+              <tr>
+                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap g-t4">Produk</th>
+                <th className="px-3 py-2 text-left font-semibold whitespace-nowrap g-t4">Varian</th>
+                {PART_STEPS.map((s) => (
+                  <th key={s} className="px-3 py-2 text-center font-semibold whitespace-nowrap g-t4">{s}</th>
+                ))}
+                <th className="px-3 py-2 text-center font-semibold whitespace-nowrap g-t4">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {partBreakdown.map((g) => (
+                <tr key={`${g.product}::${g.variant}`} className="border-b dark:border-white/5 border-black/5">
+                  <td className="px-3 py-2 text-sm max-w-[200px]"><div className="truncate" title={g.product}>{g.product}</div></td>
+                  <td className="px-3 py-2 text-sm whitespace-nowrap">{g.variant}</td>
+                  {g.steps.map(({ step, done, total }) => (
+                    <td key={step} className="px-3 py-2 text-sm text-center whitespace-nowrap">{done}/{total}</td>
+                  ))}
+                  <td className="px-3 py-2 text-sm text-center whitespace-nowrap g-t1"><b>{g.count}</b></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {inline.error ? (
         <div role="alert" className="mb-3 px-3 py-2 rounded-[5px] text-sm bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300">

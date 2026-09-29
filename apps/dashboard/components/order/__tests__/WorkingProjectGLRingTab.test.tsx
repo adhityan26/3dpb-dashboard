@@ -89,6 +89,15 @@ function renderWithClient(client = new QueryClient()) {
   return { client, ...render(<WorkingProjectGLRingTab />, { wrapper }) }
 }
 
+// The "Progress per Produk & Ukuran" breakdown table repeats the same
+// product/size text as the main data table, so plain screen.getByText
+// queries for those become ambiguous — scope to the main table (always
+// the last <table> on the page; the breakdown table renders above it).
+function mainTable() {
+  const tables = screen.getAllByRole('table')
+  return within(tables[tables.length - 1])
+}
+
 beforeEach(() => {
   vi.restoreAllMocks()
 })
@@ -96,22 +105,22 @@ beforeEach(() => {
 describe('WorkingProjectGLRingTab', () => {
   it('renders one row per ring variant, splitting comma-joined product names', () => {
     renderWithClient()
-    expect(screen.getByText('Cincin A')).toBeInTheDocument()
-    expect(screen.getByText('Cincin B')).toBeInTheDocument()
+    expect(mainTable().getByText('Cincin A')).toBeInTheDocument()
+    expect(mainTable().getByText('Cincin B')).toBeInTheDocument()
   })
   it('hides Canceled projects by default via the status filter', () => {
     renderWithClient()
-    expect(screen.queryByText('Cincin C')).not.toBeInTheDocument()
+    expect(mainTable().queryByText('Cincin C')).not.toBeInTheDocument()
   })
 
   it('falls back to the variant field for size when notes is empty (single-variant row)', () => {
     renderWithClient()
-    expect(screen.getByText(/US 10\.5/)).toBeInTheDocument()
+    expect(mainTable().getByText(/US 10\.5/)).toBeInTheDocument()
   })
 
   it('reads a bare-number variant field ("11", no US/size token) as the size', () => {
     renderWithClient()
-    expect(screen.getByText(/US 11\b/)).toBeInTheDocument()
+    expect(mainTable().getByText(/US 11\b/)).toBeInTheDocument()
   })
 
   it('computes Scale % via the real Ring Resizer formula, not a fabricated lookup table', () => {
@@ -130,20 +139,20 @@ describe('WorkingProjectGLRingTab', () => {
     renderWithClient()
     fireEvent.click(screen.getByRole('button', { name: /status: 4 dipilih/i }))
     fireEvent.click(screen.getByLabelText('Canceled'))
-    expect(screen.getByText('Cincin C')).toBeInTheDocument()
+    expect(mainTable().getByText('Cincin C')).toBeInTheDocument()
   })
 
   it('sorts Ukuran numerically, not as a string (found: "11" sorted before "7")', () => {
     renderWithClient()
-    const sizeOrder = () => screen.getAllByText(/^US \d/).map(el => el.textContent?.match(/^US [\d.]+/)?.[0])
-    fireEvent.click(screen.getByRole('columnheader', { name: /Ukuran/ }))
+    const sizeOrder = () => mainTable().getAllByText(/^US \d/).map(el => el.textContent?.match(/^US [\d.]+/)?.[0])
+    fireEvent.click(mainTable().getByRole('columnheader', { name: /Ukuran/ }))
     expect(sizeOrder()).toEqual(['US 6', 'US 7', 'US 8', 'US 9', 'US 10.5', 'US 11'])
   })
 
   it('cycles a header click asc -> desc -> unsorted', () => {
     renderWithClient()
-    const sizeTexts = () => screen.getAllByText(/^US \d/).map(el => el.textContent)
-    const header = screen.getByRole('columnheader', { name: /Ukuran/ })
+    const sizeTexts = () => mainTable().getAllByText(/^US \d/).map(el => el.textContent)
+    const header = mainTable().getByRole('columnheader', { name: /Ukuran/ })
     fireEvent.click(header) // asc
     expect(header.textContent).toContain('▲')
     expect(sizeTexts()[0]).toBe('US 6')
@@ -157,28 +166,30 @@ describe('WorkingProjectGLRingTab', () => {
   it('filters rows to the Due Date range', () => {
     renderWithClient()
     fireEvent.change(screen.getByLabelText('Due Date dari'), { target: { value: '2026-09-21' } })
-    expect(screen.queryByText('Cincin A')).not.toBeInTheDocument()
+    expect(mainTable().queryByText('Cincin A')).not.toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Due Date dari'), { target: { value: '2026-09-20' } })
-    expect(screen.getByText('Cincin A')).toBeInTheDocument()
+    expect(mainTable().getByText('Cincin A')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Due Date sampai'), { target: { value: '2026-09-19' } })
-    expect(screen.queryByText('Cincin A')).not.toBeInTheDocument()
+    expect(mainTable().queryByText('Cincin A')).not.toBeInTheDocument()
   })
 
-  it('shows a per-part checklist progress summary that reflects the current filters', () => {
+  it('shows a per-produk-dan-ukuran checklist progress breakdown that reflects the current filters', () => {
     renderWithClient()
     // Isolate wp6 (single-item order, "Print Frame" checklist item done).
     fireEvent.change(screen.getByPlaceholderText(/cari/i), { target: { value: 'SN6' } })
-    const summary = within(screen.getByText('Progress per tahap:').parentElement as HTMLElement)
-    expect(summary.getByText(/^Print Frame/)).toHaveTextContent('Print Frame: 1/1')
-    expect(summary.getByText(/^Print Stone/)).toHaveTextContent('Print Stone: 0/1')
+    const breakdownTable = within(screen.getByText(/Progress per Produk & Ukuran/).closest('table') as HTMLElement)
+    const row = within(breakdownTable.getByText('US 7').closest('tr') as HTMLElement)
+    const cells = row.getAllByRole('cell')
+    expect(cells[2].textContent).toBe('1/1') // Print Frame
+    expect(cells[3].textContent).toBe('0/1') // Print Stone
   })
 })
 
 describe('WorkingProjectGLRingTab full parity', () => {
   it('parses per-variant size from the matching notes segment, not the same size for every row', () => {
     renderWithClient()
-    expect(screen.getByText(/US 8/)).toBeInTheDocument()
-    expect(screen.getByText(/US 6/)).toBeInTheDocument()
+    expect(mainTable().getByText(/US 8/)).toBeInTheDocument()
+    expect(mainTable().getByText(/US 6/)).toBeInTheDocument()
   })
 
   it('renders 7 checklist checkboxes per row with canonical labels', () => {
