@@ -59,6 +59,13 @@ describe('classifyTokopediaStatus', () => {
 })
 
 describe('syncWorkingProjectStatusFromMarketplace', () => {
+  it('queries both Open and Siap Kirim WPs (Siap Kirim can still advance forward once shipped)', async () => {
+    await syncWorkingProjectStatusFromMarketplace()
+    expect(prisma.workingProject.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: { status: { in: ['Open', 'Siap Kirim'] } },
+    }))
+  })
+
   it('updates a Shopee WP whose order has shipped, and counts an already-in-sync order as skipped', async () => {
     ;(prisma.workingProject.findMany as any).mockResolvedValue([
       { source: 'shopee', sourceOrderNo: 'SN1', discordThreadId: 't1' },

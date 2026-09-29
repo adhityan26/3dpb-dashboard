@@ -62,17 +62,27 @@ export interface StatusSyncResult {
   errors: string[]
 }
 
+// Statuses this job is allowed to read FROM. "Siap Kirim" included
+// 2026-09-29: found in production that WPs the admin had manually marked
+// "Siap Kirim" (production done) stayed stuck there even after the order
+// actually shipped, because this job only ever looked at "Open" rows.
+// "Siap Kirim" itself is still never a WRITE target (see
+// classifyShopeeStatus/classifyTokopediaStatus above) — this only lets the
+// job move a Siap Kirim WP FORWARD once the marketplace confirms it shipped.
+const SYNCABLE_STATUSES = ['Open', 'Siap Kirim'] as const
+
 /**
- * Scans every WP still marked "Open" and, where the actual Shopee/Tokopedia
- * order has moved on (shipped/completed/cancelled), updates the WP status
- * to match — via updateWorkingProject(), so the Discord thread's starter
- * post is edited in place (same path the bot's own PATCH uses; does not
- * archive the thread, matching setStatus()'s existing behavior).
+ * Scans every WP still marked "Open" or "Siap Kirim" and, where the actual
+ * Shopee/Tokopedia order has moved on (shipped/completed/cancelled),
+ * updates the WP status to match — via updateWorkingProject(), so the
+ * Discord thread's starter post is edited in place (same path the bot's
+ * own PATCH uses; does not archive the thread, matching setStatus()'s
+ * existing behavior).
  */
 export async function syncWorkingProjectStatusFromMarketplace(): Promise<StatusSyncResult> {
   const errors: string[] = []
   const rows = await prisma.workingProject.findMany({
-    where: { status: 'Open' },
+    where: { status: { in: [...SYNCABLE_STATUSES] } },
     select: { source: true, sourceOrderNo: true, discordThreadId: true },
   })
 
