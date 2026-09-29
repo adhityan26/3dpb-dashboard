@@ -280,4 +280,12 @@ describe('resolveVariantEntrySize', () => {
     })
     expect(r.usSize).toBe('9')
   })
+
+  it('reads a bare-number embedded variant with no "US"/"size" token (found 2026-09-29 on real order 260909K0PTQ4P8: Shopee model_name was plain "11.5")', () => {
+    const r = resolveVariantEntrySize({
+      entry: 'Green Lantern Ring 2026 3D Print V.2 New Color (11.5)', key: 'GL Ring 2026 3D Print V.2 New Color (11.5)',
+      notes: null, variant: null, variantCount: 2,
+    })
+    expect(r.usSize).toBe('11.5')
+  })
 })

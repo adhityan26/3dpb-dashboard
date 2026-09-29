@@ -35,8 +35,8 @@ describe('autoCreateWorkingProjectsFromNewOrders', () => {
   it('creates a WP per Shopee order, routed by detected category, and counts skips from the dedupe guard', async () => {
     ;(getReadyToShipOrders as any).mockResolvedValue({
       orders: [
-        { orderSn: 'SN1', buyerUsername: 'budi', items: [{ itemId: 1, productName: 'Green Lantern Ring', variantName: 'US 9' }], createTime: 1759000000, shipByDate: 1759600000 },
-        { orderSn: 'SN2', buyerUsername: 'ani', items: [{ itemId: 2, productName: 'Topeng Dr Doom', variantName: null }], createTime: 1759000000, shipByDate: null },
+        { orderSn: 'SN1', buyerUsername: 'budi', isPreOrder: true, items: [{ itemId: 1, productName: 'Green Lantern Ring', variantName: 'US 9' }], createTime: 1759000000, shipByDate: 1759600000 },
+        { orderSn: 'SN2', buyerUsername: 'ani', isPreOrder: true, items: [{ itemId: 2, productName: 'Topeng Dr Doom', variantName: null }], createTime: 1759000000, shipByDate: null },
       ],
     })
     ;(createWorkingProject as any)
@@ -59,7 +59,7 @@ describe('autoCreateWorkingProjectsFromNewOrders', () => {
   it('keeps ALL items from a multi-item Shopee order, not just the first (found 2026-09-28)', async () => {
     ;(getReadyToShipOrders as any).mockResolvedValue({
       orders: [{
-        orderSn: 'SN9', buyerUsername: 'budi',
+        orderSn: 'SN9', buyerUsername: 'budi', isPreOrder: true,
         items: [
           { itemId: 1, productName: 'Green Lantern Ring 2026 3D Print', variantName: 'US 6' },
           { itemId: 1, productName: 'Green Lantern Ring 2026 3D Print', variantName: 'US 7' },
@@ -79,13 +79,36 @@ describe('autoCreateWorkingProjectsFromNewOrders', () => {
     }))
   })
 
+  it('skips a Shopee order that is not pre-order (ready-stock accessories should not get a WP, found 2026-09-29)', async () => {
+    ;(getReadyToShipOrders as any).mockResolvedValue({
+      orders: [{ orderSn: 'SN1', buyerUsername: 'budi', isPreOrder: false, items: [{ itemId: 1, productName: 'Crocs Charm', variantName: null }], createTime: 1759000000, shipByDate: null }],
+    })
+
+    const result = await autoCreateWorkingProjectsFromNewOrders()
+
+    expect(createWorkingProject).not.toHaveBeenCalled()
+    expect(result).toEqual({ scanned: 0, created: 0, skipped: 0, failed: 0, errors: [] })
+  })
+
+  it('skips a Tokopedia order that is not pre-order', async () => {
+    ;(listOrders as any).mockImplementation(async (tab: string) =>
+      tab === 'perlu-dikirim' ? { main_orders: [{ id: 'raw1' }] } : { main_orders: [] },
+    )
+    ;(parseOrder as any).mockReturnValue({ orderId: 'TOK1', buyerNickname: 'Cici', products: [{ name: 'Gantungan Kunci', variant: null }], isPreOrder: false })
+
+    const result = await autoCreateWorkingProjectsFromNewOrders()
+
+    expect(createWorkingProject).not.toHaveBeenCalled()
+    expect(result.scanned).toBe(0)
+  })
+
   it('routes a Tokopedia order with no category match to the general forum', async () => {
     ;(listOrders as any).mockImplementation(async (tab: string) =>
       tab === 'perlu-dikirim' ? { main_orders: [{ id: 'raw1' }] } : { main_orders: [] },
     )
     ;(parseOrder as any).mockReturnValue({
       orderId: 'TOK1', buyerNickname: 'Cici', products: [{ name: 'Gantungan Kunci', variant: 'Merah' }],
-      orderDate: 1759000000, latestRtsTime: 1759600000,
+      orderDate: 1759000000, latestRtsTime: 1759600000, isPreOrder: true,
     })
     ;(createWorkingProject as any).mockResolvedValue({ id: 'wp3', threadUrl: null, syncState: 'ok', skipped: false })
 
@@ -101,7 +124,7 @@ describe('autoCreateWorkingProjectsFromNewOrders', () => {
 
   it('keeps going and records an error when one candidate fails to create', async () => {
     ;(getReadyToShipOrders as any).mockResolvedValue({
-      orders: [{ orderSn: 'SN1', buyerUsername: 'budi', items: [{ itemId: 1, productName: 'Cincin', variantName: null }], createTime: 1759000000, shipByDate: null }],
+      orders: [{ orderSn: 'SN1', buyerUsername: 'budi', isPreOrder: true, items: [{ itemId: 1, productName: 'Cincin', variantName: null }], createTime: 1759000000, shipByDate: null }],
     })
     ;(createWorkingProject as any).mockRejectedValue(new Error('discord-relay 403'))
 
@@ -115,7 +138,7 @@ describe('autoCreateWorkingProjectsFromNewOrders', () => {
     ;(listOrders as any).mockImplementation(async (tab: string) =>
       tab === 'perlu-dikirim' ? { main_orders: [{ id: 'raw1' }] } : { main_orders: [] },
     )
-    ;(parseOrder as any).mockReturnValue({ orderId: 'TOK1', buyerNickname: 'Cici', products: [{ name: 'Topeng', variant: null }] })
+    ;(parseOrder as any).mockReturnValue({ orderId: 'TOK1', buyerNickname: 'Cici', products: [{ name: 'Topeng', variant: null }], isPreOrder: true })
     ;(createWorkingProject as any).mockResolvedValue({ id: 'wp1', threadUrl: null, syncState: 'ok', skipped: false })
 
     const result = await autoCreateWorkingProjectsFromNewOrders()
@@ -126,7 +149,7 @@ describe('autoCreateWorkingProjectsFromNewOrders', () => {
 
   it("does not abort the batch when one Shopee order's createTime is missing/invalid", async () => {
     ;(getReadyToShipOrders as any).mockResolvedValue({
-      orders: [{ orderSn: 'SN1', buyerUsername: 'budi', items: [{ itemId: 1, productName: 'Cincin', variantName: null }], createTime: undefined, shipByDate: null }],
+      orders: [{ orderSn: 'SN1', buyerUsername: 'budi', isPreOrder: true, items: [{ itemId: 1, productName: 'Cincin', variantName: null }], createTime: undefined, shipByDate: null }],
     })
     ;(createWorkingProject as any).mockResolvedValue({ id: 'wp1', threadUrl: null, syncState: 'ok', skipped: false })
     const result = await autoCreateWorkingProjectsFromNewOrders()

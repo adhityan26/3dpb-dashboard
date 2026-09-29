@@ -277,6 +277,24 @@ export function variantShort(entry: string): string {
  * buildMultiItemProduct > the WP's single `variant` field (only meaningful
  * when there's exactly one variant on the row).
  */
+// Same idea as parseSizeFromVariantField's bare-number fallback, applied to
+// a multi-item entry's trailing "(...)" (the raw marketplace variant text
+// buildMultiItemProduct embedded there) instead of a whole standalone
+// field. Found 2026-09-29 on real order 260909K0PTQ4P8: Shopee's own
+// model_name for a ring variant is sometimes just "11.5" with no "US"/
+// "size" token at all — plain parseSize() (which requires one of those
+// tokens, since a bare number in free-form NOTES text is too ambiguous)
+// found nothing, so the entry embedded "(11.5)" verbatim but the UI showed
+// no size. The trailing parenthetical is unambiguous by construction (nothing
+// else lives there — same reasoning as parseSizeFromVariantField), so a bare
+// number there is safe to accept.
+function parseSizeFromEntry(entry: string): { usSize: string | null } {
+  const direct = parseSize(entry)
+  if (direct.usSize) return direct
+  const embedded = entry.match(/\(([^()]+)\)\s*$/)
+  return embedded ? parseSizeFromVariantField(embedded[1]) : { usSize: null }
+}
+
 export function resolveVariantEntrySize(input: {
   entry: string
   key: string
@@ -288,7 +306,7 @@ export function resolveVariantEntrySize(input: {
   const fromVariantField = single ? parseSizeFromVariantField(input.variant ?? '') : { usSize: null }
   const segment = notesSegmentForKey(input.notes ?? '', input.key, input.variantCount)
   const fromNotes = parseSize(segment)
-  const fromEntry = parseSize(input.entry)
+  const fromEntry = parseSizeFromEntry(input.entry)
   return { usSize: fromNotes.usSize ?? fromEntry.usSize ?? fromVariantField.usSize }
 }
 

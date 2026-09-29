@@ -51,7 +51,12 @@ const TOKOPEDIA_SAFETY_MAX_PAGES = 40 // 2000 orders/tab hard cap, matches other
 async function collectShopeeCandidates(errors: string[]): Promise<OrderCandidate[]> {
   try {
     const { orders } = await getReadyToShipOrders()
-    return orders.map((o) => {
+    // Pre-order only (found 2026-09-28: ready-stock accessories — Crocs
+    // charms, Lightning Charm decorations, sandal add-ons — were getting a
+    // WP too; those ship as-is and need no production tracking). Shopee's
+    // own isPreOrder (days_to_ship >= 7, see lib/orders/service.ts) is the
+    // signal, same field the Order tab already surfaces.
+    return orders.filter((o) => o.isPreOrder).map((o) => {
       const first = o.items[0]
       // Every item on the order becomes part of `product` (see
       // buildMultiItemProduct) — a single-item order's product/variant
@@ -89,7 +94,7 @@ async function collectTokopediaCandidates(errors: string[]): Promise<OrderCandid
         const raw = await listOrders(tab, { count: TOKOPEDIA_PAGE_SIZE, offset })
         for (const r of raw.main_orders) {
           const summary = parseOrder(r)
-          if (!summary.orderId) continue
+          if (!summary.orderId || !summary.isPreOrder) continue
           const first = summary.products[0]
           candidates.push({
             source: 'tokopedia',
