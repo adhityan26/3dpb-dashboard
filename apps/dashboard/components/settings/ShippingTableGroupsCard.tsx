@@ -4,23 +4,20 @@ import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useShippingTableGroups, useUpdateShippingTableGroups, type ShippingTableGroup, type ShippingTableRowBy } from "@/lib/hooks/use-working-projects"
+import { ProductKeywordPicker } from "./ProductKeywordPicker"
 
 interface EditableGroup {
   title: string
-  keywordsText: string // one keyword per line, edited as free text
+  keywords: string[]
   rowBy: ShippingTableRowBy
 }
 
 function toEditable(groups: ShippingTableGroup[]): EditableGroup[] {
-  return groups.map((g) => ({ title: g.title, keywordsText: g.keywords.join("\n"), rowBy: g.rowBy }))
+  return groups.map((g) => ({ title: g.title, keywords: g.keywords, rowBy: g.rowBy }))
 }
 
 function toGroups(editable: EditableGroup[]): ShippingTableGroup[] {
-  return editable.map((g) => ({
-    title: g.title.trim(),
-    keywords: g.keywordsText.split(/[\n,]/).map((k) => k.trim()).filter(Boolean),
-    rowBy: g.rowBy,
-  }))
+  return editable.map((g) => ({ title: g.title.trim(), keywords: g.keywords, rowBy: g.rowBy }))
 }
 
 // Finds a keyword reused across two different groups (mirrors
@@ -70,7 +67,7 @@ export function ShippingTableGroupsCard() {
   }
 
   function addGroup() {
-    setEditable((prev) => [...prev, { title: "", keywordsText: "", rowBy: "produk" }])
+    setEditable((prev) => [...prev, { title: "", keywords: [], rowBy: "produk" }])
   }
 
   function removeGroup(index: number) {
@@ -99,13 +96,13 @@ export function ShippingTableGroupsCard() {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-xs text-gray-500">
-          Atur tabel apa saja yang muncul di tab Jadwal Kirim, produk apa saja (kata kunci) yang masuk
-          ke tiap tabel, dan cara baris tabel itu dikelompokkan — &quot;Ukuran/Varian&quot; kalau tabel itu
-          cuma untuk satu produk (baris = ukuran/varian saja), atau &quot;Produk&quot; kalau tabel itu
-          menampung beberapa produk berbeda (baris = nama produk + varian, biar tidak ketuker). Dicek
-          dari atas ke bawah — tabel di atas menang duluan kalau nama produk cocok beberapa kata kunci.
-          Produk yang tidak cocok kata kunci mana pun otomatis masuk tabel &quot;General&quot;. Satu kata
-          kunci hanya boleh dipakai di satu tabel.
+          Atur tabel apa saja yang muncul di tab Jadwal Kirim, produk apa saja yang masuk ke tiap tabel
+          (cari dari katalog Shopee/Tokopedia di bawah), dan cara baris tabel itu dikelompokkan —
+          &quot;Ukuran/Varian&quot; kalau tabel itu cuma untuk satu produk (baris = ukuran/varian saja),
+          atau &quot;Produk&quot; kalau tabel itu menampung beberapa produk berbeda (baris = nama produk +
+          varian, biar tidak ketuker). Dicek dari atas ke bawah — tabel di atas menang duluan kalau nama
+          produk cocok beberapa kata kunci. Produk yang tidak cocok kata kunci mana pun otomatis masuk
+          tabel &quot;General&quot;. Satu kata kunci hanya boleh dipakai di satu tabel.
         </p>
         {isLoading ? (
           <div className="text-xs text-gray-500">Memuat...</div>
@@ -132,13 +129,7 @@ export function ShippingTableGroupsCard() {
                       <option value="produk">Baris: Produk</option>
                     </select>
                   </div>
-                  <textarea
-                    value={g.keywordsText}
-                    onChange={(e) => updateGroup(i, { keywordsText: e.target.value })}
-                    placeholder={"Kata kunci, satu per baris\ngl\ngreen lantern"}
-                    rows={3}
-                    className="w-full rounded-[5px] px-3 py-2 text-sm font-mono glass-input"
-                  />
+                  <ProductKeywordPicker keywords={g.keywords} onChange={(keywords) => updateGroup(i, { keywords })} />
                 </div>
                 <Button size="sm" variant="outline" onClick={() => removeGroup(i)}>Hapus</Button>
               </div>

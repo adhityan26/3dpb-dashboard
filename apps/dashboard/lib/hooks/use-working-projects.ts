@@ -251,6 +251,24 @@ export function useShopeeProductCatalog() {
   return { ...query, data: query.data?.products, isLoading: query.isLoading }
 }
 
+export interface ProductCatalogEntry {
+  name: string
+  platform: "shopee" | "tokopedia"
+}
+
+// Combined Shopee + Tokopedia product-name catalog for the Jadwal Kirim
+// table-grouping picker (matches by name/keyword, not by item ID — see
+// useShopeeProductCatalog above for the ID-based variant used by the
+// category product-ID pickers).
+export function useProductCatalog() {
+  const query = useQuery({
+    queryKey: ["working-projects", "settings", "product-catalog"],
+    queryFn: () => apiFetch<{ products: ProductCatalogEntry[] }>("/api/working-projects/settings/product-catalog"),
+    staleTime: 10 * 60 * 1000,
+  })
+  return { ...query, data: query.data?.products, isLoading: query.isLoading }
+}
+
 export type ShippingTableRowBy = "variant" | "produk"
 
 export interface ShippingTableGroup {
