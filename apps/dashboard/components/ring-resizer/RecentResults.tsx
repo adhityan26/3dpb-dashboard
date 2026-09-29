@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react"
 import { probeDirect, safeDirectUrl } from "./direct-download"
+import { LanLink } from "./LanLink"
 
 // Mirrors RESULT_RETENTION_DAYS in lib/ring-resizer/storage.ts (server-only module).
 const RESULT_RETENTION_DAYS = 3
@@ -124,6 +125,10 @@ export function RecentResults({ version }: { version: number }) {
                   className="rounded-lg bg-indigo-500/80 px-3 py-1 font-semibold text-white">
                   Download
                 </a>
+                {it.directUrl && href !== it.directUrl && (
+                  <LanLink url={it.directUrl}
+                    className="rounded-lg border border-indigo-500/60 px-3 py-1 font-semibold text-indigo-300 hover:bg-indigo-500/10" />
+                )}
                 <button type="button" onClick={() => removeOne(it)} disabled={busy}
                   className="rounded-lg px-2 py-1 font-semibold g-t3 hover:bg-red-500/10 disabled:opacity-50">
                   {busy ? "Menghapus…" : "Hapus"}

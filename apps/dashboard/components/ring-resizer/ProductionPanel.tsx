@@ -5,6 +5,7 @@ import type { RingModelWithParts } from "@/lib/hooks/use-ring-models"
 import { computeScale, sizeRange, MAX_BATCH_SIZES, type SizeMode } from "@/lib/ring-resizer/sizing"
 import { RecentResults } from "./RecentResults"
 import { probeDirect, safeDirectUrl } from "./direct-download"
+import { LanLink } from "./LanLink"
 
 export interface ProductionPanelProps {
   models: RingModelWithParts[]
@@ -35,6 +36,8 @@ interface DoneResult {
   fileName: string
   href: string
   via: "minio" | "server"
+  /** Raw http MinIO link — offered as an explicit "LAN" option even on https pages. */
+  lanUrl: string | null
 }
 
 type BatchItem =
@@ -104,6 +107,7 @@ async function resolveDownload(json: ProcessResponse): Promise<DoneResult> {
     fileName: json.fileName,
     href: direct ? directUrl : json.downloadUrl,
     via: direct ? "minio" : "server",
+    lanUrl: json.directUrl,
   }
 }
 
@@ -117,9 +121,9 @@ function triggerDownload(r: DoneResult): void {
 function DownloadLinks({ r }: { r: DoneResult }) {
   return (
     <>
-      {r.directUrl && (
+      {r.lanUrl && (
         <>
-          <a href={r.directUrl} className="underline g-t2">MinIO</a>
+          <LanLink url={r.lanUrl} />
           {" · "}
         </>
       )}
