@@ -173,15 +173,27 @@ describe('WorkingProjectGLRingTab', () => {
     expect(mainTable().queryByText('Cincin A')).not.toBeInTheDocument()
   })
 
-  it('shows a per-produk-dan-ukuran checklist progress breakdown that reflects the current filters', () => {
+  it('the per-produk-dan-ukuran breakdown is collapsed by default and opens on click', () => {
+    renderWithClient()
+    expect(screen.getAllByRole('table')).toHaveLength(1) // just the main table
+    fireEvent.click(screen.getByRole('button', { name: /Progress per Produk & Ukuran/ }))
+    expect(screen.getAllByRole('table')).toHaveLength(2)
+  })
+
+  it('shows a per-produk-dan-ukuran checklist progress breakdown, grouped using the same tables as Jadwal Kirim', () => {
     renderWithClient()
     // Isolate wp6 (single-item order, "Print Frame" checklist item done).
     fireEvent.change(screen.getByPlaceholderText(/cari/i), { target: { value: 'SN6' } })
-    const breakdownTable = within(screen.getByText(/Progress per Produk & Ukuran/).closest('table') as HTMLElement)
+    fireEvent.click(screen.getByRole('button', { name: /Progress per Produk & Ukuran/ }))
+    const breakdownTable = within(screen.getAllByRole('table')[0])
+    // wp6's product "Green Lantern Ring 2026 3D Print" matches the default
+    // "GL Ring 2026" group (keyword "gl"/"green lantern") — same grouping
+    // Jadwal Kirim uses, not a raw per-product-name bucket.
+    expect(breakdownTable.getByText('GL Ring 2026')).toBeInTheDocument()
     const row = within(breakdownTable.getByText('US 7').closest('tr') as HTMLElement)
     const cells = row.getAllByRole('cell')
-    expect(cells[2].textContent).toBe('1/1') // Print Frame
-    expect(cells[3].textContent).toBe('0/1') // Print Stone
+    expect(cells[1].textContent).toBe('1/1✓ Pas') // Print Frame, done == total
+    expect(cells[2].textContent).toBe('0/1-1') // Print Stone, still short by 1
   })
 })
 

@@ -1,7 +1,8 @@
 'use client'
-import { useMemo, useState } from 'react'
-import { useWorkingProjects, useUpdateWorkingProject, useSetChecklistByLabel, useGLRingProductIds, useGLRingBaseBoreMm, type WorkingProject } from '@/lib/hooks/use-working-projects'
+import { Fragment, useMemo, useState } from 'react'
+import { useWorkingProjects, useUpdateWorkingProject, useSetChecklistByLabel, useGLRingProductIds, useGLRingBaseBoreMm, useShippingTableGroups, type WorkingProject } from '@/lib/hooks/use-working-projects'
 import { splitProductVariants, variantShort, parseSizeFromVariantField, isGLRing, resolveVariantEntrySize } from '@/lib/working-projects/format'
+import { resolveShippingTableGroup, DEFAULT_SHIPPING_TABLE_GROUPS, GENERAL_TABLE_TITLE, type ShippingTableGroup, type ShippingTableRowBy } from '@/lib/working-projects/shipping-schedule'
 import { computeScale } from '@/lib/ring-resizer/sizing'
 import { WorkingProjectEditModal } from './WorkingProjectEditModal'
 import { downloadRowsAsXlsx } from '@/lib/export/xlsx'
@@ -214,6 +215,9 @@ export function WorkingProjectGLRingTab() {
   const setChecklistByLabel = useSetChecklistByLabel()
   const { data: configuredProductIds } = useGLRingProductIds()
   const { data: baseBoreMm } = useGLRingBaseBoreMm()
+  const { data: tableGroupsData } = useShippingTableGroups()
+  const tableGroups = tableGroupsData ?? DEFAULT_SHIPPING_TABLE_GROUPS
+  const [summaryOpen, setSummaryOpen] = useState(false)
 
   const allRows = useMemo(
     () => expandToRows(data ?? [], configuredProductIds ?? [], baseBoreMm),
@@ -324,25 +328,53 @@ export function WorkingProjectGLRingTab() {
   const fullyDoneCount = rows.filter(r => STEP_TYPES.every(s => r.checklistDone[s])).length
   // Per-part progress within the currently filtered rows (respects the Due
   // Date range and every other active filter) — "berapa tiap part udah
-  // dicetak/dicek dan assembly" summary, broken down per produk (key) +
-  // ukuran/variant so e.g. "GL Ring 2026 · US 9" and "GL Ring Cosplay · US 9"
-  // don't get lumped into one number.
+  // dicetak/dicek dan assembly" summary. Grouped using the SAME
+  // user-configured tables as the Jadwal Kirim tab (Settings > Working
+  // Project), so e.g. "GL Ring 2026" and "GL Ring Cosplay" don't get lumped
+  // together just because they're both rings — a product matching no
+  // configured table falls into "General", same as Jadwal Kirim.
   const stepBreakdown = useMemo(() => {
-    const groups = new Map<string, { key: string; usSize: string | null; rows: RingRow[] }>()
+    const tables = new Map<string, { title: string; rowBy: ShippingTableRowBy; rows: RingRow[] }>()
     for (const r of rows) {
-      const groupKey = `${r.key}::${r.usSize ?? ''}`
-      if (!groups.has(groupKey)) groups.set(groupKey, { key: r.key, usSize: r.usSize, rows: [] })
-      groups.get(groupKey)!.rows.push(r)
+      const group = resolveShippingTableGroup(r.key, tableGroups)
+      const title = group?.title ?? GENERAL_TABLE_TITLE
+      const rowBy: ShippingTableRowBy = group?.rowBy ?? 'produk'
+      if (!tables.has(title)) tables.set(title, { title, rowBy, rows: [] })
+      tables.get(title)!.rows.push(r)
     }
-    return [...groups.values()]
-      .sort((a, b) => a.key.localeCompare(b.key, 'id') || compareRows(a.rows[0], b.rows[0], 'usSize'))
-      .map(g => ({
-        key: g.key,
-        usSize: g.usSize,
-        total: g.rows.length,
-        steps: STEP_TYPES.map(s => ({ step: s, done: g.rows.filter(r => r.checklistDone[s]).length })),
-      }))
-  }, [rows])
+
+    const tableRank = new Map(tableGroups.map((g: ShippingTableGroup, i: number) => [g.title, i]))
+
+    return [...tables.values()]
+      .sort((a, b) => (tableRank.get(a.title) ?? Infinity) - (tableRank.get(b.title) ?? Infinity))
+      .map(table => {
+        const subGroups = new Map<string, RingRow[]>()
+        for (const r of table.rows) {
+          const sizeLabel = r.usSize ? `US ${r.usSize}` : 'Tanpa Ukuran'
+          const label = table.rowBy === 'variant' ? sizeLabel : `${r.key} · ${sizeLabel}`
+          if (!subGroups.has(label)) subGroups.set(label, [])
+          subGroups.get(label)!.push(r)
+        }
+        const subRows = [...subGroups.entries()]
+          .sort(([a], [b]) => {
+            const aEmpty = a.endsWith('Tanpa Ukuran')
+            const bEmpty = b.endsWith('Tanpa Ukuran')
+            if (aEmpty !== bEmpty) return aEmpty ? 1 : -1
+            return a.localeCompare(b, 'id', { numeric: true })
+          })
+          .map(([label, subRowsForLabel]) => ({
+            label,
+            total: subRowsForLabel.length,
+            // delta = done - total: negative means that many pieces still
+            // need to be printed/dicek for this step, 0 means already pas.
+            steps: STEP_TYPES.map(s => {
+              const done = subRowsForLabel.filter(r => r.checklistDone[s]).length
+              return { step: s, done, delta: done - subRowsForLabel.length }
+            }),
+          }))
+        return { title: table.title, subRows }
+      })
+  }, [rows, tableGroups])
 
   const selectClass = 'glass-input h-9 rounded-[5px] px-2 text-sm'
   const thBase = 'px-3 py-2 text-left font-semibold whitespace-nowrap g-t4'
@@ -371,32 +403,68 @@ export function WorkingProjectGLRingTab() {
       </div>
 
       {stepBreakdown.length > 0 && (
-        <div className="mb-3 overflow-x-auto rounded-[5px]" style={{ border: '1px solid var(--g-card-border)' }}>
-          <table className="min-w-full border-collapse text-xs">
-            <caption className="text-left px-3 py-2 g-t4 caption-top">
-              Progress per Produk &amp; Ukuran{dueDateFrom || dueDateTo ? ` (${dueDateFrom || '...'} s/d ${dueDateTo || '...'})` : ''}
-            </caption>
-            <thead className="uppercase" style={{ background: 'var(--g-card)' }}>
-              <tr>
-                <th className={thBase}>Produk</th>
-                <th className={thBase}>Ukuran</th>
-                {STEP_TYPES.map(s => <th key={s} className={`${thBase} text-center`}>{s}</th>)}
-                <th className={`${thBase} text-center`}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {stepBreakdown.map(g => (
-                <tr key={`${g.key}::${g.usSize}`} className="border-b dark:border-white/5 border-black/5">
-                  <td className={tdBase}>{g.key}</td>
-                  <td className={tdBase}>{g.usSize ? `US ${g.usSize}` : 'Tanpa Ukuran'}</td>
-                  {g.steps.map(({ step: s, done }) => (
-                    <td key={s} className={`${tdBase} text-center`}>{done}/{g.total}</td>
+        <div className="mb-3 rounded-[5px]" style={{ border: '1px solid var(--g-card-border)' }}>
+          <button
+            type="button"
+            onClick={() => setSummaryOpen(v => !v)}
+            className="w-full flex items-center justify-between px-3 py-2 text-xs g-t4 hover:g-t2"
+          >
+            <span>
+              📊 Progress per Produk &amp; Ukuran{dueDateFrom || dueDateTo ? ` (${dueDateFrom || '...'} s/d ${dueDateTo || '...'})` : ''}
+            </span>
+            <span>{summaryOpen ? '▲ Sembunyikan' : '▼ Tampilkan'}</span>
+          </button>
+          {summaryOpen && (
+            <div className="overflow-x-auto border-t" style={{ borderColor: 'var(--g-card-border)' }}>
+              <table className="min-w-full border-collapse text-xs">
+                <thead className="uppercase" style={{ background: 'var(--g-card)' }}>
+                  <tr>
+                    <th className={thBase}>Produk</th>
+                    <th className={thBase}>Ukuran</th>
+                    {STEP_TYPES.map(s => <th key={s} className={`${thBase} text-center`}>{s}</th>)}
+                    <th className={`${thBase} text-center`}>Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {stepBreakdown.map(table => (
+                    <Fragment key={table.title}>
+                      <tr className="border-b dark:border-white/5 border-black/5" style={{ background: 'var(--g-card)' }}>
+                        <td colSpan={STEP_TYPES.length + 3} className="px-3 py-1.5 text-xs font-semibold g-t2">{table.title}</td>
+                      </tr>
+                      {table.subRows.map(sub => (
+                        <tr key={sub.label} className="border-b dark:border-white/5 border-black/5">
+                          <td className={tdBase} colSpan={2}>{sub.label}</td>
+                          {sub.steps.map(({ step: s, done, delta }) => (
+                            <td key={s} className={`${tdBase} text-center`}>
+                              <div className="flex items-center justify-center gap-1.5">
+                                <span>{done}/{sub.total}</span>
+                                {delta === 0 ? (
+                                  <span
+                                    className="inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300"
+                                    title="Sudah pas, tidak ada kekurangan"
+                                  >
+                                    ✓ Pas
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+                                    title={`Masih kurang ${-delta} lagi`}
+                                  >
+                                    {delta}
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                          ))}
+                          <td className={`${tdBase} text-center g-t1`}><b>{sub.total}</b></td>
+                        </tr>
+                      ))}
+                    </Fragment>
                   ))}
-                  <td className={`${tdBase} text-center g-t1`}><b>{g.total}</b></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 

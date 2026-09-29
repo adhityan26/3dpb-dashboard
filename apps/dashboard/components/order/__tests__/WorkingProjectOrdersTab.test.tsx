@@ -56,8 +56,7 @@ beforeEach(() => {
 describe('WorkingProjectOrdersTab', () => {
   it('renders exactly the legacy column set in order (sortable columns carry a sort indicator)', () => {
     render(<WorkingProjectOrdersTab />)
-    const mainTable = screen.getAllByRole('table')[1] // [0] is the Progress per Produk & Varian breakdown
-    const headers = within(mainTable).getAllByRole('columnheader').map(h => h.textContent)
+    const headers = screen.getAllByRole('columnheader').map(h => h.textContent)
     expect(headers).toEqual([
       'Customer/Contact ▲', 'Produk', 'Variant', 'Platform', 'No. Order',
       'Due Date ↕', 'Status ↕', 'Kurir', 'Payment', 'Nominal ↕', 'Checklist', 'Discord', 'Aksi',
@@ -202,7 +201,7 @@ describe('WorkingProjectOrdersTab invoice link', () => {
 
 })
 
-describe('WorkingProjectOrdersTab Due Date filter and checklist summary', () => {
+describe('WorkingProjectOrdersTab Due Date filter', () => {
   it('filters rows to the Due Date range', () => {
     render(<WorkingProjectOrdersTab />)
     fireEvent.change(screen.getByLabelText('Due Date dari'), { target: { value: '2026-09-21' } })
@@ -211,16 +210,6 @@ describe('WorkingProjectOrdersTab Due Date filter and checklist summary', () => 
     expect(screen.getByText('SN1')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Due Date sampai'), { target: { value: '2026-09-19' } })
     expect(screen.queryByText('SN1')).not.toBeInTheDocument()
-  })
-
-  it('shows a per-produk-dan-varian checklist progress breakdown that reflects the current filters', () => {
-    render(<WorkingProjectOrdersTab />)
-    const breakdownTable = within(screen.getByText('Progress per Produk & Varian').closest('table') as HTMLElement)
-    const cincinRow = within(breakdownTable.getByText('Cincin').closest('tr') as HTMLElement)
-    const cells = cincinRow.getAllByRole('cell')
-    expect(cells[1].textContent).toBe('Emas')
-    expect(cells[2].textContent).toBe('1/1') // Print Frame, done via wp1's checklist item
-    expect(cells[3].textContent).toBe('0/0') // Print Stone, no matching checklist item
   })
 })
 
