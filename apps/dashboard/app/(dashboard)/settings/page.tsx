@@ -25,6 +25,7 @@ import { CategoryProductIdsCard } from "@/components/settings/CategoryProductIds
 import { AutoCreateWorkingProjectsCard } from "@/components/settings/AutoCreateWorkingProjectsCard"
 import { StatusSyncCard } from "@/components/settings/StatusSyncCard"
 import { FastCouriersCard } from "@/components/settings/FastCouriersCard"
+import { CincinTableGroupsCard } from "@/components/settings/CincinTableGroupsCard"
 import { useSettings } from "@/lib/hooks/use-settings"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
@@ -44,6 +45,7 @@ const TABS = [
   { key: "notifikasi", label: "🔔 Notifikasi"  },
   { key: "user",       label: "👥 User"        },
   { key: "monitoring", label: "🖥️ Monitoring" },
+  { key: "working-projects", label: "📦 Working Project" },
   { key: "lainnya",    label: "⚙️ Lainnya"    },
 ] as const
 
@@ -170,11 +172,17 @@ function SettingsPageInner() {
               />
             </div>
             <FilamentAliasCard />
+          </div>
+        )}
+
+        {activeTab === "working-projects" && (
+          <div className="space-y-4">
             <AutoCreateWorkingProjectsCard />
             <StatusSyncCard />
             <GLRingProductIdsCard />
             <CategoryProductIdsCard category="topeng" title="🎭 Produk Topeng" productLabel="produk Topeng" />
             <CategoryProductIdsCard category="clicker" title="📸 Produk Clicker" productLabel="produk Clicker" />
+            <CincinTableGroupsCard />
             <FastCouriersCard />
           </div>
         )}
