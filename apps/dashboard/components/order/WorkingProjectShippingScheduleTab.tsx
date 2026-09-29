@@ -1,12 +1,12 @@
 'use client'
 import { Fragment, useDeferredValue, useMemo, useState } from 'react'
-import { useWorkingProjects, useGLRingProductIds, useCategoryProductIds, useFastCouriers, useCincinTableGroups } from '@/lib/hooks/use-working-projects'
+import { useWorkingProjects, useGLRingProductIds, useCategoryProductIds, useFastCouriers, useShippingTableGroups } from '@/lib/hooks/use-working-projects'
 import {
   buildShippingScheduleRows,
   buildPivotTables,
   dateRangeColumns,
   NO_DUE_DATE_COLUMN,
-  DEFAULT_CINCIN_TABLE_GROUPS,
+  DEFAULT_SHIPPING_TABLE_GROUPS,
   type ShippingScheduleRow,
   type ScheduleCategory,
 } from '@/lib/working-projects/shipping-schedule'
@@ -42,7 +42,7 @@ export function WorkingProjectShippingScheduleTab() {
   const { data: topengIds } = useCategoryProductIds('topeng')
   const { data: clickerIds } = useCategoryProductIds('clicker')
   const { data: fastCouriers } = useFastCouriers()
-  const { data: cincinGroups } = useCincinTableGroups()
+  const { data: tableGroups } = useShippingTableGroups()
 
   const [search, setSearch] = useState('')
   const deferredSearch = useDeferredValue(search)
@@ -87,8 +87,8 @@ export function WorkingProjectShippingScheduleTab() {
   const noDueDateCount = useMemo(() => filteredRows.filter((r) => !r.dueDate).length, [filteredRows])
 
   const tables = useMemo(
-    () => buildPivotTables(filteredRows, dateColumns, cincinGroups ?? DEFAULT_CINCIN_TABLE_GROUPS),
-    [filteredRows, dateColumns, cincinGroups],
+    () => buildPivotTables(filteredRows, dateColumns, tableGroups ?? DEFAULT_SHIPPING_TABLE_GROUPS),
+    [filteredRows, dateColumns, tableGroups],
   )
 
   const totalItems = tables.reduce((s, t) => s + t.totalRow.total.cepat + t.totalRow.total.reguler, 0)

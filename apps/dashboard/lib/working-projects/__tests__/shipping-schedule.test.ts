@@ -6,14 +6,14 @@ import {
   pivotRowLabel,
   buildPivotTables,
   dateRangeColumns,
-  resolveCincinTableTitle,
-  findDuplicateCincinKeyword,
+  resolveShippingTableGroup,
+  findDuplicateShippingKeyword,
   NO_DUE_DATE_COLUMN,
   type ShippingScheduleRow,
 } from '../shipping-schedule'
 import type { WorkingProject } from '@/lib/hooks/use-working-projects'
 import type { CategoryProductIds } from '../category'
-import { DEFAULT_CINCIN_TABLE_GROUPS, type CincinTableGroup } from '../service'
+import { DEFAULT_SHIPPING_TABLE_GROUPS, type ShippingTableGroup } from '../service'
 
 const EMPTY_IDS: CategoryProductIds = { cincin: [], topeng: [], clicker: [] }
 
@@ -109,76 +109,78 @@ describe('buildShippingScheduleRows', () => {
 
 describe('pivotTableKeyFor', () => {
   it('merges every "2026"-named cincin listing into one "GL Ring 2026" table (found 2026-09-29: Shopee listing-name drift, e.g. "...3D Print V.2 New Color", was rendering as separate tables)', () => {
-    expect(pivotTableKeyFor(row({ product: 'GL Ring 2026 3D Print' }), DEFAULT_CINCIN_TABLE_GROUPS)).toEqual({ key: 'cincin:GL Ring 2026', title: 'GL Ring 2026' })
-    expect(pivotTableKeyFor(row({ product: 'GL Ring 3D Print v.2 New Color' }), DEFAULT_CINCIN_TABLE_GROUPS)).toEqual({ key: 'cincin:GL Ring 2026', title: 'GL Ring 2026' })
-    expect(pivotTableKeyFor(row({ product: 'GL Ring 3D Print V.2 New Color' }), DEFAULT_CINCIN_TABLE_GROUPS)).toEqual({ key: 'cincin:GL Ring 2026', title: 'GL Ring 2026' })
+    expect(pivotTableKeyFor(row({ product: 'GL Ring 2026 3D Print' }), DEFAULT_SHIPPING_TABLE_GROUPS)).toEqual({ key: 'table:GL Ring 2026', title: 'GL Ring 2026', rowBy: 'variant' })
+    expect(pivotTableKeyFor(row({ product: 'GL Ring 3D Print v.2 New Color' }), DEFAULT_SHIPPING_TABLE_GROUPS)).toEqual({ key: 'table:GL Ring 2026', title: 'GL Ring 2026', rowBy: 'variant' })
+    expect(pivotTableKeyFor(row({ product: 'GL Ring 3D Print V.2 New Color' }), DEFAULT_SHIPPING_TABLE_GROUPS)).toEqual({ key: 'table:GL Ring 2026', title: 'GL Ring 2026', rowBy: 'variant' })
   })
   it('merges every cosplay-named cincin listing into one "GL Ring Cosplay" table', () => {
-    expect(pivotTableKeyFor(row({ product: '3D Print GL Ring Cosplay' }), DEFAULT_CINCIN_TABLE_GROUPS)).toEqual({ key: 'cincin:GL Ring Cosplay', title: 'GL Ring Cosplay' })
-    expect(pivotTableKeyFor(row({ product: 'GL Ring Cosplay V.2' }), DEFAULT_CINCIN_TABLE_GROUPS)).toEqual({ key: 'cincin:GL Ring Cosplay', title: 'GL Ring Cosplay' })
+    expect(pivotTableKeyFor(row({ product: '3D Print GL Ring Cosplay' }), DEFAULT_SHIPPING_TABLE_GROUPS)).toEqual({ key: 'table:GL Ring Cosplay', title: 'GL Ring Cosplay', rowBy: 'variant' })
+    expect(pivotTableKeyFor(row({ product: 'GL Ring Cosplay V.2' }), DEFAULT_SHIPPING_TABLE_GROUPS)).toEqual({ key: 'table:GL Ring Cosplay', title: 'GL Ring Cosplay', rowBy: 'variant' })
   })
   it('folds any GL-branded listing with no "2026" token at all into the flagship GL Ring 2026 table', () => {
-    expect(pivotTableKeyFor(row({ product: 'GL Ring 3D Print v.2 New Color' }), DEFAULT_CINCIN_TABLE_GROUPS)).toEqual({ key: 'cincin:GL Ring 2026', title: 'GL Ring 2026' })
+    expect(pivotTableKeyFor(row({ product: 'GL Ring 3D Print v.2 New Color' }), DEFAULT_SHIPPING_TABLE_GROUPS)).toEqual({ key: 'table:GL Ring 2026', title: 'GL Ring 2026', rowBy: 'variant' })
   })
-  it('keeps a non-GL-branded ring model (different product, different size chart) as its own table', () => {
-    expect(pivotTableKeyFor(row({ product: 'Guy Gardner Ring' }), DEFAULT_CINCIN_TABLE_GROUPS)).toEqual({ key: 'cincin:Guy Gardner Ring', title: 'Guy Gardner Ring' })
+  it('falls back to the General table for a product matching no configured group, regardless of its auto-create category', () => {
+    expect(pivotTableKeyFor(row({ product: 'Guy Gardner Ring' }), DEFAULT_SHIPPING_TABLE_GROUPS)).toEqual({ key: 'general', title: 'General', rowBy: 'produk' })
+    expect(pivotTableKeyFor(row({ category: 'topeng', product: 'Topeng A' }), DEFAULT_SHIPPING_TABLE_GROUPS)).toEqual({ key: 'general', title: 'General', rowBy: 'produk' })
+    expect(pivotTableKeyFor(row({ category: 'general', product: 'Anything' }), DEFAULT_SHIPPING_TABLE_GROUPS)).toEqual({ key: 'general', title: 'General', rowBy: 'produk' })
   })
-  it('gives every other category ONE table regardless of product name', () => {
-    expect(pivotTableKeyFor(row({ category: 'topeng', product: 'Topeng A' }), DEFAULT_CINCIN_TABLE_GROUPS)).toEqual({ key: 'topeng', title: 'Topeng' })
-    expect(pivotTableKeyFor(row({ category: 'general', product: 'Anything' }), DEFAULT_CINCIN_TABLE_GROUPS)).toEqual({ key: 'general', title: 'General' })
+  it('matches a user-configured table regardless of category, and honors its rowBy', () => {
+    const groups: ShippingTableGroup[] = [{ title: 'Topeng', keywords: ['topeng'], rowBy: 'produk' }]
+    expect(pivotTableKeyFor(row({ category: 'topeng', product: 'Topeng Dr Doom' }), groups)).toEqual({ key: 'table:Topeng', title: 'Topeng', rowBy: 'produk' })
   })
 })
 
-describe('resolveCincinTableTitle', () => {
-  const groups: CincinTableGroup[] = [
-    { title: 'GL Ring Cosplay', keywords: ['cosplay'] },
-    { title: 'GL Ring 2026', keywords: ['gl', 'green lantern'] },
+describe('resolveShippingTableGroup', () => {
+  const groups: ShippingTableGroup[] = [
+    { title: 'GL Ring Cosplay', keywords: ['cosplay'], rowBy: 'variant' },
+    { title: 'GL Ring 2026', keywords: ['gl', 'green lantern'], rowBy: 'variant' },
   ]
 
   it('checks groups in order — Cosplay wins over the broader "gl" group for a Cosplay-named listing', () => {
-    expect(resolveCincinTableTitle('3D Print GL Ring Cosplay', groups)).toBe('GL Ring Cosplay')
+    expect(resolveShippingTableGroup('3D Print GL Ring Cosplay', groups)?.title).toBe('GL Ring Cosplay')
   })
 
   it('folds a listing into the first group whose keyword matches, case-insensitively', () => {
-    expect(resolveCincinTableTitle('GL Ring 3D Print v.2 New Color', groups)).toBe('GL Ring 2026')
+    expect(resolveShippingTableGroup('GL Ring 3D Print v.2 New Color', groups)?.title).toBe('GL Ring 2026')
   })
 
-  it('keeps a product matching no group keyword as its own table (raw name)', () => {
-    expect(resolveCincinTableTitle('Guy Gardner Ring', groups)).toBe('Guy Gardner Ring')
+  it('returns null for a product matching no group keyword', () => {
+    expect(resolveShippingTableGroup('Guy Gardner Ring', groups)).toBeNull()
   })
 
   it('ignores blank keywords', () => {
-    expect(resolveCincinTableTitle('Anything', [{ title: 'X', keywords: ['', '  '] }])).toBe('Anything')
+    expect(resolveShippingTableGroup('Anything', [{ title: 'X', keywords: ['', '  '], rowBy: 'produk' }])).toBeNull()
   })
 })
 
-describe('findDuplicateCincinKeyword', () => {
+describe('findDuplicateShippingKeyword', () => {
   it('returns null when every keyword belongs to a single group', () => {
-    expect(findDuplicateCincinKeyword(DEFAULT_CINCIN_TABLE_GROUPS)).toBeNull()
+    expect(findDuplicateShippingKeyword(DEFAULT_SHIPPING_TABLE_GROUPS)).toBeNull()
   })
 
   it('flags a keyword reused across two different groups ("1 produk hanya bisa 1 table")', () => {
-    const groups: CincinTableGroup[] = [
-      { title: 'GL Ring 2026', keywords: ['gl'] },
-      { title: 'GL Ring Cosplay', keywords: ['GL', 'cosplay'] },
+    const groups: ShippingTableGroup[] = [
+      { title: 'GL Ring 2026', keywords: ['gl'], rowBy: 'variant' },
+      { title: 'GL Ring Cosplay', keywords: ['GL', 'cosplay'], rowBy: 'variant' },
     ]
-    expect(findDuplicateCincinKeyword(groups)).toBe('GL')
+    expect(findDuplicateShippingKeyword(groups)).toBe('GL')
   })
 
   it('does not flag the same keyword repeated within the SAME group', () => {
-    const groups: CincinTableGroup[] = [{ title: 'GL Ring 2026', keywords: ['gl', 'GL'] }]
-    expect(findDuplicateCincinKeyword(groups)).toBeNull()
+    const groups: ShippingTableGroup[] = [{ title: 'GL Ring 2026', keywords: ['gl', 'GL'], rowBy: 'variant' }]
+    expect(findDuplicateShippingKeyword(groups)).toBeNull()
   })
 })
 
 describe('pivotRowLabel', () => {
-  it('is just the size for cincin', () => {
-    expect(pivotRowLabel(row({ category: 'cincin', size: '9' }))).toBe('9')
-    expect(pivotRowLabel(row({ category: 'cincin', size: null }))).toBe('Tanpa Ukuran')
+  it('is just the size/variant when rowBy is "variant"', () => {
+    expect(pivotRowLabel(row({ category: 'cincin', size: '9' }), 'variant')).toBe('9')
+    expect(pivotRowLabel(row({ category: 'cincin', size: null }), 'variant')).toBe('Tanpa Varian')
   })
-  it('is "product · variant" for non-cincin, avoiding collisions across unrelated products sharing a variant tabel', () => {
-    expect(pivotRowLabel(row({ category: 'general', product: 'Gantungan A', variantLabel: 'Hitam' }))).toBe('Gantungan A · Hitam')
-    expect(pivotRowLabel(row({ category: 'general', product: 'Gantungan B', variantLabel: 'Hitam' }))).toBe('Gantungan B · Hitam')
+  it('is "product · variant" when rowBy is "produk", avoiding collisions across unrelated products sharing a variant', () => {
+    expect(pivotRowLabel(row({ category: 'general', product: 'Gantungan A', size: null, variantLabel: 'Hitam' }), 'produk')).toBe('Gantungan A · Hitam')
+    expect(pivotRowLabel(row({ category: 'general', product: 'Gantungan B', size: null, variantLabel: 'Hitam' }), 'produk')).toBe('Gantungan B · Hitam')
   })
 })
 
@@ -187,10 +189,10 @@ describe('buildPivotTables', () => {
 
   it('builds a table with a numeric-sorted row per size, a Total row, and Total/orderNos on each cell', () => {
     const rows = [
-      row({ size: '10', dueDate: '2026-10-02T00:00:00.000Z', orderNo: 'SN2', priority: 'cepat' }),
-      row({ size: '9', dueDate: '2026-10-01T00:00:00.000Z', orderNo: 'SN1', priority: 'reguler' }),
+      row({ product: 'GL Ring 2026', size: '10', dueDate: '2026-10-02T00:00:00.000Z', orderNo: 'SN2', priority: 'cepat' }),
+      row({ product: 'GL Ring 2026', size: '9', dueDate: '2026-10-01T00:00:00.000Z', orderNo: 'SN1', priority: 'reguler' }),
     ]
-    const [table] = buildPivotTables(rows, cols, DEFAULT_CINCIN_TABLE_GROUPS)
+    const [table] = buildPivotTables(rows, cols, DEFAULT_SHIPPING_TABLE_GROUPS)
     expect(table.rows.map((r) => r.label)).toEqual(['9', '10'])
     expect(table.rows[0].cells['2026-10-01']).toEqual({ cepat: 0, reguler: 1, orderNos: ['SN1'] })
     expect(table.rows[1].cells['2026-10-02']).toEqual({ cepat: 1, reguler: 0, orderNos: ['SN2'] })
@@ -199,41 +201,46 @@ describe('buildPivotTables', () => {
   })
 
   it('drops a row whose due date is outside dateColumns, so Total always matches the visible cells', () => {
-    const rows = [row({ size: '9', dueDate: '2026-11-15T00:00:00.000Z' })]
-    const tables = buildPivotTables(rows, cols, DEFAULT_CINCIN_TABLE_GROUPS)
+    const rows = [row({ product: 'GL Ring 2026', size: '9', dueDate: '2026-11-15T00:00:00.000Z' })]
+    const tables = buildPivotTables(rows, cols, DEFAULT_SHIPPING_TABLE_GROUPS)
     expect(tables).toEqual([])
   })
 
   it('includes rows with no due date only when NO_DUE_DATE_COLUMN is explicitly in dateColumns', () => {
-    const rows = [row({ size: '9', dueDate: null })]
-    expect(buildPivotTables(rows, cols, DEFAULT_CINCIN_TABLE_GROUPS)).toEqual([])
-    const [table] = buildPivotTables(rows, [...cols, NO_DUE_DATE_COLUMN], DEFAULT_CINCIN_TABLE_GROUPS)
+    const rows = [row({ product: 'GL Ring 2026', size: '9', dueDate: null })]
+    expect(buildPivotTables(rows, cols, DEFAULT_SHIPPING_TABLE_GROUPS)).toEqual([])
+    const [table] = buildPivotTables(rows, [...cols, NO_DUE_DATE_COLUMN], DEFAULT_SHIPPING_TABLE_GROUPS)
     expect(table.rows[0].cells[NO_DUE_DATE_COLUMN].reguler).toBe(1)
   })
 
-  it('puts "Tanpa Ukuran" last even though it does not compare numerically', () => {
+  it('puts "Tanpa Varian" last even though it does not compare numerically', () => {
     const rows = [
-      row({ size: '9' }),
-      row({ size: null, orderNo: 'SN2' }),
-      row({ size: '7', orderNo: 'SN3' }),
+      row({ product: 'GL Ring 2026', size: '9' }),
+      row({ product: 'GL Ring 2026', size: null, orderNo: 'SN2' }),
+      row({ product: 'GL Ring 2026', size: '7', orderNo: 'SN3' }),
     ]
-    const [table] = buildPivotTables(rows, cols, DEFAULT_CINCIN_TABLE_GROUPS)
-    expect(table.rows.map((r) => r.label)).toEqual(['7', '9', 'Tanpa Ukuran'])
+    const [table] = buildPivotTables(rows, cols, DEFAULT_SHIPPING_TABLE_GROUPS)
+    expect(table.rows.map((r) => r.label)).toEqual(['7', '9', 'Tanpa Varian'])
   })
 
   it('omits a table whose grand total is zero across the visible date columns', () => {
-    const rows = [row({ dueDate: '2026-11-15T00:00:00.000Z' })] // outside cols -> dropped -> table would be empty
-    expect(buildPivotTables(rows, cols, DEFAULT_CINCIN_TABLE_GROUPS)).toEqual([])
+    const rows = [row({ product: 'GL Ring 2026', dueDate: '2026-11-15T00:00:00.000Z' })] // outside cols -> dropped -> table would be empty
+    expect(buildPivotTables(rows, cols, DEFAULT_SHIPPING_TABLE_GROUPS)).toEqual([])
   })
 
-  it('orders tables by category (cincin, topeng, clicker, general), then title within cincin', () => {
-    const rows = [
-      row({ category: 'general', product: 'X', wpId: 'w1' }),
-      row({ category: 'cincin', product: 'GL Ring Cosplay', wpId: 'w2' }),
-      row({ category: 'topeng', product: 'Y', wpId: 'w3' }),
-      row({ category: 'cincin', product: 'GL Ring 2026', wpId: 'w4' }),
+  it('orders tables in the order the groups are configured, General last regardless of match order', () => {
+    const groups: ShippingTableGroup[] = [
+      { title: 'GL Ring 2026', keywords: ['ring 2026'], rowBy: 'variant' },
+      { title: 'GL Ring Cosplay', keywords: ['cosplay'], rowBy: 'variant' },
+      { title: 'Topeng', keywords: ['topeng'], rowBy: 'produk' },
     ]
-    const tables = buildPivotTables(rows, cols, DEFAULT_CINCIN_TABLE_GROUPS)
+    const rows = [
+      row({ product: 'Anything', size: null, wpId: 'w1' }), // no group match -> General
+      row({ product: 'GL Ring Cosplay', wpId: 'w2' }),
+      row({ product: 'Topeng A', size: null, wpId: 'w3' }),
+      row({ product: 'GL Ring 2026', wpId: 'w4' }),
+    ]
+    const tables = buildPivotTables(rows, cols, groups)
     expect(tables.map((t) => t.title)).toEqual(['GL Ring 2026', 'GL Ring Cosplay', 'Topeng', 'General'])
   })
 })

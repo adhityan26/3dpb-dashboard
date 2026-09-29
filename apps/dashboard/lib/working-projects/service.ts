@@ -503,38 +503,39 @@ export async function setFastCouriers(couriers: string[]): Promise<void> {
   })
 }
 
-// CincinTableGroup + DEFAULT_CINCIN_TABLE_GROUPS live in shipping-schedule.ts
-// (not here) — that module has no server-only dependency (no `prisma`
-// import), so client components (the Settings card, the Jadwal Kirim tab)
-// can safely import the default value from it. Importing it from THIS file
-// instead would pull `@/lib/db` (Prisma) into the client bundle.
-export type { CincinTableGroup } from './shipping-schedule'
-export { DEFAULT_CINCIN_TABLE_GROUPS } from './shipping-schedule'
+// ShippingTableGroup + DEFAULT_SHIPPING_TABLE_GROUPS live in
+// shipping-schedule.ts (not here) — that module has no server-only
+// dependency (no `prisma` import), so client components (the Settings
+// card, the Jadwal Kirim tab) can safely import the default value from it.
+// Importing it from THIS file instead would pull `@/lib/db` (Prisma) into
+// the client bundle.
+export type { ShippingTableGroup } from './shipping-schedule'
+export { DEFAULT_SHIPPING_TABLE_GROUPS } from './shipping-schedule'
 
-const CINCIN_TABLE_GROUPS_KEY = 'workingProjects.cincinTableGroups'
+const SHIPPING_TABLE_GROUPS_KEY = 'workingProjects.shippingTableGroups'
 
-// User-maintained (Settings > Jadwal Kirim) grouping of which cincin
-// product listings collapse into the same pivot table — added 2026-09-29
-// after Shopee listing-name drift ("...3D Print V.2 New Color") kept
-// rendering as separate tables from "...2026 3D Print" for the same
-// physical ring; hardcoding the keyword list needed a deploy every time a
-// new listing-name variant showed up, so it's configurable instead.
-export async function getCincinTableGroups(): Promise<CincinTableGroup[]> {
-  const row = await prisma.config.findUnique({ where: { key: CINCIN_TABLE_GROUPS_KEY } })
-  if (!row?.value) return DEFAULT_CINCIN_TABLE_GROUPS
+// User-maintained (Settings > Jadwal Kirim) list of which pivot tables
+// exist and which products (by keyword) fall into each — generalized
+// 2026-09-30 from a cincin-only grouping (which only solved Shopee
+// listing-name drift for GL Ring, e.g. "...3D Print V.2 New Color" vs
+// "...2026 3D Print") into a table system covering every product: any
+// product not matched by a configured keyword falls into "General".
+export async function getShippingTableGroups(): Promise<ShippingTableGroup[]> {
+  const row = await prisma.config.findUnique({ where: { key: SHIPPING_TABLE_GROUPS_KEY } })
+  if (!row?.value) return DEFAULT_SHIPPING_TABLE_GROUPS
   try {
     const parsed = JSON.parse(row.value)
-    return Array.isArray(parsed) ? parsed : DEFAULT_CINCIN_TABLE_GROUPS
+    return Array.isArray(parsed) ? parsed : DEFAULT_SHIPPING_TABLE_GROUPS
   } catch {
-    return DEFAULT_CINCIN_TABLE_GROUPS
+    return DEFAULT_SHIPPING_TABLE_GROUPS
   }
 }
 
-export async function setCincinTableGroups(groups: CincinTableGroup[]): Promise<void> {
+export async function setShippingTableGroups(groups: ShippingTableGroup[]): Promise<void> {
   await prisma.config.upsert({
-    where: { key: CINCIN_TABLE_GROUPS_KEY },
+    where: { key: SHIPPING_TABLE_GROUPS_KEY },
     update: { value: JSON.stringify(groups) },
-    create: { key: CINCIN_TABLE_GROUPS_KEY, value: JSON.stringify(groups) },
+    create: { key: SHIPPING_TABLE_GROUPS_KEY, value: JSON.stringify(groups) },
   })
 }
 

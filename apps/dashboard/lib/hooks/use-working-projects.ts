@@ -251,32 +251,35 @@ export function useShopeeProductCatalog() {
   return { ...query, data: query.data?.products, isLoading: query.isLoading }
 }
 
-export interface CincinTableGroup {
+export type ShippingTableRowBy = "variant" | "produk"
+
+export interface ShippingTableGroup {
   title: string
   keywords: string[]
+  rowBy: ShippingTableRowBy
 }
 
-export const CINCIN_TABLE_GROUPS_KEY = ["working-projects", "settings", "cincin-table-groups"] as const
+export const SHIPPING_TABLE_GROUPS_KEY = ["working-projects", "settings", "shipping-table-groups"] as const
 
-export function useCincinTableGroups() {
+export function useShippingTableGroups() {
   const query = useQuery({
-    queryKey: CINCIN_TABLE_GROUPS_KEY,
-    queryFn: () => apiFetch<{ groups: CincinTableGroup[] }>("/api/working-projects/settings/cincin-table-groups"),
+    queryKey: SHIPPING_TABLE_GROUPS_KEY,
+    queryFn: () => apiFetch<{ groups: ShippingTableGroup[] }>("/api/working-projects/settings/shipping-table-groups"),
   })
   return { ...query, data: query.data?.groups, isLoading: query.isLoading }
 }
 
-export function useUpdateCincinTableGroups() {
+export function useUpdateShippingTableGroups() {
   const queryClient = useQueryClient()
   return useMutation({
-    mutationFn: (groups: CincinTableGroup[]) =>
-      apiFetch("/api/working-projects/settings/cincin-table-groups", {
+    mutationFn: (groups: ShippingTableGroup[]) =>
+      apiFetch("/api/working-projects/settings/shipping-table-groups", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ groups }),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: CINCIN_TABLE_GROUPS_KEY })
+      queryClient.invalidateQueries({ queryKey: SHIPPING_TABLE_GROUPS_KEY })
     },
   })
 }

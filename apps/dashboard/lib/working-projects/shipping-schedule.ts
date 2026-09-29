@@ -1,24 +1,35 @@
 import type { WorkingProject } from '@/lib/hooks/use-working-projects'
 import { splitProductVariants, variantShort, isGLRing, resolveVariantEntrySize } from './format'
-import { detectProductCategory, PRODUCT_CATEGORIES, type ProductCategory, type CategoryProductIds } from './category'
+import { detectProductCategory, type ProductCategory, type CategoryProductIds } from './category'
 import { isFastCourier } from './courier'
 
 export type ScheduleCategory = ProductCategory | 'general'
 
-export interface CincinTableGroup {
+export type ShippingTableRowBy = 'variant' | 'produk'
+
+export interface ShippingTableGroup {
   title: string
   keywords: string[]
+  // 'variant' = one row per resolved size/variant (e.g. ring sizes) — use
+  // when the group's keywords already narrow it down to one physical
+  // product. 'produk' = one row per "product · variant" instead, since a
+  // group whose keywords match several different products needs the
+  // product name in the row to avoid unrelated products' rows colliding
+  // (e.g. two different items both having a "Hitam" variant).
+  rowBy: ShippingTableRowBy
 }
 
 // Checked top-to-bottom, first matching keyword wins — Cosplay must come
 // before the generic GL keyword so a Cosplay listing's "GL Ring Cosplay"
 // name doesn't get grabbed by the broader "gl" match first. A product
-// matching none of these keeps its own table under its raw name (see
-// resolveCincinTableTitle below).
-export const DEFAULT_CINCIN_TABLE_GROUPS: CincinTableGroup[] = [
-  { title: 'GL Ring Cosplay', keywords: ['cosplay'] },
-  { title: 'GL Ring 2026', keywords: ['gl', 'green lantern'] },
+// matching none of these groups falls into the "General" table instead
+// (see resolveShippingTableGroup below) — General itself isn't configurable.
+export const DEFAULT_SHIPPING_TABLE_GROUPS: ShippingTableGroup[] = [
+  { title: 'GL Ring Cosplay', keywords: ['cosplay'], rowBy: 'variant' },
+  { title: 'GL Ring 2026', keywords: ['gl', 'green lantern'], rowBy: 'variant' },
 ]
+
+export const GENERAL_TABLE_TITLE = 'General'
 
 export interface ShippingScheduleRow {
   wpId: string
@@ -120,48 +131,29 @@ export function buildShippingScheduleRows(
   return rows
 }
 
-export const SCHEDULE_CATEGORY_ORDER: ScheduleCategory[] = [...PRODUCT_CATEGORIES, 'general']
-
-const CATEGORY_TABLE_TITLE: Record<Exclude<ScheduleCategory, 'cincin'>, string> = {
-  topeng: 'Topeng',
-  clicker: 'Clicker',
-  general: 'General',
-}
-
 export const NO_DUE_DATE_COLUMN = 'no-date'
 
 /**
- * Which pivot table a row belongs to, and that table's display title.
- *
- * Cincin gets one table PER PRODUCT (its exact `product` short name, e.g.
- * "GL Ring 2026" vs "GL Ring Cosplay" are separate tables) — these are a
- * small, stable catalog. Every other category gets ONE table for the whole
- * category instead, decided 2026-09-29: non-cincin product names vary
- * per-order (custom items), so per-product tables there would fragment
- * into many one-row tables. Their variant (color etc.) becomes the row
- * instead — see pivotRowLabel.
- */
-/**
- * Which pivot table title a cincin product folds into, per the user-
- * maintained groups (Settings > Jadwal Kirim, see CincinTableGroup in
- * service.ts) — added 2026-09-29 after Shopee listing-name drift
- * ("Green Lantern Ring 2026 3D Print" vs "...3D Print V.2 New Color", the
- * latter not even saying "2026") kept rendering as separate tables for the
- * same physical ring; a fixed keyword regex needed a deploy every time a
- * new listing-name variant showed up, so it's configurable instead.
+ * Which user-configured group a product falls into, per the user-maintained
+ * table list (Settings > Jadwal Kirim, see ShippingTableGroup in
+ * service.ts) — replaces the old fixed Cincin/Topeng/Clicker/General
+ * category-to-table mapping (2026-09-29): tables are now entirely
+ * user-defined, independent of the auto-create category, so any product can
+ * be grouped into any table by keyword. A product matching no group's
+ * keywords falls into the always-present "General" table instead.
  *
  * `groups` is checked top-to-bottom, first matching keyword (case-
- * insensitive substring) wins — lets "Cosplay" be listed before a broader
- * "gl"/"green lantern" group so a Cosplay listing's own "GL Ring Cosplay"
- * name doesn't get grabbed by the broader group first. A product matching
- * no group's keywords keeps its own table under its raw name.
+ * insensitive substring against the row's short product name) wins — lets
+ * a narrower group (e.g. "Cosplay") be listed before a broader one (e.g.
+ * "gl"/"green lantern") so a Cosplay listing's own "GL Ring Cosplay" name
+ * doesn't get grabbed by the broader group first.
  */
-export function resolveCincinTableTitle(product: string, groups: CincinTableGroup[]): string {
+export function resolveShippingTableGroup(product: string, groups: ShippingTableGroup[]): ShippingTableGroup | null {
   const lower = product.toLowerCase()
   for (const group of groups) {
-    if (group.keywords.some((k) => k.trim() && lower.includes(k.trim().toLowerCase()))) return group.title
+    if (group.keywords.some((k) => k.trim() && lower.includes(k.trim().toLowerCase()))) return group
   }
-  return product
+  return null
 }
 
 /**
@@ -170,9 +162,9 @@ export function resolveCincinTableTitle(product: string, groups: CincinTableGrou
  * wins) rather than an explicit choice — the constraint the Settings UI
  * enforces ("1 produk hanya bisa 1 table"). Returns the first conflicting
  * keyword found, or null when every keyword belongs to at most one group.
- * Comparison is case-insensitive/trimmed, matching resolveCincinTableTitle.
+ * Comparison is case-insensitive/trimmed, matching resolveShippingTableGroup.
  */
-export function findDuplicateCincinKeyword(groups: CincinTableGroup[]): string | null {
+export function findDuplicateShippingKeyword(groups: ShippingTableGroup[]): string | null {
   const seen = new Map<string, string>() // normalized keyword -> group title that claimed it first
   for (const group of groups) {
     for (const raw of group.keywords) {
@@ -186,24 +178,24 @@ export function findDuplicateCincinKeyword(groups: CincinTableGroup[]): string |
   return null
 }
 
-export function pivotTableKeyFor(row: ShippingScheduleRow, cincinGroups: CincinTableGroup[]): { key: string; title: string } {
-  if (row.category === 'cincin') {
-    const title = resolveCincinTableTitle(row.product, cincinGroups)
-    return { key: `cincin:${title}`, title }
-  }
-  return { key: row.category, title: CATEGORY_TABLE_TITLE[row.category] }
+export function pivotTableKeyFor(row: ShippingScheduleRow, groups: ShippingTableGroup[]): { key: string; title: string; rowBy: ShippingTableRowBy } {
+  const group = resolveShippingTableGroup(row.product, groups)
+  if (group) return { key: `table:${group.title}`, title: group.title, rowBy: group.rowBy }
+  return { key: 'general', title: GENERAL_TABLE_TITLE, rowBy: 'produk' }
 }
 
 /**
- * The row-grouping label within a pivot table: size for cincin. Non-cincin
- * tables group by CATEGORY (not product), so the variant alone can collide
- * across unrelated products — "Hitam" on two different custom items would
- * otherwise merge into one row (found in Opus review 2026-09-29) — so the
- * label is prefixed with the product name there.
+ * The row-grouping label within a pivot table, per the table's configured
+ * `rowBy`: 'variant' shows just the resolved size/variant (a table whose
+ * keywords already narrow it to one physical product), 'produk' prefixes
+ * the product name too — needed when a table's keywords match several
+ * different products, since the variant alone can collide across them
+ * ("Hitam" on two different custom items would otherwise merge into one
+ * row, found in Opus review 2026-09-29).
  */
-export function pivotRowLabel(row: ShippingScheduleRow): string {
-  if (row.category === 'cincin') return row.size ?? 'Tanpa Ukuran'
-  const variant = row.variantLabel ?? 'Tanpa Varian'
+export function pivotRowLabel(row: ShippingScheduleRow, rowBy: ShippingTableRowBy): string {
+  const variant = row.size ?? row.variantLabel ?? 'Tanpa Varian'
+  if (rowBy === 'variant') return variant
   return `${row.product} · ${variant}`
 }
 
@@ -266,7 +258,7 @@ function compareRowLabels(a: string, b: string): number {
  * all (as a real column, at the end) — omit it to drop them instead.
  * Tables whose grand total is zero across all `dateColumns` are omitted.
  */
-export function buildPivotTables(rows: ShippingScheduleRow[], dateColumns: string[], cincinGroups: CincinTableGroup[]): PivotTableData[] {
+export function buildPivotTables(rows: ShippingScheduleRow[], dateColumns: string[], groups: ShippingTableGroup[]): PivotTableData[] {
   const dateColumnSet = new Set(dateColumns)
   const tables = new Map<string, { title: string; rows: Map<string, PivotRowData> }>()
 
@@ -274,11 +266,11 @@ export function buildPivotTables(rows: ShippingScheduleRow[], dateColumns: strin
     const dateCol = r.dueDate ? r.dueDate.slice(0, 10) : NO_DUE_DATE_COLUMN
     if (!dateColumnSet.has(dateCol)) continue
 
-    const { key, title } = pivotTableKeyFor(r, cincinGroups)
+    const { key, title, rowBy } = pivotTableKeyFor(r, groups)
     if (!tables.has(key)) tables.set(key, { title, rows: new Map() })
     const table = tables.get(key)!
 
-    const label = pivotRowLabel(r)
+    const label = pivotRowLabel(r, rowBy)
     if (!table.rows.has(label)) table.rows.set(label, { label, cells: {}, total: emptyCell() })
     const row = table.rows.get(label)!
 
@@ -289,7 +281,9 @@ export function buildPivotTables(rows: ShippingScheduleRow[], dateColumns: strin
     row.total.orderNos.push(r.orderNo)
   }
 
-  const categoryRank = new Map(SCHEDULE_CATEGORY_ORDER.map((c, i) => [c, i]))
+  // Tables render in the order the user configured them in Settings —
+  // General (never configured, no matching keyword) always comes last.
+  const groupRank = new Map(groups.map((g, i) => [`table:${g.title}`, i]))
 
   return [...tables.entries()]
     .map(([key, table]) => {
@@ -302,14 +296,10 @@ export function buildPivotTables(rows: ShippingScheduleRow[], dateColumns: strin
         }
       }
       for (const row of rowsSorted) addCell(totalRow.total, row.total)
-      return { key, title: table.title, dateColumns, rows: rowsSorted, totalRow, category: key.startsWith('cincin:') ? 'cincin' : (key as ScheduleCategory) }
+      return { key, title: table.title, dateColumns, rows: rowsSorted, totalRow }
     })
     .filter((t) => t.totalRow.total.cepat + t.totalRow.total.reguler > 0)
-    .sort((a, b) => {
-      const rankDiff = (categoryRank.get(a.category) ?? 99) - (categoryRank.get(b.category) ?? 99)
-      return rankDiff !== 0 ? rankDiff : a.title.localeCompare(b.title, 'id')
-    })
-    .map(({ category: _category, ...t }) => t)
+    .sort((a, b) => (groupRank.get(a.key) ?? Infinity) - (groupRank.get(b.key) ?? Infinity))
 }
 
 // Hard cap so an accidental huge range (e.g. a full year) can't render

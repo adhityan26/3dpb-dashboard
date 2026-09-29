@@ -25,7 +25,7 @@ import { CategoryProductIdsCard } from "@/components/settings/CategoryProductIds
 import { AutoCreateWorkingProjectsCard } from "@/components/settings/AutoCreateWorkingProjectsCard"
 import { StatusSyncCard } from "@/components/settings/StatusSyncCard"
 import { FastCouriersCard } from "@/components/settings/FastCouriersCard"
-import { CincinTableGroupsCard } from "@/components/settings/CincinTableGroupsCard"
+import { ShippingTableGroupsCard } from "@/components/settings/ShippingTableGroupsCard"
 import { useSettings } from "@/lib/hooks/use-settings"
 import { useSession } from "next-auth/react"
 import { Button } from "@/components/ui/button"
@@ -182,7 +182,7 @@ function SettingsPageInner() {
             <GLRingProductIdsCard />
             <CategoryProductIdsCard category="topeng" title="🎭 Produk Topeng" productLabel="produk Topeng" />
             <CategoryProductIdsCard category="clicker" title="📸 Produk Clicker" productLabel="produk Clicker" />
-            <CincinTableGroupsCard />
+            <ShippingTableGroupsCard />
             <FastCouriersCard />
           </div>
         )}

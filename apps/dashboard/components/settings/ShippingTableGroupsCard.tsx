@@ -3,29 +3,31 @@
 import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { useCincinTableGroups, useUpdateCincinTableGroups, type CincinTableGroup } from "@/lib/hooks/use-working-projects"
+import { useShippingTableGroups, useUpdateShippingTableGroups, type ShippingTableGroup, type ShippingTableRowBy } from "@/lib/hooks/use-working-projects"
 
 interface EditableGroup {
   title: string
   keywordsText: string // one keyword per line, edited as free text
+  rowBy: ShippingTableRowBy
 }
 
-function toEditable(groups: CincinTableGroup[]): EditableGroup[] {
-  return groups.map((g) => ({ title: g.title, keywordsText: g.keywords.join("\n") }))
+function toEditable(groups: ShippingTableGroup[]): EditableGroup[] {
+  return groups.map((g) => ({ title: g.title, keywordsText: g.keywords.join("\n"), rowBy: g.rowBy }))
 }
 
-function toGroups(editable: EditableGroup[]): CincinTableGroup[] {
+function toGroups(editable: EditableGroup[]): ShippingTableGroup[] {
   return editable.map((g) => ({
     title: g.title.trim(),
     keywords: g.keywordsText.split(/[\n,]/).map((k) => k.trim()).filter(Boolean),
+    rowBy: g.rowBy,
   }))
 }
 
 // Finds a keyword reused across two different groups (mirrors
-// findDuplicateCincinKeyword in lib/working-projects/shipping-schedule.ts
+// findDuplicateShippingKeyword in lib/working-projects/shipping-schedule.ts
 // — duplicated here as a client-side pre-check so the error shows before
 // the round-trip to the server's own validation).
-function findDuplicateKeyword(groups: CincinTableGroup[]): string | null {
+function findDuplicateKeyword(groups: ShippingTableGroup[]): string | null {
   const seen = new Map<string, string>()
   for (const g of groups) {
     for (const raw of g.keywords) {
@@ -39,14 +41,16 @@ function findDuplicateKeyword(groups: CincinTableGroup[]): string | null {
   return null
 }
 
-// User-maintained grouping for the "Jadwal Kirim" tab's cincin pivot
-// tables — which product listings (Shopee names drift over time, e.g.
-// "...3D Print V.2 New Color") collapse into the same table. Each keyword
-// may belong to only one group ("1 produk hanya bisa 1 table") — enforced
-// both here (before saving) and server-side.
-export function CincinTableGroupsCard() {
-  const { data: groups, isLoading } = useCincinTableGroups()
-  const updateMutation = useUpdateCincinTableGroups()
+// User-maintained table list for the "Jadwal Kirim" tab — which tables
+// exist, which products (by keyword) fall into each, and whether each
+// table's rows are grouped by variant/size or by product. A product not
+// matched by any group's keywords falls into the "General" table, which
+// always exists and isn't configured here. Each keyword may belong to only
+// one group ("1 produk hanya bisa 1 table") — enforced both here (before
+// saving) and server-side.
+export function ShippingTableGroupsCard() {
+  const { data: groups, isLoading } = useShippingTableGroups()
+  const updateMutation = useUpdateShippingTableGroups()
   const [editable, setEditable] = useState<EditableGroup[]>([])
   const [error, setError] = useState<string | null>(null)
   const [saved, setSaved] = useState(false)
@@ -66,7 +70,7 @@ export function CincinTableGroupsCard() {
   }
 
   function addGroup() {
-    setEditable((prev) => [...prev, { title: "", keywordsText: "" }])
+    setEditable((prev) => [...prev, { title: "", keywordsText: "", rowBy: "produk" }])
   }
 
   function removeGroup(index: number) {
@@ -91,15 +95,17 @@ export function CincinTableGroupsCard() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">🗂️ Pengelompokan Tabel Cincin (Jadwal Kirim)</CardTitle>
+        <CardTitle className="text-base">🗂️ Pengelompokan Tabel (Jadwal Kirim)</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-xs text-gray-500">
-          Listing produk cincin di Shopee suka beda-beda nama untuk barang yang sama (mis. &quot;...3D
-          Print&quot; vs &quot;...3D Print V.2 New Color&quot;). Atur di sini kata kunci apa saja yang
-          digabung jadi satu tabel di tab Jadwal Kirim. Dicek dari atas ke bawah — grup di atas menang
-          duluan kalau nama produk cocok beberapa kata kunci. Produk yang tidak cocok kata kunci mana
-          pun tetap dapat tabel sendiri. Satu kata kunci hanya boleh dipakai di satu grup.
+          Atur tabel apa saja yang muncul di tab Jadwal Kirim, produk apa saja (kata kunci) yang masuk
+          ke tiap tabel, dan cara baris tabel itu dikelompokkan — &quot;Ukuran/Varian&quot; kalau tabel itu
+          cuma untuk satu produk (baris = ukuran/varian saja), atau &quot;Produk&quot; kalau tabel itu
+          menampung beberapa produk berbeda (baris = nama produk + varian, biar tidak ketuker). Dicek
+          dari atas ke bawah — tabel di atas menang duluan kalau nama produk cocok beberapa kata kunci.
+          Produk yang tidak cocok kata kunci mana pun otomatis masuk tabel &quot;General&quot;. Satu kata
+          kunci hanya boleh dipakai di satu tabel.
         </p>
         {isLoading ? (
           <div className="text-xs text-gray-500">Memuat...</div>
@@ -108,13 +114,24 @@ export function CincinTableGroupsCard() {
             {editable.map((g, i) => (
               <div key={i} className="flex gap-2 items-start rounded-[5px] p-3" style={{ background: "var(--g-card)", border: "1px solid var(--g-card-border)" }}>
                 <div className="flex-1 space-y-2">
-                  <input
-                    type="text"
-                    value={g.title}
-                    onChange={(e) => updateGroup(i, { title: e.target.value })}
-                    placeholder="Nama tabel, mis. GL Ring 2026"
-                    className="glass-input w-full h-9 rounded-[5px] px-3 text-sm"
-                  />
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={g.title}
+                      onChange={(e) => updateGroup(i, { title: e.target.value })}
+                      placeholder="Nama tabel, mis. GL Ring 2026"
+                      className="glass-input flex-1 h-9 rounded-[5px] px-3 text-sm"
+                    />
+                    <select
+                      value={g.rowBy}
+                      onChange={(e) => updateGroup(i, { rowBy: e.target.value as ShippingTableRowBy })}
+                      className="glass-input h-9 rounded-[5px] px-2 text-sm"
+                      title="Baris tabel dikelompokkan berdasarkan"
+                    >
+                      <option value="variant">Baris: Ukuran/Varian</option>
+                      <option value="produk">Baris: Produk</option>
+                    </select>
+                  </div>
                   <textarea
                     value={g.keywordsText}
                     onChange={(e) => updateGroup(i, { keywordsText: e.target.value })}
@@ -126,7 +143,7 @@ export function CincinTableGroupsCard() {
                 <Button size="sm" variant="outline" onClick={() => removeGroup(i)}>Hapus</Button>
               </div>
             ))}
-            <Button size="sm" variant="outline" onClick={addGroup}>+ Tambah Grup</Button>
+            <Button size="sm" variant="outline" onClick={addGroup}>+ Tambah Tabel</Button>
           </div>
         )}
         <div className="flex items-center gap-3">

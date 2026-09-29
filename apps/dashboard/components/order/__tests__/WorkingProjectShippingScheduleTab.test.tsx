@@ -28,7 +28,7 @@ vi.mock('@/lib/hooks/use-working-projects', () => ({
   useGLRingProductIds: () => ({ data: [], isLoading: false }),
   useCategoryProductIds: () => ({ data: [], isLoading: false }),
   useFastCouriers: () => ({ data: ['anteraja'], isLoading: false }),
-  useCincinTableGroups: () => ({ data: undefined, isLoading: false }),
+  useShippingTableGroups: () => ({ data: undefined, isLoading: false }),
 }))
 
 import { WorkingProjectShippingScheduleTab } from '../WorkingProjectShippingScheduleTab'
