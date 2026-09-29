@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { useCategoryProductIds, useUpdateCategoryProductIds, type AutoRoutedCategory } from "@/lib/hooks/use-working-projects"
+import { ShopeeProductIdPicker } from "./ShopeeProductIdPicker"
 
 // Same idea as GLRingProductIdsCard, generalized for the auto-routed
 // categories other than cincin (which keeps its own dedicated card/route —
@@ -19,11 +20,11 @@ export function CategoryProductIdsCard({
 }) {
   const { data: productIds, isLoading } = useCategoryProductIds(category)
   const updateMutation = useUpdateCategoryProductIds(category)
-  const [text, setText] = useState("")
+  const [ids, setIds] = useState<string[]>([])
   const [saved, setSaved] = useState(false)
 
   useEffect(() => {
-    if (productIds) setText(productIds.join("\n"))
+    if (productIds) setIds(productIds)
   }, [productIds])
 
   useEffect(() => {
@@ -34,10 +35,6 @@ export function CategoryProductIdsCard({
 
   function handleSave() {
     setSaved(false)
-    const ids = text
-      .split(/[\n,]/)
-      .map((s) => s.trim())
-      .filter(Boolean)
     updateMutation.mutate(ids, { onSuccess: () => setSaved(true) })
   }
 
@@ -48,20 +45,14 @@ export function CategoryProductIdsCard({
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-gray-500">
-          Shopee Item ID (angka di URL produk) yang dianggap sebagai {productLabel} — dipakai untuk
-          auto-create Working Project ke forum Discord yang benar. Satu ID per baris. Kalau kosong,
-          deteksi jatuh ke nama produk saja (kata &quot;{productLabel.split(" ")[0].toLowerCase()}&quot; di nama produk).
+          Produk Shopee yang dianggap sebagai {productLabel} — dipakai untuk auto-create
+          Working Project ke forum Discord yang benar. Cari nama produknya di bawah. Kalau
+          kosong, deteksi jatuh ke nama produk saja (kata &quot;{productLabel.split(" ")[0].toLowerCase()}&quot; di nama produk).
         </p>
         {isLoading ? (
           <div className="text-xs text-gray-500">Memuat...</div>
         ) : (
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={"46464886596\n12345678901"}
-            rows={5}
-            className="w-full rounded-[5px] px-3 py-2 text-sm font-mono glass-input"
-          />
+          <ShopeeProductIdPicker ids={ids} onChange={setIds} />
         )}
         <div className="flex items-center gap-3">
           <Button
