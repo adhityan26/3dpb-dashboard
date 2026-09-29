@@ -192,8 +192,11 @@ describe('WorkingProjectGLRingTab', () => {
     expect(breakdownTable.getByText('GL Ring 2026')).toBeInTheDocument()
     const row = within(breakdownTable.getByText('US 7').closest('tr') as HTMLElement)
     const cells = row.getAllByRole('cell')
-    expect(cells[1].textContent).toBe('1/1✓ Pas') // Print Frame, done == total
-    expect(cells[2].textContent).toBe('0/1-1') // Print Stone, still short by 1
+    expect(cells[2].textContent).toBe('1/1✓ Pas') // Print Frame, done == total
+    expect(cells[3].textContent).toBe('0/1-1') // Print Stone, still short by 1
+    // Total column (now first) flags cetak/cat as a whole, not just Print Frame
+    expect(cells[0].textContent).toContain('🖨️ Belum') // Print Stone/Ring not done yet
+    expect(cells[0].textContent).toContain('🎨 Belum') // no Cat step done at all
   })
 })
 

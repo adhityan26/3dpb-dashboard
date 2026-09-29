@@ -31,6 +31,8 @@ const DEFAULT_HIDDEN_STATUSES = new Set(['Done', 'Canceled'])
 
 const STEP_TYPES = ['Print Frame', 'Print Stone', 'Print Ring', 'Cat Frame', 'Cat Stone', 'Cat Ring', 'Assembly'] as const
 type StepType = (typeof STEP_TYPES)[number]
+const PRINT_STEPS: StepType[] = ['Print Frame', 'Print Stone', 'Print Ring']
+const CAT_STEPS: StepType[] = ['Cat Frame', 'Cat Stone', 'Cat Ring']
 
 type SortColumn = 'dueDate' | 'orderDate' | 'orderNo' | 'platform' | 'variant' | 'usSize' | 'status'
 type SortDir = 'asc' | 'desc'
@@ -362,16 +364,23 @@ export function WorkingProjectGLRingTab() {
             if (aEmpty !== bEmpty) return aEmpty ? 1 : -1
             return a.localeCompare(b, 'id', { numeric: true })
           })
-          .map(([label, subRowsForLabel]) => ({
-            label,
-            total: subRowsForLabel.length,
+          .map(([label, subRowsForLabel]) => {
             // delta = done - total: negative means that many pieces still
             // need to be printed/dicek for this step, 0 means already pas.
-            steps: STEP_TYPES.map(s => {
+            const steps = STEP_TYPES.map(s => {
               const done = subRowsForLabel.filter(r => r.checklistDone[s]).length
               return { step: s, done, delta: done - subRowsForLabel.length }
-            }),
-          }))
+            })
+            return {
+              label,
+              total: subRowsForLabel.length,
+              steps,
+              // Flags for the Total column — "sudah cetak semua" / "sudah cat
+              // semua" without needing to read the individual step counts.
+              printDone: PRINT_STEPS.every(s => steps.find(st => st.step === s)!.delta === 0),
+              catDone: CAT_STEPS.every(s => steps.find(st => st.step === s)!.delta === 0),
+            }
+          })
         return { title: table.title, subRows }
       })
   }, [rows, tableGroups])
@@ -419,10 +428,10 @@ export function WorkingProjectGLRingTab() {
               <table className="min-w-full border-collapse text-xs">
                 <thead className="uppercase" style={{ background: 'var(--g-card)' }}>
                   <tr>
+                    <th className={`${thBase} text-center`}>Total</th>
                     <th className={thBase}>Produk</th>
                     <th className={thBase}>Ukuran</th>
                     {STEP_TYPES.map(s => <th key={s} className={`${thBase} text-center`}>{s}</th>)}
-                    <th className={`${thBase} text-center`}>Total</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -433,6 +442,25 @@ export function WorkingProjectGLRingTab() {
                       </tr>
                       {table.subRows.map(sub => (
                         <tr key={sub.label} className="border-b dark:border-white/5 border-black/5">
+                          <td className={`${tdBase} text-center`}>
+                            <div className="flex items-center justify-center gap-1.5">
+                              <b className="g-t1">{sub.total}</b>
+                              <span
+                                className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium ${sub.printDone ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' : 'g-t4'}`}
+                                style={sub.printDone ? undefined : { background: 'var(--g-card)', border: '1px solid var(--g-card-border)' }}
+                                title={sub.printDone ? 'Semua sudah dicetak' : 'Masih ada yang belum dicetak'}
+                              >
+                                🖨️ {sub.printDone ? 'Sudah' : 'Belum'}
+                              </span>
+                              <span
+                                className={`inline-block px-1.5 py-0.5 rounded-full text-[10px] font-medium ${sub.catDone ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300' : 'g-t4'}`}
+                                style={sub.catDone ? undefined : { background: 'var(--g-card)', border: '1px solid var(--g-card-border)' }}
+                                title={sub.catDone ? 'Semua sudah dicat' : 'Masih ada yang belum dicat'}
+                              >
+                                🎨 {sub.catDone ? 'Sudah' : 'Belum'}
+                              </span>
+                            </div>
+                          </td>
                           <td className={tdBase} colSpan={2}>{sub.label}</td>
                           {sub.steps.map(({ step: s, done, delta }) => (
                             <td key={s} className={`${tdBase} text-center`}>
@@ -456,7 +484,6 @@ export function WorkingProjectGLRingTab() {
                               </div>
                             </td>
                           ))}
-                          <td className={`${tdBase} text-center g-t1`}><b>{sub.total}</b></td>
                         </tr>
                       ))}
                     </Fragment>
