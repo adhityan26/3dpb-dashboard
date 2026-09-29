@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 vi.mock('@/lib/db', () => ({ prisma: { workingProject: { findMany: vi.fn() } } }))
 vi.mock('@/lib/shopee/orders', () => ({ getOrderDetail: vi.fn() }))
 vi.mock('@/lib/tokopedia/orders', () => ({ getOrderById: vi.fn() }))
+vi.mock('@/lib/tokopedia/parse', () => ({ parseOrder: vi.fn() }))
 vi.mock('../service', () => ({
   updateWorkingProject: vi.fn(),
   getStatusSyncLastRunDate: vi.fn(),
@@ -18,6 +19,7 @@ import {
 import { prisma } from '@/lib/db'
 import { getOrderDetail } from '@/lib/shopee/orders'
 import { getOrderById } from '@/lib/tokopedia/orders'
+import { parseOrder } from '@/lib/tokopedia/parse'
 import { updateWorkingProject, getStatusSyncLastRunDate, setStatusSyncLastRunDate } from '../service'
 
 beforeEach(() => {
@@ -119,6 +121,63 @@ describe('syncWorkingProjectStatusFromMarketplace', () => {
     const result = await syncWorkingProjectStatusFromMarketplace()
 
     expect(result).toEqual({ scanned: 1, updated: 0, skipped: 0, failed: 1, errors: ['shopee:SN1: boom'] })
+  })
+
+  it('backfills shipping from Shopee order detail when the WP has none yet, even if status is already in sync', async () => {
+    ;(prisma.workingProject.findMany as any).mockResolvedValue([
+      { source: 'shopee', sourceOrderNo: 'SN1', discordThreadId: 't1', shipping: null },
+    ])
+    ;(getOrderDetail as any).mockResolvedValue([
+      { order_sn: 'SN1', order_status: 'READY_TO_SHIP', shipping_carrier: 'Anteraja Reguler' },
+    ])
+    ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
+
+    const result = await syncWorkingProjectStatusFromMarketplace()
+
+    expect(updateWorkingProject).toHaveBeenCalledWith('t1', { shipping: 'Anteraja Reguler' })
+    expect(result.updated).toBe(1)
+  })
+
+  it('never overwrites a shipping value the WP already has', async () => {
+    ;(prisma.workingProject.findMany as any).mockResolvedValue([
+      { source: 'shopee', sourceOrderNo: 'SN1', discordThreadId: 't1', shipping: 'JNE' },
+    ])
+    ;(getOrderDetail as any).mockResolvedValue([
+      { order_sn: 'SN1', order_status: 'READY_TO_SHIP', shipping_carrier: 'Anteraja Reguler' },
+    ])
+
+    const result = await syncWorkingProjectStatusFromMarketplace()
+
+    expect(updateWorkingProject).not.toHaveBeenCalled()
+    expect(result.skipped).toBe(1)
+  })
+
+  it('backfills shipping and status together in one patch when both are due', async () => {
+    ;(prisma.workingProject.findMany as any).mockResolvedValue([
+      { source: 'shopee', sourceOrderNo: 'SN1', discordThreadId: 't1', shipping: null },
+    ])
+    ;(getOrderDetail as any).mockResolvedValue([
+      { order_sn: 'SN1', order_status: 'SHIPPED', shipping_carrier: 'Anteraja Reguler' },
+    ])
+    ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
+
+    await syncWorkingProjectStatusFromMarketplace()
+
+    expect(updateWorkingProject).toHaveBeenCalledWith('t1', { status: 'Waiting Customer', shipping: 'Anteraja Reguler' })
+  })
+
+  it('backfills shipping from Tokopedia order data via parseOrder when the WP has none yet', async () => {
+    ;(prisma.workingProject.findMany as any).mockResolvedValue([
+      { source: 'tokopedia', sourceOrderNo: 'TOK1', discordThreadId: 't3', shipping: null },
+    ])
+    ;(getOrderById as any).mockResolvedValue({ order_status_module: [{ sku_display_status: 110 }] })
+    ;(parseOrder as any).mockReturnValue({ courier: 'JNE Reguler' })
+    ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
+
+    const result = await syncWorkingProjectStatusFromMarketplace()
+
+    expect(updateWorkingProject).toHaveBeenCalledWith('t3', { shipping: 'JNE Reguler' })
+    expect(result.updated).toBe(1)
   })
 
   it('keeps going when a single Tokopedia order lookup fails', async () => {

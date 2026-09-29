@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db'
 import { getOrderDetail } from '@/lib/shopee/orders'
 import { getOrderById } from '@/lib/tokopedia/orders'
+import { parseOrder } from '@/lib/tokopedia/parse'
 import { updateWorkingProject, getStatusSyncLastRunDate, setStatusSyncLastRunDate } from './service'
 
 /**
@@ -83,7 +84,7 @@ export async function syncWorkingProjectStatusFromMarketplace(): Promise<StatusS
   const errors: string[] = []
   const rows = await prisma.workingProject.findMany({
     where: { status: { in: [...SYNCABLE_STATUSES] } },
-    select: { source: true, sourceOrderNo: true, discordThreadId: true },
+    select: { source: true, sourceOrderNo: true, discordThreadId: true, shipping: true },
   })
 
   const result: StatusSyncResult = { scanned: rows.length, updated: 0, skipped: 0, failed: 0, errors }
@@ -91,25 +92,35 @@ export async function syncWorkingProjectStatusFromMarketplace(): Promise<StatusS
   const shopeeRows = rows.filter((r) => r.source === 'shopee' && r.sourceOrderNo)
   const tokopediaRows = rows.filter((r) => r.source === 'tokopedia' && r.sourceOrderNo)
 
-  const shopeeStatusBySn = new Map<string, string>()
+  // A WP's `shipping` field is only ever populated once, at auto-create
+  // time — Shopee/Tokopedia frequently haven't assigned a courier yet that
+  // early (it's typically set once the order is actually picked up), so
+  // many WPs stayed permanently blank even after the real order later got
+  // one. This job already re-fetches the order anyway for status, so it
+  // backfills `shipping` too whenever the WP doesn't have one yet.
+  const shopeeDetailBySn = new Map<string, { order_status: string; shipping_carrier?: string }>()
   const sns = shopeeRows.map((r) => r.sourceOrderNo!)
   for (let i = 0; i < sns.length; i += 50) {
     const batch = sns.slice(i, i + 50)
     try {
       const details = await getOrderDetail(batch)
-      for (const d of details) shopeeStatusBySn.set(d.order_sn, d.order_status)
+      for (const d of details) shopeeDetailBySn.set(d.order_sn, { order_status: d.order_status, shipping_carrier: d.shipping_carrier })
     } catch (err) {
       errors.push(`shopee batch: gagal ambil order — ${(err as Error).message}`)
     }
   }
 
   for (const r of shopeeRows) {
-    const actual = shopeeStatusBySn.get(r.sourceOrderNo!)
-    const target = actual != null ? classifyShopeeStatus(actual) : null
-    if (!target) { result.skipped++; continue }
+    const detail = shopeeDetailBySn.get(r.sourceOrderNo!)
+    const statusTarget = detail ? classifyShopeeStatus(detail.order_status) : null
+    const shippingTarget = !r.shipping && detail?.shipping_carrier ? detail.shipping_carrier : null
+    if (!statusTarget && !shippingTarget) { result.skipped++; continue }
     if (!r.discordThreadId) { result.skipped++; continue }
     try {
-      await updateWorkingProject(r.discordThreadId, { status: target })
+      await updateWorkingProject(r.discordThreadId, {
+        ...(statusTarget ? { status: statusTarget } : {}),
+        ...(shippingTarget ? { shipping: shippingTarget } : {}),
+      })
       result.updated++
     } catch (err) {
       result.failed++
@@ -118,20 +129,28 @@ export async function syncWorkingProjectStatusFromMarketplace(): Promise<StatusS
   }
 
   for (const r of tokopediaRows) {
-    let target: string | null = null
+    let statusTarget: string | null = null
+    let shippingTarget: string | null = null
     try {
-      const raw = (await getOrderById(r.sourceOrderNo!)) as { order_status_module?: { sku_display_status?: number }[] } | null
-      const code = raw?.order_status_module?.[0]?.sku_display_status
-      target = classifyTokopediaStatus(code)
+      const raw = await getOrderById(r.sourceOrderNo!)
+      const code = (raw as { order_status_module?: { sku_display_status?: number }[] } | null)?.order_status_module?.[0]?.sku_display_status
+      statusTarget = classifyTokopediaStatus(code)
+      if (!r.shipping && raw) {
+        const courier = parseOrder(raw)?.courier
+        if (courier) shippingTarget = courier
+      }
     } catch (err) {
       result.skipped++
       errors.push(`tokopedia:${r.sourceOrderNo}: gagal ambil order — ${(err as Error).message}`)
       continue
     }
-    if (!target) { result.skipped++; continue }
+    if (!statusTarget && !shippingTarget) { result.skipped++; continue }
     if (!r.discordThreadId) { result.skipped++; continue }
     try {
-      await updateWorkingProject(r.discordThreadId, { status: target })
+      await updateWorkingProject(r.discordThreadId, {
+        ...(statusTarget ? { status: statusTarget } : {}),
+        ...(shippingTarget ? { shipping: shippingTarget } : {}),
+      })
       result.updated++
     } catch (err) {
       result.failed++
