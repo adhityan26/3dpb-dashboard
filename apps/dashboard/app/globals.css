@@ -458,6 +458,17 @@
   border-color: rgba(99,102,241,0.5);
   box-shadow: 0 0 0 3px rgba(99,102,241,0.10);
 }
+/* Windows Chrome/Edge render a <select>'s dropdown popup with its own
+   default (opaque white) background regardless of the select's own
+   translucent background — only `color` inherits, not `background`. That
+   left <option> text as near-white-on-white (invisible until hovered,
+   where the browser's own blue-highlight forces black text) — macOS was
+   never affected since its native popup already has an opaque background.
+   Setting both explicitly on <option> fixes it on every platform. */
+.glass-input option {
+  background: #ffffff;
+  color: rgba(0,0,0,0.85);
+}
 
 /* Dark mode */
 .dark .glass-input {
@@ -470,6 +481,10 @@
 .dark .glass-input:focus {
   border-color: rgba(99,102,241,0.5);
   box-shadow: 0 0 0 3px rgba(99,102,241,0.12);
+}
+.dark .glass-input option {
+  background: #14161f;
+  color: white;
 }
 .sso-btn {
   display: flex; align-items: center; justify-content: center;

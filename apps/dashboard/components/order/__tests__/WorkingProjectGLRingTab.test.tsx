@@ -133,6 +133,27 @@ describe('WorkingProjectGLRingTab', () => {
     expect(screen.getByText('Cincin C')).toBeInTheDocument()
   })
 
+  it('sorts Ukuran numerically, not as a string (found: "11" sorted before "7")', () => {
+    renderWithClient()
+    const sizeOrder = () => screen.getAllByText(/^US \d/).map(el => el.textContent?.match(/^US [\d.]+/)?.[0])
+    fireEvent.click(screen.getByRole('columnheader', { name: /Ukuran/ }))
+    expect(sizeOrder()).toEqual(['US 6', 'US 7', 'US 8', 'US 9', 'US 10.5', 'US 11'])
+  })
+
+  it('cycles a header click asc -> desc -> unsorted', () => {
+    renderWithClient()
+    const sizeTexts = () => screen.getAllByText(/^US \d/).map(el => el.textContent)
+    const header = screen.getByRole('columnheader', { name: /Ukuran/ })
+    fireEvent.click(header) // asc
+    expect(header.textContent).toContain('▲')
+    expect(sizeTexts()[0]).toBe('US 6')
+    fireEvent.click(header) // desc
+    expect(header.textContent).toContain('▼')
+    expect(sizeTexts()[0]).toBe('US 11')
+    fireEvent.click(header) // removed
+    expect(header.textContent).toContain('↕')
+  })
+
   it('filters rows to the Due Date range', () => {
     renderWithClient()
     fireEvent.change(screen.getByLabelText('Due Date dari'), { target: { value: '2026-09-21' } })

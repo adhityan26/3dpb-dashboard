@@ -32,6 +32,8 @@ const STEP_TYPES = ['Print Frame', 'Print Stone', 'Print Ring', 'Cat Frame', 'Ca
 type StepType = (typeof STEP_TYPES)[number]
 
 type SortColumn = 'dueDate' | 'orderDate' | 'orderNo' | 'platform' | 'variant' | 'usSize' | 'status'
+type SortDir = 'asc' | 'desc'
+interface SortKey { col: SortColumn; dir: SortDir }
 
 interface RingRow {
   wpId: string
@@ -136,10 +138,20 @@ function expandToRows(projects: WorkingProject[], configuredProductIds: string[]
   return rows
 }
 
+// Numeric-aware compare — e.g. ring sizes ("7", "11") used to sort as
+// strings, putting "11" before "7" ("11" < "7" lexically). Falls back to
+// locale string compare for non-numeric columns (dueDate/orderDate's ISO
+// strings still sort correctly that way) and keeps null/empty ('') first,
+// matching the previous String(v ?? '') behavior.
 function compareRows(a: RingRow, b: RingRow, col: SortColumn): number {
   const va = valueFor(a, col)
   const vb = valueFor(b, col)
-  return String(va ?? '').localeCompare(String(vb ?? ''))
+  const sa = va == null ? '' : String(va)
+  const sb = vb == null ? '' : String(vb)
+  const na = sa.trim() === '' ? NaN : Number(sa)
+  const nb = sb.trim() === '' ? NaN : Number(sb)
+  if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb
+  return sa.localeCompare(sb, 'id', { numeric: true })
 }
 
 function valueFor(r: RingRow, col: SortColumn): string | number | null {
@@ -175,7 +187,7 @@ export function WorkingProjectGLRingTab() {
   const updateMutation = useUpdateWorkingProject()
   const inline = useInlineWorkingProjectUpdate()
   const [editing, setEditing] = useState<WorkingProject | null>(null)
-  const [sortKeys, setSortKeys] = useState<SortColumn[]>(['dueDate'])
+  const [sortKeys, setSortKeys] = useState<SortKey[]>([{ col: 'dueDate', dir: 'asc' }])
   const [search, setSearch] = useState('')
   const [platform, setPlatform] = useState('')
   const [variant, setVariant] = useState('')
@@ -252,8 +264,8 @@ export function WorkingProjectGLRingTab() {
     }
     const sorted = [...out].sort((a, b) => {
       for (const key of sortKeys) {
-        const cmp = compareRows(a, b, key)
-        if (cmp !== 0) return cmp
+        const cmp = compareRows(a, b, key.col)
+        if (cmp !== 0) return key.dir === 'desc' ? -cmp : cmp
       }
       return 0
     })
@@ -274,14 +286,21 @@ export function WorkingProjectGLRingTab() {
   const currentPage = Math.min(page, totalPages)
   const pageRows = rows.slice((currentPage - 1) * pageSize, currentPage * pageSize)
 
+  // Cycles a column asc -> desc -> removed. Shift+click adds/cycles the
+  // column within the existing multi-sort list (up to 3 keys); a plain
+  // click collapses to just this column, still cycling its own direction
+  // if it was already the (sole) active sort.
   function handleHeaderClick(col: SortColumn, e: React.MouseEvent) {
     setPage(1)
     setSortKeys(prev => {
+      const existingDir = prev.find(k => k.col === col)?.dir
+      const nextDir: SortDir | null = existingDir === undefined ? 'asc' : existingDir === 'asc' ? 'desc' : null
       if (e.shiftKey) {
-        const next = [...prev.filter(k => k !== col), col]
-        return next.slice(-3)
+        const withoutCol = prev.filter(k => k.col !== col)
+        if (nextDir === null) return withoutCol
+        return [...withoutCol, { col, dir: nextDir }].slice(-3)
       }
-      return [col]
+      return nextDir === null ? [] : [{ col, dir: nextDir }]
     })
   }
 
@@ -313,9 +332,10 @@ export function WorkingProjectGLRingTab() {
   const tdBase = 'px-3 py-2 text-sm whitespace-nowrap'
 
   function sortIndicator(col: SortColumn) {
-    const idx = sortKeys.indexOf(col)
+    const idx = sortKeys.findIndex(k => k.col === col)
     if (idx === -1) return <span className="opacity-50"> ↕</span>
-    return <span className="g-accent"> ▲{sortKeys.length > 1 ? <sup>{idx + 1}</sup> : null}</span>
+    const arrow = sortKeys[idx].dir === 'asc' ? '▲' : '▼'
+    return <span className="g-accent"> {arrow}{sortKeys.length > 1 ? <sup>{idx + 1}</sup> : null}</span>
   }
 
   return (
