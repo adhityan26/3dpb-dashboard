@@ -1,6 +1,6 @@
 // Next.js calls this once when the server starts.
-// Used to spin up background pollers: notifications, and the daily
-// Working Project auto-create job.
+// Used to spin up background pollers: notifications, the daily Working
+// Project auto-create job, and the daily WP-status-vs-marketplace sync.
 
 const POLL_INTERVAL_MS = 5 * 60 * 1000 // 5 minutes
 const INITIAL_DELAY_MS = 30_000
@@ -11,6 +11,11 @@ const INITIAL_DELAY_MS = 30_000
 // often than that without spamming Shopee/Tokopedia — every tick just asks
 // "is today's run due yet?" and the endpoint no-ops otherwise.
 const AUTO_CREATE_POLL_INTERVAL_MS = 15 * 60 * 1000 // 15 minutes
+
+// Same "ticks often, endpoint decides if due" pattern — the status-sync job
+// itself only runs once per WIB day, after the 01:00 WIB cutoff (see
+// runDailyStatusSyncIfDue in lib/working-projects/status-sync.ts).
+const STATUS_SYNC_POLL_INTERVAL_MS = 15 * 60 * 1000 // 15 minutes
 
 export async function register() {
   // Only run on the Node.js server runtime (not Edge)
@@ -42,6 +47,14 @@ export async function register() {
     setInterval(() => {
       void runAutoCreatePoll(baseUrl, secret)
     }, AUTO_CREATE_POLL_INTERVAL_MS)
+  }, INITIAL_DELAY_MS)
+
+  console.log("[working-projects] Status-sync poller starting...")
+  setTimeout(() => {
+    void runStatusSyncPoll(baseUrl, secret)
+    setInterval(() => {
+      void runStatusSyncPoll(baseUrl, secret)
+    }, STATUS_SYNC_POLL_INTERVAL_MS)
   }, INITIAL_DELAY_MS)
 }
 
@@ -103,5 +116,38 @@ async function runAutoCreatePoll(baseUrl: string, secret: string): Promise<void>
     }
   } catch (err) {
     console.warn("[working-projects] auto-create poll error:", err)
+  }
+}
+
+async function runStatusSyncPoll(baseUrl: string, secret: string): Promise<void> {
+  try {
+    const res = await fetch(`${baseUrl}/api/internal/working-projects/status-sync`, {
+      method: "POST",
+      headers: { "x-internal-secret": secret },
+    })
+    if (!res.ok) {
+      console.warn(
+        `[working-projects] Status-sync poll returned ${res.status}: ${await res.text()}`,
+      )
+      return
+    }
+    const result = (await res.json()) as {
+      ranToday: boolean
+      scanned?: number
+      updated?: number
+      skipped?: number
+      failed?: number
+      errors?: string[]
+    }
+    if (result.ranToday) {
+      console.log(
+        `[working-projects] status-sync done: scanned=${result.scanned} updated=${result.updated} skipped=${result.skipped} failed=${result.failed}`,
+      )
+      if (result.errors?.length) {
+        console.warn("[working-projects] status-sync errors:", result.errors)
+      }
+    }
+  } catch (err) {
+    console.warn("[working-projects] status-sync poll error:", err)
   }
 }

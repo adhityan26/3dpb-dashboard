@@ -23,6 +23,7 @@ import { CydFieldPresetCard } from "@/components/settings/CydFieldPresetCard"
 import { GLRingProductIdsCard } from "@/components/settings/GLRingProductIdsCard"
 import { CategoryProductIdsCard } from "@/components/settings/CategoryProductIdsCard"
 import { AutoCreateWorkingProjectsCard } from "@/components/settings/AutoCreateWorkingProjectsCard"
+import { StatusSyncCard } from "@/components/settings/StatusSyncCard"
 import { FastCouriersCard } from "@/components/settings/FastCouriersCard"
 import { useSettings } from "@/lib/hooks/use-settings"
 import { useSession } from "next-auth/react"
@@ -170,6 +171,7 @@ function SettingsPageInner() {
             </div>
             <FilamentAliasCard />
             <AutoCreateWorkingProjectsCard />
+            <StatusSyncCard />
             <GLRingProductIdsCard />
             <CategoryProductIdsCard category="topeng" title="🎭 Produk Topeng" productLabel="produk Topeng" />
             <CategoryProductIdsCard category="clicker" title="📸 Produk Clicker" productLabel="produk Clicker" />

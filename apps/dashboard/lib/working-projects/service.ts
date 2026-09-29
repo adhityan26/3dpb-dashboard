@@ -459,6 +459,24 @@ export async function setAutoCreateLastRunDate(dateWib: string): Promise<void> {
   })
 }
 
+const STATUS_SYNC_LAST_RUN_KEY = 'workingProjects.statusSync.lastRunDate'
+
+// Same WIB-date-string pattern as AUTO_CREATE_LAST_RUN_KEY above — the
+// daily status-sync job (lib/working-projects/status-sync.ts) runs at most
+// once per WIB day, after 01:00 WIB.
+export async function getStatusSyncLastRunDate(): Promise<string | null> {
+  const row = await prisma.config.findUnique({ where: { key: STATUS_SYNC_LAST_RUN_KEY } })
+  return row?.value ?? null
+}
+
+export async function setStatusSyncLastRunDate(dateWib: string): Promise<void> {
+  await prisma.config.upsert({
+    where: { key: STATUS_SYNC_LAST_RUN_KEY },
+    update: { value: dateWib },
+    create: { key: STATUS_SYNC_LAST_RUN_KEY, value: dateWib },
+  })
+}
+
 const FAST_COURIERS_KEY = 'workingProjects.fastCouriers'
 
 // Which couriers pick up fast (Anteraja/Paxel/Grab/Gojek) vs regular
