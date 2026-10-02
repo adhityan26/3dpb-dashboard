@@ -31,9 +31,17 @@ export interface CreateWorkingProjectFromOrderInput {
   dueDateRaw?: string
 }
 
+export interface CreateWorkingProjectResult {
+  id: string
+  threadUrl: string | null
+  syncState: string
+  skipped: boolean
+  syncError?: string
+}
+
 export async function createWorkingProjectFromOrder(
   input: CreateWorkingProjectFromOrderInput
-): Promise<void> {
+): Promise<CreateWorkingProjectResult> {
   const res = await fetch("/api/working-projects", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -43,4 +51,15 @@ export async function createWorkingProjectFromOrder(
     const j = (await res.json().catch(() => ({}))) as { error?: string }
     throw new Error(j.error ?? `HTTP ${res.status}`)
   }
+  return (await res.json()) as CreateWorkingProjectResult
+}
+
+/** One-line feedback for the order-row button. The API answers 201 even when
+ * the Discord thread fails (the row is kept with syncState "error"), so a bare
+ * "no error" used to look like nothing happened (found 2026-10-02). */
+export function describeCreateResult(r: CreateWorkingProjectResult): { ok: boolean; text: string } {
+  if (r.syncState === "error") {
+    return { ok: false, text: `WP tersimpan, tapi thread Discord gagal: ${r.syncError ?? "unknown"} — klik lagi untuk coba ulang` }
+  }
+  return { ok: true, text: r.skipped ? "WP sudah ada untuk order ini" : "WP dibuat" }
 }

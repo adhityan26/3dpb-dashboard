@@ -2,6 +2,7 @@ import { prisma } from '@/lib/db'
 import { buildTitle, buildPostContent, parseDueDate, parseOrderDate, parseAmount, appendNoteWithTimestamp, WORKING_PROJECT_STATUSES, WORKING_PROJECT_SOURCES } from './format'
 import { createRelayThread, editRelayThread, archiveRelayThread, deleteRelayThread } from './discord-sync'
 import { DEFAULT_FAST_COURIERS } from './courier'
+import { resolveForumChannelId } from './category'
 import { DEFAULT_SHIPPING_TABLE_GROUPS, type ShippingTableGroup } from './shipping-schedule'
 
 export async function createWorkingProject(input: {
@@ -21,7 +22,7 @@ export async function createWorkingProject(input: {
   invoiceAmountRaw?: string
   mentions?: string[]
   shipping?: string
-}): Promise<{ id: string; threadUrl: string | null; syncState: string; skipped: boolean }> {
+}): Promise<{ id: string; threadUrl: string | null; syncState: string; skipped: boolean; syncError?: string }> {
   // Idempotency guard: a manual "Buat WP" double-click, a page that hasn't
   // refetched yet, or the daily auto-create job re-scanning the same order
   // used to each create a brand-new row + a brand-new Discord thread for the
@@ -29,10 +30,18 @@ export async function createWorkingProject(input: {
   // minutes apart). One WP per (source, sourceOrderNo) — return the existing
   // row instead of creating another. Orders without a sourceOrderNo (manual
   // WPs) are never deduped this way.
+  const forumChannelId = resolveForumChannelId(input.forumChannelId)
+
   if (input.sourceOrderNo) {
     const existing = await prisma.workingProject.findFirst({
       where: { source: input.source, sourceOrderNo: input.sourceOrderNo },
     })
+    // A row whose first thread creation failed (no thread at all) would
+    // otherwise be stuck forever: re-clicking "Buat WP" hit this guard and
+    // silently returned it. Retry the thread instead, into the forum chosen now.
+    if (existing && !existing.discordThreadId && existing.syncState === 'error') {
+      return createThreadFor(existing.id, forumChannelId, existing.title, rebuildStarterContent(existing), existing.mentions)
+    }
     if (existing) {
       return { id: existing.id, threadUrl: existing.discordThreadUrl, syncState: existing.syncState, skipped: true }
     }
@@ -50,7 +59,7 @@ export async function createWorkingProject(input: {
       orderNoLegacy: input.orderNoLegacy ?? null,
       syncState: 'pending',
       discordThreadId: null,
-      forumChannelId: input.forumChannelId,
+      forumChannelId,
       customer: input.customer,
       contact: input.contact ?? null,
       platform: input.platform ?? null,
@@ -73,18 +82,25 @@ export async function createWorkingProject(input: {
     orderDate, dueDate, dueDateRaw, notes: input.notes, mentions: input.mentions,
   })
 
+  return createThreadFor(wp.id, forumChannelId, title, message, input.mentions ?? [])
+}
+
+async function createThreadFor(
+  id: string, forumChannelId: string, title: string, message: string, mentions: string[],
+): Promise<{ id: string; threadUrl: string | null; syncState: string; skipped: boolean; syncError?: string }> {
   try {
     const { threadId, threadUrl } = await createRelayThread({
-      parentId: input.forumChannelId, name: title, message,
-      mentions: input.mentions ?? [], idempotencyKey: wp.id,
+      parentId: forumChannelId, name: title, message, mentions, idempotencyKey: id,
     })
-    await prisma.workingProject.update({ where: { id: wp.id }, data: { discordThreadId: threadId, discordThreadUrl: threadUrl, syncState: 'ok' } })
-    return { id: wp.id, threadUrl, syncState: 'ok', skipped: false }
-  } catch (err) {
     await prisma.workingProject.update({
-      where: { id: wp.id }, data: { syncState: 'error', syncError: (err as Error).message },
+      where: { id },
+      data: { forumChannelId, discordThreadId: threadId, discordThreadUrl: threadUrl, syncState: 'ok', syncError: null },
     })
-    return { id: wp.id, threadUrl: null, syncState: 'error', skipped: false }
+    return { id, threadUrl, syncState: 'ok', skipped: false }
+  } catch (err) {
+    const syncError = (err as Error).message
+    await prisma.workingProject.update({ where: { id }, data: { forumChannelId, syncState: 'error', syncError } })
+    return { id, threadUrl: null, syncState: 'error', skipped: false, syncError }
   }
 }
 

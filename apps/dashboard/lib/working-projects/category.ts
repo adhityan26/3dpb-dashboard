@@ -80,3 +80,16 @@ export function forumChannelIdForCategory(category: ProductCategory | null): str
   }
   return resolveForumEnv(CATEGORY_FORUM_ENV[category], CATEGORY_FORUM_ENV[category])
 }
+
+const FORUM_PLACEHOLDERS: readonly string[] = ['ORDERS_FORUM_CHANNEL_ID', ...Object.values(CATEGORY_FORUM_ENV)]
+
+/** Maps a literal env-var placeholder (e.g. "FORUM_TOPENG_ID") to the real
+ * Discord channel id from server env; real ids pass through unchanged.
+ * Found 2026-10-02: the order-row forum dropdown builds its options from
+ * NEXT_PUBLIC_FORUM_* at build time, which are never set (see above), so the
+ * client sends the placeholder verbatim and the relay answers 403
+ * forbidden_channel. Resolving on the server makes the client value only a
+ * choice of forum, never the id itself. */
+export function resolveForumChannelId(id: string): string {
+  return FORUM_PLACEHOLDERS.includes(id) ? resolveForumEnv(id, id) : id
+}

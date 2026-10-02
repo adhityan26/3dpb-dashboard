@@ -9,6 +9,7 @@ import { buildMultiItemProduct } from "@/lib/working-projects/format"
 import {
   WORKING_PROJECT_FORUM_CHANNELS,
   createWorkingProjectFromOrder,
+  describeCreateResult,
 } from "@/lib/working-projects/create-from-order"
 
 interface TokopediaOrderRowProps {
@@ -180,6 +181,17 @@ export function TokopediaOrderRow({ order, defaultExpanded = false }: TokopediaO
             Gagal membuat Working Project: {(createWorkingProjectMutation.error as Error).message}
           </div>
         )}
+        {createWorkingProjectMutation.data && (() => {
+          const fb = describeCreateResult(createWorkingProjectMutation.data)
+          return (
+            <div className={`mt-1 text-[11px] ${fb.ok ? "text-emerald-400" : "text-red-500"}`}>
+              {fb.ok ? "✅" : "⚠️"} {fb.text}
+              {createWorkingProjectMutation.data.threadUrl && (
+                <> · <a href={createWorkingProjectMutation.data.threadUrl} target="_blank" rel="noreferrer" className="underline">buka thread</a></>
+              )}
+            </div>
+          )
+        })()}
 
         {expanded && (
           <div className="mt-3 border-t dark:border-slate-700 pt-3 space-y-2 text-xs">

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { detectProductCategory, forumChannelIdForCategory, type CategoryProductIds } from '../category'
+import { detectProductCategory, forumChannelIdForCategory, resolveForumChannelId, type CategoryProductIds } from '../category'
 
 const EMPTY: CategoryProductIds = { cincin: [], topeng: [], clicker: [] }
 
@@ -64,5 +64,31 @@ describe('forumChannelIdForCategory', () => {
     delete process.env.NEXT_PUBLIC_FORUM_CINCIN_ID
     delete process.env.FORUM_CINCIN_ID
     expect(forumChannelIdForCategory('cincin')).toBe('FORUM_CINCIN_ID')
+  })
+})
+
+describe('resolveForumChannelId', () => {
+  const ORIGINAL = { ...process.env }
+  beforeEach(() => {
+    process.env.FORUM_TOPENG_ID = 'topeng-channel'
+    process.env.ORDERS_FORUM_CHANNEL_ID = 'general-channel'
+  })
+  afterEach(() => {
+    process.env = { ...ORIGINAL }
+  })
+
+  it('maps a literal placeholder name sent by the client bundle to the server env value (found 2026-10-02: the order-row forum dropdown sent "FORUM_TOPENG_ID" verbatim -> relay 403 forbidden_channel)', () => {
+    expect(resolveForumChannelId('FORUM_TOPENG_ID')).toBe('topeng-channel')
+    expect(resolveForumChannelId('ORDERS_FORUM_CHANNEL_ID')).toBe('general-channel')
+  })
+
+  it('passes a real channel id through unchanged', () => {
+    expect(resolveForumChannelId('123456789012345678')).toBe('123456789012345678')
+  })
+
+  it('leaves an unconfigured placeholder as-is', () => {
+    delete process.env.FORUM_CLICKER_ID
+    delete process.env.NEXT_PUBLIC_FORUM_CLICKER_ID
+    expect(resolveForumChannelId('FORUM_CLICKER_ID')).toBe('FORUM_CLICKER_ID')
   })
 })

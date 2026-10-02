@@ -32,6 +32,45 @@ beforeEach(() => {
 })
 
 describe('createWorkingProject', () => {
+  it('resolves a placeholder forumChannelId to the real env channel id before creating the thread', async () => {
+    process.env.FORUM_TOPENG_ID = 'topeng-real'
+    ;(prisma.workingProject.create as any).mockResolvedValue({ id: 'wp-ph' })
+    ;(createRelayThread as any).mockResolvedValue({ threadId: 't1', threadUrl: 'https://discord/t1' })
+    await createWorkingProject({
+      source: 'tokopedia', sourceOrderNo: 'TP1', forumChannelId: 'FORUM_TOPENG_ID', customer: 'Budi', product: 'Topeng',
+    })
+    expect(prisma.workingProject.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ forumChannelId: 'topeng-real' }),
+    }))
+    expect(createRelayThread).toHaveBeenCalledWith(expect.objectContaining({ parentId: 'topeng-real' }))
+    delete process.env.FORUM_TOPENG_ID
+  })
+
+  it('retries Discord thread creation for an existing WP whose first attempt failed with no thread', async () => {
+    process.env.FORUM_TOPENG_ID = 'topeng-real'
+    ;(prisma.workingProject.findFirst as any).mockResolvedValue({
+      id: 'wp-err', discordThreadId: null, discordThreadUrl: null, syncState: 'error', forumChannelId: 'FORUM_TOPENG_ID',
+      title: 'Budi - Topeng', customer: 'Budi', contact: null, product: 'Topeng', variant: null, platform: null,
+      sourceOrderNo: 'TP2', orderNoLegacy: null, orderDate: null, dueDate: null, dueDateRaw: null,
+      status: 'Open', payment: 'Unpaid', invoiceAmount: 0, paidAmount: 0, shipping: null, trackingNo: null,
+      mentions: [], notes: null, checklist: [],
+    })
+    ;(createRelayThread as any).mockResolvedValue({ threadId: 't2', threadUrl: 'https://discord/t2' })
+
+    const result = await createWorkingProject({
+      source: 'tokopedia', sourceOrderNo: 'TP2', forumChannelId: 'FORUM_TOPENG_ID', customer: 'Budi', product: 'Topeng',
+    })
+
+    expect(prisma.workingProject.create).not.toHaveBeenCalled()
+    expect(createRelayThread).toHaveBeenCalledWith(expect.objectContaining({ parentId: 'topeng-real', idempotencyKey: 'wp-err' }))
+    expect(prisma.workingProject.update).toHaveBeenCalledWith(expect.objectContaining({
+      where: { id: 'wp-err' },
+      data: expect.objectContaining({ discordThreadId: 't2', syncState: 'ok', syncError: null, forumChannelId: 'topeng-real' }),
+    }))
+    expect(result).toEqual({ id: 'wp-err', threadUrl: 'https://discord/t2', syncState: 'ok', skipped: false })
+    delete process.env.FORUM_TOPENG_ID
+  })
+
   it('persists an optional shipping courier onto the new row', async () => {
     ;(prisma.workingProject.create as any).mockResolvedValue({ id: 'wp-ship' })
     ;(createRelayThread as any).mockResolvedValue({ threadId: 't1', threadUrl: 'https://discord/t1' })
