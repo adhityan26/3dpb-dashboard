@@ -44,13 +44,14 @@ describe('classifyTokopediaStatus', () => {
   it('leaves 112 (label made, not picked up) unmapped — "Siap Kirim" is a manual production milestone, never set automatically', () => {
     expect(classifyTokopediaStatus(112)).toBeNull()
   })
-  it('maps 120/121/130 (courier has it) to Waiting Customer', () => {
+  it('maps 120/121/122 (courier has it / in transit / delivered) to Waiting Customer', () => {
     expect(classifyTokopediaStatus(120)).toBe('Waiting Customer')
     expect(classifyTokopediaStatus(121)).toBe('Waiting Customer')
-    expect(classifyTokopediaStatus(130)).toBe('Waiting Customer')
+    expect(classifyTokopediaStatus(122)).toBe('Waiting Customer')
   })
-  it('maps 140 (selesai) to Done', () => {
-    expect(classifyTokopediaStatus(140)).toBe('Done')
+  it('maps 130 (Selesai) to Done and 140 (Dibatalkan) to Canceled — verified 2026-10-04, these were previously swapped', () => {
+    expect(classifyTokopediaStatus(130)).toBe('Done')
+    expect(classifyTokopediaStatus(140)).toBe('Canceled')
   })
   it('leaves 110/111 (still perlu dikirim) and unknown codes unchanged', () => {
     expect(classifyTokopediaStatus(110)).toBeNull()
@@ -61,11 +62,51 @@ describe('classifyTokopediaStatus', () => {
 })
 
 describe('syncWorkingProjectStatusFromMarketplace', () => {
-  it('queries both Open and Siap Kirim WPs (Siap Kirim can still advance forward once shipped)', async () => {
+  it('scans every non-terminal status so a shipped WP can still advance to Done/Canceled later', async () => {
     await syncWorkingProjectStatusFromMarketplace()
     expect(prisma.workingProject.findMany).toHaveBeenCalledWith(expect.objectContaining({
-      where: { status: { in: ['Open', 'Siap Kirim'] } },
+      where: { status: { in: ['Open', 'Proses', 'Siap Kirim', 'Waiting Customer'] } },
     }))
+  })
+
+  it('advances a Waiting Customer Shopee WP to Done once the order is COMPLETED', async () => {
+    ;(prisma.workingProject.findMany as any).mockResolvedValue([
+      { source: 'shopee', sourceOrderNo: 'SN1', discordThreadId: 't1', status: 'Waiting Customer', shipping: 'JNE' },
+    ])
+    ;(getOrderDetail as any).mockResolvedValue([{ order_sn: 'SN1', order_status: 'COMPLETED' }])
+    ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
+
+    await syncWorkingProjectStatusFromMarketplace()
+
+    expect(updateWorkingProject).toHaveBeenCalledWith('t1', { status: 'Done' })
+  })
+
+  it('does not rewrite a WP already on the target status (would re-edit its Discord post every day)', async () => {
+    ;(prisma.workingProject.findMany as any).mockResolvedValue([
+      { source: 'shopee', sourceOrderNo: 'SN1', discordThreadId: 't1', status: 'Waiting Customer', shipping: 'JNE' },
+    ])
+    ;(getOrderDetail as any).mockResolvedValue([{ order_sn: 'SN1', order_status: 'SHIPPED' }])
+
+    const result = await syncWorkingProjectStatusFromMarketplace()
+
+    expect(updateWorkingProject).not.toHaveBeenCalled()
+    expect(result.skipped).toBe(1)
+  })
+
+  it('moves a Tokopedia WP to Canceled for a cancelled order (140) and Done for a completed one (130)', async () => {
+    ;(prisma.workingProject.findMany as any).mockResolvedValue([
+      { source: 'tokopedia', sourceOrderNo: 'TOK1', discordThreadId: 't1', status: 'Open', shipping: 'JNE' },
+      { source: 'tokopedia', sourceOrderNo: 'TOK2', discordThreadId: 't2', status: 'Waiting Customer', shipping: 'JNE' },
+    ])
+    ;(getOrderById as any)
+      .mockResolvedValueOnce({ order_status_module: [{ sku_display_status: 140 }] })
+      .mockResolvedValueOnce({ order_status_module: [{ sku_display_status: 130 }] })
+    ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
+
+    await syncWorkingProjectStatusFromMarketplace()
+
+    expect(updateWorkingProject).toHaveBeenCalledWith('t1', { status: 'Canceled' })
+    expect(updateWorkingProject).toHaveBeenCalledWith('t2', { status: 'Done' })
   })
 
   it('updates a Shopee WP whose order has shipped, and counts an already-in-sync order as skipped', async () => {
@@ -90,7 +131,7 @@ describe('syncWorkingProjectStatusFromMarketplace', () => {
     ;(prisma.workingProject.findMany as any).mockResolvedValue([
       { source: 'tokopedia', sourceOrderNo: 'TOK1', discordThreadId: 't3' },
     ])
-    ;(getOrderById as any).mockResolvedValue({ order_status_module: [{ sku_display_status: 140 }] })
+    ;(getOrderById as any).mockResolvedValue({ order_status_module: [{ sku_display_status: 130 }] })
     ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
 
     const result = await syncWorkingProjectStatusFromMarketplace()
@@ -187,7 +228,7 @@ describe('syncWorkingProjectStatusFromMarketplace', () => {
     ])
     ;(getOrderById as any)
       .mockRejectedValueOnce(new Error('502'))
-      .mockResolvedValueOnce({ order_status_module: [{ sku_display_status: 140 }] })
+      .mockResolvedValueOnce({ order_status_module: [{ sku_display_status: 130 }] })
     ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
 
     const result = await syncWorkingProjectStatusFromMarketplace()

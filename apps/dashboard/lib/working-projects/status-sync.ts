@@ -40,6 +40,13 @@ export function classifyShopeeStatus(orderStatus: string): string | null {
 /**
  * Same idea for Tokopedia's sku_display_status.
  *
+ * Codes verified 2026-10-04 against Seller Center exports + the live API
+ * (264/264 orders in the "Selesai" tab are 130; 14/14 sampled cancelled
+ * orders are 140 and appear in none of the four list tabs; 121 = in
+ * transit, 122 = delivered, 120 = handed to courier). An earlier version of
+ * this map had 130 and 140 swapped, which marked cancelled orders "Done"
+ * and left completed orders stuck on "Waiting Customer".
+ *
  * "Siap Kirim" is NOT a shipping-progress status at all — corrected
  * 2026-09-29 after checking order 260910KH47YVNB: it's a manual-only
  * production milestone ("barang sudah jadi, siap dikirim"), set by hand
@@ -50,8 +57,9 @@ export function classifyShopeeStatus(orderStatus: string): string | null {
  * same reason "Siap Kirim" can't be inferred from it.
  */
 export function classifyTokopediaStatus(skuDisplayStatus: number | null | undefined): string | null {
-  if (skuDisplayStatus === 120 || skuDisplayStatus === 121 || skuDisplayStatus === 130) return 'Waiting Customer'
-  if (skuDisplayStatus === 140) return 'Done'
+  if (skuDisplayStatus === 120 || skuDisplayStatus === 121 || skuDisplayStatus === 122) return 'Waiting Customer'
+  if (skuDisplayStatus === 130) return 'Done'
+  if (skuDisplayStatus === 140) return 'Canceled'
   return null
 }
 
@@ -66,14 +74,17 @@ export interface StatusSyncResult {
 // Statuses this job is allowed to read FROM. "Siap Kirim" included
 // 2026-09-29: found in production that WPs the admin had manually marked
 // "Siap Kirim" (production done) stayed stuck there even after the order
-// actually shipped, because this job only ever looked at "Open" rows.
-// "Siap Kirim" itself is still never a WRITE target (see
-// classifyShopeeStatus/classifyTokopediaStatus above) — this only lets the
-// job move a Siap Kirim WP FORWARD once the marketplace confirms it shipped.
-const SYNCABLE_STATUSES = ['Open', 'Siap Kirim'] as const
+// actually shipped. "Waiting Customer" and "Proses" included 2026-10-04: 74
+// Shopee WPs sat on "Waiting Customer" after their order was already
+// COMPLETED, because a WP set to "Waiting Customer" (shipped) was never
+// scanned again, so it could never advance to Done. "Siap Kirim" itself is
+// still never a WRITE target (see classifyShopeeStatus/classifyTokopediaStatus
+// above) — this only lets a WP move FORWARD once the marketplace confirms it.
+// Done/Canceled are terminal and never scanned.
+const SYNCABLE_STATUSES = ['Open', 'Proses', 'Siap Kirim', 'Waiting Customer'] as const
 
 /**
- * Scans every WP still marked "Open" or "Siap Kirim" and, where the actual
+ * Scans every WP not yet Done/Canceled (see SYNCABLE_STATUSES) and, where the actual
  * Shopee/Tokopedia order has moved on (shipped/completed/cancelled),
  * updates the WP status to match — via updateWorkingProject(), so the
  * Discord thread's starter post is edited in place (same path the bot's
@@ -84,7 +95,7 @@ export async function syncWorkingProjectStatusFromMarketplace(): Promise<StatusS
   const errors: string[] = []
   const rows = await prisma.workingProject.findMany({
     where: { status: { in: [...SYNCABLE_STATUSES] } },
-    select: { source: true, sourceOrderNo: true, discordThreadId: true, shipping: true },
+    select: { source: true, sourceOrderNo: true, discordThreadId: true, shipping: true, status: true },
   })
 
   const result: StatusSyncResult = { scanned: rows.length, updated: 0, skipped: 0, failed: 0, errors }
@@ -112,7 +123,9 @@ export async function syncWorkingProjectStatusFromMarketplace(): Promise<StatusS
 
   for (const r of shopeeRows) {
     const detail = shopeeDetailBySn.get(r.sourceOrderNo!)
-    const statusTarget = detail ? classifyShopeeStatus(detail.order_status) : null
+    const classified = detail ? classifyShopeeStatus(detail.order_status) : null
+    // Already on the target status: no write (it would still re-edit the Discord post daily).
+    const statusTarget = classified && classified !== r.status ? classified : null
     const shippingTarget = !r.shipping && detail?.shipping_carrier ? detail.shipping_carrier : null
     if (!statusTarget && !shippingTarget) { result.skipped++; continue }
     if (!r.discordThreadId) { result.skipped++; continue }
@@ -134,7 +147,8 @@ export async function syncWorkingProjectStatusFromMarketplace(): Promise<StatusS
     try {
       const raw = await getOrderById(r.sourceOrderNo!)
       const code = (raw as { order_status_module?: { sku_display_status?: number }[] } | null)?.order_status_module?.[0]?.sku_display_status
-      statusTarget = classifyTokopediaStatus(code)
+      const classified = classifyTokopediaStatus(code)
+      statusTarget = classified && classified !== r.status ? classified : null
       if (!r.shipping && raw) {
         const courier = parseOrder(raw)?.courier
         if (courier) shippingTarget = courier

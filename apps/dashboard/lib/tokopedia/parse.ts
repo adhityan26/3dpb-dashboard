@@ -7,8 +7,11 @@ export const SKU_DISPLAY_STATUS: Record<number, string> = {
   120: "Dikirim",
   121: "Dikirim",        // in transit
   122: "Terkirim",       // delivered
-  130: "Dikirim",
-  140: "Selesai",
+  // Verified 2026-10-04 against Seller Center exports + live API (all 264 orders in
+  // the "Selesai" tab are 130; all cancelled orders are 140 and don't appear in any
+  // of the four list tabs). These two were previously swapped (130 "Dikirim", 140 "Selesai").
+  130: "Selesai",
+  140: "Dibatalkan",
 }
 
 // product_image is an object { thumb_url_list: string[], thumb_uri, ... }

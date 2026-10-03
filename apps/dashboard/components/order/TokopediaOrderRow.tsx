@@ -31,10 +31,13 @@ function shipBy(unixSec: number): { text: string; urgent: boolean; overdue: bool
 
 // status → visual vocabulary (mirrors Shopee OrderRow's dot/border scheme)
 function statusStyle(code: number | null): { dot: string; dotClass: string; border: string; bg: string; badgeBg: string; badgeColor: string } {
-  if (code === 140) {
+  if (code === 130) {
     return { dot: "🟢", dotClass: "text-green-500", border: "rgba(34,197,94,0.3)", bg: "rgba(34,197,94,0.08)", badgeBg: "rgba(34,197,94,0.15)", badgeColor: "#22c55e" }
   }
-  if (code === 120 || code === 121 || code === 130) {
+  if (code === 140) {
+    return { dot: "🔴", dotClass: "text-red-500", border: "rgba(239,68,68,0.3)", bg: "rgba(239,68,68,0.08)", badgeBg: "rgba(239,68,68,0.15)", badgeColor: "#ef4444" }
+  }
+  if (code === 120 || code === 121 || code === 122) {
     return { dot: "🔵", dotClass: "text-sky-400", border: "rgba(56,189,248,0.35)", bg: "rgba(56,189,248,0.08)", badgeBg: "rgba(56,189,248,0.15)", badgeColor: "#38bdf8" }
   }
   // 110 Perlu Dikirim (and unknown)
