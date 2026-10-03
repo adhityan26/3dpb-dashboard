@@ -6,7 +6,11 @@ DISPLAY_NUM="${DISPLAY#:}"
 # ikut bersih) membuat Xvfb menolak start ("Server is already active for display") tanpa
 # error yang terlihat karena proses ini di-background — hapus dulu supaya Xvfb baru bisa
 # benar-benar bind, bukan cuma numpang file lock lama yang sudah mati.
-rm -f "/tmp/.X11-unix/X${DISPLAY_NUM}"
+# File lock /tmp/.X<N>-lock juga WAJIB dihapus: isinya PID lama, dan di container yang
+# baru di-restart PID itu bisa kebetulan dipakai proses lain, jadi Xvfb menganggap
+# display masih aktif lalu keluar diam-diam (insiden 2026-10-04: "cannot open display :99",
+# x11vnc ikut mati, refresh sesi Tokopedia gagal terus sampai lock dihapus manual).
+rm -f "/tmp/.X11-unix/X${DISPLAY_NUM}" "/tmp/.X${DISPLAY_NUM}-lock"
 
 echo "[entrypoint] Starting Xvfb on display $DISPLAY..."
 Xvfb $DISPLAY -screen 0 1280x800x24 &
