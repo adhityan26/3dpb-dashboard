@@ -2,15 +2,10 @@
 
 import { useState } from "react"
 import Image from "next/image"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import type { OrderSummary } from "@/lib/orders/types"
-import {
-  WORKING_PROJECT_FORUM_CHANNELS,
-  createWorkingProjectFromOrder,
-  describeCreateResult,
-} from "@/lib/working-projects/create-from-order"
+import { WorkingProjectAction } from "@/components/order/WorkingProjectAction"
 import { buildMultiItemProduct } from "@/lib/working-projects/format"
 
 interface OrderRowProps {
@@ -59,20 +54,11 @@ function formatShipByDate(unixSec: number): { text: string; urgent: boolean; ove
 export function OrderRow({ order, onToggleLabel, isPending, linkedInvoice, onCreateInvoice }: OrderRowProps) {
   const [expanded, setExpanded] = useState(false)
   const [imgError, setImgError] = useState(false)
-  const [wpForumChannelId, setWpForumChannelId] = useState<string>(WORKING_PROJECT_FORUM_CHANNELS[0])
-  const queryClient = useQueryClient()
 
-  const createWorkingProjectMutation = useMutation({
-    mutationFn: createWorkingProjectFromOrder,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["working-projects"] })
-    },
-  })
-
-  function handleCreateWorkingProject() {
+  function buildWorkingProjectInput(wpForumChannelId: string) {
     const firstItem = order.items[0]
-    createWorkingProjectMutation.mutate({
-      source: "shopee",
+    return {
+      source: "shopee" as const,
       sourceOrderNo: order.orderSn,
       sourceProductId: firstItem?.itemId ? String(firstItem.itemId) : undefined,
       forumChannelId: wpForumChannelId,
@@ -86,7 +72,7 @@ export function OrderRow({ order, onToggleLabel, isPending, linkedInvoice, onCre
       shipping: order.shippingCarrier ?? undefined,
       orderDateRaw: new Date(order.createTime * 1000).toISOString().slice(0, 10),
       dueDateRaw: order.shipByDate != null ? new Date(order.shipByDate * 1000).toISOString().slice(0, 10) : undefined,
-    })
+    }
   }
   const totalQty = order.items.reduce((s, it) => s + it.qty, 0)
   const firstItem = order.items[0]
@@ -213,29 +199,7 @@ export function OrderRow({ order, onToggleLabel, isPending, linkedInvoice, onCre
               📄
             </span>
           )}
-          <select
-            value={wpForumChannelId}
-            onChange={(e) => setWpForumChannelId(e.target.value)}
-            className="h-7 rounded-md border bg-transparent px-1 text-[11px] flex-shrink-0"
-            aria-label="Forum channel Working Project"
-          >
-            {WORKING_PROJECT_FORUM_CHANNELS.map((id) => (
-              <option key={id} value={id}>
-                {id}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={handleCreateWorkingProject}
-            disabled={createWorkingProjectMutation.isPending}
-            className="flex items-center gap-1 text-xs font-medium transition-colors flex-shrink-0 disabled:opacity-50"
-            style={{ color: "#a5b4fc" }}
-            onMouseEnter={(e) => (e.currentTarget.style.color = "#c7d2fe")}
-            onMouseLeave={(e) => (e.currentTarget.style.color = "#a5b4fc")}
-          >
-            📋 {createWorkingProjectMutation.isPending ? "Membuat..." : "Buat Working Project"}
-          </button>
+          <WorkingProjectAction orderNo={order.orderSn} buildInput={buildWorkingProjectInput} layout="row" />
           <Button
             variant={order.labelPrinted ? "outline" : "default"}
             size="sm"
@@ -251,22 +215,6 @@ export function OrderRow({ order, onToggleLabel, isPending, linkedInvoice, onCre
           </Button>
         </div>
 
-        {createWorkingProjectMutation.isError && (
-          <div className="mt-1 text-[11px] text-red-500">
-            Gagal membuat Working Project: {(createWorkingProjectMutation.error as Error).message}
-          </div>
-        )}
-        {createWorkingProjectMutation.data && (() => {
-          const fb = describeCreateResult(createWorkingProjectMutation.data)
-          return (
-            <div className={`mt-1 text-[11px] ${fb.ok ? "text-emerald-400" : "text-red-500"}`}>
-              {fb.ok ? "✅" : "⚠️"} {fb.text}
-              {createWorkingProjectMutation.data.threadUrl && (
-                <> · <a href={createWorkingProjectMutation.data.threadUrl} target="_blank" rel="noreferrer" className="underline">buka thread</a></>
-              )}
-            </div>
-          )
-        })()}
 
         {expanded && (
           <div className="mt-3 border-t dark:border-slate-700 pt-3 space-y-2 text-xs">

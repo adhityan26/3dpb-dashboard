@@ -2,15 +2,10 @@
 
 import { useState } from "react"
 import Image from "next/image"
-import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent } from "@/components/ui/card"
 import type { TokopediaOrderSummary } from "@/lib/tokopedia/types"
 import { buildMultiItemProduct } from "@/lib/working-projects/format"
-import {
-  WORKING_PROJECT_FORUM_CHANNELS,
-  createWorkingProjectFromOrder,
-  describeCreateResult,
-} from "@/lib/working-projects/create-from-order"
+import { WorkingProjectAction } from "@/components/order/WorkingProjectAction"
 
 interface TokopediaOrderRowProps {
   order: TokopediaOrderSummary
@@ -49,23 +44,14 @@ function statusStyle(code: number | null): { dot: string; dotClass: string; bord
 export function TokopediaOrderRow({ order, defaultExpanded = false }: TokopediaOrderRowProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const [imgError, setImgError] = useState(false)
-  const [wpForumChannelId, setWpForumChannelId] = useState<string>(WORKING_PROJECT_FORUM_CHANNELS[0])
   const s = statusStyle(order.statusCode)
   const totalQty = order.products.reduce((sum, p) => sum + p.qty, 0)
   const first = order.products[0]
   const showImage = !imgError && !!first?.imageUrl
-  const queryClient = useQueryClient()
 
-  const createWorkingProjectMutation = useMutation({
-    mutationFn: createWorkingProjectFromOrder,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["working-projects"] })
-    },
-  })
-
-  function handleCreateWorkingProject() {
-    createWorkingProjectMutation.mutate({
-      source: "tokopedia",
+  function buildWorkingProjectInput(wpForumChannelId: string) {
+    return {
+      source: "tokopedia" as const,
       sourceOrderNo: order.orderId,
       forumChannelId: wpForumChannelId,
       customer: order.buyerNickname ?? order.orderId,
@@ -76,7 +62,7 @@ export function TokopediaOrderRow({ order, defaultExpanded = false }: TokopediaO
       shipping: order.courier ?? undefined,
       orderDateRaw: order.orderDate != null ? new Date(order.orderDate * 1000).toISOString().slice(0, 10) : undefined,
       dueDateRaw: order.latestRtsTime != null ? new Date(order.latestRtsTime * 1000).toISOString().slice(0, 10) : undefined,
-    })
+    }
   }
 
   return (
@@ -149,49 +135,9 @@ export function TokopediaOrderRow({ order, defaultExpanded = false }: TokopediaO
             <div className="mt-0.5 text-[11px]" style={{ color: "#facc15" }}>📝 {order.note}</div>
           )}
           </button>
-          <div className="flex flex-col items-end gap-1 flex-shrink-0">
-            <select
-              value={wpForumChannelId}
-              onChange={(e) => setWpForumChannelId(e.target.value)}
-              className="h-7 rounded-md border bg-transparent px-1 text-[11px]"
-              aria-label="Forum channel Working Project"
-            >
-              {WORKING_PROJECT_FORUM_CHANNELS.map((id) => (
-                <option key={id} value={id}>
-                  {id}
-                </option>
-              ))}
-            </select>
-            <button
-              type="button"
-              onClick={handleCreateWorkingProject}
-              disabled={createWorkingProjectMutation.isPending}
-              className="flex items-center gap-1 text-xs font-medium transition-colors disabled:opacity-50"
-              style={{ color: "#a5b4fc" }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "#c7d2fe")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "#a5b4fc")}
-            >
-              📋 {createWorkingProjectMutation.isPending ? "Membuat..." : "Buat Working Project"}
-            </button>
-          </div>
+          <WorkingProjectAction orderNo={order.orderId} buildInput={buildWorkingProjectInput} />
         </div>
 
-        {createWorkingProjectMutation.isError && (
-          <div className="mt-1 text-[11px] text-red-500">
-            Gagal membuat Working Project: {(createWorkingProjectMutation.error as Error).message}
-          </div>
-        )}
-        {createWorkingProjectMutation.data && (() => {
-          const fb = describeCreateResult(createWorkingProjectMutation.data)
-          return (
-            <div className={`mt-1 text-[11px] ${fb.ok ? "text-emerald-400" : "text-red-500"}`}>
-              {fb.ok ? "✅" : "⚠️"} {fb.text}
-              {createWorkingProjectMutation.data.threadUrl && (
-                <> · <a href={createWorkingProjectMutation.data.threadUrl} target="_blank" rel="noreferrer" className="underline">buka thread</a></>
-              )}
-            </div>
-          )
-        })()}
 
         {expanded && (
           <div className="mt-3 border-t dark:border-slate-700 pt-3 space-y-2 text-xs">

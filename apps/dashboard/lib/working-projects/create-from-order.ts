@@ -17,6 +17,17 @@ export const WORKING_PROJECT_FORUM_CHANNELS = [
   process.env.NEXT_PUBLIC_FORUM_CLICKER_ID ?? "FORUM_CLICKER_ID",
 ] as const
 
+/** Display labels, index-aligned with WORKING_PROJECT_FORUM_CHANNELS. */
+export const WORKING_PROJECT_FORUM_LABELS = ["Umum", "Topeng", "Cincin", "Clicker"] as const
+
+/** The WP already tracking this marketplace order, if any. Matches the
+ * legacy order number too, so bot/manual-created WPs are found as well. */
+export function findWorkingProjectForOrder<
+  T extends { sourceOrderNo: string | null; orderNoLegacy: string | null },
+>(projects: T[], orderNo: string): T | undefined {
+  return projects.find((p) => p.sourceOrderNo === orderNo || p.orderNoLegacy === orderNo)
+}
+
 export interface CreateWorkingProjectFromOrderInput {
   source: "shopee" | "tokopedia"
   sourceOrderNo: string
