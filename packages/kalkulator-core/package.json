@@ -5,7 +5,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./import-3mf": "./src/import-3mf/index.ts"
+    "./import-3mf": "./src/import-3mf/index.ts",
+    "./import-gcode": "./src/import-gcode/index.ts"
   },
   "scripts": {
     "test": "vitest run"
