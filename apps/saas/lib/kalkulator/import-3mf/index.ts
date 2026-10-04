@@ -6,11 +6,18 @@ import {
 } from "@3pb/kalkulator-core/import-3mf";
 import type { FilamentEntry } from "../local-settings";
 import { buildImportDraft, type ImportDraft } from "./build-draft";
+import { importGcodeFile, isRawGcode } from "./gcode";
 
-/** Parse file .3mf/.gcode.3mf jadi draft siap pakai untuk PlateInput.
+/** Parse file .3mf/.gcode.3mf/.gcode jadi draft siap pakai untuk PlateInput.
  *  Semua parsing terjadi di browser — file tidak pernah di-upload ke server. */
 export async function importSlicerFile(file: File, filaments: FilamentEntry[]): Promise<ImportDraft | null> {
   try {
+    if (isRawGcode(file.name)) {
+      const draft = await importGcodeFile(file, filaments);
+      if (draft) return draft;
+      // Some exports are a zipped plate saved as "*.gcode" (PK header) — let the zip path try.
+    }
+
     const buf = await file.arrayBuffer();
     const entries = await readGcode3mfEntries(buf);
     if (!entries) return null;
