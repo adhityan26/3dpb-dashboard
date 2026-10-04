@@ -148,6 +148,9 @@ export async function autoCreateWorkingProjectsFromNewOrders(): Promise<AutoCrea
         source: candidate.source,
         sourceOrderNo: candidate.sourceOrderNo,
         sourceProductId: candidate.sourceProductId,
+        // Was never passed here, so every auto-created WP (355 by 2026-10-04) had a
+        // blank Platform column; the manual "Buat WP" path always set it.
+        platform: candidate.source === 'shopee' ? 'Shopee' : 'Tokopedia',
         forumChannelId: forumChannelIdForCategory(category),
         customer: candidate.customer,
         product: candidate.product,

@@ -74,6 +74,7 @@ describe('autoCreateWorkingProjectsFromNewOrders', () => {
 
     expect(createWorkingProject).toHaveBeenCalledWith(expect.objectContaining({
       sourceOrderNo: 'SN9',
+      platform: 'Shopee',
       product: 'Green Lantern Ring 2026 3D Print (US 6), Green Lantern Ring 2026 3D Print (US 7), 3D Print Green Lantern Ring Cosplay (US 7)',
       variant: undefined,
     }))
@@ -115,7 +116,7 @@ describe('autoCreateWorkingProjectsFromNewOrders', () => {
     const result = await autoCreateWorkingProjectsFromNewOrders()
 
     expect(createWorkingProject).toHaveBeenCalledWith(expect.objectContaining({
-      source: 'tokopedia', sourceOrderNo: 'TOK1', forumChannelId: 'ORDERS_FORUM_CHANNEL_ID',
+      source: 'tokopedia', sourceOrderNo: 'TOK1', platform: 'Tokopedia', forumChannelId: 'ORDERS_FORUM_CHANNEL_ID',
       customer: 'Cici', product: 'Gantungan Kunci', variant: 'Merah',
       orderDateRaw: '2025-09-27', dueDateRaw: '2025-10-04',
     }))
