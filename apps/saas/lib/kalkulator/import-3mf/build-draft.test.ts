@@ -103,4 +103,15 @@ describe("buildImportDraft", () => {
     const draft = buildImportDraft(input);
     expect(draft.batch).toBe(1);
   });
+
+  it("strips .gcode from the draft name", () => {
+    const draft = buildImportDraft({
+      fileName: "Zord Painted_PLA_13h49m.gcode",
+      slicePlates: [],
+      modelPlates: [],
+      filamentSlots: [],
+      filamentCatalog: [],
+    });
+    expect(draft.nama).toBe("Zord Painted_PLA_13h49m");
+  });
 });

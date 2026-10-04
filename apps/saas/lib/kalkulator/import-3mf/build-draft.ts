@@ -34,7 +34,7 @@ const UNSLICED_WARNING = "File belum di-slice — isi berat & durasi manual.";
 const FALLBACK_MATERIAL: ImportedMaterial = { tipe: "FDM", gramasi: 0 };
 
 function deriveNama(fileName: string): string {
-  return fileName.replace(/\.gcode\.3mf$/i, "").replace(/\.3mf$/i, "");
+  return fileName.replace(/\.gcode\.3mf$/i, "").replace(/\.3mf$/i, "").replace(/\.gcode$/i, "");
 }
 
 function tipeFromMaterial(material: string): "FDM" | "SLA" {
