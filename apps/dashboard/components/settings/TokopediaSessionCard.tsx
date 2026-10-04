@@ -3,6 +3,12 @@
 import { useState } from "react"
 import { useTokopediaSession, useSaveTokopediaSession, useTestTokopediaSession } from "@/lib/hooks/use-tokopedia"
 
+const TEST_ERROR_MESSAGES: Record<string, string> = {
+  VERIFICATION_REQUIRED: "Tokopedia minta verifikasi captcha — buka seller-id.tokopedia.com di browser (jaringan yang sama dengan server), selesaikan captchanya, lalu coba lagi",
+  SESSION_INVALID: "Session ditolak Tokopedia — paste cookies baru dari browser yang sedang login",
+  SESSION_MISSING: "Belum ada session tersimpan",
+}
+
 export function TokopediaSessionCard() {
   const { data: status } = useTokopediaSession()
   const saveMut = useSaveTokopediaSession()
@@ -25,7 +31,7 @@ export function TokopediaSessionCard() {
   async function handleTest() {
     setMsg(null)
     const r = await testMut.mutateAsync()
-    setMsg(r.ok ? "✅ Koneksi OK" : "❌ " + r.error)
+    setMsg(r.ok ? "✅ Koneksi OK" : "❌ " + (TEST_ERROR_MESSAGES[r.error ?? ""] ?? r.error ?? "gagal"))
   }
 
   const expired = status?.expired

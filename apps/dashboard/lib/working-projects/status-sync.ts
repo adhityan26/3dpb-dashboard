@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/db'
 import { getOrderDetail } from '@/lib/shopee/orders'
 import { getOrderById } from '@/lib/tokopedia/orders'
+import { TokopediaError } from '@/lib/tokopedia/types'
 import { parseOrder } from '@/lib/tokopedia/parse'
 import { updateWorkingProject, getStatusSyncLastRunDate, setStatusSyncLastRunDate } from './service'
 
@@ -91,7 +92,18 @@ const SYNCABLE_STATUSES = ['Open', 'Proses', 'Siap Kirim', 'Waiting Customer'] a
  * own PATCH uses; does not archive the thread, matching setStatus()'s
  * existing behavior).
  */
-export async function syncWorkingProjectStatusFromMarketplace(): Promise<StatusSyncResult> {
+// Gap between per-order Tokopedia lookups. Bursts of back-to-back server-side requests
+// got the account challenged with a captcha (2026-10-04), which then fails every
+// Tokopedia call until a human solves it in a browser — so this job paces itself and
+// stops at the first session/verification error instead of retrying 100+ more times.
+const TOKOPEDIA_CALL_GAP_MS = 600
+const TOKOPEDIA_FATAL_CODES = new Set(['VERIFICATION_REQUIRED', 'SESSION_INVALID', 'SESSION_MISSING', 'SESSION_EXPIRED'])
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+export async function syncWorkingProjectStatusFromMarketplace(
+  opts: { tokopediaGapMs?: number } = {},
+): Promise<StatusSyncResult> {
+  const gapMs = opts.tokopediaGapMs ?? TOKOPEDIA_CALL_GAP_MS
   const errors: string[] = []
   const rows = await prisma.workingProject.findMany({
     where: { status: { in: [...SYNCABLE_STATUSES] } },
@@ -141,7 +153,9 @@ export async function syncWorkingProjectStatusFromMarketplace(): Promise<StatusS
     }
   }
 
-  for (const r of tokopediaRows) {
+  for (let i = 0; i < tokopediaRows.length; i++) {
+    const r = tokopediaRows[i]
+    if (i > 0 && gapMs > 0) await sleep(gapMs)
     let statusTarget: string | null = null
     let shippingTarget: string | null = null
     try {
@@ -154,6 +168,12 @@ export async function syncWorkingProjectStatusFromMarketplace(): Promise<StatusS
         if (courier) shippingTarget = courier
       }
     } catch (err) {
+      if (err instanceof TokopediaError && TOKOPEDIA_FATAL_CODES.has(err.code)) {
+        const remaining = tokopediaRows.length - i
+        result.skipped += remaining
+        errors.push(`tokopedia: dihentikan di order ke-${i + 1} (${err.code}) — ${err.message}; ${remaining} WP Tokopedia dilewati`)
+        break
+      }
       result.skipped++
       errors.push(`tokopedia:${r.sourceOrderNo}: gagal ambil order — ${(err as Error).message}`)
       continue

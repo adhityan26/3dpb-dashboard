@@ -1,5 +1,5 @@
 export type TokopediaErrorCode =
-  | "SESSION_MISSING" | "SESSION_INVALID" | "SESSION_EXPIRED" | "NOT_FOUND" | "UNKNOWN"
+  | "SESSION_MISSING" | "SESSION_INVALID" | "SESSION_EXPIRED" | "VERIFICATION_REQUIRED" | "NOT_FOUND" | "UNKNOWN"
 
 export class TokopediaError extends Error {
   code: TokopediaErrorCode

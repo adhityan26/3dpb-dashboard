@@ -9,6 +9,7 @@ import { parseOrder } from "./parse"
 // actually get ordered, not a full live product list.
 const SCAN_TABS: TokopediaTab[] = ["selesai", "dikirim"]
 const PAGE_SIZE = 50
+const PAGE_GAP_MS = 400
 const MAX_PAGES_PER_TAB = 4 // up to 200 orders/tab — enough recent variety without being slow
 
 export async function getRecentTokopediaProductNames(): Promise<string[]> {
@@ -17,13 +18,15 @@ export async function getRecentTokopediaProductNames(): Promise<string[]> {
     let offset = 0
     for (let page = 0; page < MAX_PAGES_PER_TAB; page++) {
       const raw = await listOrders(tab, { count: PAGE_SIZE, offset })
-      for (const order of raw.main_orders) {
+      const orders = raw.main_orders ?? [] // an empty tab returns no main_orders at all
+      for (const order of orders) {
         for (const product of parseOrder(order).products) {
           if (product.name) names.add(product.name)
         }
       }
-      if (raw.main_orders.length < PAGE_SIZE) break
+      if (orders.length < PAGE_SIZE) break
       offset += PAGE_SIZE
+      await new Promise((r) => setTimeout(r, PAGE_GAP_MS)) // avoid triggering Tokopedia's captcha challenge
     }
   }
   return [...names]

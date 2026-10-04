@@ -17,6 +17,7 @@ import {
   runDailyStatusSyncIfDue,
 } from '../status-sync'
 import { prisma } from '@/lib/db'
+import { TokopediaError } from '@/lib/tokopedia/types'
 import { getOrderDetail } from '@/lib/shopee/orders'
 import { getOrderById } from '@/lib/tokopedia/orders'
 import { parseOrder } from '@/lib/tokopedia/parse'
@@ -219,6 +220,23 @@ describe('syncWorkingProjectStatusFromMarketplace', () => {
 
     expect(updateWorkingProject).toHaveBeenCalledWith('t3', { shipping: 'JNE Reguler' })
     expect(result.updated).toBe(1)
+  })
+
+  it('stops the Tokopedia loop at the first captcha/session error instead of hammering the rest', async () => {
+    ;(prisma.workingProject.findMany as any).mockResolvedValue([
+      { source: 'tokopedia', sourceOrderNo: 'TOK1', discordThreadId: 't1', status: 'Open', shipping: 'JNE' },
+      { source: 'tokopedia', sourceOrderNo: 'TOK2', discordThreadId: 't2', status: 'Open', shipping: 'JNE' },
+      { source: 'tokopedia', sourceOrderNo: 'TOK3', discordThreadId: 't3', status: 'Open', shipping: 'JNE' },
+    ])
+    ;(getOrderById as any).mockRejectedValue(new TokopediaError('VERIFICATION_REQUIRED', 'captcha'))
+
+    const result = await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
+
+    expect(getOrderById).toHaveBeenCalledTimes(1)
+    expect(result.skipped).toBe(3)
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toContain('VERIFICATION_REQUIRED')
+    expect(result.errors[0]).toContain('3 WP Tokopedia dilewati')
   })
 
   it('keeps going when a single Tokopedia order lookup fails', async () => {

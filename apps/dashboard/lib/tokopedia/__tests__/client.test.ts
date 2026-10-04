@@ -45,6 +45,16 @@ describe("tokopediaRequest", () => {
     await expect(tokopediaRequest({})).rejects.toMatchObject({ code: "SESSION_INVALID" })
   })
 
+  it("throws VERIFICATION_REQUIRED when code 10000 carries the bdturing challenge header", async () => {
+    mockSession.mockResolvedValue(SESSION)
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      ok: true,
+      headers: new Headers({ "x-vc-bdturing-parameters": '{"code":"10000","type":"verify"}' }),
+      json: async () => ({ code: 10000 }),
+    } as any)
+    await expect(tokopediaRequest({})).rejects.toMatchObject({ code: "VERIFICATION_REQUIRED" })
+  })
+
   it("throws UNKNOWN on other non-zero codes", async () => {
     mockSession.mockResolvedValue(SESSION)
     vi.spyOn(globalThis, "fetch").mockResolvedValue({

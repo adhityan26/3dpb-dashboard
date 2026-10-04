@@ -46,6 +46,9 @@ export interface AutoCreateResult {
 // memory): order_status 1 (menunggu pengiriman) and 2 (menunggu pengambilan).
 const TOKOPEDIA_NEW_ORDER_TABS = ['perlu-dikirim', 'menunggu-pengambilan'] as const
 const TOKOPEDIA_PAGE_SIZE = 50
+// Pause between pages: back-to-back server-side Tokopedia requests got the account
+// challenged with a captcha (2026-10-04), which then fails every call until solved by hand.
+const TOKOPEDIA_PAGE_GAP_MS = 500
 const TOKOPEDIA_SAFETY_MAX_PAGES = 40 // 2000 orders/tab hard cap, matches other pagination safety caps in this codebase
 
 async function collectShopeeCandidates(errors: string[]): Promise<OrderCandidate[]> {
@@ -92,7 +95,8 @@ async function collectTokopediaCandidates(errors: string[]): Promise<OrderCandid
       let offset = 0
       for (let page = 0; page < TOKOPEDIA_SAFETY_MAX_PAGES; page++) {
         const raw = await listOrders(tab, { count: TOKOPEDIA_PAGE_SIZE, offset })
-        for (const r of raw.main_orders) {
+        const pageOrders = raw.main_orders ?? [] // an empty tab returns no main_orders at all
+        for (const r of pageOrders) {
           const summary = parseOrder(r)
           if (!summary.orderId || !summary.isPreOrder) continue
           const first = summary.products[0]
@@ -107,8 +111,9 @@ async function collectTokopediaCandidates(errors: string[]): Promise<OrderCandid
             dueDateRaw: isoDate(summary.latestRtsTime),
           })
         }
-        if (raw.main_orders.length < TOKOPEDIA_PAGE_SIZE) break
+        if (pageOrders.length < TOKOPEDIA_PAGE_SIZE) break
         offset += TOKOPEDIA_PAGE_SIZE
+        await new Promise((r) => setTimeout(r, TOKOPEDIA_PAGE_GAP_MS))
       }
     } catch (err) {
       errors.push(`tokopedia (${tab}): gagal ambil order — ${(err as Error).message}`)

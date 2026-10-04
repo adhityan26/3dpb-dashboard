@@ -32,7 +32,21 @@ export async function tokopediaRequest<T = unknown>(body: object): Promise<T> {
 
   if (!res.ok) throw new TokopediaError("UNKNOWN", `HTTP ${res.status}`)
   const json = await res.json() as { code: number; message?: string; data?: T }
-  if (json.code === 10000) throw new TokopediaError("SESSION_INVALID", json.message ?? "session invalid / IP mismatch")
+  if (json.code === 10000) {
+    // Code 10000 is ByteDance's risk-control "verify" challenge as often as it is a
+    // genuinely bad session: the response then carries x-vc-bdturing-parameters
+    // (found 2026-10-04 — bursts of server-side requests got challenged, and the old
+    // "session invalid / IP mismatch" message sent us chasing the wrong cause for
+    // hours). A human has to solve the captcha in a real browser from the same
+    // network; retrying from here only digs the hole deeper.
+    if (res.headers?.get("x-vc-bdturing-parameters")) {
+      throw new TokopediaError(
+        "VERIFICATION_REQUIRED",
+        "Tokopedia meminta verifikasi captcha — buka seller-id.tokopedia.com di browser (jaringan yang sama dengan server), selesaikan captchanya, lalu coba lagi",
+      )
+    }
+    throw new TokopediaError("SESSION_INVALID", json.message ?? "session invalid / IP mismatch")
+  }
   if (json.code !== 0) throw new TokopediaError("UNKNOWN", json.message ?? `Tokopedia code ${json.code}`)
   return json.data as T
 }
