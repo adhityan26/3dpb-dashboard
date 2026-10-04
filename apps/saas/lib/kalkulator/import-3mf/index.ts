@@ -16,6 +16,9 @@ export async function importSlicerFile(file: File, filaments: FilamentEntry[]): 
       const draft = await importGcodeFile(file, filaments);
       if (draft) return draft;
       // Some exports are a zipped plate saved as "*.gcode" (PK header) — let the zip path try.
+      // Peek at 2 bytes only: don't load a 100-200 MB plain gcode into memory just to learn it is not a zip.
+      const magic = new Uint8Array(await file.slice(0, 2).arrayBuffer());
+      if (magic[0] !== 0x50 || magic[1] !== 0x4b) return null;
     }
 
     const buf = await file.arrayBuffer();
