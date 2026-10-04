@@ -7,6 +7,7 @@ import { newId } from "@/lib/id";
 import { importSlicerFile } from "@/lib/kalkulator/import-3mf";
 import type { ImportDraft } from "@/lib/kalkulator/import-3mf/build-draft";
 import { mergeImportedPlates } from "@/lib/kalkulator/import-3mf/merge-plates";
+import { isRawGcode } from "@/lib/kalkulator/import-3mf/gcode";
 import type { FilamentEntry } from "@/lib/kalkulator/local-settings";
 
 // input type="color" HTML cuma nerima format #rrggbb persis 6 digit — beda dgn
@@ -148,7 +149,16 @@ export function PlateInput({
       else failed.push(file.name);
     }
     if (failed.length > 0) {
-      setImportError(`File tidak dikenali: ${failed.join(", ")} — pastikan file .3mf/.gcode.3mf dari Bambu Studio/OrcaSlicer.`);
+      const failedGcode = failed.filter(isRawGcode);
+      const failedOther = failed.filter((n) => !isRawGcode(n));
+      const messages: string[] = [];
+      if (failedGcode.length > 0) {
+        messages.push(`Format gcode belum didukung: ${failedGcode.join(", ")} — baru Bambu Studio & OrcaSlicer/Snapmaker Orca.`);
+      }
+      if (failedOther.length > 0) {
+        messages.push(`File tidak dikenali: ${failedOther.join(", ")} — pastikan file .3mf/.gcode.3mf/.gcode dari Bambu Studio/OrcaSlicer.`);
+      }
+      setImportError(messages.join(" "));
     }
     if (drafts.length === 0) return;
     const importedRows: PlateRow[] = drafts.flatMap((draft) =>
@@ -299,7 +309,7 @@ export function PlateInput({
       <input
         ref={fileInputRef}
         type="file"
-        accept=".3mf,.gcode.3mf"
+        accept=".3mf,.gcode.3mf,.gcode"
         multiple
         className="hidden"
         onChange={(e) => {

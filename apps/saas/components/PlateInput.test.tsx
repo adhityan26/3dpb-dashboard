@@ -284,6 +284,21 @@ describe("1b-6b import file slicer (multi-file append)", () => {
     const warns = await screen.findAllByText(/Filament X belum ada di katalog/);
     expect(warns).toHaveLength(1);
   });
+
+  it("input file menerima .gcode mentah", () => {
+    render(<PlateInput {...base} locked={false} />);
+    expect(fileInput().getAttribute("accept")).toBe(".3mf,.gcode.3mf,.gcode");
+  });
+
+  it("gcode dari slicer tak didukung → pesan format gcode, file lain pesan umum", async () => {
+    mockImport.mockResolvedValue(null);
+    render(<PlateInput {...base} locked={false} onPlatesChange={vi.fn()} />);
+    fireEvent.change(fileInput(), {
+      target: { files: [new File(["d"], "cura.gcode"), new File(["d"], "bad.zip")] },
+    });
+    expect(await screen.findByText(/Format gcode belum didukung: cura\.gcode/)).toBeTruthy();
+    expect(screen.getByText(/File tidak dikenali: bad\.zip/)).toBeTruthy();
+  });
 });
 
 describe("durasi format H:MM & native color input (polish pasca-1b-6b)", () => {
