@@ -1,7 +1,7 @@
 # Kalkulator: Estimasi Gramasi & Waktu dari STL/3MF + Import Gcode Mentah (Hybrid)
 
 **Tanggal:** 2026-10-04
-**Status:** Menunggu review user
+**Status:** Disetujui user (desain); direvisi setelah review Fable 2026-10-04
 **Scope:** `packages/kalkulator-core` (mesin + parser baru) + `apps/saas` (UI, profil, Worker). `apps/dashboard` menyusul setelah SaaS, memakai mesin yang sama.
 
 ## Masalah
@@ -58,9 +58,10 @@ Tiap sub-proyek punya plan + implementasi sendiri. Spec ini merinci semuanya di 
 | **A** | Import gcode mentah | Parser ringkasan gcode Bambu & Orca/Snapmaker → masuk alur import yang ada | — |
 | **B** | Profil slicer | Skema `SlicerProfile`, `profileFromProject3mf`, profil default, store IndexedDB + UI Settings | — |
 | **C** | Mesin estimasi | Mesh parser + `estimatePrint` + kalibrasi | B |
-| **D** | UI estimasi + buangan multi-warna | Import STL/3MF di PlateInput, Worker, badge, `multicolor/` | B, C |
+| **D1** | UI estimasi 1 warna | Import STL/3MF di PlateInput, Worker, badge, toggle support | B, C |
+| **D2** | Buangan multi-warna | `multicolor/` (paint → ganti warna → flush/prime), split gram per warna | D1 |
 
-Urutan: **A → B → C → D**. Dashboard (port UI + profil di Postgres) setelah D.
+Urutan: **A → B → C → D1 → D2**. Dashboard (port UI + profil di Postgres) setelah D.
 
 ## Arsitektur
 
@@ -95,14 +96,15 @@ Export subpath baru mengikuti pola `./import-3mf`: `./import-gcode`, `./estimate
 
 | Slicer | Lokasi | Field |
 |---|---|---|
-| Bambu Studio | header (±40 baris awal) | `; model printing time: X; total estimated time: Y`, `; total filament weight [g] : a,b,c`, `; filament_density`, `; filament: …` |
-| OrcaSlicer / Snapmaker Orca | footer (blok `; filament used …` s/d `; estimated printing time`) | `; filament used [g] = a, b, c`, `; total filament used [g]`, `; total filament change = N`, `; estimated printing time (normal mode) = …` |
+| Bambu Studio | header (±40 baris awal) | `; model printing time: X; total estimated time: Y`, `; total filament weight [g] : a,b,c` — **hanya filamen yang dipakai**, urut sesuai daftar slot `; filament: 1,2,3,5,6` (slot boleh loncat) |
+| OrcaSlicer / Snapmaker Orca | footer (blok `; filament used …` s/d `; estimated printing time`) | `; filament used [g] = a, b, c` — **semua extruder**, yang tak dipakai `0.00`; `; total filament change = N`, `; estimated printing time (normal mode) = …` |
 | Keduanya | blok config: Bambu **di awal** file (setelah header), Orca **di akhir** | `; filament_type = PLA;PLA…`, `; filament_colour = #…;#…`, `; filament_vendor` (opsional), `; printer_model` |
 
 - Waktu yang dipakai = **total estimated time** (Bambu) / **estimated printing time** (Orca) — sama dengan `prediction` di `slice_info.config` yang dipakai import sekarang, supaya konsisten.
 - Hanya dibaca **128 KB awal + 128 KB akhir** file (`File.slice`), gcode 100 MB tetap ringan. Terverifikasi: Bambu (Switch A1) `printer_model` di ±34 KB dari awal; Orca (Zord U1, 97,7 MB) seluruh footer + config di ≤27 KB dari akhir.
-- Filamen dengan `used [g] = 0` dibuang. Pencocokan ke katalog filamen user memakai logika `build-draft` yang ada (brand + material); warna diambil dari `filament_colour`.
+- Bambu: berat dipetakan ke slot dari `; filament:` (kalau jumlahnya tidak cocok → posisional). Orca: posisional, filamen `0` g dibuang. Pencocokan ke katalog filamen user memakai logika `build-draft` yang ada (brand + material); warna diambil dari `filament_colour`.
 - 1 file gcode = 1 plate. `batch` = 1 (gcode tidak menyimpan jumlah objek dengan andal).
+- File bernama `.gcode` yang ternyata ZIP (plate Bambu yang di-export dengan nama `.gcode`, header `PK`) → parser teks gagal → jatuh ke jalur `.gcode.3mf` yang ada.
 
 ### Output
 
@@ -116,7 +118,7 @@ interface GcodeSummary {
 }
 ```
 
-Dipetakan ke `ImportDraft` oleh `build-draft` yang ada (tambah satu adapter `gcodeSummaryToSlicePlate`).
+Dipetakan ke `ImportDraft` lewat adapter core `gcodeSummaryToSliceInput` (→ `SliceInfoPlate` + `ProjectFilamentSlot[]`) lalu `buildImportDraft` yang ada. `printerModelId` dibiarkan `null` (field itu berisi kode model Bambu seperti `C12` untuk mapping printer dashboard); nama printer tetap tersedia di `GcodeSummary.printerModel` untuk sub-proyek berikutnya.
 
 ### Error
 
@@ -180,9 +182,9 @@ interface EstimateResult {
 }
 ```
 
-`durasiJam` di plate = `(seconds + prepSec) / 3600`, konsisten dengan `prediction` import 3MF (total waktu).
+`durasiJam` di plate = `(seconds + prepSec) / 3600`. **Definisi waktu:** import persis (3MF/gcode) memakai total yang dilaporkan slicer (termasuk prep, dan timelapse kalau aktif di file itu). Estimasi **tidak** menambahkan timelapse karena setting-nya tidak diketahui dari STL; tooltip badge menyebut "belum termasuk timelapse".
 
-## Sub-proyek D — UI Estimasi + Buangan Multi-warna
+## Sub-proyek D1 — UI Estimasi (1 warna) & D2 — Buangan Multi-warna
 
 ### Alur per jenis file (dispatcher di import)
 
@@ -195,7 +197,7 @@ interface EstimateResult {
 
 Toggle support saat upload STL: **ikut profil / tidak / normal / tree**.
 
-### Multi-warna (`.3mf` di-paint)
+### D2: Multi-warna (`.3mf` di-paint)
 
 - Warna per layer dari `paint_color` (+ extruder default objek) → jumlah ganti warna (urutan per layer: warna terakhir layer sebelumnya didahulukan).
 - Buangan: AMS = Σ `flushMatrix[dari][ke]` × `flush_multiplier`; toolchanger = ganti × `primeVolume`.
@@ -208,7 +210,7 @@ Toggle support saat upload STL: **ikut profil / tidak / normal / tree**.
 
 ## Error & Warning
 
-**Error (import dibatalkan):** file tidak terbaca; gcode format belum didukung; file > 300 MB; setting 3MF tidak lengkap; estimasi > 60 detik (progress + batal tersedia).
+**Error (import dibatalkan):** file tidak terbaca; gcode format belum didukung; mesh > **2 juta segitiga** (dicek dari header 84 byte STL binary sebelum file dibaca utuh — memori Worker di iOS Safari terbatas; ASCII STL dibatasi 100 MB); setting 3MF tidak lengkap; estimasi > 60 detik (progress + batal tersedia).
 
 **Warning (estimasi tetap jalan):**
 
@@ -235,7 +237,7 @@ Badge = warning terburuk. 🟢 hanya untuk 1 warna, tanpa support, mesh rapat, m
 - `scripts/calibrate` → laporan error per kategori (1 warna tanpa support, support normal, tree, part kecil, multi-warna). `accuracyPct` badge = error P90 per kategori.
 - Slicer CLI hanya dipakai di Mac dev untuk membuat referensi, tidak pernah di produk.
 
-**Target sebelum rilis:**
+**Target sebelum rilis** (target *setelah* kalibrasi; prototipe belum memenuhi, mis. Switch −8%, gem waktu +65%, tree support waktu −53…−59%):
 
 | Kategori | Berat (rata-rata error) | Waktu |
 |---|---|---|
@@ -243,7 +245,7 @@ Badge = warning terburuk. 🟢 hanya untuk 1 warna, tanpa support, mesh rapat, m
 | Support | ≤ 20% | ≤ 30% (dilaporkan, tidak memblokir) |
 | Buangan multi-warna vs slicer | ≤ 25% | — |
 
-Kategori yang tidak lolos → badge diturunkan otomatis. Korpus awal: ±30 STL uji, Switch (A1/P2S), Ring + Gem GL 8.5, Zord (P1S/U1); **perlu ±15–20 sampel tambahan** dari produk 3DPB sehari-hari.
+Kategori yang tidak lolos → badge diturunkan otomatis (🟢→🟡→🔴) dan `accuracyPct` menampilkan P90 aktual, bukan target. Korpus awal: ±30 STL uji, Switch (A1/P2S), Ring + Gem GL 8.5, Zord (P1S/U1); **perlu ±15–20 sampel tambahan** dari produk 3DPB sehari-hari.
 
 ## Di Luar Scope
 

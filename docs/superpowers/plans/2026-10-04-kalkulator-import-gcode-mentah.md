@@ -171,16 +171,26 @@ const BAMBU_A1_HEAD = `; HEADER_BLOCK_START
 ; CONFIG_BLOCK_END
 `
 
-const BAMBU_P1S_MULTI_HEAD = `; HEADER_BLOCK_START
-; BambuStudio 02.08.02.61
-; model printing time: 12h 46m 32s; total estimated time: 12h 52m 48s
-; total filament weight [g] : 58.16,0,33.48,40.44
-; filament: 1,2,3,4
+// Real Bambu header (Nike Crocs plate 3, P1P, 8 AMS slots): weights are listed only for the
+// USED filaments, in the order of `; filament:` — slot 4 (PETG) is unused, the 4th weight is slot 5.
+const BAMBU_P1P_SPARSE_HEAD = `; HEADER_BLOCK_START
+; BambuStudio 02.02.01.58
+; model printing time: 33m 30s; total estimated time: 39m 45s
+; total layer number: 3
+; total filament weight [g] : 1.01,1.65,1.82,1.65,1.42
+; filament_density: 1.25,1.25,1.25,1.27,1.25,1.25,1.25,1.25
+; filament: 1,2,3,5,6
 ; HEADER_BLOCK_END
-; filament_colour = #D90000;#FFFF00;#00FF00;#000000
-; filament_type = PLA;PLA;PETG;PLA
-; filament_vendor = Generic;Generic;"Bambu Lab";Generic
-; printer_model = Bambu Lab P1S
+; filament_colour = #000000;#800002;#FB0207;#808080;#F75D00;#FECC66;#FFFF0A;#FFFF66
+; filament_type = PLA;PLA;PLA;PETG;PLA;PLA;PLA;PLA
+; filament_vendor = eSUN;eSUN;eSUN;Generic;"Bambu Lab";eSUN;eSUN;eSUN
+; printer_model = Bambu Lab P1P
+`
+
+// Real Orca footer (cigarete, 5 extruders): Orca lists every extruder, unused ones as 0.00.
+const ORCA_ZERO_TAIL = `; filament used [g] = 28.02, 16.22, 1.53, 0.00, 0.00
+; estimated printing time (normal mode) = 3h 8m 38s
+; filament_type = PLA;PLA;PLA;PLA;PLA
 `
 
 const ORCA_U1_TAIL = `; filament used [mm] = 20255.76, 3319.06, 5818.87, 21642.21
@@ -209,12 +219,30 @@ describe("parseGcodeSummary", () => {
     })
   })
 
-  it("drops zero-usage filaments but keeps slot indexes and strips quotes", () => {
-    const s = parseGcodeSummary(BAMBU_P1S_MULTI_HEAD, "")!
+  it("maps Bambu weights onto the slot ids from `; filament:` and strips quotes", () => {
+    const s = parseGcodeSummary(BAMBU_P1P_SPARSE_HEAD, "")!
     expect(s.slicer).toBe("bambu")
-    expect(s.totalSec).toBe(46368)
-    expect(s.filaments.map(f => f.index)).toEqual([1, 3, 4])
-    expect(s.filaments[1]).toEqual({ index: 3, usedG: 33.48, type: "PETG", color: "#00FF00", vendor: "Bambu Lab" })
+    expect(s.totalSec).toBe(2385)
+    expect(s.filaments.map(f => f.index)).toEqual([1, 2, 3, 5, 6])
+    expect(s.filaments[3]).toEqual({ index: 5, usedG: 1.65, type: "PLA", color: "#F75D00", vendor: "Bambu Lab" })
+    expect(s.printerModel).toBe("Bambu Lab P1P")
+  })
+
+  it("falls back to positional slots when `; filament:` does not match the weight count", () => {
+    const head = BAMBU_P1P_SPARSE_HEAD.replace("; filament: 1,2,3,5,6", "; filament: 1,2")
+    expect(parseGcodeSummary(head, "")!.filaments.map(f => f.index)).toEqual([1, 2, 3, 4, 5])
+  })
+
+  it("drops Orca extruders with zero usage", () => {
+    const s = parseGcodeSummary("", ORCA_ZERO_TAIL)!
+    expect(s.slicer).toBe("orca")
+    expect(s.totalSec).toBe(11318)
+    expect(s.filaments.map(f => [f.index, f.usedG])).toEqual([[1, 28.02], [2, 16.22], [3, 1.53]])
+  })
+
+  it("uses the Orca summary when a Bambu-style time line has no Bambu weight", () => {
+    const head = "; model printing time: 1h; total estimated time: 1h 5m\n"
+    expect(parseGcodeSummary(head, ORCA_U1_TAIL)!.slicer).toBe("orca")
   })
 
   it("reads an OrcaSlicer / Snapmaker Orca gcode from the tail", () => {
@@ -257,8 +285,10 @@ import { parseSlicerDuration } from "./parse-duration"
 import type { GcodeFilament, GcodeSlicer, GcodeSummary } from "./types"
 
 // Bambu Studio: summary in the header block, config block right after it (start of file).
+// Weights are listed only for USED filaments, in the order of the `; filament:` slot-id list.
 const BAMBU_TIME = /^; model printing time: [^;\n]*; total estimated time: ([^\n]+)$/m
 const BAMBU_WEIGHT = /^; total filament weight \[g\] : ([^\n]+)$/m
+const BAMBU_SLOT_IDS = /^; filament: ([\d,]+)$/m
 // OrcaSlicer family (incl. Snapmaker Orca): summary + config block in the footer.
 const ORCA_TIME = /^; estimated printing time \(normal mode\) = ([^\n]+)$/m
 const ORCA_WEIGHT = /^; filament used \[g\] = ([^\n]+)$/m
@@ -276,32 +306,54 @@ function configList(text: string, key: string): string[] {
   return raw.split(";").map(s => s.trim().replace(/^"(.*)"$/, "$1"))
 }
 
+/** Bambu or Orca summary pair (time + weights); Bambu wins when both are complete. */
+function detect(text: string): { slicer: GcodeSlicer; timeRaw: string; weightRaw: string } | null {
+  const bambuTime = match1(text, BAMBU_TIME)
+  const bambuWeight = match1(text, BAMBU_WEIGHT)
+  if (bambuTime != null && bambuWeight != null) return { slicer: "bambu", timeRaw: bambuTime, weightRaw: bambuWeight }
+  // Orca builds for Bambu printers may also print a Bambu-style time line in the header.
+  const orcaTime = match1(text, ORCA_TIME)
+  const orcaWeight = match1(text, ORCA_WEIGHT)
+  if (orcaTime != null && orcaWeight != null) return { slicer: "orca", timeRaw: orcaTime, weightRaw: orcaWeight }
+  return null
+}
+
+/** 1-based slot id per weight: Bambu's `; filament:` list when it lines up, else positional. */
+function slotIds(text: string, slicer: GcodeSlicer, count: number): number[] {
+  const positional = Array.from({ length: count }, (_, i) => i + 1)
+  if (slicer !== "bambu") return positional
+  const raw = match1(text, BAMBU_SLOT_IDS)
+  const ids = raw ? raw.split(",").map(s => parseInt(s, 10)) : []
+  return ids.length === count && ids.every(n => n > 0) ? ids : positional
+}
+
 /** Parse the print summary from the first and last chunk of a raw .gcode.
- *  Returns null when neither a Bambu nor an Orca summary is found, or it is incomplete. */
+ *  Returns null when neither a Bambu nor an Orca summary is found, or it is incomplete.
+ *  For files smaller than head+tail the chunks overlap; first-match lookups make that harmless. */
 export function parseGcodeSummary(head: string, tail: string): GcodeSummary | null {
   const text = `${head}\n${tail}`.replace(/\r/g, "")
 
-  const bambuTime = match1(text, BAMBU_TIME)
-  const orcaTime = bambuTime == null ? match1(text, ORCA_TIME) : null
-  const slicer: GcodeSlicer | null = bambuTime != null ? "bambu" : orcaTime != null ? "orca" : null
-  if (slicer == null) return null
+  const found = detect(text)
+  if (found == null) return null
+  const { slicer, timeRaw, weightRaw } = found
 
-  const totalSec = parseSlicerDuration((bambuTime ?? orcaTime)!)
-  const weightRaw = match1(text, slicer === "bambu" ? BAMBU_WEIGHT : ORCA_WEIGHT)
-  if (weightRaw == null || !Number.isFinite(totalSec)) return null
+  const totalSec = parseSlicerDuration(timeRaw)
+  if (!Number.isFinite(totalSec)) return null
 
   const weights = weightRaw.split(",").map(s => parseFloat(s.trim()))
   if (weights.some(w => !Number.isFinite(w))) return null
 
+  const ids = slotIds(text, slicer, weights.length)
   const types = configList(text, "filament_type")
   const colors = configList(text, "filament_colour")
   const vendors = configList(text, "filament_vendor")
   const filaments: GcodeFilament[] = weights
     .map((usedG, i) => {
-      const f: GcodeFilament = { index: i + 1, usedG }
-      if (types[i]) f.type = types[i]
-      if (colors[i]) f.color = colors[i]
-      if (vendors[i]) f.vendor = vendors[i]
+      const slot = ids[i] - 1
+      const f: GcodeFilament = { index: ids[i], usedG }
+      if (types[slot]) f.type = types[slot]
+      if (colors[slot]) f.color = colors[slot]
+      if (vendors[slot]) f.vendor = vendors[slot]
       return f
     })
     .filter(f => f.usedG > 0)
@@ -336,7 +388,7 @@ export { parseGcodeSummary } from "./parse-gcode-summary"
 - [ ] **Step 8: Jalankan seluruh test core, pastikan lulus**
 
 Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && pnpm --filter @3pb/kalkulator-core test`
-Expected: PASS — semua test lama (termasuk 14 golden) + 10 test baru
+Expected: PASS — semua test lama (termasuk 14 golden) + 13 test baru
 
 - [ ] **Step 9: Commit**
 
@@ -459,6 +511,8 @@ export function gcodeSummaryToSliceInput(summary: GcodeSummary): GcodeSliceInput
       index: 1,
       weightG,
       predictionSec: summary.totalSec,
+      // slice_info model codes (e.g. "C12") feed the dashboard printer mapping; a display name
+      // like "Bambu Lab P1S" would not match, so it stays null. GcodeSummary.printerModel keeps it.
       printerModelId: null,
       objectCount: 1,
       partCount: 1,
@@ -518,6 +572,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 ```ts
 import { describe, it, expect } from "vitest";
+import JSZip from "jszip";
 import { importSlicerFile } from "./index";
 import { isRawGcode, readGcodeEdges } from "./gcode";
 import type { FilamentEntry } from "../local-settings";
@@ -598,6 +653,22 @@ describe("importSlicerFile — raw .gcode", () => {
     expect(draft!.plates[0].materials.map((m) => m.warnaHex)).toEqual(["#D90000", "#FFFF00", "#00FF00", "#000000"]);
     // build-draft emits one warning per unmatched filament; PlateInput dedupes them for display.
     expect([...new Set(draft!.warnings)]).toEqual(['Filament "Generic PLA" belum ada di katalog — pakai tarif default']);
+  });
+
+  it("falls back to the zip path for a .gcode.3mf saved as .gcode", async () => {
+    const zip = new JSZip();
+    zip.file("Metadata/model_settings.config", `<config><plate><metadata key="plater_id" value="1"/><metadata key="plater_name" value=""/></plate></config>`);
+    zip.file("Metadata/project_settings.config", JSON.stringify({ filament_vendor: ["eSUN"], filament_type: ["PLA"] }));
+    zip.file("Metadata/slice_info.config", `<config><plate>
+  <metadata key="index" value="1"/><metadata key="prediction" value="3600"/><metadata key="weight" value="10"/>
+  <object identify_id="1" name="A" skipped="false" />
+  <filament id="1" type="PLA" color="#898989" used_m="1" used_g="10"/>
+</plate></config>`);
+    const buf = await zip.generateAsync({ type: "arraybuffer" });
+    const draft = await importSlicerFile(new File([buf], "Untitled_plate_1.gcode"), catalog);
+    expect(draft).not.toBeNull();
+    expect(draft!.nama).toBe("Untitled_plate_1");
+    expect(draft!.plates[0].materials[0]).toMatchObject({ filamentId: "f-esun", gramasi: 10 });
   });
 
   it("returns null for gcode from an unsupported slicer", async () => {
@@ -685,7 +756,11 @@ import { importGcodeFile, isRawGcode } from "./gcode";
  *  Semua parsing terjadi di browser — file tidak pernah di-upload ke server. */
 export async function importSlicerFile(file: File, filaments: FilamentEntry[]): Promise<ImportDraft | null> {
   try {
-    if (isRawGcode(file.name)) return await importGcodeFile(file, filaments);
+    if (isRawGcode(file.name)) {
+      const draft = await importGcodeFile(file, filaments);
+      if (draft) return draft;
+      // Some exports are a zipped plate saved as "*.gcode" (PK header) — let the zip path try.
+    }
 
     const buf = await file.arrayBuffer();
 ```
@@ -703,7 +778,7 @@ function deriveNama(fileName: string): string {
 - [ ] **Step 4: Jalankan test lib import, pastikan lulus**
 
 Run: `export PATH="$HOME/.nvm/versions/node/v22.21.1/bin:$PATH" && cd apps/saas && pnpm vitest run lib/kalkulator/import-3mf`
-Expected: PASS — test lama (`index.test.ts`, `build-draft.test.ts`, `merge-plates.test.ts`) + 6 test baru. Jangan ubah `build-draft.ts` selain `deriveNama`.
+Expected: PASS — test lama (`index.test.ts`, `build-draft.test.ts`, `merge-plates.test.ts`) + 7 test baru. Jangan ubah `build-draft.ts` selain `deriveNama`.
 
 - [ ] **Step 5: Commit**
 
