@@ -256,6 +256,6 @@ Kategori yang tidak lolos → badge diturunkan otomatis (🟢→🟡→🔴) dan
 - Estimasi akurat wall/travel batas warna multi-warna (hanya buangan).
 - Port ke dashboard (setelah D, spec terpisah).
 
-## Hal yang Perlu Diputuskan
+## Keputusan Lisensi Profil Default
 
-- **Lisensi data profil default:** angka diambil dari profil sistem Bambu Studio / Snapmaker Orca (AGPL-3.0). Yang dipakai hanya ±40 angka setting per printer, bukan kode. Perlu konfirmasi user bahwa ini dapat diterima untuk SaaS komersial.
+Diputuskan user 2026-10-04 (opsi 2): profil default **tidak** disalin dari profil sistem Bambu Studio / Snapmaker Orca (AGPL-3.0). Angkanya diambil dari project `.3mf` produksi 3DPB sendiri (satu per printer: P1S, A1, A1 mini, X1C, P2S, U1) dan diberi label "Default 3DPB". Dikerjakan di sub-proyek B; user menyediakan file `.3mf`-nya.
