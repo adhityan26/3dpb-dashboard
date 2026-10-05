@@ -8,7 +8,8 @@ import { TokopediaError } from "@/lib/tokopedia/types"
 
 const mock = prisma as any
 
-// A JWT with payload { "exp": 1783248893 } (base64url of the payload segment)
+// A JWT whose payload carries just { exp } (base64url of the payload segment)
+const FUTURE_EXP = Math.floor(Date.now() / 1000) + 24 * 3600
 function jwtWithExp(exp: number): string {
   const payload = Buffer.from(JSON.stringify({ exp })).toString("base64url")
   return `header.${payload}.sig`
@@ -16,7 +17,7 @@ function jwtWithExp(exp: number): string {
 
 function cookieArr(over: Record<string,string> = {}) {
   const base: Record<string,string> = {
-    SELLER_TOKEN: jwtWithExp(1783248893),
+    SELLER_TOKEN: jwtWithExp(FUTURE_EXP),
     oec_seller_id_unified_seller_env: "7496108703209719955",
     app_id_unified_seller_env: "4068",
     sessionid: "abc",
@@ -36,20 +37,40 @@ describe("decodeJwtExp", () => {
 })
 
 describe("saveSession", () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => { vi.clearAllMocks(); mock.config.findUnique.mockResolvedValue(null) })
 
   it("extracts sellerId/appId/expiry and upserts the config row", async () => {
     mock.config.upsert.mockResolvedValue({})
     const meta = await saveSession(cookieArr())
     expect(meta.sellerId).toBe("7496108703209719955")
     expect(meta.appId).toBe("4068")
-    expect(meta.tokenExpiry).toBe(new Date(1783248893 * 1000).toISOString())
+    expect(meta.tokenExpiry).toBe(new Date(FUTURE_EXP * 1000).toISOString())
     const arg = mock.config.upsert.mock.calls[0][0]
     expect(arg.where.key).toBe("tokopedia.session")
     const stored = JSON.parse(arg.create.value)
     expect(stored.cookies.SELLER_TOKEN).toBeTruthy()
     expect(stored.cookies.sessionid).toBe("abc")
     expect(stored.sellerId).toBe("7496108703209719955")
+  })
+
+  it("rejects an already-expired SELLER_TOKEN instead of overwriting the stored session with it", async () => {
+    const expired = Math.floor(Date.now() / 1000) - 3600
+    await expect(saveSession(cookieArr({ SELLER_TOKEN: jwtWithExp(expired) }))).rejects.toMatchObject({ code: "SESSION_EXPIRED" })
+    expect(mock.config.upsert).not.toHaveBeenCalled()
+  })
+
+  it("rejects a token that expires earlier than the one already stored (stale refresh must not clobber a fresh paste)", async () => {
+    const stored = { cookies: {}, sellerId: "S", appId: "4068", userAgent: null, updatedAt: "x", tokenExpiry: new Date((FUTURE_EXP + 7200) * 1000).toISOString() }
+    mock.config.findUnique.mockResolvedValue({ value: JSON.stringify(stored) })
+    await expect(saveSession(cookieArr())).rejects.toMatchObject({ code: "SESSION_EXPIRED" })
+    expect(mock.config.upsert).not.toHaveBeenCalled()
+  })
+
+  it("accepts a token with the same or a later expiry than the stored one", async () => {
+    const stored = { cookies: {}, sellerId: "S", appId: "4068", userAgent: null, updatedAt: "x", tokenExpiry: new Date((FUTURE_EXP - 7200) * 1000).toISOString() }
+    mock.config.findUnique.mockResolvedValue({ value: JSON.stringify(stored) })
+    mock.config.upsert.mockResolvedValue({})
+    await expect(saveSession(cookieArr())).resolves.toMatchObject({ sellerId: "7496108703209719955" })
   })
 
   it("throws when SELLER_TOKEN is missing", async () => {

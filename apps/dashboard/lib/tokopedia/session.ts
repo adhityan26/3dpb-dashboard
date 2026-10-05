@@ -28,6 +28,19 @@ export async function saveSession(cookies: { name: string; value: string }[]): P
   const tokenExpiry = exp != null ? new Date(exp * 1000).toISOString() : null
   const updatedAt = new Date().toISOString()
 
+  // 2026-10-05: the session-refresher kept re-saving the SAME already-expired
+  // SELLER_TOKEN harvested from its stale browser profile (reporting "success"),
+  // overwriting the fresh cookies pasted by hand and leaving the API on a dead
+  // token for a day. Refuse an expired token, and never let an older token clobber
+  // a newer stored one — the caller (Settings card / refresher) gets a clear error.
+  if (tokenExpiry && exp! * 1000 <= Date.now()) {
+    throw new TokopediaError("SESSION_EXPIRED", `SELLER_TOKEN yang dikirim sudah expired (${tokenExpiry}) — login ulang di seller-id.tokopedia.com dulu, lalu ekspor cookie yang baru`)
+  }
+  const existing = await getRawSession()
+  if (tokenExpiry && existing?.tokenExpiry && new Date(tokenExpiry).getTime() < new Date(existing.tokenExpiry).getTime()) {
+    throw new TokopediaError("SESSION_EXPIRED", `SELLER_TOKEN yang dikirim (${tokenExpiry}) lebih lama daripada yang sudah tersimpan (${existing.tokenExpiry}) — tidak ditimpa`)
+  }
+
   const stored: StoredSession = { cookies: flat, sellerId, appId, userAgent: flat["_user_agent"] ?? null, updatedAt, tokenExpiry }
   const value = JSON.stringify(stored)
   await prisma.config.upsert({

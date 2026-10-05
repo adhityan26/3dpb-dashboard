@@ -6,6 +6,7 @@ import { useTokopediaSession, useSaveTokopediaSession, useTestTokopediaSession }
 const TEST_ERROR_MESSAGES: Record<string, string> = {
   VERIFICATION_REQUIRED: "Tokopedia minta verifikasi captcha — buka seller-id.tokopedia.com di browser (jaringan yang sama dengan server), selesaikan captchanya, lalu coba lagi",
   SESSION_INVALID: "Session ditolak Tokopedia — paste cookies baru dari browser yang sedang login",
+  SESSION_EXPIRED: "Token session sudah expired — login ulang di seller-id.tokopedia.com, ekspor cookie yang baru, lalu paste di sini",
   SESSION_MISSING: "Belum ada session tersimpan",
 }
 
