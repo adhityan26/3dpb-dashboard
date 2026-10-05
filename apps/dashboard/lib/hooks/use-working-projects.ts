@@ -33,6 +33,11 @@ export interface WorkingProject {
   dueDateRaw: string | null
   invoiceAmount: number
   paidAmount?: number
+  salePrice?: number | null
+  feesTotal?: number | null
+  netIncome?: number | null
+  incomeStatus?: string | null
+  incomeSettledAt?: string | null
   notes?: string | null
   shipping?: string | null
   trackingNo?: string | null

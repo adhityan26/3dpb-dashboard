@@ -7,6 +7,7 @@ const projects = [
     id: 'wp1', customer: 'Budi', contact: '0812', product: 'Cincin', variant: 'Emas',
     platform: 'Shopee', sourceOrderNo: 'SN1', orderNoLegacy: null, dueDate: '2026-09-20',
     status: 'Open', payment: 'Marketplace', invoiceAmount: 150000,
+    source: 'tokopedia', salePrice: 150000, feesTotal: 26945, netIncome: 123055, incomeStatus: 'estimated',
     checklist: [{ id: 1, text: 'Print Frame', done: true, deleted: false }],
     discordThreadId: 't1',
     discordThreadUrl: 'https://discord.com/channels/123/t1',
@@ -14,7 +15,7 @@ const projects = [
   {
     id: 'wp2', customer: 'Ani', contact: null, product: 'Topeng', variant: null,
     platform: null, sourceOrderNo: null, orderNoLegacy: 'manual-1', dueDate: null,
-    status: 'Open', payment: 'Manual', invoiceAmount: 0,
+    source: 'manual', status: 'Open', payment: 'Manual', invoiceAmount: 0,
     checklist: [],
     discordThreadId: null,
     discordThreadUrl: null,
@@ -59,8 +60,14 @@ describe('WorkingProjectOrdersTab', () => {
     const headers = screen.getAllByRole('columnheader').map(h => h.textContent)
     expect(headers).toEqual([
       'Customer/Contact ▲', 'Produk', 'Variant', 'Platform', 'No. Order',
-      'Due Date ↕', 'Status ↕', 'Kurir', 'Payment', 'Nominal ↕', 'Checklist', 'Discord', 'Aksi',
+      'Due Date ↕', 'Status ↕', 'Kurir', 'Payment', 'Nominal ↕', 'Harga Jual', 'Biaya', 'Pendapatan', 'Checklist', 'Discord', 'Aksi',
     ])
+  })
+  it('shows sale price, fees and net income, flagging an unreleased (estimated) payout', () => {
+    render(<WorkingProjectOrdersTab />)
+    expect(screen.getByText('-Rp26.945')).toBeInTheDocument()
+    expect(screen.getByText(/Rp123\.055/)).toBeInTheDocument()
+    expect(screen.getByText('estimasi')).toBeInTheDocument()
   })
   it('prefers sourceOrderNo over orderNoLegacy for the No. Order column', () => {
     render(<WorkingProjectOrdersTab />)
@@ -219,8 +226,10 @@ describe('ordersToExportRows', () => {
     expect(rows[0]).toEqual({
       Customer: 'Budi', Kontak: '0812', Produk: 'Cincin', Variant: 'Emas', Platform: 'Shopee',
       'No. Order': 'SN1', 'Due Date': new Date('2026-09-20').toLocaleDateString('id-ID'),
-      Status: 'Open', Payment: 'Marketplace', Nominal: 150000, Checklist: '1/1', Discord: 'https://discord.com/channels/123/t1',
+      Status: 'Open', Payment: 'Marketplace', Nominal: 150000, 'Harga Jual': 150000, Biaya: 26945, Pendapatan: 123055, Checklist: '1/1', Discord: 'https://discord.com/channels/123/t1',
     })
+    // manual WP: sale price and income both equal the invoice amount, no fees
+    expect(rows[1]).toMatchObject({ 'Harga Jual': rows[1].Nominal, Biaya: 0, Pendapatan: rows[1].Nominal })
     expect(rows[1]).toMatchObject({ Customer: 'Ani', Kontak: '', 'No. Order': 'manual-1', Checklist: '0/0', Discord: '' })
   })
 })

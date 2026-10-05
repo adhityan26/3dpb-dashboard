@@ -12,6 +12,7 @@ import { WorkingProjectInvoiceButton } from "./WorkingProjectInvoiceButton"
 import { InlineEditCell, WorkingProjectStatusSelect, useInlineWorkingProjectUpdate } from "./WorkingProjectInline"
 import { WorkingProjectNotesModal } from "./WorkingProjectNotesModal"
 import { downloadRowsAsXlsx } from "@/lib/export/xlsx"
+import { resolveWpIncome } from "@/lib/working-projects/income"
 
 const ALL_STATUSES = ["Open", "Proses", "Waiting Customer", "Siap Kirim", "Done", "Canceled"] as const
 const DEFAULT_HIDDEN_STATUSES = new Set(["Done", "Canceled"])
@@ -30,10 +31,40 @@ const COLUMNS: { key: SortColumn | null; label: string }[] = [
   { key: null, label: "Kurir" },
   { key: null, label: "Payment" },
   { key: "invoiceAmount", label: "Nominal" },
+  { key: null, label: "Harga Jual" },
+  { key: null, label: "Biaya" },
+  { key: null, label: "Pendapatan" },
   { key: null, label: "Checklist" },
   { key: null, label: "Discord" },
   { key: null, label: "Aksi" },
 ]
+
+const rp = (n: number) => `Rp${n.toLocaleString("id-ID")}`
+
+function IncomeCells({ wp }: { wp: WorkingProject }) {
+  const income = resolveWpIncome(wp)
+  if (!income) {
+    return (
+      <>
+        <td className="px-3 py-2 text-sm text-right whitespace-nowrap g-t4">-</td>
+        <td className="px-3 py-2 text-sm text-right whitespace-nowrap g-t4">-</td>
+        <td className="px-3 py-2 text-sm text-right whitespace-nowrap g-t4">-</td>
+      </>
+    )
+  }
+  return (
+    <>
+      <td className="px-3 py-2 text-sm text-right whitespace-nowrap">{rp(income.salePrice)}</td>
+      <td className="px-3 py-2 text-sm text-right whitespace-nowrap">{income.feesTotal > 0 ? `-${rp(income.feesTotal)}` : rp(0)}</td>
+      <td className="px-3 py-2 text-sm text-right whitespace-nowrap font-semibold">
+        {rp(income.netIncome)}
+        {income.status === "estimated" ? (
+          <span className="ml-1 text-[10px] font-normal g-t4" title="Dana belum dilepas marketplace — angka masih estimasi">estimasi</span>
+        ) : null}
+      </td>
+    </>
+  )
+}
 
 function sortValue(wp: WorkingProject, col: SortColumn): string | number {
   switch (col) {
@@ -61,6 +92,9 @@ export function ordersToExportRows(projects: WorkingProject[]): Record<string, u
       Status: wp.status,
       Payment: wp.payment,
       Nominal: wp.invoiceAmount,
+      "Harga Jual": resolveWpIncome(wp)?.salePrice ?? "",
+      Biaya: resolveWpIncome(wp)?.feesTotal ?? "",
+      Pendapatan: resolveWpIncome(wp)?.netIncome ?? "",
       Checklist: `${done}/${active.length}`,
       Discord: wp.discordThreadUrl ?? "",
     }
@@ -406,6 +440,7 @@ export function WorkingProjectOrdersTab() {
                       className="text-right"
                     />
                   </td>
+                  <IncomeCells wp={wp} />
                   <td className="px-3 py-2 text-sm text-center whitespace-nowrap">{`${done}/${active.length}`}</td>
                   <td className="px-3 py-2 text-sm whitespace-nowrap">
                     {wp.discordThreadUrl ? (

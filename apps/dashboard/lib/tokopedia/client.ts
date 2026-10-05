@@ -30,6 +30,10 @@ export async function tokopediaRequest<T = unknown>(body: object): Promise<T> {
     body: JSON.stringify(body),
   })
 
+  return parseTokopediaResponse<T>(res)
+}
+
+async function parseTokopediaResponse<T>(res: Response): Promise<T> {
   if (!res.ok) throw new TokopediaError("UNKNOWN", `HTTP ${res.status}`)
   const json = await res.json() as { code: number; message?: string; data?: T }
   if (json.code === 10000) {
@@ -49,4 +53,41 @@ export async function tokopediaRequest<T = unknown>(body: object): Promise<T> {
   }
   if (json.code !== 0) throw new TokopediaError("UNKNOWN", json.message ?? `Tokopedia code ${json.code}`)
   return json.data as T
+}
+
+const API_ORIGIN = "https://seller-id.tokopedia.com"
+
+/**
+ * GET against a seller-id API path (e.g. the /api/v1/pay/* finance endpoints).
+ * Verified 2026-10-07: these accept the plain SELLER_TOKEN session without the
+ * browser-signed msToken/X-Bogus parameters.
+ */
+export async function tokopediaGet<T = unknown>(path: string, params: Record<string, string>): Promise<T> {
+  const session = await getRawSession()
+  if (!session) throw new TokopediaError("SESSION_MISSING")
+
+  const cookieString = Object.entries(session.cookies)
+    .filter(([name]) => name !== "_user_agent")
+    .map(([name, value]) => `${name}=${value}`)
+    .join("; ")
+
+  const query = new URLSearchParams({
+    locale: "id-ID",
+    language: "id",
+    oec_seller_id: session.sellerId,
+    seller_id: session.sellerId,
+    aid: session.appId,
+    ...params,
+  })
+
+  const res = await fetch(`${API_ORIGIN}${path}?${query}`, {
+    headers: {
+      accept: "*/*",
+      "accept-language": "en-US,en;q=0.9,id;q=0.8",
+      referer: `${API_ORIGIN}/finance/settlements`,
+      "user-agent": session.userAgent ?? DEFAULT_UA,
+      cookie: cookieString,
+    },
+  })
+  return parseTokopediaResponse<T>(res)
 }

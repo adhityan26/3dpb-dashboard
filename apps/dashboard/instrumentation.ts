@@ -17,6 +17,10 @@ const AUTO_CREATE_POLL_INTERVAL_MS = 15 * 60 * 1000 // 15 minutes
 // runDailyStatusSyncIfDue in lib/working-projects/status-sync.ts).
 const STATUS_SYNC_POLL_INTERVAL_MS = 15 * 60 * 1000 // 15 minutes
 
+// Fills salePrice/biaya/pendapatan on Done WPs. Self-gating like the jobs above: with nothing
+// pending (no newly Done WP, no estimate older than 12h) a tick makes no marketplace request.
+const INCOME_SYNC_POLL_INTERVAL_MS = 15 * 60 * 1000 // 15 minutes
+
 export async function register() {
   // Only run on the Node.js server runtime (not Edge)
   if (process.env.NEXT_RUNTIME !== "nodejs") return
@@ -56,6 +60,15 @@ export async function register() {
       void runStatusSyncPoll(baseUrl, secret)
     }, STATUS_SYNC_POLL_INTERVAL_MS)
   }, INITIAL_DELAY_MS)
+
+  // Offset by 3 minutes so it doesn't start together with the status-sync's Tokopedia reads.
+  console.log("[working-projects] Income-sync poller starting...")
+  setTimeout(() => {
+    void runIncomeSyncPoll(baseUrl, secret)
+    setInterval(() => {
+      void runIncomeSyncPoll(baseUrl, secret)
+    }, INCOME_SYNC_POLL_INTERVAL_MS)
+  }, INITIAL_DELAY_MS + 3 * 60 * 1000)
 }
 
 async function runNotificationPoll(baseUrl: string, secret: string): Promise<void> {
@@ -116,6 +129,34 @@ async function runAutoCreatePoll(baseUrl: string, secret: string): Promise<void>
     }
   } catch (err) {
     console.warn("[working-projects] auto-create poll error:", err)
+  }
+}
+
+async function runIncomeSyncPoll(baseUrl: string, secret: string): Promise<void> {
+  try {
+    const res = await fetch(`${baseUrl}/api/internal/working-projects/income-sync`, {
+      method: "POST",
+      headers: { "x-internal-secret": secret },
+    })
+    if (!res.ok) {
+      console.warn(`[working-projects] Income-sync poll returned ${res.status}: ${await res.text()}`)
+      return
+    }
+    const result = (await res.json()) as {
+      scanned: number
+      updated: number
+      notFound: number
+      failed: number
+      errors: string[]
+    }
+    if (result.scanned > 0) {
+      console.log(
+        `[working-projects] income-sync done: scanned=${result.scanned} updated=${result.updated} notFound=${result.notFound} failed=${result.failed}`,
+      )
+      if (result.errors.length) console.warn("[working-projects] income-sync errors:", result.errors)
+    }
+  } catch (err) {
+    console.warn("[working-projects] income-sync poll error:", err)
   }
 }
 
