@@ -59,6 +59,14 @@ const MOCK_PROJECTS = [
     appliedTags: ['Cincin'],
     checklist: [{ id: 1, text: 'Print Frame', done: true, deleted: false }],
   },
+  // No size anywhere (variant empty, notes empty) — exercises the "Tanpa Ukuran" filter.
+  {
+    id: 'wp7', customer: 'Gani', product: 'Green Lantern Ring 2026 3D Print', variant: null, notes: '',
+    status: 'Open', platform: 'Shopee', sourceOrderNo: 'SN7', orderNoLegacy: null,
+    dueDate: null, orderDate: null, discordThreadUrl: null,
+    appliedTags: ['Cincin'],
+    checklist: [],
+  },
 ]
 
 
@@ -147,6 +155,24 @@ describe('WorkingProjectGLRingTab', () => {
     const sizeOrder = () => mainTable().getAllByText(/^US \d/).map(el => el.textContent?.match(/^US [\d.]+/)?.[0])
     fireEvent.click(mainTable().getByRole('columnheader', { name: /Ukuran/ }))
     expect(sizeOrder()).toEqual(['US 6', 'US 7', 'US 8', 'US 9', 'US 10.5', 'US 11'])
+  })
+
+  it('lists the Ukuran filter options in numeric order, with a "Tanpa Ukuran" choice up front', () => {
+    renderWithClient()
+    const select = screen.getByLabelText('Ukuran') as HTMLSelectElement
+    const labels = Array.from(select.options).map(o => o.textContent)
+    expect(labels.slice(0, 2)).toEqual(['Semua Ukuran', 'Tanpa Ukuran'])
+    const sizes = labels.slice(2).map(Number)
+    expect(sizes).toEqual([...sizes].sort((a, b) => a - b)) // not the string order where "10" < "6"
+    expect(labels).toContain('10.5')
+  })
+
+  it('"Tanpa Ukuran" keeps only rows without a resolvable size', () => {
+    renderWithClient()
+    expect(mainTable().getByText('SN3')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Ukuran'), { target: { value: '__tanpa-ukuran__' } })
+    expect(mainTable().getByText('SN7')).toBeInTheDocument() // the row with no size
+    expect(mainTable().queryByText('SN3')).not.toBeInTheDocument() // US 10.5 row is filtered out
   })
 
   it('cycles a header click asc -> desc -> unsorted', () => {

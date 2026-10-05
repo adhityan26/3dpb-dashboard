@@ -26,6 +26,9 @@ function scalePctFor(usSize: string | null, baseBoreMm: number | null): number |
 
 const PAGE_SIZES = [10, 25, 50, 100] as const
 
+// Sentinel value of the Ukuran filter for rows with no resolvable size.
+const NO_SIZE_FILTER = '__tanpa-ukuran__'
+
 const ALL_STATUSES = ['Open', 'Proses', 'Waiting Customer', 'Siap Kirim', 'Done', 'Canceled'] as const
 const DEFAULT_HIDDEN_STATUSES = new Set(['Done', 'Canceled'])
 
@@ -246,7 +249,8 @@ export function WorkingProjectGLRingTab() {
     [allRows],
   )
   const sizeOptions = useMemo(
-    () => Array.from(new Set(allRows.map(r => r.usSize).filter((s): s is string => !!s))).sort(),
+    // Numeric order (2, 3, 5 ... 10, 10.5, 21), not the default string sort that put "10" before "2".
+    () => Array.from(new Set(allRows.map(r => r.usSize).filter((s): s is string => !!s))).sort((a, b) => Number(a) - Number(b) || a.localeCompare(b)),
     [allRows],
   )
 
@@ -258,7 +262,8 @@ export function WorkingProjectGLRingTab() {
     }
     if (platform) out = out.filter(r => r.platform === platform)
     if (variant) out = out.filter(r => r.key === variant)
-    if (size) out = out.filter(r => r.usSize === size)
+    if (size === NO_SIZE_FILTER) out = out.filter(r => !r.usSize)
+    else if (size) out = out.filter(r => r.usSize === size)
     if (dueDateFrom) out = out.filter(r => r.dueDate && r.dueDate.slice(0, 10) >= dueDateFrom)
     if (dueDateTo) out = out.filter(r => r.dueDate && r.dueDate.slice(0, 10) <= dueDateTo)
     out = out.filter(r => statusFilter.has(r.status))
@@ -547,6 +552,7 @@ export function WorkingProjectGLRingTab() {
         </select>
         <select aria-label="Ukuran" value={size} onChange={e => { setSize(e.target.value); setPage(1) }} className={selectClass}>
           <option value="">Semua Ukuran</option>
+          <option value={NO_SIZE_FILTER}>Tanpa Ukuran</option>
           {sizeOptions.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
         <label className="flex items-center gap-1 text-xs g-t4">
