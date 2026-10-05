@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/db'
 import { getOrderDetail } from '@/lib/shopee/orders'
-import { getOrderById } from '@/lib/tokopedia/orders'
+import { getOrderById, listOrders, type TokopediaTab } from '@/lib/tokopedia/orders'
 import { TokopediaError } from '@/lib/tokopedia/types'
 import { parseOrder } from '@/lib/tokopedia/parse'
 import { updateWorkingProject, getStatusSyncLastRunDate, setStatusSyncLastRunDate } from './service'
@@ -100,6 +100,35 @@ const TOKOPEDIA_CALL_GAP_MS = 600
 const TOKOPEDIA_FATAL_CODES = new Set(['VERIFICATION_REQUIRED', 'SESSION_INVALID', 'SESSION_MISSING', 'SESSION_EXPIRED'])
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
+const TOKOPEDIA_LIST_TABS: TokopediaTab[] = ['perlu-dikirim', 'menunggu-pengambilan', 'dikirim', 'selesai']
+const TOKOPEDIA_LIST_PAGE_SIZE = 50
+const TOKOPEDIA_LIST_MAX_PAGES = 15
+
+// One list request returns up to 50 orders with their status code and courier, so
+// reading the four list tabs (~10 requests) classifies nearly every WP — versus one
+// request per WP (130+/night, which got the account captcha-challenged repeatedly,
+// 2026-10-05). Cancelled orders (140) appear in no tab, so those still need a
+// per-order lookup; the caller falls back to that for anything not found here.
+async function loadTokopediaLiveByTabs(gapMs: number): Promise<Map<string, { code: number | null; courier: string | null }>> {
+  const live = new Map<string, { code: number | null; courier: string | null }>()
+  for (const tab of TOKOPEDIA_LIST_TABS) {
+    let offset = 0
+    for (let page = 0; page < TOKOPEDIA_LIST_MAX_PAGES; page++) {
+      const raw = await listOrders(tab, { count: TOKOPEDIA_LIST_PAGE_SIZE, offset })
+      const orders = raw?.main_orders ?? [] // an empty tab returns no main_orders at all
+      for (const o of orders) {
+        const s = parseOrder(o)
+        if (s?.orderId) live.set(s.orderId, { code: s.statusCode, courier: s.courier })
+      }
+      if (orders.length < TOKOPEDIA_LIST_PAGE_SIZE) break
+      offset += TOKOPEDIA_LIST_PAGE_SIZE
+      if (gapMs > 0) await sleep(gapMs)
+    }
+    if (gapMs > 0) await sleep(gapMs)
+  }
+  return live
+}
+
 export async function syncWorkingProjectStatusFromMarketplace(
   opts: { tokopediaGapMs?: number } = {},
 ): Promise<StatusSyncResult> {
@@ -153,20 +182,42 @@ export async function syncWorkingProjectStatusFromMarketplace(
     }
   }
 
+  let tokoLive = new Map<string, { code: number | null; courier: string | null }>()
+  if (tokopediaRows.length > 0) {
+    try {
+      tokoLive = await loadTokopediaLiveByTabs(gapMs)
+    } catch (err) {
+      if (err instanceof TokopediaError && TOKOPEDIA_FATAL_CODES.has(err.code)) {
+        result.skipped += tokopediaRows.length
+        errors.push(`tokopedia: dihentikan (${err.code}) — ${err.message}; ${tokopediaRows.length} WP Tokopedia dilewati`)
+        return result
+      }
+      errors.push(`tokopedia: gagal baca tab list — ${(err as Error).message}; lanjut per order`)
+    }
+  }
+
+  let byIdCalls = 0
   for (let i = 0; i < tokopediaRows.length; i++) {
     const r = tokopediaRows[i]
-    if (i > 0 && gapMs > 0) await sleep(gapMs)
+    const known = tokoLive.get(r.sourceOrderNo!)
+    // Only real per-order requests are paced; a WP already classified from the list tabs costs nothing.
+    if (!known && byIdCalls++ > 0 && gapMs > 0) await sleep(gapMs)
     let statusTarget: string | null = null
     let shippingTarget: string | null = null
     try {
-      const raw = await getOrderById(r.sourceOrderNo!)
-      const code = (raw as { order_status_module?: { sku_display_status?: number }[] } | null)?.order_status_module?.[0]?.sku_display_status
-      const classified = classifyTokopediaStatus(code)
-      statusTarget = classified && classified !== r.status ? classified : null
-      if (!r.shipping && raw) {
-        const courier = parseOrder(raw)?.courier
-        if (courier) shippingTarget = courier
+      let code: number | null | undefined
+      let courier: string | null = null
+      if (known) {
+        code = known.code
+        courier = known.courier
+      } else {
+        const raw = await getOrderById(r.sourceOrderNo!)
+        code = (raw as { order_status_module?: { sku_display_status?: number }[] } | null)?.order_status_module?.[0]?.sku_display_status
+        courier = raw ? (parseOrder(raw)?.courier ?? null) : null
       }
+      const classified = classifyTokopediaStatus(code ?? undefined)
+      statusTarget = classified && classified !== r.status ? classified : null
+      if (!r.shipping && courier) shippingTarget = courier
     } catch (err) {
       if (err instanceof TokopediaError && TOKOPEDIA_FATAL_CODES.has(err.code)) {
         const remaining = tokopediaRows.length - i

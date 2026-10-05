@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('@/lib/db', () => ({ prisma: { workingProject: { findMany: vi.fn() } } }))
 vi.mock('@/lib/shopee/orders', () => ({ getOrderDetail: vi.fn() }))
-vi.mock('@/lib/tokopedia/orders', () => ({ getOrderById: vi.fn() }))
+vi.mock('@/lib/tokopedia/orders', () => ({ getOrderById: vi.fn(), listOrders: vi.fn() }))
 vi.mock('@/lib/tokopedia/parse', () => ({ parseOrder: vi.fn() }))
 vi.mock('../service', () => ({
   updateWorkingProject: vi.fn(),
@@ -19,13 +19,15 @@ import {
 import { prisma } from '@/lib/db'
 import { TokopediaError } from '@/lib/tokopedia/types'
 import { getOrderDetail } from '@/lib/shopee/orders'
-import { getOrderById } from '@/lib/tokopedia/orders'
+import { getOrderById, listOrders } from '@/lib/tokopedia/orders'
 import { parseOrder } from '@/lib/tokopedia/parse'
 import { updateWorkingProject, getStatusSyncLastRunDate, setStatusSyncLastRunDate } from '../service'
 
 beforeEach(() => {
   vi.clearAllMocks()
   ;(prisma.workingProject.findMany as any).mockResolvedValue([])
+  // Empty list tabs by default, so Tokopedia WPs fall through to the per-order lookup path.
+  ;(listOrders as any).mockResolvedValue({ total_count: 0 })
 })
 
 describe('classifyShopeeStatus', () => {
@@ -64,7 +66,7 @@ describe('classifyTokopediaStatus', () => {
 
 describe('syncWorkingProjectStatusFromMarketplace', () => {
   it('scans every non-terminal status so a shipped WP can still advance to Done/Canceled later', async () => {
-    await syncWorkingProjectStatusFromMarketplace()
+    await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
     expect(prisma.workingProject.findMany).toHaveBeenCalledWith(expect.objectContaining({
       where: { status: { in: ['Open', 'Proses', 'Siap Kirim', 'Waiting Customer'] } },
     }))
@@ -77,7 +79,7 @@ describe('syncWorkingProjectStatusFromMarketplace', () => {
     ;(getOrderDetail as any).mockResolvedValue([{ order_sn: 'SN1', order_status: 'COMPLETED' }])
     ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
 
-    await syncWorkingProjectStatusFromMarketplace()
+    await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
 
     expect(updateWorkingProject).toHaveBeenCalledWith('t1', { status: 'Done' })
   })
@@ -88,7 +90,7 @@ describe('syncWorkingProjectStatusFromMarketplace', () => {
     ])
     ;(getOrderDetail as any).mockResolvedValue([{ order_sn: 'SN1', order_status: 'SHIPPED' }])
 
-    const result = await syncWorkingProjectStatusFromMarketplace()
+    const result = await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
 
     expect(updateWorkingProject).not.toHaveBeenCalled()
     expect(result.skipped).toBe(1)
@@ -104,7 +106,7 @@ describe('syncWorkingProjectStatusFromMarketplace', () => {
       .mockResolvedValueOnce({ order_status_module: [{ sku_display_status: 130 }] })
     ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
 
-    await syncWorkingProjectStatusFromMarketplace()
+    await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
 
     expect(updateWorkingProject).toHaveBeenCalledWith('t1', { status: 'Canceled' })
     expect(updateWorkingProject).toHaveBeenCalledWith('t2', { status: 'Done' })
@@ -121,7 +123,7 @@ describe('syncWorkingProjectStatusFromMarketplace', () => {
     ])
     ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
 
-    const result = await syncWorkingProjectStatusFromMarketplace()
+    const result = await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
 
     expect(updateWorkingProject).toHaveBeenCalledTimes(1)
     expect(updateWorkingProject).toHaveBeenCalledWith('t1', { status: 'Waiting Customer' })
@@ -135,7 +137,7 @@ describe('syncWorkingProjectStatusFromMarketplace', () => {
     ;(getOrderById as any).mockResolvedValue({ order_status_module: [{ sku_display_status: 130 }] })
     ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
 
-    const result = await syncWorkingProjectStatusFromMarketplace()
+    const result = await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
 
     expect(updateWorkingProject).toHaveBeenCalledWith('t3', { status: 'Done' })
     expect(result.updated).toBe(1)
@@ -147,7 +149,7 @@ describe('syncWorkingProjectStatusFromMarketplace', () => {
     ])
     ;(getOrderDetail as any).mockResolvedValue([{ order_sn: 'SN1', order_status: 'CANCELLED' }])
 
-    const result = await syncWorkingProjectStatusFromMarketplace()
+    const result = await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
 
     expect(updateWorkingProject).not.toHaveBeenCalled()
     expect(result.skipped).toBe(1)
@@ -160,7 +162,7 @@ describe('syncWorkingProjectStatusFromMarketplace', () => {
     ;(getOrderDetail as any).mockResolvedValue([{ order_sn: 'SN1', order_status: 'SHIPPED' }])
     ;(updateWorkingProject as any).mockRejectedValue(new Error('boom'))
 
-    const result = await syncWorkingProjectStatusFromMarketplace()
+    const result = await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
 
     expect(result).toEqual({ scanned: 1, updated: 0, skipped: 0, failed: 1, errors: ['shopee:SN1: boom'] })
   })
@@ -174,7 +176,7 @@ describe('syncWorkingProjectStatusFromMarketplace', () => {
     ])
     ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
 
-    const result = await syncWorkingProjectStatusFromMarketplace()
+    const result = await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
 
     expect(updateWorkingProject).toHaveBeenCalledWith('t1', { shipping: 'Anteraja Reguler' })
     expect(result.updated).toBe(1)
@@ -188,7 +190,7 @@ describe('syncWorkingProjectStatusFromMarketplace', () => {
       { order_sn: 'SN1', order_status: 'READY_TO_SHIP', shipping_carrier: 'Anteraja Reguler' },
     ])
 
-    const result = await syncWorkingProjectStatusFromMarketplace()
+    const result = await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
 
     expect(updateWorkingProject).not.toHaveBeenCalled()
     expect(result.skipped).toBe(1)
@@ -203,7 +205,7 @@ describe('syncWorkingProjectStatusFromMarketplace', () => {
     ])
     ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
 
-    await syncWorkingProjectStatusFromMarketplace()
+    await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
 
     expect(updateWorkingProject).toHaveBeenCalledWith('t1', { status: 'Waiting Customer', shipping: 'Anteraja Reguler' })
   })
@@ -216,10 +218,58 @@ describe('syncWorkingProjectStatusFromMarketplace', () => {
     ;(parseOrder as any).mockReturnValue({ courier: 'JNE Reguler' })
     ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
 
-    const result = await syncWorkingProjectStatusFromMarketplace()
+    const result = await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
 
     expect(updateWorkingProject).toHaveBeenCalledWith('t3', { shipping: 'JNE Reguler' })
     expect(result.updated).toBe(1)
+  })
+
+  it('classifies Tokopedia WPs from the list tabs without any per-order request', async () => {
+    ;(prisma.workingProject.findMany as any).mockResolvedValue([
+      { source: 'tokopedia', sourceOrderNo: 'TOK1', discordThreadId: 't1', status: 'Waiting Customer', shipping: 'JNE' },
+    ])
+    ;(listOrders as any).mockImplementation((tab: string) =>
+      Promise.resolve(tab === 'selesai' ? { main_orders: [{ _s: { orderId: 'TOK1', statusCode: 130, courier: 'JNE' } }] } : { main_orders: [] }))
+    ;(parseOrder as any).mockImplementation((o: any) => o._s)
+    ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
+
+    await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
+
+    expect(getOrderById).not.toHaveBeenCalled()
+    expect(updateWorkingProject).toHaveBeenCalledWith('t1', { status: 'Done' })
+  })
+
+  it('falls back to a per-order lookup only for WPs missing from the list tabs (cancelled orders appear in none)', async () => {
+    ;(prisma.workingProject.findMany as any).mockResolvedValue([
+      { source: 'tokopedia', sourceOrderNo: 'TOK1', discordThreadId: 't1', status: 'Open', shipping: 'JNE' },
+      { source: 'tokopedia', sourceOrderNo: 'TOK2', discordThreadId: 't2', status: 'Open', shipping: 'JNE' },
+    ])
+    ;(listOrders as any).mockImplementation((tab: string) =>
+      Promise.resolve(tab === 'dikirim' ? { main_orders: [{ _s: { orderId: 'TOK1', statusCode: 121, courier: 'JNE' } }] } : { main_orders: [] }))
+    ;(parseOrder as any).mockImplementation((o: any) => o._s)
+    ;(getOrderById as any).mockResolvedValue({ order_status_module: [{ sku_display_status: 140 }] })
+    ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
+
+    await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
+
+    expect(getOrderById).toHaveBeenCalledTimes(1)
+    expect(getOrderById).toHaveBeenCalledWith('TOK2')
+    expect(updateWorkingProject).toHaveBeenCalledWith('t1', { status: 'Waiting Customer' })
+    expect(updateWorkingProject).toHaveBeenCalledWith('t2', { status: 'Canceled' })
+  })
+
+  it('skips every Tokopedia WP when reading the list tabs hits a captcha, instead of falling back to per-order requests', async () => {
+    ;(prisma.workingProject.findMany as any).mockResolvedValue([
+      { source: 'tokopedia', sourceOrderNo: 'TOK1', discordThreadId: 't1', status: 'Open', shipping: 'JNE' },
+      { source: 'tokopedia', sourceOrderNo: 'TOK2', discordThreadId: 't2', status: 'Open', shipping: 'JNE' },
+    ])
+    ;(listOrders as any).mockRejectedValue(new TokopediaError('VERIFICATION_REQUIRED', 'captcha'))
+
+    const result = await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
+
+    expect(getOrderById).not.toHaveBeenCalled()
+    expect(result.skipped).toBe(2)
+    expect(result.errors[0]).toContain('VERIFICATION_REQUIRED')
   })
 
   it('stops the Tokopedia loop at the first captcha/session error instead of hammering the rest', async () => {
@@ -249,7 +299,7 @@ describe('syncWorkingProjectStatusFromMarketplace', () => {
       .mockResolvedValueOnce({ order_status_module: [{ sku_display_status: 130 }] })
     ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
 
-    const result = await syncWorkingProjectStatusFromMarketplace()
+    const result = await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
 
     expect(result.skipped).toBe(1)
     expect(result.updated).toBe(1)

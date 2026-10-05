@@ -1,8 +1,10 @@
 "use client"
 
 import { useState } from "react"
+import { useQueryClient } from "@tanstack/react-query"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { WORKING_PROJECTS_KEY } from "@/lib/hooks/use-working-projects"
 
 interface StatusSyncResult {
   ranToday: boolean
@@ -18,6 +20,7 @@ interface StatusSyncResult {
 // card is just visibility + a manual "run now" escape hatch (?force=1,
 // ignores the daily cutoff/dedupe-by-date) for when you don't want to wait.
 export function StatusSyncCard() {
+  const queryClient = useQueryClient()
   const [state, setState] = useState<
     { status: "idle" } | { status: "loading" } | { status: "error"; message: string } | { status: "done"; result: StatusSyncResult }
   >({ status: "idle" })
@@ -29,6 +32,8 @@ export function StatusSyncCard() {
       const json = (await res.json().catch(() => ({}))) as StatusSyncResult & { error?: string }
       if (!res.ok) throw new Error(json.error ?? `HTTP ${res.status}`)
       setState({ status: "done", result: json })
+      // Otherwise the Orders / GL Ring tabs keep showing the pre-sync statuses until a hard refresh.
+      void queryClient.invalidateQueries({ queryKey: WORKING_PROJECTS_KEY })
     } catch (err) {
       setState({ status: "error", message: (err as Error).message })
     }
@@ -41,7 +46,7 @@ export function StatusSyncCard() {
       </CardHeader>
       <CardContent className="space-y-3">
         <p className="text-xs text-gray-500">
-          Tiap hari setelah jam 01:00 WIB, server otomatis mengecek WP berstatus Open dan
+          Tiap hari setelah jam 01:00 WIB, server otomatis mengecek semua WP yang belum Done/Canceled dan
           menyamakan dengan status order asli di Shopee/Tokopedia: sudah dikirim kurir → Waiting
           Customer, sudah selesai → Done, dibatalkan → Canceled. Thread Discord ikut ter-update
           (bukan diarsipkan). &quot;Siap Kirim&quot; TIDAK pernah diset otomatis — itu penanda
