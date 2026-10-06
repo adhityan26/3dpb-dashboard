@@ -30,3 +30,18 @@ export function expandOrderUnits(lines: OrderLine[]): OrderUnit[] {
   }
   return units
 }
+
+export function orderLinesFromShopee(items: { lineItemId: number | null; itemId: number; modelId: number | null; productName: string; variantName: string | null; qty: number; cancelledQty: number; unitPrice: number }[]): OrderLine[] {
+  return items.map((it) => ({
+    key: it.lineItemId != null ? String(it.lineItemId) : `${it.itemId}:${it.modelId ?? 0}`,
+    productName: it.productName,
+    variantName: it.variantName,
+    qty: it.qty - it.cancelledQty,
+    unitPrice: it.unitPrice,
+    productId: String(it.itemId),
+  }))
+}
+
+export function orderLinesFromTokopedia(products: { skuId: string; productId: string; name: string; variant: string; qty: number; unitPrice: number }[]): OrderLine[] {
+  return products.map((p) => ({ key: p.skuId, productName: p.name, variantName: p.variant || null, qty: p.qty, unitPrice: p.unitPrice, productId: p.productId || null }))
+}
