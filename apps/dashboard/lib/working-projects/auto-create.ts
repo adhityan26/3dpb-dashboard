@@ -152,6 +152,8 @@ export async function autoCreateWorkingProjectsFromNewOrders(): Promise<AutoCrea
       })
       result.created += batch.created
       result.skipped += batch.skipped
+      result.failed += batch.failed
+      errors.push(...batch.errors.map((e) => `${candidate.source}:${candidate.sourceOrderNo}: ${e}`))
     } catch (err) {
       result.failed++
       errors.push(`${candidate.source}:${candidate.sourceOrderNo}: ${(err as Error).message}`)

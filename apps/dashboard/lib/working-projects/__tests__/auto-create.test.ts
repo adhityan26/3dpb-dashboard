@@ -37,7 +37,7 @@ const item = (over: Record<string, unknown> = {}) => ({
 const tokoProduct = (over: Record<string, unknown> = {}) => ({
   skuId: 'S1', productId: 'tp1', name: 'Gantungan Kunci', variant: 'Merah', qty: 1, unitPrice: 20000, ...over,
 })
-const batch = (created: number, skipped = 0) => ({ created, skipped, results: [] })
+const batch = (created: number, skipped = 0) => ({ created, skipped, failed: 0, errors: [] as string[], results: [] })
 const tokoTab = () =>
   (listOrders as any).mockImplementation(async (tab: string) =>
     tab === 'perlu-dikirim' ? { main_orders: [{ id: 'raw1' }] } : { main_orders: [] },
@@ -176,5 +176,17 @@ describe('runDailyAutoCreateIfDue', () => {
     const result = await runDailyAutoCreateIfDue(new Date('2026-09-28T16:30:00Z')) // 23:30 WIB, still 2026-09-28 — already ran today
     expect(result).toBeNull()
     expect(setAutoCreateLastRunDate).not.toHaveBeenCalled()
+  })
+})
+
+describe('autoCreate failed units', () => {
+  it('counts per-unit failures from a batch as failed and surfaces the errors', async () => {
+    ;(getReadyToShipOrders as any).mockResolvedValue({
+      orders: [{ orderSn: 'SN1', buyerUsername: 'budi', isPreOrder: true, items: [item()], createTime: 1759000000, shipByDate: null }],
+    })
+    ;(createWorkingProjectsForOrder as any).mockResolvedValue({ created: 1, skipped: 0, failed: 1, errors: ['100#2: boom'], results: [] })
+    const r = await autoCreateWorkingProjectsFromNewOrders()
+    expect(r).toMatchObject({ created: 1, failed: 1 })
+    expect(r.errors).toEqual(['shopee:SN1: 100#2: boom'])
   })
 })

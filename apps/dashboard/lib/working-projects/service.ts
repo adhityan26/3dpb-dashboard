@@ -59,7 +59,9 @@ export async function createWorkingProject(input: {
   const orderDate = input.orderDateRaw ? parseOrderDate(input.orderDateRaw) : null
   const title = buildTitle({ customer: input.customer, product: input.product, variant: input.variant })
 
-  const wp = await prisma.workingProject.create({
+  let wp: { id: string }
+  try {
+    wp = await prisma.workingProject.create({
     data: {
       source: input.source,
       sourceOrderNo: input.sourceOrderNo ?? null,
@@ -85,7 +87,18 @@ export async function createWorkingProject(input: {
       mentions: input.mentions ?? [],
       shipping: input.shipping ?? null,
     },
-  })
+    })
+  } catch (err) {
+    // Lost a race against a concurrent create of the same unit (unique index on the unit key):
+    // the other request owns it, so report the existing row as already existing.
+    if (input.sourceOrderNo && input.sourceItemKey && (err as { code?: string }).code === 'P2002') {
+      const winner = await prisma.workingProject.findFirst({
+        where: { source: input.source, sourceOrderNo: input.sourceOrderNo, sourceItemKey: input.sourceItemKey },
+      })
+      if (winner) return { id: winner.id, threadUrl: winner.discordThreadUrl, syncState: winner.syncState, skipped: true }
+    }
+    throw err
+  }
 
   const message = buildPostContent({
     customer: input.customer, contact: input.contact, product: input.product, variant: input.variant,
@@ -98,6 +111,8 @@ export async function createWorkingProject(input: {
 
 export type CreateWorkingProjectOutcome = { id: string; threadUrl: string | null; syncState: string; skipped: boolean; syncError?: string }
 
+export type OrderCreateBatch = { created: number; skipped: number; failed: number; errors: string[]; results: CreateWorkingProjectOutcome[] }
+
 type CreateInput = Parameters<typeof createWorkingProject>[0]
 
 // Creates one WP per order unit (a line with qty 2 becomes two WPs). Idempotent per unit key.
@@ -108,7 +123,7 @@ export async function createWorkingProjectsForOrder(input: {
   base: Omit<CreateInput, 'source' | 'sourceOrderNo' | 'product' | 'variant' | 'sourceProductId' | 'forumChannelId' | 'orderId' | 'sourceItemKey' | 'itemPrice'> & {
     forumChannelIdFor: (unit: OrderUnit) => string
   }
-}): Promise<{ created: number; skipped: number; results: CreateWorkingProjectOutcome[] }> {
+}): Promise<OrderCreateBatch> {
   const order = await prisma.marketplaceOrder.upsert({
     where: { source_sourceOrderNo: { source: input.source, sourceOrderNo: input.sourceOrderNo } },
     update: {},
@@ -118,13 +133,26 @@ export async function createWorkingProjectsForOrder(input: {
   const legacy = await prisma.workingProject.findFirst({
     where: { source: input.source, sourceOrderNo: input.sourceOrderNo, sourceItemKey: null },
   })
-  if (legacy) return { created: 0, skipped: input.units.length, results: [] }
-
   const { forumChannelIdFor, ...base } = input.base
+  if (legacy) {
+    // Same retry as createWorkingProject: a legacy row whose first thread creation failed
+    // would otherwise read as "already exists" forever.
+    if (!legacy.discordThreadId && legacy.syncState === 'error') {
+      const forum = resolveForumChannelId(input.units[0] ? forumChannelIdFor(input.units[0]) : legacy.forumChannelId)
+      const retried = await createThreadFor(legacy.id, forum, legacy.title, rebuildStarterContent(legacy), legacy.mentions)
+      return { created: 0, skipped: 0, failed: 0, errors: [], results: [retried] }
+    }
+    return { created: 0, skipped: input.units.length, failed: 0, errors: [], results: [] }
+  }
+
   const results: CreateWorkingProjectOutcome[] = []
   let created = 0
   let skipped = 0
+  let failed = 0
+  const errors: string[] = []
   for (const unit of input.units) {
+    // One failing unit must not abort the rest of the order; it is retried on the next run.
+    try {
     const r = await createWorkingProject({
       ...base,
       source: input.source,
@@ -140,20 +168,25 @@ export async function createWorkingProjectsForOrder(input: {
     results.push(r)
     if (r.skipped) skipped++
     else created++
+    } catch (err) {
+      failed++
+      errors.push(`${unit.itemKey}: ${(err as Error).message}`)
+    }
   }
-  return { created, skipped, results }
+  return { created, skipped, failed, errors, results }
 }
 
 // Collapses a per-unit batch into the single-WP response shape the order-row UI expects.
-export function summarizeOrderCreate(r: { created: number; skipped: number; results: CreateWorkingProjectOutcome[] }) {
-  const failed = r.results.find((x) => x.syncState === 'error')
+export function summarizeOrderCreate(r: OrderCreateBatch) {
+  const failedThread = r.results.find((x) => x.syncState === 'error')
   const first = r.results[0]
   return {
     id: first?.id ?? '',
     threadUrl: first?.threadUrl ?? null,
-    syncState: failed ? 'error' : 'ok',
-    skipped: r.created === 0,
-    syncError: failed?.syncError,
+    syncState: failedThread || r.failed > 0 ? 'error' : 'ok',
+    // A retried legacy thread is real work, not "already exists".
+    skipped: r.created === 0 && r.failed === 0 && r.results.every((x) => x.skipped),
+    syncError: failedThread?.syncError ?? r.errors[0],
     created: r.created,
     skippedCount: r.skipped,
   }

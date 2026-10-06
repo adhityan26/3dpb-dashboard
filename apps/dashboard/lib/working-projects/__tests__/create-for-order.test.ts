@@ -12,7 +12,7 @@ vi.mock('@/lib/db', () => ({
     config: { findUnique: vi.fn(), upsert: vi.fn() },
   },
 }))
-import { createWorkingProjectsForOrder } from '../service'
+import { createWorkingProjectsForOrder, createWorkingProject, summarizeOrderCreate } from '../service'
 import { createRelayThread } from '../discord-sync'
 import { prisma } from '@/lib/db'
 
@@ -61,5 +61,63 @@ describe('createWorkingProjectsForOrder', () => {
     expect(r).toMatchObject({ created: 1, skipped: 1 })
     expect(prisma.workingProject.create).toHaveBeenCalledTimes(1)
     expect((prisma.workingProject.create as any).mock.calls[0][0].data.sourceItemKey).toBe('B#1')
+  })
+})
+
+describe('legacy WP thread retry', () => {
+  const legacyRow = { id: 'old', title: 'T', customer: 'Budi', product: 'GL', variant: null, mentions: ['m1'], discordThreadId: null, syncState: 'error', checklist: [], status: 'Open', payment: 'Unpaid', invoiceAmount: 0, paidAmount: 0 }
+
+  it('retries the thread of a legacy WP that never got one and reports it as not skipped', async () => {
+    ;(prisma.workingProject.findFirst as any).mockResolvedValue(legacyRow)
+    ;(prisma.workingProject.update as any).mockResolvedValue({})
+    const r = await run()
+    expect(createRelayThread).toHaveBeenCalledTimes(1)
+    expect((createRelayThread as any).mock.calls[0][0]).toMatchObject({ parentId: 'FORUM_CINCIN_ID', name: 'T', idempotencyKey: 'old', mentions: ['m1'] })
+    expect(prisma.workingProject.create).not.toHaveBeenCalled()
+    expect(r.created).toBe(0)
+    expect(r.results).toEqual([{ id: 'old', threadUrl: 'https://discord/t', syncState: 'ok', skipped: false }])
+    expect(summarizeOrderCreate(r).skipped).toBe(false)
+  })
+
+  it('still reports a legacy WP that already has a thread as skipped', async () => {
+    ;(prisma.workingProject.findFirst as any).mockResolvedValue({ ...legacyRow, discordThreadId: 't0', syncState: 'ok' })
+    const r = await run()
+    expect(createRelayThread).not.toHaveBeenCalled()
+    expect(summarizeOrderCreate(r).skipped).toBe(true)
+  })
+})
+
+describe('unique-constraint race and per-unit failures', () => {
+  const p2002 = () => Object.assign(new Error('Unique constraint failed'), { code: 'P2002' })
+
+  it('treats P2002 on a unit create as already existing and returns the existing row', async () => {
+    const existing = { id: 'won', discordThreadId: 't9', discordThreadUrl: 'u9', syncState: 'ok' }
+    let calls = 0
+    ;(prisma.workingProject.findFirst as any).mockImplementation(async () => (++calls === 1 ? null : existing))
+    ;(prisma.workingProject.create as any).mockRejectedValue(p2002())
+    const r = await createWorkingProject({ source: 'shopee', sourceOrderNo: 'SN1', sourceItemKey: 'A#1', forumChannelId: 'F', customer: 'c', product: 'p' })
+    expect(r).toEqual({ id: 'won', threadUrl: 'u9', syncState: 'ok', skipped: true })
+    expect(createRelayThread).not.toHaveBeenCalled()
+  })
+
+  it('rethrows a non-P2002 create error', async () => {
+    ;(prisma.workingProject.create as any).mockRejectedValue(new Error('db down'))
+    await expect(createWorkingProject({ source: 'shopee', sourceOrderNo: 'SN1', sourceItemKey: 'A#1', forumChannelId: 'F', customer: 'c', product: 'p' })).rejects.toThrow('db down')
+  })
+
+  it('one failing unit does not abort the rest and is counted as failed', async () => {
+    let n = 0
+    ;(prisma.workingProject.create as any).mockImplementation(async () => {
+      if (++n === 1) throw new Error('db down')
+      return { id: `wp${n}` }
+    })
+    const r = await run()
+    expect(r).toMatchObject({ created: 1, skipped: 0, failed: 1 })
+    expect(r.errors).toEqual(['A#1: db down'])
+    expect(prisma.workingProject.create).toHaveBeenCalledTimes(2)
+    const s = summarizeOrderCreate(r)
+    expect(s.syncState).toBe('error')
+    expect(s.syncError).toBe('A#1: db down')
+    expect(s.skipped).toBe(false)
   })
 })
