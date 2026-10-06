@@ -138,7 +138,7 @@ export async function createWorkingProjectsForOrder(input: {
     // Same retry as createWorkingProject: a legacy row whose first thread creation failed
     // would otherwise read as "already exists" forever.
     if (!legacy.discordThreadId && legacy.syncState === 'error') {
-      const forum = resolveForumChannelId(input.units[0] ? forumChannelIdFor(input.units[0]) : legacy.forumChannelId)
+      const forum = resolveForumChannelId(input.units[0] ? forumChannelIdFor(input.units[0]) : (legacy.forumChannelId ?? ""))
       const retried = await createThreadFor(legacy.id, forum, legacy.title, rebuildStarterContent(legacy), legacy.mentions)
       return { created: 0, skipped: 0, failed: 0, errors: [], results: [retried] }
     }
