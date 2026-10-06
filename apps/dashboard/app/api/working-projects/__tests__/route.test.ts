@@ -20,9 +20,15 @@ describe('GET /api/working-projects', () => {
   })
 
   it('lists all working projects', async () => {
-    ;(prisma.workingProject.findMany as any).mockResolvedValue([{ id: 'wp1' }])
+    ;(prisma.workingProject.findMany as any).mockResolvedValue([
+      { id: 'wp1', order: null },
+      { id: 'wp2', order: { id: 'o1', salePrice: 10, feesTotal: 1, netIncome: 9, incomeStatus: 'settled', incomeSettledAt: null, quotationId: null, source: 'shopee', projects: [{ id: 'wp2', itemPrice: 10, status: 'Open' }] } },
+    ])
     const res = await GET(req('GET'))
-    expect(await res.json()).toEqual([{ id: 'wp1' }])
+    expect(await res.json()).toEqual([
+      { id: 'wp1', order: null, siblings: [] },
+      { id: 'wp2', order: { salePrice: 10, feesTotal: 1, netIncome: 9, incomeStatus: 'settled', incomeSettledAt: null, quotationId: null }, siblings: [{ id: 'wp2', itemPrice: 10, status: 'Open' }] },
+    ])
   })
 
   it('401s when there is no session', async () => {

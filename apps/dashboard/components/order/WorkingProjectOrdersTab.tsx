@@ -41,6 +41,13 @@ const COLUMNS: { key: SortColumn | null; label: string }[] = [
 
 const rp = (n: number) => `Rp${n.toLocaleString("id-ID")}`
 
+/** "1 dari 2 unit order ini" when the order has several non-Canceled WPs; null otherwise. */
+function unitMarker(wp: WorkingProject): string | null {
+  const active = (wp.siblings ?? []).filter((s) => s.status !== "Canceled")
+  const idx = active.findIndex((s) => s.id === wp.id)
+  return active.length > 1 && idx >= 0 ? `${idx + 1} dari ${active.length} unit order ini` : null
+}
+
 function IncomeCells({ wp }: { wp: WorkingProject }) {
   const income = resolveWpIncome(wp)
   if (!income) {
@@ -391,6 +398,7 @@ export function WorkingProjectOrdersTab() {
                       display={<div className="truncate" title={wp.product}>{wp.product}</div>}
                       onSave={(v) => inline.save(wp.id, { product: v }, "produk")}
                     />
+                    {unitMarker(wp) ? <div className="text-[10px] g-t4">{unitMarker(wp)}</div> : null}
                   </td>
                   <td className="px-3 py-2 text-sm whitespace-nowrap">
                     <InlineEditCell

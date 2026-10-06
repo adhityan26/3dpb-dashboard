@@ -7,7 +7,8 @@ const projects = [
     id: 'wp1', customer: 'Budi', contact: '0812', product: 'Cincin', variant: 'Emas',
     platform: 'Shopee', sourceOrderNo: 'SN1', orderNoLegacy: null, dueDate: '2026-09-20',
     status: 'Open', payment: 'Marketplace', invoiceAmount: 150000,
-    source: 'tokopedia', salePrice: 150000, feesTotal: 26945, netIncome: 123055, incomeStatus: 'estimated',
+    source: 'tokopedia',
+    order: { salePrice: 150000, feesTotal: 26945, netIncome: 123055, incomeStatus: 'estimated', incomeSettledAt: null, quotationId: null },
     checklist: [{ id: 1, text: 'Print Frame', done: true, deleted: false }],
     discordThreadId: 't1',
     discordThreadUrl: 'https://discord.com/channels/123/t1',
@@ -81,6 +82,30 @@ describe('WorkingProjectOrdersTab', () => {
     render(<WorkingProjectOrdersTab />)
     const link = screen.getByText('Buka').closest('a')
     expect(link).toHaveAttribute('href', 'https://discord.com/channels/123/t1')
+  })
+})
+
+describe('WorkingProjectOrdersTab per-unit orders', () => {
+  it('shows each unit its own income share and a position marker', () => {
+    const order = { salePrice: 300000, feesTotal: 30000, netIncome: 270000, incomeStatus: 'settled', incomeSettledAt: null, quotationId: null }
+    const siblings = [{ id: 'u1', itemPrice: 100000, status: 'Open' }, { id: 'u2', itemPrice: 200000, status: 'Open' }]
+    const mk = (id: string, itemPrice: number, no: string) => ({
+      id, customer: 'Dewi', contact: null, product: 'Gantungan', variant: null, platform: 'Tokopedia', sourceOrderNo: no,
+      orderNoLegacy: null, dueDate: null, status: 'Open', payment: 'Marketplace', invoiceAmount: 0, source: 'tokopedia',
+      itemPrice, order, siblings, checklist: [], discordThreadId: null, discordThreadUrl: null,
+    })
+    projects.push(mk('u1', 100000, 'TK9') as any, mk('u2', 200000, 'TK9') as any)
+    try {
+      render(<WorkingProjectOrdersTab />)
+      expect(screen.getByText('1 dari 2 unit order ini')).toBeInTheDocument()
+      expect(screen.getByText('2 dari 2 unit order ini')).toBeInTheDocument()
+      expect(screen.getByText('Rp90.000')).toBeInTheDocument()
+      expect(screen.getByText('Rp180.000')).toBeInTheDocument()
+      // the single-unit WPs show no marker
+      expect(screen.queryByText(/1 dari 1/)).not.toBeInTheDocument()
+    } finally {
+      projects.splice(projects.length - 2, 2)
+    }
   })
 })
 

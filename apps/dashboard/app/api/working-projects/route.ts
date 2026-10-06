@@ -7,7 +7,24 @@ export async function GET(req: NextRequest) {
   const session = await auth()
   if (!session?.user) return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 
-  const projects = await prisma.workingProject.findMany({ orderBy: { createdAt: "desc" } })
+  const rows = await prisma.workingProject.findMany({
+    orderBy: { createdAt: "desc" },
+    include: { order: { include: { projects: { select: { id: true, itemPrice: true, status: true } } } } },
+  })
+  // Flatten: the client allocates the order income itself, so it gets the order's income
+  // fields plus the sibling list, without the nested projects array on `order`.
+  const projects = rows.map(({ order, ...wp }) => {
+    if (!order) return { ...wp, order: null, siblings: [] }
+    const { projects: siblings, ...o } = order
+    return {
+      ...wp,
+      order: {
+        salePrice: o.salePrice, feesTotal: o.feesTotal, netIncome: o.netIncome,
+        incomeStatus: o.incomeStatus, incomeSettledAt: o.incomeSettledAt, quotationId: o.quotationId,
+      },
+      siblings,
+    }
+  })
   return NextResponse.json(projects)
 }
 
