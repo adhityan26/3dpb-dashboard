@@ -1,3 +1,5 @@
+import { allocateOrderIncome } from './income-allocation'
+
 // Pure helpers for a Working Project's income summary (harga jual / biaya / pendapatan
 // akhir). No DB or server imports: the Orders tab uses resolveWpIncome in the browser.
 
@@ -66,31 +68,49 @@ export function incomeFromTokopediaStatement(rec: {
   }
 }
 
-interface IncomeSource {
-  source: string
-  invoiceAmount: number
-  salePrice?: number | null
-  feesTotal?: number | null
-  netIncome?: number | null
+export interface WpOrderIncome {
+  salePrice: number | null
+  feesTotal: number | null
+  netIncome: number | null
   incomeStatus?: string | null
   incomeSettledAt?: string | Date | null
 }
 
+interface IncomeSource {
+  id?: string
+  source: string
+  invoiceAmount: number
+  status?: string
+  itemPrice?: number | null
+  order?: WpOrderIncome | null
+  siblings?: { id: string; itemPrice: number | null; status: string }[]
+}
+
 /**
  * What to show for a WP. Manual WPs have no marketplace fees, so the invoice amount is
- * both the selling price and the income. Marketplace WPs show nothing until the income
- * sync has filled them.
+ * both the selling price and the income. Marketplace income lives on the order: a WP with
+ * an item price gets its share (weighted by item price among the order's non-Canceled
+ * units), a legacy combined WP without one gets the whole order. Nothing until the income
+ * sync has filled the order.
  */
 export function resolveWpIncome(wp: IncomeSource): WpIncome | null {
   if (wp.source === 'manual') {
     return { salePrice: wp.invoiceAmount, feesTotal: 0, netIncome: wp.invoiceAmount, status: 'manual', settledAt: null }
   }
-  if (wp.salePrice == null || wp.feesTotal == null || wp.netIncome == null) return null
+  const o = wp.order
+  if (!o || o.salePrice == null || o.feesTotal == null || o.netIncome == null) return null
+  const totals = { salePrice: o.salePrice, feesTotal: o.feesTotal, netIncome: o.netIncome }
+  let share = totals
+  if (wp.itemPrice != null) {
+    if (wp.status === 'Canceled') return null
+    const active = (wp.siblings ?? []).filter((s) => s.status !== 'Canceled' && s.itemPrice != null)
+    const idx = active.findIndex((s) => s.id === wp.id)
+    if (idx < 0) return null
+    share = allocateOrderIncome(totals, active.map((s) => s.itemPrice as number))[idx]
+  }
   return {
-    salePrice: wp.salePrice,
-    feesTotal: wp.feesTotal,
-    netIncome: wp.netIncome,
-    status: wp.incomeStatus === 'settled' ? 'settled' : 'estimated',
-    settledAt: wp.incomeSettledAt ? new Date(wp.incomeSettledAt) : null,
+    ...share,
+    status: o.incomeStatus === 'settled' ? 'settled' : 'estimated',
+    settledAt: o.incomeSettledAt ? new Date(o.incomeSettledAt) : null,
   }
 }

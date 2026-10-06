@@ -4,10 +4,10 @@ import { listStatementOrders } from '@/lib/tokopedia/finance'
 import { TokopediaError } from '@/lib/tokopedia/types'
 import { INCOME_UNAVAILABLE, incomeFromShopeeEscrow, incomeFromTokopediaStatement, type IncomeFields } from './income'
 
-// Fills salePrice/feesTotal/netIncome on Done marketplace WPs from Shopee escrow and
-// Tokopedia's settlement list. A WP is picked up when it has no income yet, or its income
+// Fills salePrice/feesTotal/netIncome on the MarketplaceOrder of Done marketplace WPs from Shopee escrow and
+// Tokopedia's settlement list. An order is picked up when it has no income yet, or its income
 // is still an estimate and was last checked more than RECHECK_MS ago — so a freshly Done
-// WP is filled within one poller tick, a not-yet-released Tokopedia order is re-read twice
+// order is filled within one poller tick, a not-yet-released Tokopedia order is re-read twice
 // a day until the money lands, and a settled one is never fetched again. The same query
 // backfills the existing Done WPs; it is paced, not capped, because one request covers
 // 50 Shopee orders / 100 Tokopedia orders. A Tokopedia order that is not in the settlement
@@ -45,7 +45,7 @@ let running = false
 type Target = { id: string; source: string; sourceOrderNo: string | null }
 
 async function save(id: string, fields: IncomeFields | null, now: Date, status?: string) {
-  await prisma.workingProject.update({
+  await prisma.marketplaceOrder.update({
     where: { id },
     data: { ...(fields ?? (status ? { incomeStatus: status } : {})), incomeSyncedAt: now },
   })
@@ -59,9 +59,9 @@ export async function syncWorkingProjectIncome(opts: IncomeSyncOptions = {}): Pr
   try {
     const staleBefore = new Date(now.getTime() - RECHECK_MS)
     const unavailableStaleBefore = new Date(now.getTime() - UNAVAILABLE_RECHECK_MS)
-    const targets: Target[] = await prisma.workingProject.findMany({
+    const targets: Target[] = await prisma.marketplaceOrder.findMany({
       where: {
-        status: 'Done',
+        projects: { some: { status: 'Done' } },
         source: { in: ['shopee', 'tokopedia'] },
         sourceOrderNo: { not: null },
         OR: [
@@ -111,27 +111,25 @@ async function syncShopee(targets: Target[], now: Date, result: IncomeSyncResult
 
 async function syncTokopedia(targets: Target[], now: Date, result: IncomeSyncResult, pageGapMs: number) {
   if (targets.length === 0) return
-  // One order number can belong to more than one WP; every one of them gets the income.
-  const pending = new Map<string, Target[]>()
-  for (const t of targets) pending.set(t.sourceOrderNo!, [...(pending.get(t.sourceOrderNo!) ?? []), t])
+  // One MarketplaceOrder per order number, so no grouping is needed.
+  const pending = new Map<string, Target>()
+  for (const t of targets) pending.set(t.sourceOrderNo!, t)
   try {
     // Newest orders first; stop as soon as every target was seen.
     for (let page = 0; page < TOKOPEDIA_MAX_PAGES && pending.size > 0; page++) {
       if (page > 0 && pageGapMs > 0) await sleep(pageGapMs)
       const { orders, total } = await listStatementOrders({ from: page * TOKOPEDIA_PAGE_SIZE, size: TOKOPEDIA_PAGE_SIZE })
       for (const o of orders) {
-        const group = pending.get(o.reference_id)
-        if (!group) continue
+        const t = pending.get(o.reference_id)
+        if (!t) continue
         const fields = incomeFromTokopediaStatement(o)
-        for (const t of group) {
-          try {
-            await save(t.id, fields, now, fields ? undefined : INCOME_UNAVAILABLE)
-            if (fields) result.updated++
-            else result.notFound++
-          } catch (err) {
-            result.failed++
-            result.errors.push(`tokopedia:${o.reference_id}: ${(err as Error).message}`)
-          }
+        try {
+          await save(t.id, fields, now, fields ? undefined : INCOME_UNAVAILABLE)
+          if (fields) result.updated++
+          else result.notFound++
+        } catch (err) {
+          result.failed++
+          result.errors.push(`tokopedia:${o.reference_id}: ${(err as Error).message}`)
         }
         pending.delete(o.reference_id)
       }
@@ -142,15 +140,13 @@ async function syncTokopedia(targets: Target[], now: Date, result: IncomeSyncRes
       result.errors.push(`tokopedia: dihentikan (${err.code}) — ${err.message}`)
       return // keep `pending` unmarked: retry on the next tick once the session is back
     }
-    result.failed += [...pending.values()].reduce((n, g) => n + g.length, 0)
+    result.failed += pending.size
     result.errors.push(`tokopedia: ${(err as Error).message}`)
     return
   }
   // Not in the settlement list (cancelled / never settled, or deeper than the page cap):
   // remember we looked, and look again only after UNAVAILABLE_RECHECK_MS.
-  for (const group of pending.values()) {
-    for (const t of group) {
-      try { await save(t.id, null, now, INCOME_UNAVAILABLE); result.notFound++ } catch { result.failed++ }
-    }
+  for (const t of pending.values()) {
+    try { await save(t.id, null, now, INCOME_UNAVAILABLE); result.notFound++ } catch { result.failed++ }
   }
 }
