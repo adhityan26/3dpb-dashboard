@@ -42,7 +42,7 @@ export interface IncomeSyncOptions {
 
 let running = false
 
-type Target = { id: string; source: string; sourceOrderNo: string | null }
+type Target = { id: string; source: string; sourceOrderNo: string }
 
 async function save(id: string, fields: IncomeFields | null, now: Date, status?: string) {
   await prisma.marketplaceOrder.update({
@@ -63,7 +63,6 @@ export async function syncWorkingProjectIncome(opts: IncomeSyncOptions = {}): Pr
       where: {
         projects: { some: { status: 'Done' } },
         source: { in: ['shopee', 'tokopedia'] },
-        sourceOrderNo: { not: null },
         OR: [
           { incomeStatus: null, OR: [{ incomeSyncedAt: null }, { incomeSyncedAt: { lt: staleBefore } }] },
           { incomeStatus: 'estimated', OR: [{ incomeSyncedAt: null }, { incomeSyncedAt: { lt: staleBefore } }] },
@@ -89,14 +88,14 @@ async function syncShopee(targets: Target[], now: Date, result: IncomeSyncResult
     const batch = targets.slice(i, i + SHOPEE_BATCH)
     let escrow: Awaited<ReturnType<typeof getEscrowDetailBatch>>
     try {
-      escrow = await getEscrowDetailBatch(batch.map((t) => t.sourceOrderNo!))
+      escrow = await getEscrowDetailBatch(batch.map((t) => t.sourceOrderNo))
     } catch (err) {
       result.failed += batch.length
       result.errors.push(`shopee batch: ${(err as Error).message}`)
       continue
     }
     for (const t of batch) {
-      const fields = escrow.has(t.sourceOrderNo!) ? incomeFromShopeeEscrow(escrow.get(t.sourceOrderNo!)!) : null
+      const fields = escrow.has(t.sourceOrderNo) ? incomeFromShopeeEscrow(escrow.get(t.sourceOrderNo)!) : null
       try {
         await save(t.id, fields, now)
         if (fields) result.updated++
@@ -113,7 +112,7 @@ async function syncTokopedia(targets: Target[], now: Date, result: IncomeSyncRes
   if (targets.length === 0) return
   // One MarketplaceOrder per order number, so no grouping is needed.
   const pending = new Map<string, Target>()
-  for (const t of targets) pending.set(t.sourceOrderNo!, t)
+  for (const t of targets) pending.set(t.sourceOrderNo, t)
   try {
     // Newest orders first; stop as soon as every target was seen.
     for (let page = 0; page < TOKOPEDIA_MAX_PAGES && pending.size > 0; page++) {
