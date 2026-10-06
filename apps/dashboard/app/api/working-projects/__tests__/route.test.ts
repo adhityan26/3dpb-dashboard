@@ -25,6 +25,7 @@ describe('GET /api/working-projects', () => {
       { id: 'wp2', order: { id: 'o1', salePrice: 10, feesTotal: 1, netIncome: 9, incomeStatus: 'settled', incomeSettledAt: null, quotationId: null, source: 'shopee', projects: [{ id: 'wp2', itemPrice: 10, status: 'Open' }] } },
     ])
     const res = await GET(req('GET'))
+    expect((prisma.workingProject.findMany as any).mock.calls[0][0].include.order.include.projects.orderBy).toEqual([{ createdAt: 'asc' }, { id: 'asc' }])
     expect(await res.json()).toEqual([
       { id: 'wp1', order: null, siblings: [] },
       { id: 'wp2', order: { salePrice: 10, feesTotal: 1, netIncome: 9, incomeStatus: 'settled', incomeSettledAt: null, quotationId: null }, siblings: [{ id: 'wp2', itemPrice: 10, status: 'Open' }] },
@@ -78,5 +79,14 @@ describe('POST /api/working-projects', () => {
     const arg = (createWorkingProjectsForOrder as any).mock.calls[0][0]
     expect(arg).toMatchObject({ source: 'tokopedia', sourceOrderNo: 'T1', units })
     expect(arg.base.forumChannelIdFor(units[0])).toBe('F')
+  })
+
+  it('400s for malformed units without calling the service', async () => {
+    ;(createWorkingProjectsForOrder as any).mockClear()
+    const bad = [{ itemKey: '', productName: 'p', variantName: null, unitPrice: 1, productId: null }]
+    const res = await POST(req('POST', { source: 'shopee', sourceOrderNo: 'SN1', forumChannelId: 'F', customer: 'y', product: 'z', units: bad }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/^units tidak valid/)
+    expect(createWorkingProjectsForOrder).not.toHaveBeenCalled()
   })
 })

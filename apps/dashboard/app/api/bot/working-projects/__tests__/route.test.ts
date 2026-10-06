@@ -33,9 +33,23 @@ describe('POST /api/bot/working-projects', () => {
     expect(body.threadUrl).toBe('https://discord/t1')
   })
 
-  it('400s for a marketplace order without units', async () => {
+  it('falls back to one combined WP (with a warning) for a marketplace order without units', async () => {
+    ;(createWorkingProject as any).mockResolvedValue({ id: 'wp9', threadUrl: 'u', syncState: 'ok', skipped: false })
+    ;(createWorkingProjectsForOrder as any).mockClear()
     const res = await POST(req({ source: 'tokopedia', sourceOrderNo: 'T1', forumChannelId: 'x', customer: 'y', product: 'z' }))
+    expect(res.status).toBe(201)
+    const body = await res.json()
+    expect(body.id).toBe('wp9')
+    expect(body.warning).toBe('units not provided: created a combined WP; send units for per-unit WPs')
+    expect(createWorkingProjectsForOrder).not.toHaveBeenCalled()
+    expect((createWorkingProject as any).mock.calls.at(-1)[0].sourceItemKey).toBeUndefined()
+  })
+
+  it('400s for malformed units without calling the service', async () => {
+    ;(createWorkingProjectsForOrder as any).mockClear()
+    const res = await POST(req({ source: 'shopee', sourceOrderNo: 'S1', forumChannelId: 'x', customer: 'y', product: 'z', units: [{ itemKey: 'a' }] }))
     expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/^units tidak valid/)
     expect(createWorkingProjectsForOrder).not.toHaveBeenCalled()
   })
 

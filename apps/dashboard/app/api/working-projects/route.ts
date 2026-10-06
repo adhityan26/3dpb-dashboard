@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
+import { validateOrderUnits } from "@/lib/working-projects/order-units"
 import { createWorkingProject, createWorkingProjectsForOrder, summarizeOrderCreate } from "@/lib/working-projects/service"
 
 export async function GET(req: NextRequest) {
@@ -9,7 +10,8 @@ export async function GET(req: NextRequest) {
 
   const rows = await prisma.workingProject.findMany({
     orderBy: { createdAt: "desc" },
-    include: { order: { include: { projects: { select: { id: true, itemPrice: true, status: true } } } } },
+    // Stable sibling order: income rounding remainders are allocated by position.
+    include: { order: { include: { projects: { select: { id: true, itemPrice: true, status: true }, orderBy: [{ createdAt: "asc" }, { id: "asc" }] } } } },
   })
   // Flatten: the client allocates the order income itself, so it gets the order's income
   // fields plus the sibling list, without the nested projects array on `order`.
@@ -38,14 +40,16 @@ export async function POST(req: NextRequest) {
   }
 
   if ((body.source === 'shopee' || body.source === 'tokopedia') && body.sourceOrderNo) {
-    if (!Array.isArray(body.units) || body.units.length === 0) {
+    if (body.units === undefined || body.units === null) {
       return NextResponse.json({ error: 'units wajib untuk order marketplace' }, { status: 400 })
     }
-    const { units, forumChannelId, ...rest } = body
+    const v = validateOrderUnits(body.units)
+    if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 })
+    const { units: _units, forumChannelId, ...rest } = body
     const batch = await createWorkingProjectsForOrder({
       source: body.source,
       sourceOrderNo: body.sourceOrderNo,
-      units,
+      units: v.units,
       base: { ...rest, forumChannelIdFor: () => forumChannelId },
     })
     return NextResponse.json(summarizeOrderCreate(batch), { status: 201 })
