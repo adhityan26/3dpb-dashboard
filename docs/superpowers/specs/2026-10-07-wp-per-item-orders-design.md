@@ -66,14 +66,16 @@ WP manual: harga jual = pendapatan = Nominal.
    `MarketplaceOrder` (upsert) bila belum ada. `forumChannelId` & `sourceProductId` ditentukan **per unit** dari item-nya.
 2. **status-sync** — tetap per `(source, sourceOrderNo)`; semua WP milik order mengikuti status sama (sudah per-baris WP).
    Perbaikan kecil: dedupe `sns` Shopee sebelum dibatch 50.
-3. **Backfill `MarketplaceOrder`** — skrip sekali jalan membuat `MarketplaceOrder` untuk setiap `(source, sourceOrderNo)` WP
+3. **Backfill `MarketplaceOrder` (hanya dari data WP, tanpa request ke marketplace)** — untuk WP lama (Done/Canceled dan
+   semua yang tidak dipecah) tidak ada pengambilan item dari marketplace: `sourceItemKey`/`itemPrice` dibiarkan kosong,
+   karena WP itu mewakili seluruh order dan memakai angka order apa adanya. Skrip sekali jalan membuat `MarketplaceOrder` untuk setiap `(source, sourceOrderNo)` WP
    marketplace yang ada dan mengisi `WorkingProject.orderId` (tanpa menyentuh Discord). `MarketplaceOrder.quotationId`
    diisi dari `WorkingProject.quotationId` WP-nya; bila WP-WP satu order menautkan invoice **berbeda**, jangan menebak —
    lapor untuk diputuskan pemilik. Wajib sebelum income-sync baru aktif,
    supaya ±1.000 WP lama (termasuk gabungan Done) ikut terisi income.
 4. **income-sync** — target = `MarketplaceOrder` yang punya ≥1 WP Done dan income belum final; satu fetch per order.
    Aturan estimasi/12 jam/`unavailable` 3 hari tetap; menggantikan `income-sync.ts` sekarang (tes ditulis ulang).
-5. **Pemecahan 21 WP aktif** — skrip sekali jalan, default dry-run (keluaran + snapshot JSON untuk rollback), `--apply` dengan pacing:
+5. **Pemecahan 21 WP aktif** (satu-satunya tempat item diambil dari marketplace; WP Done/Canceled tidak disentuh) — skrip sekali jalan, default dry-run (keluaran + snapshot JSON untuk rollback), `--apply` dengan pacing:
    - Item diambil dari marketplace (bukan parsing string produk). Bandingkan jumlah **baris** marketplace dengan
      `splitProductVariants(product).length`; tidak sama → lewati & lapor.
    - **Cek ulang saat `--apply`**: status masih aktif, checklist tanpa item tercentang, WP belum punya `sourceItemKey`.
