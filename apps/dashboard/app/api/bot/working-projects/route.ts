@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireBotToken } from '@/lib/bot/auth'
 import { prisma } from '@/lib/db'
-import { createWorkingProject } from '@/lib/working-projects/service'
+import { createWorkingProject, createWorkingProjectsForOrder, summarizeOrderCreate } from '@/lib/working-projects/service'
 
 // Read access for the Discord-side AI assistant (e.g. "rekap cincin di
 // Tokped dan Shopee") — before this existed, the assistant had no read API
@@ -46,6 +46,20 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   if (!body.source || !body.forumChannelId || !body.customer || !body.product) {
     return NextResponse.json({ error: 'source, forumChannelId, customer, product are required' }, { status: 400 })
+  }
+
+  if ((body.source === 'shopee' || body.source === 'tokopedia') && body.sourceOrderNo) {
+    if (!Array.isArray(body.units) || body.units.length === 0) {
+      return NextResponse.json({ error: 'units wajib untuk order marketplace' }, { status: 400 })
+    }
+    const { units, forumChannelId, ...rest } = body
+    const batch = await createWorkingProjectsForOrder({
+      source: body.source,
+      sourceOrderNo: body.sourceOrderNo,
+      units,
+      base: { ...rest, forumChannelIdFor: () => forumChannelId },
+    })
+    return NextResponse.json(summarizeOrderCreate(batch), { status: 201 })
   }
 
   const result = await createWorkingProject(body)

@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import type { OrderSummary } from "@/lib/orders/types"
 import { WorkingProjectAction } from "@/components/order/WorkingProjectAction"
+import { expandOrderUnits, orderLinesFromShopee } from "@/lib/working-projects/order-units"
 import { buildMultiItemProduct } from "@/lib/working-projects/format"
 
 interface OrderRowProps {
@@ -69,6 +70,7 @@ export function OrderRow({ order, onToggleLabel, isPending, linkedInvoice, onCre
       // dropping the rest of a multi-item order (found 2026-09-28).
       product: buildMultiItemProduct(order.items.map((it) => ({ name: it.productName, variant: it.variantName }))),
       variant: order.items.length <= 1 ? (firstItem?.variantName ?? undefined) : undefined,
+      units: expandOrderUnits(orderLinesFromShopee(order.items)),
       shipping: order.shippingCarrier ?? undefined,
       orderDateRaw: new Date(order.createTime * 1000).toISOString().slice(0, 10),
       dueDateRaw: order.shipByDate != null ? new Date(order.shipByDate * 1000).toISOString().slice(0, 10) : undefined,

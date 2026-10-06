@@ -4,7 +4,7 @@ vi.mock('@/lib/orders/service', () => ({ getReadyToShipOrders: vi.fn() }))
 vi.mock('@/lib/tokopedia/orders', () => ({ listOrders: vi.fn() }))
 vi.mock('@/lib/tokopedia/parse', () => ({ parseOrder: vi.fn() }))
 vi.mock('../service', () => ({
-  createWorkingProject: vi.fn(),
+  createWorkingProjectsForOrder: vi.fn(),
   getGLRingProductIds: vi.fn(),
   getCategoryProductIds: vi.fn(),
   getAutoCreateLastRunDate: vi.fn(),
@@ -16,7 +16,7 @@ import { getReadyToShipOrders } from '@/lib/orders/service'
 import { listOrders } from '@/lib/tokopedia/orders'
 import { parseOrder } from '@/lib/tokopedia/parse'
 import {
-  createWorkingProject,
+  createWorkingProjectsForOrder,
   getGLRingProductIds,
   getCategoryProductIds,
   getAutoCreateLastRunDate,
@@ -31,131 +31,129 @@ beforeEach(() => {
   ;(getReadyToShipOrders as any).mockResolvedValue({ orders: [] })
 })
 
+const item = (over: Record<string, unknown> = {}) => ({
+  lineItemId: 100, itemId: 1, modelId: 5, productName: 'Green Lantern Ring', variantName: 'US 9', qty: 1, cancelledQty: 0, unitPrice: 136500, ...over,
+})
+const tokoProduct = (over: Record<string, unknown> = {}) => ({
+  skuId: 'S1', productId: 'tp1', name: 'Gantungan Kunci', variant: 'Merah', qty: 1, unitPrice: 20000, ...over,
+})
+const batch = (created: number, skipped = 0) => ({ created, skipped, results: [] })
+const tokoTab = () =>
+  (listOrders as any).mockImplementation(async (tab: string) =>
+    tab === 'perlu-dikirim' ? { main_orders: [{ id: 'raw1' }] } : { main_orders: [] },
+  )
+
 describe('autoCreateWorkingProjectsFromNewOrders', () => {
-  it('creates a WP per Shopee order, routed by detected category, and counts skips from the dedupe guard', async () => {
+  it('hands each Shopee order to createWorkingProjectsForOrder with its units and routes forum by category per unit', async () => {
     ;(getReadyToShipOrders as any).mockResolvedValue({
       orders: [
-        { orderSn: 'SN1', buyerUsername: 'budi', isPreOrder: true, items: [{ itemId: 1, productName: 'Green Lantern Ring', variantName: 'US 9' }], createTime: 1759000000, shipByDate: 1759600000 },
-        { orderSn: 'SN2', buyerUsername: 'ani', isPreOrder: true, items: [{ itemId: 2, productName: 'Topeng Dr Doom', variantName: null }], createTime: 1759000000, shipByDate: null },
+        { orderSn: 'SN1', buyerUsername: 'budi', isPreOrder: true, items: [item()], createTime: 1759000000, shipByDate: 1759600000 },
+        { orderSn: 'SN2', buyerUsername: 'ani', isPreOrder: true, items: [item({ lineItemId: 200, itemId: 2, productName: 'Topeng Dr Doom', variantName: null })], createTime: 1759000000, shipByDate: null },
       ],
     })
-    ;(createWorkingProject as any)
-      .mockResolvedValueOnce({ id: 'wp1', threadUrl: 'https://discord/1', syncState: 'ok', skipped: false })
-      .mockResolvedValueOnce({ id: 'wp2', threadUrl: 'https://discord/2', syncState: 'ok', skipped: true })
+    ;(createWorkingProjectsForOrder as any).mockResolvedValueOnce(batch(1)).mockResolvedValueOnce(batch(0, 1))
 
     const result = await autoCreateWorkingProjectsFromNewOrders()
 
-    expect(createWorkingProject).toHaveBeenNthCalledWith(1, expect.objectContaining({
-      source: 'shopee', sourceOrderNo: 'SN1', sourceProductId: '1', forumChannelId: 'FORUM_CINCIN_ID',
-      customer: 'budi', product: 'Green Lantern Ring', variant: 'US 9',
-      orderDateRaw: '2025-09-27', dueDateRaw: '2025-10-04',
-    }))
-    expect(createWorkingProject).toHaveBeenNthCalledWith(2, expect.objectContaining({
-      forumChannelId: 'FORUM_TOPENG_ID', product: 'Topeng Dr Doom', orderDateRaw: '2025-09-27', dueDateRaw: undefined,
-    }))
+    const first = (createWorkingProjectsForOrder as any).mock.calls[0][0]
+    expect(first).toMatchObject({ source: 'shopee', sourceOrderNo: 'SN1' })
+    expect(first.units).toEqual([{ itemKey: '100#1', productName: 'Green Lantern Ring', variantName: 'US 9', unitPrice: 136500, productId: '1' }])
+    expect(first.base).toMatchObject({ platform: 'Shopee', customer: 'budi', orderDateRaw: '2025-09-27', dueDateRaw: '2025-10-04' })
+    expect(first.base.forumChannelIdFor(first.units[0])).toBe('FORUM_CINCIN_ID')
+    const second = (createWorkingProjectsForOrder as any).mock.calls[1][0]
+    expect(second.base.forumChannelIdFor(second.units[0])).toBe('FORUM_TOPENG_ID')
+    expect(second.base.dueDateRaw).toBeUndefined()
     expect(result).toEqual({ scanned: 2, created: 1, skipped: 1, failed: 0, errors: [] })
   })
 
-  it('keeps ALL items from a multi-item Shopee order, not just the first (found 2026-09-28)', async () => {
+  it('expands a multi-line order and a qty:2 line into one unit each, and counts WPs', async () => {
     ;(getReadyToShipOrders as any).mockResolvedValue({
       orders: [{
         orderSn: 'SN9', buyerUsername: 'budi', isPreOrder: true,
-        items: [
-          { itemId: 1, productName: 'Green Lantern Ring 2026 3D Print', variantName: 'US 6' },
-          { itemId: 1, productName: 'Green Lantern Ring 2026 3D Print', variantName: 'US 7' },
-          { itemId: 2, productName: '3D Print Green Lantern Ring Cosplay', variantName: 'US 7' },
-        ],
+        items: [item({ lineItemId: 1, variantName: 'US 6' }), item({ lineItemId: 2, variantName: 'US 7', qty: 2 })],
         createTime: 1759000000, shipByDate: null,
       }],
     })
-    ;(createWorkingProject as any).mockResolvedValue({ id: 'wp9', threadUrl: null, syncState: 'ok', skipped: false })
+    ;(createWorkingProjectsForOrder as any).mockResolvedValue(batch(3))
 
-    await autoCreateWorkingProjectsFromNewOrders()
+    const result = await autoCreateWorkingProjectsFromNewOrders()
 
-    expect(createWorkingProject).toHaveBeenCalledWith(expect.objectContaining({
-      sourceOrderNo: 'SN9',
-      platform: 'Shopee',
-      product: 'Green Lantern Ring 2026 3D Print (US 6), Green Lantern Ring 2026 3D Print (US 7), 3D Print Green Lantern Ring Cosplay (US 7)',
-      variant: undefined,
-    }))
+    const units = (createWorkingProjectsForOrder as any).mock.calls[0][0].units
+    expect(units.map((u: any) => [u.itemKey, u.variantName])).toEqual([['1#1', 'US 6'], ['2#1', 'US 7'], ['2#2', 'US 7']])
+    expect(result.created).toBe(3)
+  })
+
+  it('counts an order with every unit cancelled as skipped without calling create', async () => {
+    ;(getReadyToShipOrders as any).mockResolvedValue({
+      orders: [{ orderSn: 'SN3', buyerUsername: 'budi', isPreOrder: true, items: [item({ qty: 1, cancelledQty: 1 })], createTime: 1759000000, shipByDate: null }],
+    })
+    const result = await autoCreateWorkingProjectsFromNewOrders()
+    expect(createWorkingProjectsForOrder).not.toHaveBeenCalled()
+    expect(result).toEqual({ scanned: 1, created: 0, skipped: 1, failed: 0, errors: [] })
   })
 
   it('skips a Shopee order that is not pre-order (ready-stock accessories should not get a WP, found 2026-09-29)', async () => {
     ;(getReadyToShipOrders as any).mockResolvedValue({
-      orders: [{ orderSn: 'SN1', buyerUsername: 'budi', isPreOrder: false, items: [{ itemId: 1, productName: 'Crocs Charm', variantName: null }], createTime: 1759000000, shipByDate: null }],
+      orders: [{ orderSn: 'SN1', buyerUsername: 'budi', isPreOrder: false, items: [item()], createTime: 1759000000, shipByDate: null }],
     })
-
     const result = await autoCreateWorkingProjectsFromNewOrders()
-
-    expect(createWorkingProject).not.toHaveBeenCalled()
+    expect(createWorkingProjectsForOrder).not.toHaveBeenCalled()
     expect(result).toEqual({ scanned: 0, created: 0, skipped: 0, failed: 0, errors: [] })
   })
 
   it('skips a Tokopedia order that is not pre-order', async () => {
-    ;(listOrders as any).mockImplementation(async (tab: string) =>
-      tab === 'perlu-dikirim' ? { main_orders: [{ id: 'raw1' }] } : { main_orders: [] },
-    )
-    ;(parseOrder as any).mockReturnValue({ orderId: 'TOK1', buyerNickname: 'Cici', products: [{ name: 'Gantungan Kunci', variant: null }], isPreOrder: false })
-
+    tokoTab()
+    ;(parseOrder as any).mockReturnValue({ orderId: 'TOK1', buyerNickname: 'Cici', products: [tokoProduct()], isPreOrder: false })
     const result = await autoCreateWorkingProjectsFromNewOrders()
-
-    expect(createWorkingProject).not.toHaveBeenCalled()
+    expect(createWorkingProjectsForOrder).not.toHaveBeenCalled()
     expect(result.scanned).toBe(0)
   })
 
-  it('routes a Tokopedia order with no category match to the general forum', async () => {
-    ;(listOrders as any).mockImplementation(async (tab: string) =>
-      tab === 'perlu-dikirim' ? { main_orders: [{ id: 'raw1' }] } : { main_orders: [] },
-    )
+  it('routes a Tokopedia unit with no category match to the general forum', async () => {
+    tokoTab()
     ;(parseOrder as any).mockReturnValue({
-      orderId: 'TOK1', buyerNickname: 'Cici', products: [{ name: 'Gantungan Kunci', variant: 'Merah' }],
+      orderId: 'TOK1', buyerNickname: 'Cici', products: [tokoProduct()],
       orderDate: 1759000000, latestRtsTime: 1759600000, isPreOrder: true,
     })
-    ;(createWorkingProject as any).mockResolvedValue({ id: 'wp3', threadUrl: null, syncState: 'ok', skipped: false })
+    ;(createWorkingProjectsForOrder as any).mockResolvedValue(batch(1))
 
     const result = await autoCreateWorkingProjectsFromNewOrders()
 
-    expect(createWorkingProject).toHaveBeenCalledWith(expect.objectContaining({
-      source: 'tokopedia', sourceOrderNo: 'TOK1', platform: 'Tokopedia', forumChannelId: 'ORDERS_FORUM_CHANNEL_ID',
-      customer: 'Cici', product: 'Gantungan Kunci', variant: 'Merah',
-      orderDateRaw: '2025-09-27', dueDateRaw: '2025-10-04',
-    }))
+    const arg = (createWorkingProjectsForOrder as any).mock.calls[0][0]
+    expect(arg).toMatchObject({ source: 'tokopedia', sourceOrderNo: 'TOK1' })
+    expect(arg.units[0]).toMatchObject({ itemKey: 'S1#1', productName: 'Gantungan Kunci', variantName: 'Merah' })
+    expect(arg.base).toMatchObject({ platform: 'Tokopedia', customer: 'Cici', orderDateRaw: '2025-09-27', dueDateRaw: '2025-10-04' })
+    expect(arg.base.forumChannelIdFor(arg.units[0])).toBe('ORDERS_FORUM_CHANNEL_ID')
     expect(result.created).toBe(1)
   })
 
   it('keeps going and records an error when one candidate fails to create', async () => {
     ;(getReadyToShipOrders as any).mockResolvedValue({
-      orders: [{ orderSn: 'SN1', buyerUsername: 'budi', isPreOrder: true, items: [{ itemId: 1, productName: 'Cincin', variantName: null }], createTime: 1759000000, shipByDate: null }],
+      orders: [{ orderSn: 'SN1', buyerUsername: 'budi', isPreOrder: true, items: [item()], createTime: 1759000000, shipByDate: null }],
     })
-    ;(createWorkingProject as any).mockRejectedValue(new Error('discord-relay 403'))
-
+    ;(createWorkingProjectsForOrder as any).mockRejectedValue(new Error('discord-relay 403'))
     const result = await autoCreateWorkingProjectsFromNewOrders()
-
     expect(result).toEqual({ scanned: 1, created: 0, skipped: 0, failed: 1, errors: ['shopee:SN1: discord-relay 403'] })
   })
 
   it('keeps going (with an error) when the Shopee fetch itself fails, still scanning Tokopedia', async () => {
     ;(getReadyToShipOrders as any).mockRejectedValue(new Error('Shopee API down'))
-    ;(listOrders as any).mockImplementation(async (tab: string) =>
-      tab === 'perlu-dikirim' ? { main_orders: [{ id: 'raw1' }] } : { main_orders: [] },
-    )
-    ;(parseOrder as any).mockReturnValue({ orderId: 'TOK1', buyerNickname: 'Cici', products: [{ name: 'Topeng', variant: null }], isPreOrder: true })
-    ;(createWorkingProject as any).mockResolvedValue({ id: 'wp1', threadUrl: null, syncState: 'ok', skipped: false })
-
+    tokoTab()
+    ;(parseOrder as any).mockReturnValue({ orderId: 'TOK1', buyerNickname: 'Cici', products: [tokoProduct()], isPreOrder: true })
+    ;(createWorkingProjectsForOrder as any).mockResolvedValue(batch(1))
     const result = await autoCreateWorkingProjectsFromNewOrders()
-
     expect(result.errors).toEqual(['shopee: gagal ambil order — Shopee API down'])
     expect(result.created).toBe(1)
   })
 
   it("does not abort the batch when one Shopee order's createTime is missing/invalid", async () => {
     ;(getReadyToShipOrders as any).mockResolvedValue({
-      orders: [{ orderSn: 'SN1', buyerUsername: 'budi', isPreOrder: true, items: [{ itemId: 1, productName: 'Cincin', variantName: null }], createTime: undefined, shipByDate: null }],
+      orders: [{ orderSn: 'SN1', buyerUsername: 'budi', isPreOrder: true, items: [item()], createTime: undefined, shipByDate: null }],
     })
-    ;(createWorkingProject as any).mockResolvedValue({ id: 'wp1', threadUrl: null, syncState: 'ok', skipped: false })
+    ;(createWorkingProjectsForOrder as any).mockResolvedValue(batch(1))
     const result = await autoCreateWorkingProjectsFromNewOrders()
     expect(result).toEqual({ scanned: 1, created: 1, skipped: 0, failed: 0, errors: [] })
-    expect(createWorkingProject).toHaveBeenCalledWith(expect.objectContaining({ orderDateRaw: undefined }))
+    expect((createWorkingProjectsForOrder as any).mock.calls[0][0].base.orderDateRaw).toBeUndefined()
   })
 })
 
@@ -163,7 +161,7 @@ describe('runDailyAutoCreateIfDue', () => {
   it('does nothing before the 23:00 WIB cutoff', async () => {
     const result = await runDailyAutoCreateIfDue(new Date('2026-09-28T15:00:00Z')) // 22:00 WIB
     expect(result).toBeNull()
-    expect(createWorkingProject).not.toHaveBeenCalled()
+    expect(createWorkingProjectsForOrder).not.toHaveBeenCalled()
   })
 
   it('runs once past the cutoff and records today\'s WIB date', async () => {

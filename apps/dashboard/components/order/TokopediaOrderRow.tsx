@@ -4,6 +4,7 @@ import { useState } from "react"
 import Image from "next/image"
 import { Card, CardContent } from "@/components/ui/card"
 import type { TokopediaOrderSummary } from "@/lib/tokopedia/types"
+import { expandOrderUnits, orderLinesFromTokopedia } from "@/lib/working-projects/order-units"
 import { buildMultiItemProduct } from "@/lib/working-projects/format"
 import { WorkingProjectAction } from "@/components/order/WorkingProjectAction"
 
@@ -62,6 +63,7 @@ export function TokopediaOrderRow({ order, defaultExpanded = false }: TokopediaO
       // silently dropping the rest of a multi-item order (found 2026-09-28).
       product: buildMultiItemProduct(order.products.map((p) => ({ name: p.name, variant: p.variant }))),
       variant: order.products.length <= 1 ? (first?.variant || undefined) : undefined,
+      units: expandOrderUnits(orderLinesFromTokopedia(order.products)),
       shipping: order.courier ?? undefined,
       orderDateRaw: order.orderDate != null ? new Date(order.orderDate * 1000).toISOString().slice(0, 10) : undefined,
       dueDateRaw: order.latestRtsTime != null ? new Date(order.latestRtsTime * 1000).toISOString().slice(0, 10) : undefined,

@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-vi.mock('@/lib/working-projects/service', () => ({ createWorkingProject: vi.fn() }))
+vi.mock('@/lib/working-projects/service', () => ({ createWorkingProject: vi.fn(), createWorkingProjectsForOrder: vi.fn(), summarizeOrderCreate: vi.fn((r: any) => ({ created: r.created })) }))
 vi.mock('@/lib/bot/auth', () => ({ requireBotToken: vi.fn(() => true) }))
 vi.mock('@/lib/db', () => ({ prisma: { workingProject: { findMany: vi.fn() } } }))
 import { GET, POST } from '../route'
-import { createWorkingProject } from '@/lib/working-projects/service'
+import { createWorkingProject, createWorkingProjectsForOrder } from '@/lib/working-projects/service'
 import { requireBotToken } from '@/lib/bot/auth'
 import { prisma } from '@/lib/db'
 
@@ -31,6 +31,12 @@ describe('POST /api/bot/working-projects', () => {
     expect(res.status).toBe(201)
     const body = await res.json()
     expect(body.threadUrl).toBe('https://discord/t1')
+  })
+
+  it('400s for a marketplace order without units', async () => {
+    const res = await POST(req({ source: 'tokopedia', sourceOrderNo: 'T1', forumChannelId: 'x', customer: 'y', product: 'z' }))
+    expect(res.status).toBe(400)
+    expect(createWorkingProjectsForOrder).not.toHaveBeenCalled()
   })
 
   it('401s when requireBotToken returns false', async () => {
