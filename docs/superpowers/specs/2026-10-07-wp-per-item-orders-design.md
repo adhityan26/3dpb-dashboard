@@ -1,6 +1,6 @@
 # Order sebagai induk WP — satu WP per unit + income per order
 
-Tanggal: 2026-10-07 · Branch: `feat/wp-escrow` · Status: revisi 2 (setelah review Fable), menunggu review
+Tanggal: 2026-10-07 · Branch: `feat/wp-escrow` · Status: revisi 3 (invoice per order), menunggu review
 
 ## Masalah
 
@@ -18,6 +18,7 @@ Kolom income dari commit `08b58b18` belum ada di DB produksi (dicek) → meminda
 - Satu WP per **unit**: baris `qty = 2` → **2 WP**.
 - WP gabungan **Done/Canceled dibiarkan**; yang **aktif dipecah**.
 - Income dihitung di level order; tiap WP menampilkan bagian proporsional.
+- **1 invoice = 1 order, mencakup banyak WP** (bukan invoice per WP).
 
 ## Kunci item (diverifikasi pada payload nyata 2026-10-07)
 
@@ -40,6 +41,7 @@ MarketplaceOrder
   id, source ('shopee'|'tokopedia'), sourceOrderNo        @@unique([source, sourceOrderNo])
   salePrice, feesTotal, netIncome   Int?                  // seluruh order
   incomeStatus ('estimated'|'settled'|'unavailable'|null), incomeSettledAt, incomeSyncedAt
+  quotationId String?                                     // invoice order ini (tanpa FK, seperti WorkingProject.quotationId sekarang)
 ```
 
 `WorkingProject` += `orderId String?` (FK, null untuk WP manual), `sourceItemKey String?`, `itemPrice Int?` (harga satu unit);
@@ -65,7 +67,9 @@ WP manual: harga jual = pendapatan = Nominal.
 2. **status-sync** — tetap per `(source, sourceOrderNo)`; semua WP milik order mengikuti status sama (sudah per-baris WP).
    Perbaikan kecil: dedupe `sns` Shopee sebelum dibatch 50.
 3. **Backfill `MarketplaceOrder`** — skrip sekali jalan membuat `MarketplaceOrder` untuk setiap `(source, sourceOrderNo)` WP
-   marketplace yang ada dan mengisi `WorkingProject.orderId` (tanpa menyentuh Discord). Wajib sebelum income-sync baru aktif,
+   marketplace yang ada dan mengisi `WorkingProject.orderId` (tanpa menyentuh Discord). `MarketplaceOrder.quotationId`
+   diisi dari `WorkingProject.quotationId` WP-nya; bila WP-WP satu order menautkan invoice **berbeda**, jangan menebak —
+   lapor untuk diputuskan pemilik. Wajib sebelum income-sync baru aktif,
    supaya ±1.000 WP lama (termasuk gabungan Done) ikut terisi income.
 4. **income-sync** — target = `MarketplaceOrder` yang punya ≥1 WP Done dan income belum final; satu fetch per order.
    Aturan estimasi/12 jam/`unavailable` 3 hari tetap; menggantikan `income-sync.ts` sekarang (tes ditulis ulang).
@@ -85,7 +89,14 @@ WP manual: harga jual = pendapatan = Nominal.
    ("1 dari 2 unit order ini"). Tab GL Ring tidak berubah selain `variant` kini terisi.
 7. **Efek samping yang ditangani**
    - Reminder due-date: tetap per WP (tiap unit punya reminder sendiri); `remindersSent` disalin saat pemecahan.
-   - Invoice: tetap per WP (`catatan: Order <no>`); satu order bisa punya N invoice — diterima untuk sekarang.
+   - **Invoice per order**: tautan invoice disimpan di `MarketplaceOrder.quotationId`. Tombol 🧾 pada WP yang punya `orderId`
+     bekerja di level order — semua WP satu order menampilkan invoice yang sama; "Buat Invoice Baru" memakai satu `Quotation`
+     dengan satu baris per kelompok (produk+variant, `qty` = jumlah unit aktif, `hargaPerUnit` = `itemPrice`), `shopeeOrderSn`
+     dan `catatan: Order <no>` seperti sekarang. Tautkan/lepas memperbarui order lewat endpoint baru
+     `PATCH /api/working-projects/orders/[id]` (`{quotationId}`); `GET /api/working-projects` menyertakan `orderQuotationId`
+     per WP. Jika order sudah punya invoice, tombol "Buat" tidak muncul (cegah invoice ganda). WP manual (tanpa order)
+     tetap memakai `WorkingProject.quotationId` per WP seperti sekarang. `WorkingProject.quotationId` pada WP ber-order
+     diabaikan setelah backfill.
    - Bot AI (`/app/CLAUDE.md` di VM .92): `GET ?q=<no order>` kini bisa mengembalikan N baris — dokumentasi bot diperbarui
      agar tidak mem-PATCH hanya baris pertama (langkah rollout).
 
@@ -107,5 +118,5 @@ Rollback: WP baru dihapus berdasarkan `sourceItemKey`; WP lama dipulihkan dari s
 
 Unit: alokasi income (Σ pas, Σ bobot = 0, WP Canceled, salePrice ≠ Σ harga baris), penurunan kunci unit (qty>1, dua baris kunci
 sama, `cancelled_qty`), dedupe dua query, `createWorkingProjectsForOrder` (qty>1, multi-baris, jalur manual/bot),
-income-sync per order, status-sync dengan 2 WP satu order, skrip pemecah terhadap fixture (notes multi-varian, label checklist,
+income-sync per order, invoice per order (isi baris dari WP-WP order, tombol di semua WP order, cegah invoice ganda, WP manual tetap per WP), backfill `quotationId` (konflik dilaporkan), status-sync dengan 2 WP satu order, skrip pemecah terhadap fixture (notes multi-varian, label checklist,
 `remindersSent`, >1 WP gabungan, baris tidak cocok). Dry-run produksi read-only sebelum `--apply`.
