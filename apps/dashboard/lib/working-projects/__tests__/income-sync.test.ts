@@ -71,6 +71,64 @@ describe('syncWorkingProjectIncome', () => {
     listStatementOrders.mockResolvedValue({ orders: [rec('999')], total: 1 })
     const r = await syncWorkingProjectIncome()
     expect(r.notFound).toBe(1)
-    expect(update).toHaveBeenCalledWith({ where: { id: 't1' }, data: { incomeSyncedAt: expect.any(Date) } })
+    expect(update).toHaveBeenCalledWith({ where: { id: 't1' }, data: { incomeStatus: 'unavailable', incomeSyncedAt: expect.any(Date) } })
+  })
+
+  it('gives every WP that shares one Tokopedia order number the income', async () => {
+    findMany.mockResolvedValue([
+      { id: 'a', source: 'tokopedia', sourceOrderNo: '111' },
+      { id: 'b', source: 'tokopedia', sourceOrderNo: '111' },
+    ])
+    listStatementOrders.mockResolvedValue({ orders: [rec('111', 2)], total: 1 })
+    const r = await syncWorkingProjectIncome({ tokopediaPageGapMs: 0 })
+    expect(r.updated).toBe(2)
+    expect(update.mock.calls.map((c) => c[0].where.id).sort()).toEqual(['a', 'b'])
+  })
+
+  it('stores the release time of a settled Tokopedia order', async () => {
+    findMany.mockResolvedValue([{ id: 't1', source: 'tokopedia', sourceOrderNo: '111' }])
+    listStatementOrders.mockResolvedValue({ orders: [{ ...rec('111', 2), settlement_time: '1784769070000' }], total: 1 })
+    await syncWorkingProjectIncome({ tokopediaPageGapMs: 0 })
+    expect(update).toHaveBeenCalledWith({
+      where: { id: 't1' },
+      data: expect.objectContaining({ incomeStatus: 'settled', incomeSettledAt: new Date(1784769070000) }),
+    })
+  })
+
+  it('stops at the page cap and marks what it never found as unavailable instead of re-walking', async () => {
+    findMany.mockResolvedValue([{ id: 't1', source: 'tokopedia', sourceOrderNo: 'never' }])
+    listStatementOrders.mockImplementation(async () => ({ orders: Array.from({ length: 100 }, (_, i) => rec(`x${i}`)), total: 100000 }))
+    const r = await syncWorkingProjectIncome({ tokopediaPageGapMs: 0 })
+    expect(listStatementOrders).toHaveBeenCalledTimes(40)
+    expect(r.notFound).toBe(1)
+    expect(update).toHaveBeenCalledWith({ where: { id: 't1' }, data: { incomeStatus: 'unavailable', incomeSyncedAt: expect.any(Date) } })
+  })
+
+  it('on a non-fatal Tokopedia error counts the WPs as failed and saves nothing', async () => {
+    findMany.mockResolvedValue([{ id: 't1', source: 'tokopedia', sourceOrderNo: '111' }, { id: 't2', source: 'tokopedia', sourceOrderNo: '222' }])
+    listStatementOrders.mockRejectedValue(new Error('HTTP 500'))
+    const r = await syncWorkingProjectIncome({ tokopediaPageGapMs: 0 })
+    expect(r.failed).toBe(2)
+    expect(update).not.toHaveBeenCalled()
+  })
+
+  it('handles the same Shopee order appearing twice in a batch', async () => {
+    findMany.mockResolvedValue([{ id: 'a', source: 'shopee', sourceOrderNo: 'SN1' }, { id: 'b', source: 'shopee', sourceOrderNo: 'SN1' }])
+    getEscrowDetailBatch.mockResolvedValue(new Map([['SN1', { order_selling_price: 90000, escrow_amount: 69752 }]]))
+    const r = await syncWorkingProjectIncome()
+    expect(r.updated).toBe(2)
+  })
+
+  it('only picks Done marketplace WPs that are unfilled, stale estimates, or long-stale unavailable ones', async () => {
+    findMany.mockResolvedValue([])
+    const now = new Date('2026-10-07T00:00:00Z')
+    await syncWorkingProjectIncome({ now })
+    const where = findMany.mock.calls[0][0].where
+    expect(where.status).toBe('Done')
+    expect(where.source).toEqual({ in: ['shopee', 'tokopedia'] })
+    expect(where.OR).toHaveLength(3)
+    expect(where.OR[0]).toMatchObject({ incomeStatus: null })
+    expect(where.OR[1]).toMatchObject({ incomeStatus: 'estimated' })
+    expect(where.OR[2]).toEqual({ incomeStatus: 'unavailable', incomeSyncedAt: { lt: new Date('2026-10-04T00:00:00Z') } })
   })
 })

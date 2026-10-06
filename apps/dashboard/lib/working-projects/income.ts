@@ -18,6 +18,9 @@ export type IncomeFields = {
   incomeSettledAt: Date | null
 }
 
+/** incomeStatus of a WP the marketplace had no income row for; rechecked rarely. */
+export const INCOME_UNAVAILABLE = 'unavailable'
+
 export function incomeFromShopeeEscrow(oi: { order_selling_price?: number; escrow_amount?: number }): IncomeFields | null {
   if (typeof oi.escrow_amount !== 'number') return null
   // Shopee has no single "total fees" field (commission, service, processing, AMS, shipping
@@ -27,7 +30,8 @@ export function incomeFromShopeeEscrow(oi: { order_selling_price?: number; escro
     salePrice,
     feesTotal: Math.max(0, salePrice - oi.escrow_amount),
     netIncome: oi.escrow_amount,
-    // Shopee only generates escrow once the order completes and the money is released.
+    // Approximation: the escrow payload has no release flag, so any generated escrow counts as
+    // final. A later refund/return adjustment on a settled order is therefore not picked up.
     incomeStatus: 'settled',
     incomeSettledAt: null,
   }
@@ -36,7 +40,8 @@ export function incomeFromShopeeEscrow(oi: { order_selling_price?: number; escro
 type Money = { amount?: string } | undefined
 const rupiah = (m: Money): number | null => {
   const n = Number(m?.amount)
-  return m?.amount !== undefined && Number.isFinite(n) ? n : null
+  // The columns are Int: round so a fractional amount can't make the whole row's update throw.
+  return m?.amount !== undefined && Number.isFinite(n) ? Math.round(n) : null
 }
 
 export function incomeFromTokopediaStatement(rec: {

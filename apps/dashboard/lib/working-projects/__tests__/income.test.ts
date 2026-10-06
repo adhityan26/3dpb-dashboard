@@ -29,6 +29,9 @@ describe('incomeFromTokopediaStatement', () => {
     expect(r?.incomeStatus).toBe('settled')
     expect(r?.incomeSettledAt).toEqual(new Date(1784769070000))
   })
+  it('rounds a fractional amount so the Int column accepts it', () => {
+    expect(incomeFromTokopediaStatement({ ...base, earning_amount: money('150000.5'), settlement_status: 1 })?.salePrice).toBe(150001)
+  })
   it('returns null on missing amounts', () => {
     expect(incomeFromTokopediaStatement({ settlement_status: 2 })).toBeNull()
   })
