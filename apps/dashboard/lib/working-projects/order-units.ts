@@ -43,5 +43,29 @@ export function orderLinesFromShopee(items: { lineItemId: number | null; itemId:
 }
 
 export function orderLinesFromTokopedia(products: { skuId: string; productId: string; name: string; variant: string; qty: number; unitPrice: number }[]): OrderLine[] {
-  return products.map((p) => ({ key: p.skuId, productName: p.name, variantName: p.variant || null, qty: p.qty, unitPrice: p.unitPrice, productId: p.productId || null }))
+  // An empty sku_id would make a bare "" key (and "#1" unit keys); fall back to a stable product-derived key.
+  return products.map((p) => ({ key: p.skuId || `${p.productId || 'p'}:${p.name}:${p.variant}`, productName: p.name, variantName: p.variant || null, qty: p.qty, unitPrice: p.unitPrice, productId: p.productId || null }))
+}
+
+const isStr = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0
+
+// Validates untrusted `units` from an API body before they reach createWorkingProjectsForOrder.
+export function validateOrderUnits(input: unknown): { ok: true; units: OrderUnit[] } | { ok: false; error: string } {
+  if (!Array.isArray(input) || input.length === 0) return { ok: false, error: 'units tidak valid: harus array tidak kosong' }
+  const seen = new Set<string>()
+  const units: OrderUnit[] = []
+  for (let i = 0; i < input.length; i++) {
+    const u = input[i] as Record<string, unknown> | null
+    const at = `units[${i}]`
+    if (!u || typeof u !== 'object') return { ok: false, error: `units tidak valid: ${at} bukan objek` }
+    if (!isStr(u.itemKey)) return { ok: false, error: `units tidak valid: ${at}.itemKey wajib string` }
+    if (!isStr(u.productName)) return { ok: false, error: `units tidak valid: ${at}.productName wajib string` }
+    if (u.variantName != null && typeof u.variantName !== 'string') return { ok: false, error: `units tidak valid: ${at}.variantName harus string/null` }
+    if (typeof u.unitPrice !== 'number' || !Number.isFinite(u.unitPrice) || u.unitPrice < 0) return { ok: false, error: `units tidak valid: ${at}.unitPrice harus angka >= 0` }
+    if (u.productId != null && typeof u.productId !== 'string') return { ok: false, error: `units tidak valid: ${at}.productId harus string/null` }
+    if (seen.has(u.itemKey)) return { ok: false, error: `units tidak valid: itemKey duplikat "${u.itemKey}"` }
+    seen.add(u.itemKey)
+    units.push({ itemKey: u.itemKey, productName: u.productName, variantName: (u.variantName as string | null | undefined) ?? null, unitPrice: u.unitPrice, productId: (u.productId as string | null | undefined) ?? null })
+  }
+  return { ok: true, units }
 }
