@@ -113,6 +113,20 @@ export function useUpdateWorkingProject() {
   })
 }
 
+// Links/unlinks the invoice of a marketplace order (one invoice per order).
+export function useUpdateMarketplaceOrder() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, quotationId }: { id: string; quotationId: string | null }) =>
+      apiFetch(`/api/working-projects/orders/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quotationId }),
+      }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: WORKING_PROJECTS_KEY }),
+  })
+}
+
 export interface SetChecklistByLabelVars {
   id: string
   label: string

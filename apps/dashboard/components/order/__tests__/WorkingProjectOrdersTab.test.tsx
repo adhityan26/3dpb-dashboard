@@ -36,6 +36,7 @@ vi.mock('@/lib/hooks/use-working-projects', () => ({
     isLoading: false,
   }),
   useUpdateWorkingProject: () => updateMutationState,
+  useUpdateMarketplaceOrder: () => ({ mutateAsync: vi.fn(), isPending: false }),
   useChecklistOp: () => ({ mutate: vi.fn(), isPending: false }),
 }))
 
