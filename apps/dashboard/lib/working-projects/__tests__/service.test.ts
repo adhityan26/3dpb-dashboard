@@ -20,7 +20,7 @@ vi.mock('@/lib/db', () => ({
     },
   },
 }))
-import { createWorkingProject, setStatus, updateWorkingProject, resyncWorkingProject, runChecklistOp, markReminderSent, deleteWorkingProject, getFastCouriers, setFastCouriers } from '../service'
+import { createWorkingProject, PENDING_RETRY_AFTER_MS, setStatus, updateWorkingProject, resyncWorkingProject, runChecklistOp, markReminderSent, deleteWorkingProject, getFastCouriers, setFastCouriers } from '../service'
 import { DEFAULT_FAST_COURIERS } from '../courier'
 import { createRelayThread, editRelayThread, archiveRelayThread, deleteRelayThread } from '../discord-sync'
 import { prisma } from '@/lib/db'
@@ -370,8 +370,39 @@ describe('createWorkingProject initial option', () => {
     expect(relay.message).not.toContain('<@u1>')
   })
 
+  const stuckRow = (syncState: string, ageMs: number) => ({
+      id: 'wp-p', discordThreadId: null, discordThreadUrl: null, syncState, forumChannelId: 'F',
+      updatedAt: new Date(Date.now() - ageMs),
+      title: 'Budi - Cincin', customer: 'Budi', contact: null, product: 'Cincin', variant: null, platform: null,
+      sourceOrderNo: 'SN-I', orderNoLegacy: null, orderDate: null, dueDate: null, dueDateRaw: null,
+      status: 'Open', payment: 'Belum', invoiceAmount: 0, paidAmount: 0, shipping: null, trackingNo: null,
+      mentions: ['u1'], notes: null, checklist: [],
+  })
+
+  it('does not retry a young pending row (a concurrent create may still be mid-flight)', async () => {
+    ;(prisma.workingProject.findFirst as any).mockResolvedValue(stuckRow('pending', 60_000))
+    const r = await createWorkingProject({ ...base, sourceItemKey: 'L#1' })
+    expect(createRelayThread).not.toHaveBeenCalled()
+    expect(r).toMatchObject({ id: 'wp-p', syncState: 'pending', skipped: true })
+  })
+
+  it('retries a pending row older than the threshold', async () => {
+    ;(prisma.workingProject.findFirst as any).mockResolvedValue(stuckRow('pending', PENDING_RETRY_AFTER_MS + 1000))
+    ;(createRelayThread as any).mockResolvedValue({ threadId: 't9', threadUrl: 'u9' })
+    const r = await createWorkingProject({ ...base, sourceItemKey: 'L#1' })
+    expect(r).toMatchObject({ id: 'wp-p', syncState: 'ok', skipped: false })
+  })
+
+  it('retries an error row without a thread regardless of age', async () => {
+    ;(prisma.workingProject.findFirst as any).mockResolvedValue(stuckRow('error', 1000))
+    ;(createRelayThread as any).mockResolvedValue({ threadId: 't9', threadUrl: 'u9' })
+    const r = await createWorkingProject({ ...base, sourceItemKey: 'L#1' })
+    expect(r).toMatchObject({ id: 'wp-p', syncState: 'ok', skipped: false })
+  })
+
   it('retries a pending row that has no thread (crash leftover) instead of skipping it', async () => {
     ;(prisma.workingProject.findFirst as any).mockResolvedValue({
+      updatedAt: new Date(Date.now() - 3_600_000),
       id: 'wp-p', discordThreadId: null, discordThreadUrl: null, syncState: 'pending', forumChannelId: 'F',
       title: 'Budi - Cincin', customer: 'Budi', contact: null, product: 'Cincin', variant: null, platform: null,
       sourceOrderNo: 'SN-I', orderNoLegacy: null, orderDate: null, dueDate: null, dueDateRaw: null,

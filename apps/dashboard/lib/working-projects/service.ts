@@ -6,6 +6,10 @@ import { resolveForumChannelId } from './category'
 import type { OrderUnit } from './order-units'
 import { DEFAULT_SHIPPING_TABLE_GROUPS, type ShippingTableGroup } from './shipping-schedule'
 
+// A row still 'pending' without a thread is only treated as a crash leftover once it is this old;
+// a younger one may belong to a create that is still talking to Discord.
+export const PENDING_RETRY_AFTER_MS = 5 * 60 * 1000
+
 export async function createWorkingProject(input: {
   source: 'shopee' | 'tokopedia' | 'manual'
   sourceOrderNo?: string
@@ -61,8 +65,10 @@ export async function createWorkingProject(input: {
     // otherwise be stuck forever: re-clicking "Buat WP" hit this guard and
     // silently returned it. Retry the thread instead, into the forum chosen now.
     // A row still 'pending' without a thread is the leftover of a crash between the DB insert and
-    // the thread creation, so it is retried the same way.
-    if (existing && !existing.discordThreadId && (existing.syncState === 'error' || existing.syncState === 'pending')) {
+    // the thread creation, so it is retried the same way, but only once it is old enough that no
+    // concurrent create can still be working on it.
+    const stuckPending = existing?.syncState === 'pending' && Date.now() - new Date(existing.updatedAt).getTime() > PENDING_RETRY_AFTER_MS
+    if (existing && !existing.discordThreadId && (existing.syncState === 'error' || stuckPending)) {
       const quiet = input.initial?.mentionsInPost === false
       const content = rebuildStarterContent(quiet ? { ...existing, mentions: [] } : existing)
       return finishInitial(await createThreadFor(existing.id, forumChannelId, existing.title, content, quiet ? [] : existing.mentions), input.initial)
