@@ -114,6 +114,16 @@ describe('planOrderSplit - notes', () => {
     expect(reason(wp({ product: P1, variant: '8', notes: 'awalnya US 7 ganti US 9' }), [line('L1', P1, '8', 2)])).toBe('notes-multi-size')
   })
 
+  it.each([
+    'ukuran 7 dan 8', 'US 7 & 9', 'size 7, 8', 'us 7/8', 'size: 7 atau 8', 'ukuran 7 - 8', 'us 7.5 dan 8', 'size 7, 8 dan 9',
+  ])('(i3) qty 2 with several sizes in ONE phrase (%s) -> notes-multi-size', (notes) => {
+    expect(reason(wp({ product: P1, variant: '8', notes }), [line('L1', P1, '8', 2)])).toBe('notes-multi-size')
+  })
+
+  it('(i4) the same size repeated in one phrase or across phrases is still single-size', () => {
+    expect(reason(wp({ product: P1, variant: '8', notes: 'size 8 dan 8, us 8' }), [line('L1', P1, '8', 2)])).toBe('ok')
+  })
+
   it('(i2) qty 2 with a single size copies notes verbatim to both units', () => {
     const a = okPlan(wp({ product: P1, variant: '8', notes: 'size US 8 box hitam' }), [line('L1', P1, '8', 2)])
     expect(a.map(x => x.notes)).toEqual(['size US 8 box hitam', 'size US 8 box hitam'])

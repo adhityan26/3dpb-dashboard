@@ -40,11 +40,18 @@ const fail = (reason: string, detail?: string): SplitPlan => ({ ok: false, reaso
 const norm = (s: string) => s.trim().toLowerCase()
 const SEP = ' — ' // " — " as written by the GL Ring tab: "<variantShort(entry)> — <step>"
 const TIMESTAMP_LINE = /^\s*\[\d{4}-\d{2}-\d{2}[ T]\d{2}:\d{2}[^\]]*\].*$/gm
-const SIZE_VALUE = /\bus\s*(\d{1,2}(?:\.\d)?)|(?:size|ukuran)\s*:?\s*(\d{1,2}(?:\.\d)?)/gi
+// A size token ("us", "size", "ukuran") followed by one number or a list of numbers joined by
+// "," "/" "&" "+" "-" "dan" "atau" "and" ("ukuran 7 dan 8", "us 7/8", "size 7, 8").
+const NUM = String.raw`\d{1,2}(?:\.\d)?`
+const SIZE_PHRASE = new RegExp(String.raw`(?:\bus|\bsize|\bukuran)\s*:?\s*(${NUM}(?:\s*(?:,|/|&|\+|-|–|\bdan\b|\batau\b|\band\b)\s*${NUM})*)`, 'gi')
 
+// Every distinct size mentioned in the text. A phrase that lists several numbers contributes all
+// of them, so it counts as multi-size on its own.
 function distinctSizes(text: string): Set<number> {
   const out = new Set<number>()
-  for (const m of text.matchAll(SIZE_VALUE)) out.add(Number(m[1] ?? m[2]))
+  for (const m of text.matchAll(SIZE_PHRASE)) {
+    for (const n of m[1].match(new RegExp(NUM, 'g')) ?? []) out.add(Number(n))
+  }
   return out
 }
 // Notes fields as the segment matcher sees them: ' / ' blocks and '|' fields, trimmed.
