@@ -42,3 +42,6 @@ data/
 *.db-journal
 
 /lib/generated/prisma
+
+# split-combined-wps snapshots (contain customer PII)
+.split-snapshots/
