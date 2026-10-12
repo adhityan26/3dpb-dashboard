@@ -314,6 +314,78 @@ describe('updateWorkingProject', () => {
   })
 })
 
+describe('createWorkingProject initial option', () => {
+  const base = { source: 'shopee' as const, sourceOrderNo: 'SN-I', forumChannelId: 'FORUM_CINCIN_ID', customer: 'Budi', product: 'Cincin', mentions: ['u1'] }
+  const row = { id: 'wp-i', discordThreadId: 't1', title: 'Budi - Cincin', appliedTags: ['tag1'], customer: 'Budi', product: 'Cincin', status: 'Proses', payment: 'Lunas', mentions: ['u1'], checklist: [] }
+
+  it('stores status, payment, remindersSent, appliedTags and trackingNo on the created row', async () => {
+    ;(prisma.workingProject.create as any).mockResolvedValue({ id: 'wp-i' })
+    ;(createRelayThread as any).mockResolvedValue({ threadId: 't1', threadUrl: 'u' })
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue(row)
+    ;(editRelayThread as any).mockResolvedValue(undefined)
+    await createWorkingProject({ ...base, initial: { status: 'Proses', payment: 'Lunas', remindersSent: [3, 1], appliedTags: ['tag1'], trackingNo: 'JP123' } })
+    expect(prisma.workingProject.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ status: 'Proses', payment: 'Lunas', remindersSent: [3, 1], appliedTags: ['tag1'], trackingNo: 'JP123' }),
+    }))
+  })
+
+  it('leaves those columns to their defaults without initial and does not resync', async () => {
+    ;(prisma.workingProject.create as any).mockResolvedValue({ id: 'wp-n' })
+    ;(createRelayThread as any).mockResolvedValue({ threadId: 't1', threadUrl: 'u' })
+    await createWorkingProject(base)
+    const data = (prisma.workingProject.create as any).mock.calls[0][0].data
+    for (const k of ['status', 'payment', 'remindersSent', 'appliedTags', 'trackingNo', 'checklist']) expect(data).not.toHaveProperty(k)
+    expect(editRelayThread).not.toHaveBeenCalled()
+  })
+
+  it('resyncs exactly once when initial is given', async () => {
+    ;(prisma.workingProject.create as any).mockResolvedValue({ id: 'wp-i' })
+    ;(createRelayThread as any).mockResolvedValue({ threadId: 't1', threadUrl: 'u' })
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue(row)
+    ;(editRelayThread as any).mockResolvedValue(undefined)
+    const r = await createWorkingProject({ ...base, initial: { status: 'Proses' } })
+    expect(editRelayThread).toHaveBeenCalledTimes(1)
+    expect(editRelayThread).toHaveBeenCalledWith('t1', expect.objectContaining({ name: 'Budi - Cincin', appliedTags: ['tag1'] }))
+    expect(r).toEqual({ id: 'wp-i', threadUrl: 'u', syncState: 'ok', skipped: false })
+  })
+
+  it('keeps the row but reports syncState error when the resync fails', async () => {
+    ;(prisma.workingProject.create as any).mockResolvedValue({ id: 'wp-i' })
+    ;(createRelayThread as any).mockResolvedValue({ threadId: 't1', threadUrl: 'u' })
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue({ ...row, syncError: 'boom' })
+    ;(editRelayThread as any).mockRejectedValue(new Error('boom'))
+    const r = await createWorkingProject({ ...base, initial: { status: 'Proses' } })
+    expect(r).toMatchObject({ id: 'wp-i', syncState: 'error', syncError: 'boom', skipped: false })
+  })
+
+  it('mentionsInPost:false sends no mentions to the relay but still stores them in the DB', async () => {
+    ;(prisma.workingProject.create as any).mockResolvedValue({ id: 'wp-i' })
+    ;(createRelayThread as any).mockResolvedValue({ threadId: 't1', threadUrl: 'u' })
+    ;(prisma.workingProject.findUnique as any).mockResolvedValue(row)
+    ;(editRelayThread as any).mockResolvedValue(undefined)
+    await createWorkingProject({ ...base, initial: { mentionsInPost: false } })
+    expect(prisma.workingProject.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ mentions: ['u1'] }) }))
+    const relay = (createRelayThread as any).mock.calls[0][0]
+    expect(relay.mentions).toEqual([])
+    expect(relay.message).not.toContain('<@u1>')
+  })
+
+  it('retries a pending row that has no thread (crash leftover) instead of skipping it', async () => {
+    ;(prisma.workingProject.findFirst as any).mockResolvedValue({
+      id: 'wp-p', discordThreadId: null, discordThreadUrl: null, syncState: 'pending', forumChannelId: 'F',
+      title: 'Budi - Cincin', customer: 'Budi', contact: null, product: 'Cincin', variant: null, platform: null,
+      sourceOrderNo: 'SN-I', orderNoLegacy: null, orderDate: null, dueDate: null, dueDateRaw: null,
+      status: 'Open', payment: 'Belum', invoiceAmount: 0, paidAmount: 0, shipping: null, trackingNo: null,
+      mentions: ['u1'], notes: null, checklist: [],
+    })
+    ;(createRelayThread as any).mockResolvedValue({ threadId: 't9', threadUrl: 'u9' })
+    const r = await createWorkingProject({ ...base, sourceItemKey: 'L#1' })
+    expect(prisma.workingProject.create).not.toHaveBeenCalled()
+    expect(createRelayThread).toHaveBeenCalledWith(expect.objectContaining({ idempotencyKey: 'wp-p' }))
+    expect(r).toMatchObject({ id: 'wp-p', syncState: 'ok', skipped: false })
+  })
+})
+
 describe('resyncWorkingProject', () => {
   it('re-pushes current DB state to the relay and clears syncError on success', async () => {
     ;(prisma.workingProject.findUnique as any).mockResolvedValue({ id: 'wp1', discordThreadId: 't1', title: 'T', appliedTags: [], customer: 'Budi', product: 'Cincin', status: 'Open', payment: 'Belum', mentions: [], checklist: [] })

@@ -26,6 +26,19 @@ export async function createWorkingProject(input: {
   orderId?: string
   sourceItemKey?: string
   itemPrice?: number
+  // State a unit inherits when an existing combined WP is split (see order-split.ts). When given, the
+  // Discord post/name/tags are re-pushed from the DB row once the thread exists.
+  initial?: {
+    status?: string
+    payment?: string
+    remindersSent?: number[]
+    appliedTags?: string[]
+    trackingNo?: string
+    checklist?: { text: string; done: boolean; deleted?: boolean }[]
+    // false: the opening message carries no @mentions (avoids N-1 pings per split order); the
+    // `mentions` column is still saved.
+    mentionsInPost?: boolean
+  }
 }): Promise<CreateWorkingProjectOutcome> {
   // Idempotency guard: a manual "Buat WP" double-click, a page that hasn't
   // refetched yet, or the daily auto-create job re-scanning the same order
@@ -47,8 +60,12 @@ export async function createWorkingProject(input: {
     // A row whose first thread creation failed (no thread at all) would
     // otherwise be stuck forever: re-clicking "Buat WP" hit this guard and
     // silently returned it. Retry the thread instead, into the forum chosen now.
-    if (existing && !existing.discordThreadId && existing.syncState === 'error') {
-      return createThreadFor(existing.id, forumChannelId, existing.title, rebuildStarterContent(existing), existing.mentions)
+    // A row still 'pending' without a thread is the leftover of a crash between the DB insert and
+    // the thread creation, so it is retried the same way.
+    if (existing && !existing.discordThreadId && (existing.syncState === 'error' || existing.syncState === 'pending')) {
+      const quiet = input.initial?.mentionsInPost === false
+      const content = rebuildStarterContent(quiet ? { ...existing, mentions: [] } : existing)
+      return finishInitial(await createThreadFor(existing.id, forumChannelId, existing.title, content, quiet ? [] : existing.mentions), input.initial)
     }
     if (existing) {
       return { id: existing.id, threadUrl: existing.discordThreadUrl, syncState: existing.syncState, skipped: true }
@@ -86,6 +103,14 @@ export async function createWorkingProject(input: {
       invoiceAmount: input.invoiceAmountRaw ? parseAmount(input.invoiceAmountRaw) : 0,
       mentions: input.mentions ?? [],
       shipping: input.shipping ?? null,
+      ...(input.initial ? {
+        ...(input.initial.status ? { status: input.initial.status } : {}),
+        ...(input.initial.payment ? { payment: input.initial.payment } : {}),
+        ...(input.initial.remindersSent ? { remindersSent: input.initial.remindersSent } : {}),
+        ...(input.initial.appliedTags ? { appliedTags: input.initial.appliedTags } : {}),
+        ...(input.initial.trackingNo ? { trackingNo: input.initial.trackingNo } : {}),
+        ...(input.initial.checklist ? { checklist: input.initial.checklist } : {}),
+      } : {}),
     },
     })
   } catch (err) {
@@ -103,10 +128,28 @@ export async function createWorkingProject(input: {
   const message = buildPostContent({
     customer: input.customer, contact: input.contact, product: input.product, variant: input.variant,
     platform: input.platform, sourceOrderNo: input.sourceOrderNo, orderNoLegacy: input.orderNoLegacy,
-    orderDate, dueDate, dueDateRaw, notes: input.notes, mentions: input.mentions,
+    orderDate, dueDate, dueDateRaw, notes: input.notes,
+    mentions: input.initial?.mentionsInPost === false ? [] : input.mentions,
+    status: input.initial?.status, payment: input.initial?.payment, trackingNo: input.initial?.trackingNo,
+    checklist: input.initial?.checklist,
   })
 
-  return createThreadFor(wp.id, forumChannelId, title, message, input.mentions ?? [])
+  const relayMentions = input.initial?.mentionsInPost === false ? [] : (input.mentions ?? [])
+  return finishInitial(await createThreadFor(wp.id, forumChannelId, title, message, relayMentions), input.initial)
+}
+
+// With `initial`, re-pushes the DB row (status, payment, tracking, tags) to Discord once the thread
+// exists. A failed resync keeps the created row and surfaces in syncState/syncError.
+async function finishInitial(r: CreateWorkingProjectOutcome, initial: unknown): Promise<CreateWorkingProjectOutcome> {
+  if (!initial || r.syncState !== 'ok') return r
+  try {
+    const { discordSynced } = await resyncWorkingProject(r.id)
+    if (discordSynced) return r
+    const row = await prisma.workingProject.findUnique({ where: { id: r.id } })
+    return { ...r, syncState: 'error', syncError: row?.syncError ?? 'resync failed' }
+  } catch (err) {
+    return { ...r, syncState: 'error', syncError: (err as Error).message }
+  }
 }
 
 export type CreateWorkingProjectOutcome = { id: string; threadUrl: string | null; syncState: string; skipped: boolean; syncError?: string }
