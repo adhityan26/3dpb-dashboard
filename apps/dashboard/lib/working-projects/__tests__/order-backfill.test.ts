@@ -59,4 +59,19 @@ describe('planOrderBackfill', () => {
     expect(second.quotationUpdates).toEqual([])
     expect(second.quotationConflicts).toEqual([])
   })
+
+  it('reports an existing order quotationId that differs from a WP quotationId', () => {
+    const plan = planOrderBackfill(
+      [wp({ id: 'a', quotationId: 'q1' }), wp({ id: 'b', quotationId: 'q9' }), wp({ id: 'c' })],
+      [{ source: 'shopee', sourceOrderNo: 'SN1', quotationId: 'q1' }])
+    expect(plan.quotationMismatches).toEqual([
+      { source: 'shopee', sourceOrderNo: 'SN1', wpId: 'b', wpQuotationId: 'q9', orderQuotationId: 'q1' },
+    ])
+    expect(plan.quotationUpdates).toEqual([])
+  })
+
+  it('reports no mismatch when the order has no quotationId yet or ids agree', () => {
+    expect(planOrderBackfill([wp({ id: 'a', quotationId: 'q1' })], [{ source: 'shopee', sourceOrderNo: 'SN1', quotationId: null }]).quotationMismatches).toEqual([])
+    expect(planOrderBackfill([wp({ id: 'a', quotationId: 'q1' })], [{ source: 'shopee', sourceOrderNo: 'SN1', quotationId: 'q1' }]).quotationMismatches).toEqual([])
+  })
 })

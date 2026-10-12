@@ -15,6 +15,8 @@ export interface BackfillPlan {
   links: { wpId: string; source: MarketplaceSource; sourceOrderNo: string }[]
   quotationUpdates: { source: MarketplaceSource; sourceOrderNo: string; quotationId: string }[]
   quotationConflicts: { source: string; sourceOrderNo: string; quotationIds: string[] }[]
+  // An existing order already holds a quotationId that differs from a WP's own one (never overwritten).
+  quotationMismatches: { source: string; sourceOrderNo: string; wpId: string; wpQuotationId: string; orderQuotationId: string }[]
   skipped: number
 }
 
@@ -22,7 +24,7 @@ export function planOrderBackfill(
   wps: BackfillWp[],
   existingOrders: { source: string; sourceOrderNo: string; quotationId: string | null }[],
 ): BackfillPlan {
-  const plan: BackfillPlan = { newOrders: [], links: [], quotationUpdates: [], quotationConflicts: [], skipped: 0 }
+  const plan: BackfillPlan = { newOrders: [], links: [], quotationUpdates: [], quotationConflicts: [], quotationMismatches: [], skipped: 0 }
   const existing = new Map(existingOrders.map((o) => [`${o.source}:${o.sourceOrderNo}`, o]))
   const groups = new Map<string, { source: MarketplaceSource; sourceOrderNo: string; wps: BackfillWp[] }>()
 
@@ -48,6 +50,13 @@ export function planOrderBackfill(
       plan.newOrders.push({ source: g.source, sourceOrderNo: g.sourceOrderNo, quotationId })
     } else if (!order.quotationId && quotationId) {
       plan.quotationUpdates.push({ source: g.source, sourceOrderNo: g.sourceOrderNo, quotationId })
+    }
+    if (order?.quotationId) {
+      for (const w of g.wps) {
+        if (w.quotationId && w.quotationId !== order.quotationId) {
+          plan.quotationMismatches.push({ source: g.source, sourceOrderNo: g.sourceOrderNo, wpId: w.id, wpQuotationId: w.quotationId, orderQuotationId: order.quotationId })
+        }
+      }
     }
     for (const w of g.wps) plan.links.push({ wpId: w.id, source: g.source, sourceOrderNo: g.sourceOrderNo })
   }

@@ -24,6 +24,10 @@ async function main() {
   for (const c of plan.quotationConflicts) {
     console.log(`  CONFLICT ${c.source} ${c.sourceOrderNo}: ${c.quotationIds.join(", ")}`)
   }
+  console.log(`Quotation mismatches (order keeps its own): ${plan.quotationMismatches.length}`)
+  for (const m of plan.quotationMismatches) {
+    console.log(`  MISMATCH ${m.source} ${m.sourceOrderNo}: WP ${m.wpId} has ${m.wpQuotationId}, order has ${m.orderQuotationId}`)
+  }
   console.log(`Skipped:           ${plan.skipped}`)
 
   if (!APPLY) {
