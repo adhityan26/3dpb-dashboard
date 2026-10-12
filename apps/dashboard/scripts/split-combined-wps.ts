@@ -7,10 +7,11 @@
 //   --limit <n>                 at most n orders per apply run
 //   --only <sourceOrderNo>      a single order
 //   --snapshot-dir <dir>        default ./.split-snapshots (contains PII: never commit it)
-//   --rollback <file>...        undo (dry-run unless --apply); --force-edited overrides edit protection
+//   --rollback <file>...        undo (dry-run unless --apply); --force-edited overrides edit protection.
+//                               Pass every snapshot file of the session together.
 //
 // Run INSIDE the production container, outside the poller window (about 22:30-02:00 WIB).
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { prisma } from '@/lib/db'
 import { getOrderDetail } from '@/lib/shopee/orders'
@@ -22,9 +23,11 @@ import {
 } from '@/lib/working-projects/service'
 import { detectProductCategory, forumChannelIdForCategory } from '@/lib/working-projects/category'
 import { SPLITTABLE_STATUSES } from '@/lib/working-projects/order-split'
+import { writeFileAtomic } from '@/lib/working-projects/atomic-write'
+import { parseSplitArgs } from '@/lib/working-projects/split-cli-args'
 import { orderLinesFromShopee, orderLinesFromTokopedia } from '@/lib/working-projects/order-units'
 import {
-  runSplit, runRollback, type SplitDeps, type CandidateWp, type FetchedOrder, type SplitSnapshot,
+  runSplit, runRollback, legacyConvertWhere, type SplitDeps, type KeyedRef, type CandidateWp, type FetchedOrder, type SplitSnapshot,
 } from '@/lib/working-projects/order-split-runner'
 
 const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
@@ -35,24 +38,6 @@ const TOKOPEDIA_PAGE_SIZE = 50
 const TOKOPEDIA_MAX_PAGES = 15
 const TOKOPEDIA_TABS: TokopediaTab[] = ['perlu-dikirim', 'menunggu-pengambilan', 'dikirim']
 const TOKOPEDIA_FATAL_CODES = new Set(['VERIFICATION_REQUIRED', 'SESSION_INVALID', 'SESSION_MISSING', 'SESSION_EXPIRED'])
-
-interface Args { apply: boolean; limit?: number; only?: string; snapshotDir: string; rollback: string[]; forceEdited: boolean }
-
-function parseArgs(argv: string[]): Args {
-  const a: Args = { apply: false, snapshotDir: './.split-snapshots', rollback: [], forceEdited: false }
-  for (let i = 0; i < argv.length; i++) {
-    const v = argv[i]
-    if (v === '--apply') a.apply = true
-    else if (v === '--force-edited') a.forceEdited = true
-    else if (v === '--limit') a.limit = Number(argv[++i])
-    else if (v === '--only') a.only = argv[++i]
-    else if (v === '--snapshot-dir') a.snapshotDir = argv[++i]
-    else if (v === '--rollback') { while (argv[i + 1] && !argv[i + 1].startsWith('--')) a.rollback.push(argv[++i]) }
-    else throw new Error(`unknown flag: ${v}`)
-  }
-  if (a.limit !== undefined && (!Number.isInteger(a.limit) || a.limit < 0)) throw new Error('--limit must be a non-negative integer')
-  return a
-}
 
 // Prisma row -> JSON-safe CandidateWp (dates become ISO strings; every column is kept for the snapshot).
 const toCandidate = (row: unknown): CandidateWp => JSON.parse(JSON.stringify(row)) as CandidateWp
@@ -67,7 +52,7 @@ async function fetchShopee(sns: string[], out: Map<string, FetchedOrder>) {
         productName: it.item_name, variantName: it.model_name ?? null, qty: it.model_quantity_purchased,
         cancelledQty: it.cancelled_qty ?? 0, unitPrice: it.model_discounted_price,
       })))
-      out.set(`shopee:${d.order_sn}`, { lines })
+      out.set(`shopee:${d.order_sn}`, { lines, status: d.order_status })
     }
   }
 }
@@ -77,7 +62,7 @@ async function fetchTokopedia(ids: string[], out: Map<string, FetchedOrder>) {
   const found = new Map<string, FetchedOrder>()
   const add = (raw: unknown) => {
     const s = parseOrder(raw as Parameters<typeof parseOrder>[0])
-    if (s?.orderId && wanted.has(s.orderId)) found.set(s.orderId, { lines: orderLinesFromTokopedia(s.products), subTotal: s.subTotal })
+    if (s?.orderId && wanted.has(s.orderId)) found.set(s.orderId, { lines: orderLinesFromTokopedia(s.products), subTotal: s.subTotal, status: s.statusCode })
   }
   try {
     for (const tab of TOKOPEDIA_TABS) {
@@ -120,12 +105,12 @@ async function buildDeps(snapshotDir: string): Promise<SplitDeps> {
       })
       const keyed = await prisma.workingProject.findMany({
         where: { source: { in: ['shopee', 'tokopedia'] }, sourceItemKey: { not: null }, sourceOrderNo: { not: null } },
-        select: { source: true, sourceOrderNo: true, sourceItemKey: true },
+        select: { id: true, source: true, sourceOrderNo: true, sourceItemKey: true },
       })
-      const keyedByOrder = new Map<string, string[]>()
+      const keyedByOrder = new Map<string, KeyedRef[]>()
       for (const k of keyed) {
         const key = `${k.source}:${k.sourceOrderNo}`
-        keyedByOrder.set(key, [...(keyedByOrder.get(key) ?? []), k.sourceItemKey as string])
+        keyedByOrder.set(key, [...(keyedByOrder.get(key) ?? []), { id: k.id, itemKey: k.sourceItemKey as string }])
       }
       return { legacy: rows.map(toCandidate), keyedByOrder }
     },
@@ -141,6 +126,10 @@ async function buildDeps(snapshotDir: string): Promise<SplitDeps> {
       const row = await prisma.workingProject.findUnique({ where: { id } })
       return row ? toCandidate(row) : null
     },
+    async findUnits(source, sourceOrderNo, itemKeys) {
+      const rows = await prisma.workingProject.findMany({ where: { source, sourceOrderNo, sourceItemKey: { in: itemKeys } } })
+      return rows.map(toCandidate)
+    },
     async createUnit(input) {
       const r = await createWorkingProject(input)
       const row = await prisma.workingProject.findUnique({ where: { id: r.id }, select: { discordThreadId: true, syncState: true } })
@@ -148,7 +137,7 @@ async function buildDeps(snapshotDir: string): Promise<SplitDeps> {
     },
     async convertLegacy({ id, expectedStatus, expectedUpdatedAt, data }) {
       const r = await prisma.workingProject.updateMany({
-        where: { id, sourceItemKey: null, status: expectedStatus, updatedAt: new Date(expectedUpdatedAt) },
+        where: legacyConvertWhere({ id, expectedStatus, expectedUpdatedAt }),
         data: { ...data, checklist: data.checklist as unknown as object },
       })
       return r.count
@@ -159,12 +148,13 @@ async function buildDeps(snapshotDir: string): Promise<SplitDeps> {
         await mkdir(snapshotDir, { recursive: true })
         snapshotPath = path.join(snapshotDir, `split-${snapshot.createdAt.replace(/[:.]/g, '-')}.json`)
       }
-      await writeFile(snapshotPath, JSON.stringify(snapshot, null, 2))
+      await writeFileAtomic(snapshotPath, JSON.stringify(snapshot, null, 2))
       return snapshotPath
     },
     async deleteUnit(id, threadId) {
-      if (threadId) await deleteWorkingProject(threadId)
-      else await prisma.workingProject.delete({ where: { id } })
+      if (threadId) return deleteWorkingProject(threadId)
+      await prisma.workingProject.delete({ where: { id } })
+      return { discordDeleted: true }
     },
     async restoreLegacy(wp) {
       await prisma.workingProject.update({
@@ -198,7 +188,7 @@ function printReport(report: Awaited<ReturnType<typeof runSplit>>['report']) {
 }
 
 async function main() {
-  const args = parseArgs(process.argv.slice(2))
+  const args = parseSplitArgs(process.argv.slice(2))
   const deps = await buildDeps(args.snapshotDir)
 
   if (args.rollback.length) {
@@ -207,6 +197,7 @@ async function main() {
     console.log(`${args.apply ? 'Rolled back' : 'Would roll back'}: ${r.restored.length}`)
     r.restored.forEach((k) => console.log(`  ${k}`))
     r.refused.forEach((x) => console.log(`REFUSED ${x.key}: ${x.reason}${x.reason.startsWith('edited') ? ' (use --force-edited to override)' : ''}`))
+    r.discordNotDeleted.forEach((d) => console.log(`DISCORD-NOT-DELETED unit ${d.id}: thread ${d.threadId} still exists, delete it by hand`))
     console.log('Cannot be restored:')
     r.notes.forEach((n) => console.log(`  - ${n}`))
     if (!args.apply) console.log('DRY-RUN: nothing was written')
