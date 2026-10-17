@@ -30,7 +30,7 @@ export interface TokopediaOrderSummary {
   orderId: string
   statusCode: number | null
   statusLabel: string
-  products: { name: string; variant: string; qty: number; totalPrice: number; imageUrl: string | null }[]
+  products: { name: string; variant: string; qty: number; totalPrice: number; imageUrl: string | null; skuId: string; productId: string; unitPrice: number }[]
   courier: string | null
   serviceType: string | null      // logistics_service_name e.g. "Kargo"
   shippingType: string | null     // logistics_service_level e.g. "Pengiriman Ekonomis" (what the Seller UI shows)

@@ -28,6 +28,8 @@ export function findWorkingProjectForOrder<
   return projects.find((p) => p.sourceOrderNo === orderNo || p.orderNoLegacy === orderNo)
 }
 
+import type { OrderUnit } from "./order-units"
+
 export interface CreateWorkingProjectFromOrderInput {
   source: "shopee" | "tokopedia"
   sourceOrderNo: string
@@ -40,6 +42,8 @@ export interface CreateWorkingProjectFromOrderInput {
   shipping?: string
   orderDateRaw?: string
   dueDateRaw?: string
+  /** One entry per ordered piece; the server creates one WP per unit. */
+  units: OrderUnit[]
 }
 
 export interface CreateWorkingProjectResult {

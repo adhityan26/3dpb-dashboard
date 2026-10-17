@@ -3,7 +3,12 @@ import { buildTitle, buildPostContent, parseDueDate, parseOrderDate, parseAmount
 import { createRelayThread, editRelayThread, archiveRelayThread, deleteRelayThread } from './discord-sync'
 import { DEFAULT_FAST_COURIERS } from './courier'
 import { resolveForumChannelId } from './category'
+import type { OrderUnit } from './order-units'
 import { DEFAULT_SHIPPING_TABLE_GROUPS, type ShippingTableGroup } from './shipping-schedule'
+
+// A row still 'pending' without a thread is only treated as a crash leftover once it is this old;
+// a younger one may belong to a create that is still talking to Discord.
+export const PENDING_RETRY_AFTER_MS = 5 * 60 * 1000
 
 export async function createWorkingProject(input: {
   source: 'shopee' | 'tokopedia' | 'manual'
@@ -22,7 +27,23 @@ export async function createWorkingProject(input: {
   invoiceAmountRaw?: string
   mentions?: string[]
   shipping?: string
-}): Promise<{ id: string; threadUrl: string | null; syncState: string; skipped: boolean; syncError?: string }> {
+  orderId?: string
+  sourceItemKey?: string
+  itemPrice?: number
+  // State a unit inherits when an existing combined WP is split (see order-split.ts). When given, the
+  // Discord post/name/tags are re-pushed from the DB row once the thread exists.
+  initial?: {
+    status?: string
+    payment?: string
+    remindersSent?: number[]
+    appliedTags?: string[]
+    trackingNo?: string
+    checklist?: { text: string; done: boolean; deleted?: boolean }[]
+    // false: the opening message carries no @mentions (avoids N-1 pings per split order); the
+    // `mentions` column is still saved.
+    mentionsInPost?: boolean
+  }
+}): Promise<CreateWorkingProjectOutcome> {
   // Idempotency guard: a manual "Buat WP" double-click, a page that hasn't
   // refetched yet, or the daily auto-create job re-scanning the same order
   // used to each create a brand-new row + a brand-new Discord thread for the
@@ -33,14 +54,24 @@ export async function createWorkingProject(input: {
   const forumChannelId = resolveForumChannelId(input.forumChannelId)
 
   if (input.sourceOrderNo) {
+    // With a unit key the guard checks that exact unit; without one it matches any WP of
+    // the order (manual-style call, same as before per-unit WPs existed).
     const existing = await prisma.workingProject.findFirst({
-      where: { source: input.source, sourceOrderNo: input.sourceOrderNo },
+      where: input.sourceItemKey
+        ? { source: input.source, sourceOrderNo: input.sourceOrderNo, sourceItemKey: input.sourceItemKey }
+        : { source: input.source, sourceOrderNo: input.sourceOrderNo },
     })
     // A row whose first thread creation failed (no thread at all) would
     // otherwise be stuck forever: re-clicking "Buat WP" hit this guard and
     // silently returned it. Retry the thread instead, into the forum chosen now.
-    if (existing && !existing.discordThreadId && existing.syncState === 'error') {
-      return createThreadFor(existing.id, forumChannelId, existing.title, rebuildStarterContent(existing), existing.mentions)
+    // A row still 'pending' without a thread is the leftover of a crash between the DB insert and
+    // the thread creation, so it is retried the same way, but only once it is old enough that no
+    // concurrent create can still be working on it.
+    const stuckPending = existing?.syncState === 'pending' && Date.now() - new Date(existing.updatedAt).getTime() > PENDING_RETRY_AFTER_MS
+    if (existing && !existing.discordThreadId && (existing.syncState === 'error' || stuckPending)) {
+      const quiet = input.initial?.mentionsInPost === false
+      const content = rebuildStarterContent(quiet ? { ...existing, mentions: [] } : existing)
+      return finishInitial(await createThreadFor(existing.id, forumChannelId, existing.title, content, quiet ? [] : existing.mentions), input.initial)
     }
     if (existing) {
       return { id: existing.id, threadUrl: existing.discordThreadUrl, syncState: existing.syncState, skipped: true }
@@ -51,11 +82,16 @@ export async function createWorkingProject(input: {
   const orderDate = input.orderDateRaw ? parseOrderDate(input.orderDateRaw) : null
   const title = buildTitle({ customer: input.customer, product: input.product, variant: input.variant })
 
-  const wp = await prisma.workingProject.create({
+  let wp: { id: string }
+  try {
+    wp = await prisma.workingProject.create({
     data: {
       source: input.source,
       sourceOrderNo: input.sourceOrderNo ?? null,
       sourceProductId: input.sourceProductId ?? null,
+      orderId: input.orderId ?? null,
+      sourceItemKey: input.sourceItemKey ?? null,
+      itemPrice: input.itemPrice ?? null,
       orderNoLegacy: input.orderNoLegacy ?? null,
       syncState: 'pending',
       discordThreadId: null,
@@ -73,21 +109,141 @@ export async function createWorkingProject(input: {
       invoiceAmount: input.invoiceAmountRaw ? parseAmount(input.invoiceAmountRaw) : 0,
       mentions: input.mentions ?? [],
       shipping: input.shipping ?? null,
+      ...(input.initial ? {
+        ...(input.initial.status ? { status: input.initial.status } : {}),
+        ...(input.initial.payment ? { payment: input.initial.payment } : {}),
+        ...(input.initial.remindersSent ? { remindersSent: input.initial.remindersSent } : {}),
+        ...(input.initial.appliedTags ? { appliedTags: input.initial.appliedTags } : {}),
+        ...(input.initial.trackingNo ? { trackingNo: input.initial.trackingNo } : {}),
+        ...(input.initial.checklist ? { checklist: input.initial.checklist } : {}),
+      } : {}),
     },
-  })
+    })
+  } catch (err) {
+    // Lost a race against a concurrent create of the same unit (unique index on the unit key):
+    // the other request owns it, so report the existing row as already existing.
+    if (input.sourceOrderNo && input.sourceItemKey && (err as { code?: string }).code === 'P2002') {
+      const winner = await prisma.workingProject.findFirst({
+        where: { source: input.source, sourceOrderNo: input.sourceOrderNo, sourceItemKey: input.sourceItemKey },
+      })
+      if (winner) return { id: winner.id, threadUrl: winner.discordThreadUrl, syncState: winner.syncState, skipped: true }
+    }
+    throw err
+  }
 
   const message = buildPostContent({
     customer: input.customer, contact: input.contact, product: input.product, variant: input.variant,
     platform: input.platform, sourceOrderNo: input.sourceOrderNo, orderNoLegacy: input.orderNoLegacy,
-    orderDate, dueDate, dueDateRaw, notes: input.notes, mentions: input.mentions,
+    orderDate, dueDate, dueDateRaw, notes: input.notes,
+    mentions: input.initial?.mentionsInPost === false ? [] : input.mentions,
+    status: input.initial?.status, payment: input.initial?.payment, trackingNo: input.initial?.trackingNo,
+    checklist: input.initial?.checklist,
   })
 
-  return createThreadFor(wp.id, forumChannelId, title, message, input.mentions ?? [])
+  const relayMentions = input.initial?.mentionsInPost === false ? [] : (input.mentions ?? [])
+  return finishInitial(await createThreadFor(wp.id, forumChannelId, title, message, relayMentions), input.initial)
+}
+
+// With `initial`, re-pushes the DB row (status, payment, tracking, tags) to Discord once the thread
+// exists. A failed resync keeps the created row and surfaces in syncState/syncError.
+async function finishInitial(r: CreateWorkingProjectOutcome, initial: unknown): Promise<CreateWorkingProjectOutcome> {
+  if (!initial || r.syncState !== 'ok') return r
+  try {
+    const { discordSynced } = await resyncWorkingProject(r.id)
+    if (discordSynced) return r
+    const row = await prisma.workingProject.findUnique({ where: { id: r.id } })
+    return { ...r, syncState: 'error', syncError: row?.syncError ?? 'resync failed' }
+  } catch (err) {
+    return { ...r, syncState: 'error', syncError: (err as Error).message }
+  }
+}
+
+export type CreateWorkingProjectOutcome = { id: string; threadUrl: string | null; syncState: string; skipped: boolean; syncError?: string }
+
+export type OrderCreateBatch = { created: number; skipped: number; failed: number; errors: string[]; results: CreateWorkingProjectOutcome[] }
+
+type CreateInput = Parameters<typeof createWorkingProject>[0]
+
+// Creates one WP per order unit (a line with qty 2 becomes two WPs). Idempotent per unit key.
+export async function createWorkingProjectsForOrder(input: {
+  source: 'shopee' | 'tokopedia'
+  sourceOrderNo: string
+  units: OrderUnit[]
+  base: Omit<CreateInput, 'source' | 'sourceOrderNo' | 'product' | 'variant' | 'sourceProductId' | 'forumChannelId' | 'orderId' | 'sourceItemKey' | 'itemPrice'> & {
+    forumChannelIdFor: (unit: OrderUnit) => string
+  }
+}): Promise<OrderCreateBatch> {
+  const order = await prisma.marketplaceOrder.upsert({
+    where: { source_sourceOrderNo: { source: input.source, sourceOrderNo: input.sourceOrderNo } },
+    update: {},
+    create: { source: input.source, sourceOrderNo: input.sourceOrderNo },
+  })
+  // A WP without an item key is a legacy combined WP that already stands for the whole order.
+  const legacy = await prisma.workingProject.findFirst({
+    where: { source: input.source, sourceOrderNo: input.sourceOrderNo, sourceItemKey: null },
+  })
+  const { forumChannelIdFor, ...base } = input.base
+  if (legacy) {
+    // Same retry as createWorkingProject: a legacy row whose first thread creation failed
+    // would otherwise read as "already exists" forever.
+    if (!legacy.discordThreadId && legacy.syncState === 'error') {
+      const forum = resolveForumChannelId(input.units[0] ? forumChannelIdFor(input.units[0]) : (legacy.forumChannelId ?? ""))
+      const retried = await createThreadFor(legacy.id, forum, legacy.title, rebuildStarterContent(legacy), legacy.mentions)
+      return { created: 0, skipped: 0, failed: 0, errors: [], results: [retried] }
+    }
+    return { created: 0, skipped: input.units.length, failed: 0, errors: [], results: [] }
+  }
+
+  const results: CreateWorkingProjectOutcome[] = []
+  let created = 0
+  let skipped = 0
+  let failed = 0
+  const errors: string[] = []
+  for (const unit of input.units) {
+    // One failing unit must not abort the rest of the order; it is retried on the next run.
+    try {
+    const r = await createWorkingProject({
+      ...base,
+      source: input.source,
+      sourceOrderNo: input.sourceOrderNo,
+      product: unit.productName,
+      variant: unit.variantName ?? undefined,
+      sourceProductId: unit.productId ?? undefined,
+      forumChannelId: forumChannelIdFor(unit),
+      orderId: order.id,
+      sourceItemKey: unit.itemKey,
+      itemPrice: unit.unitPrice,
+    })
+    results.push(r)
+    if (r.skipped) skipped++
+    else created++
+    } catch (err) {
+      failed++
+      errors.push(`${unit.itemKey}: ${(err as Error).message}`)
+    }
+  }
+  return { created, skipped, failed, errors, results }
+}
+
+// Collapses a per-unit batch into the single-WP response shape the order-row UI expects.
+export function summarizeOrderCreate(r: OrderCreateBatch) {
+  const failedThread = r.results.find((x) => x.syncState === 'error')
+  const first = r.results[0]
+  return {
+    id: first?.id ?? '',
+    threadUrl: first?.threadUrl ?? null,
+    syncState: failedThread || r.failed > 0 ? 'error' : 'ok',
+    // A retried legacy thread is real work, not "already exists".
+    skipped: r.created === 0 && r.failed === 0 && r.results.every((x) => x.skipped),
+    syncError: failedThread?.syncError ?? r.errors[0],
+    created: r.created,
+    skippedCount: r.skipped,
+  }
 }
 
 async function createThreadFor(
   id: string, forumChannelId: string, title: string, message: string, mentions: string[],
-): Promise<{ id: string; threadUrl: string | null; syncState: string; skipped: boolean; syncError?: string }> {
+): Promise<CreateWorkingProjectOutcome> {
   try {
     const { threadId, threadUrl } = await createRelayThread({
       parentId: forumChannelId, name: title, message, mentions, idempotencyKey: id,

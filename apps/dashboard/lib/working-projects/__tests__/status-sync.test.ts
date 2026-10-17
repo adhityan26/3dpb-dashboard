@@ -258,6 +258,33 @@ describe('syncWorkingProjectStatusFromMarketplace', () => {
     expect(updateWorkingProject).toHaveBeenCalledWith('t2', { status: 'Canceled' })
   })
 
+  it('looks up a Shopee order once even when several WPs share it', async () => {
+    ;(prisma.workingProject.findMany as any).mockResolvedValue([
+      { source: 'shopee', sourceOrderNo: 'SN1', discordThreadId: 't1', status: 'Open', shipping: 'J' },
+      { source: 'shopee', sourceOrderNo: 'SN1', discordThreadId: 't2', status: 'Open', shipping: 'J' },
+      { source: 'shopee', sourceOrderNo: 'SN1', discordThreadId: 't3', status: 'Open', shipping: 'J' },
+    ])
+    ;(getOrderDetail as any).mockResolvedValue([{ order_sn: 'SN1', order_status: 'COMPLETED' }])
+    ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
+    const r = await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
+    expect(getOrderDetail).toHaveBeenCalledTimes(1)
+    expect(getOrderDetail).toHaveBeenCalledWith(['SN1'])
+    expect(r.updated).toBe(3)
+  })
+
+  it('does one per-order Tokopedia request for an order with several WPs missing from the tabs', async () => {
+    ;(prisma.workingProject.findMany as any).mockResolvedValue([
+      { source: 'tokopedia', sourceOrderNo: 'TOK9', discordThreadId: 't1', status: 'Open', shipping: 'JNE' },
+      { source: 'tokopedia', sourceOrderNo: 'TOK9', discordThreadId: 't2', status: 'Open', shipping: 'JNE' },
+    ])
+    ;(parseOrder as any).mockReturnValue(null)
+    ;(getOrderById as any).mockResolvedValue({ order_status_module: [{ sku_display_status: 140 }] })
+    ;(updateWorkingProject as any).mockResolvedValue({ ok: true, discordSynced: true })
+    const r = await syncWorkingProjectStatusFromMarketplace({ tokopediaGapMs: 0 })
+    expect(getOrderById).toHaveBeenCalledTimes(1)
+    expect(r.updated).toBe(2)
+  })
+
   it('skips every Tokopedia WP when reading the list tabs hits a captcha, instead of falling back to per-order requests', async () => {
     ;(prisma.workingProject.findMany as any).mockResolvedValue([
       { source: 'tokopedia', sourceOrderNo: 'TOK1', discordThreadId: 't1', status: 'Open', shipping: 'JNE' },

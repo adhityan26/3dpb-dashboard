@@ -29,8 +29,8 @@ describe("parseOrder", () => {
     expect(s.statusCode).toBe(121)
     expect(s.statusLabel).toBe("Dikirim")
     expect(s.products).toEqual([
-      { name: "Kaiju No. 8 Mask", variant: "No Damage", qty: 1, totalPrice: 150000, imageUrl: "https://cdn.example/a.jpg" },
-      { name: "Stand", variant: "", qty: 2, totalPrice: 50000, imageUrl: null },
+      { name: "Kaiju No. 8 Mask", variant: "No Damage", qty: 1, totalPrice: 150000, imageUrl: "https://cdn.example/a.jpg", skuId: "", productId: "", unitPrice: 150000 },
+      { name: "Stand", variant: "", qty: 2, totalPrice: 50000, imageUrl: null, skuId: "", productId: "", unitPrice: 25000 },
     ])
     expect(s.courier).toBe("J&T Express")
     expect(s.serviceType).toBe("Reguler")
@@ -80,5 +80,13 @@ describe("parseOrder", () => {
   it("falls back to last_tracking_no when tracking_no is empty", () => {
     const raw = { ...RAW, delivery_module: [{ tracking_no: "", last_tracking_no: "BACKUP1", shipment_provider_info: { name: "JNE" } }] }
     expect(parseOrder(raw).trackingNo).toBe("BACKUP1")
+  })
+
+  it("reads skuId, productId and the per-unit price", () => {
+    const raw = { ...RAW, sku_module: [{ product_name: "Ring", sku_name: "7", sku_id: 123, product_id: 456, quantity: 2, sku_total_price: { price_val: "273001" } }] }
+    const p = parseOrder(raw).products[0]
+    expect(p.skuId).toBe("123")
+    expect(p.productId).toBe("456")
+    expect(p.unitPrice).toBe(136501)
   })
 })

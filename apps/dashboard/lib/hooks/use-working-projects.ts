@@ -33,6 +33,18 @@ export interface WorkingProject {
   dueDateRaw: string | null
   invoiceAmount: number
   paidAmount?: number
+  itemPrice?: number | null
+  orderId?: string | null
+  sourceItemKey?: string | null
+  order?: {
+    salePrice: number | null
+    feesTotal: number | null
+    netIncome: number | null
+    incomeStatus: string | null
+    incomeSettledAt: string | null
+    quotationId: string | null
+  } | null
+  siblings?: { id: string; itemPrice: number | null; status: string }[]
   notes?: string | null
   shipping?: string | null
   trackingNo?: string | null
@@ -97,6 +109,20 @@ export function useUpdateWorkingProject() {
       }),
     // Returned so mutateAsync resolves only after the list refetch — inline
     // edits rely on this to drop their optimistic value without a flicker.
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: WORKING_PROJECTS_KEY }),
+  })
+}
+
+// Links/unlinks the invoice of a marketplace order (one invoice per order).
+export function useUpdateMarketplaceOrder() {
+  const queryClient = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, quotationId }: { id: string; quotationId: string | null }) =>
+      apiFetch(`/api/working-projects/orders/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ quotationId }),
+      }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: WORKING_PROJECTS_KEY }),
   })
 }

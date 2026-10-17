@@ -29,6 +29,8 @@ export interface ShopeeOrderListResponse {
 }
 
 export interface ShopeeOrderItemDetail {
+  line_item_id?: number
+  cancelled_qty?: number
   item_id: number
   item_name: string
   item_sku?: string

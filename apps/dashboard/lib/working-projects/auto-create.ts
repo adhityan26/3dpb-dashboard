@@ -2,22 +2,20 @@ import { getReadyToShipOrders } from '@/lib/orders/service'
 import { listOrders } from '@/lib/tokopedia/orders'
 import { parseOrder } from '@/lib/tokopedia/parse'
 import {
-  createWorkingProject,
+  createWorkingProjectsForOrder,
   getGLRingProductIds,
   getCategoryProductIds,
   getAutoCreateLastRunDate,
   setAutoCreateLastRunDate,
 } from './service'
 import { detectProductCategory, forumChannelIdForCategory, type CategoryProductIds } from './category'
-import { buildMultiItemProduct } from './format'
+import { expandOrderUnits, orderLinesFromShopee, orderLinesFromTokopedia, type OrderUnit } from './order-units'
 
 interface OrderCandidate {
   source: 'shopee' | 'tokopedia'
   sourceOrderNo: string
-  sourceProductId?: string
   customer: string
-  product: string
-  variant?: string
+  units: OrderUnit[]
   shipping?: string
   orderDateRaw?: string
   dueDateRaw?: string
@@ -59,29 +57,16 @@ async function collectShopeeCandidates(errors: string[]): Promise<OrderCandidate
     // WP too; those ship as-is and need no production tracking). Shopee's
     // own isPreOrder (days_to_ship >= 7, see lib/orders/service.ts) is the
     // signal, same field the Order tab already surfaces.
-    return orders.filter((o) => o.isPreOrder).map((o) => {
-      const first = o.items[0]
-      // Every item on the order becomes part of `product` (see
-      // buildMultiItemProduct) — a single-item order's product/variant
-      // fields stay exactly as before; a multi-item order (including two
-      // line items for the SAME product at different sizes) now keeps all
-      // of them instead of silently dropping everything but items[0].
-      return {
-        source: 'shopee' as const,
-        sourceOrderNo: o.orderSn,
-        // Only the first item's id feeds the curated product-ID category
-        // list — a secondary signal behind the product-name regex, which
-        // runs against the full multi-item `product` string below and so
-        // still finds a ring/topeng/clicker match anywhere in the order.
-        sourceProductId: first?.itemId != null ? String(first.itemId) : undefined,
-        customer: o.buyerUsername ?? o.orderSn,
-        product: buildMultiItemProduct(o.items.map(it => ({ name: it.productName, variant: it.variantName }))),
-        variant: o.items.length <= 1 ? (first?.variantName ?? undefined) : undefined,
-        shipping: o.shippingCarrier ?? undefined,
-        orderDateRaw: isoDate(o.createTime),
-        dueDateRaw: isoDate(o.shipByDate),
-      }
-    })
+    return orders.filter((o) => o.isPreOrder).map((o) => ({
+      source: 'shopee' as const,
+      sourceOrderNo: o.orderSn,
+      customer: o.buyerUsername ?? o.orderSn,
+      // One unit per ordered piece (qty net of cancelled), keyed by Shopee line_item_id.
+      units: expandOrderUnits(orderLinesFromShopee(o.items)),
+      shipping: o.shippingCarrier ?? undefined,
+      orderDateRaw: isoDate(o.createTime),
+      dueDateRaw: isoDate(o.shipByDate),
+    }))
   } catch (err) {
     errors.push(`shopee: gagal ambil order — ${(err as Error).message}`)
     return []
@@ -99,13 +84,11 @@ async function collectTokopediaCandidates(errors: string[]): Promise<OrderCandid
         for (const r of pageOrders) {
           const summary = parseOrder(r)
           if (!summary.orderId || !summary.isPreOrder) continue
-          const first = summary.products[0]
           candidates.push({
             source: 'tokopedia',
             sourceOrderNo: summary.orderId,
             customer: summary.buyerNickname ?? summary.orderId,
-            product: buildMultiItemProduct(summary.products.map(p => ({ name: p.name, variant: p.variant }))),
-            variant: summary.products.length <= 1 ? (first?.variant || undefined) : undefined,
+            units: expandOrderUnits(orderLinesFromTokopedia(summary.products)),
             shipping: summary.courier ?? undefined,
             orderDateRaw: isoDate(summary.orderDate),
             dueDateRaw: isoDate(summary.latestRtsTime),
@@ -125,7 +108,7 @@ async function collectTokopediaCandidates(errors: string[]): Promise<OrderCandid
 /**
  * Scans Shopee + Tokopedia for orders that don't have a Working Project yet
  * and creates one for each, routed to the right Discord forum by product
- * category. Relies on createWorkingProject()'s own (source, sourceOrderNo)
+ * category. Relies on createWorkingProjectsForOrder()'s own per-unit
  * dedupe guard rather than pre-filtering — safe to call repeatedly.
  */
 export async function autoCreateWorkingProjectsFromNewOrders(): Promise<AutoCreateResult> {
@@ -143,29 +126,34 @@ export async function autoCreateWorkingProjectsFromNewOrders(): Promise<AutoCrea
   const result: AutoCreateResult = { scanned: candidates.length, created: 0, skipped: 0, failed: 0, errors }
 
   for (const candidate of candidates) {
-    const category = detectProductCategory({
-      product: candidate.product,
-      sourceProductId: candidate.sourceProductId,
-      configuredProductIds,
-    })
+    // Every unit cancelled: nothing to produce.
+    if (candidate.units.length === 0) {
+      result.skipped++
+      continue
+    }
     try {
-      const created = await createWorkingProject({
+      const batch = await createWorkingProjectsForOrder({
         source: candidate.source,
         sourceOrderNo: candidate.sourceOrderNo,
-        sourceProductId: candidate.sourceProductId,
-        // Was never passed here, so every auto-created WP (355 by 2026-10-04) had a
-        // blank Platform column; the manual "Buat WP" path always set it.
-        platform: candidate.source === 'shopee' ? 'Shopee' : 'Tokopedia',
-        forumChannelId: forumChannelIdForCategory(category),
-        customer: candidate.customer,
-        product: candidate.product,
-        variant: candidate.variant,
-        shipping: candidate.shipping,
-        orderDateRaw: candidate.orderDateRaw,
-        dueDateRaw: candidate.dueDateRaw,
+        units: candidate.units,
+        base: {
+          // Was never passed here, so every auto-created WP (355 by 2026-10-04) had a
+          // blank Platform column; the manual "Buat WP" path always set it.
+          platform: candidate.source === 'shopee' ? 'Shopee' : 'Tokopedia',
+          customer: candidate.customer,
+          shipping: candidate.shipping,
+          orderDateRaw: candidate.orderDateRaw,
+          dueDateRaw: candidate.dueDateRaw,
+          forumChannelIdFor: (u) =>
+            forumChannelIdForCategory(
+              detectProductCategory({ product: u.productName, sourceProductId: u.productId ?? undefined, configuredProductIds }),
+            ),
+        },
       })
-      if (created.skipped) result.skipped++
-      else result.created++
+      result.created += batch.created
+      result.skipped += batch.skipped
+      result.failed += batch.failed
+      errors.push(...batch.errors.map((e) => `${candidate.source}:${candidate.sourceOrderNo}: ${e}`))
     } catch (err) {
       result.failed++
       errors.push(`${candidate.source}:${candidate.sourceOrderNo}: ${(err as Error).message}`)

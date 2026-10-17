@@ -57,13 +57,20 @@ export function parseOrder(raw: TokopediaRawOrder): TokopediaOrderSummary {
     statusCode,
     statusLabel,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    products: Array.isArray(o.sku_module) ? o.sku_module.map((s: any) => ({
-      name: String(s.product_name ?? ""),
-      variant: String(s.sku_name ?? ""),
-      qty: num(s.quantity),
-      totalPrice: priceVal(s.sku_total_price),
-      imageUrl: productImageUrl(s.product_image),
-    })) : [],
+    products: Array.isArray(o.sku_module) ? o.sku_module.map((s: any) => {
+      const qty = num(s.quantity)
+      const totalPrice = priceVal(s.sku_total_price)
+      return {
+        name: String(s.product_name ?? ""),
+        variant: String(s.sku_name ?? ""),
+        qty,
+        totalPrice,
+        imageUrl: productImageUrl(s.product_image),
+        skuId: String(s.sku_id ?? ""),
+        productId: String(s.product_id ?? ""),
+        unitPrice: qty > 0 ? Math.round(totalPrice / qty) : 0,
+      }
+    }) : [],
     courier: delivery?.shipment_provider_info?.name ?? null,
     serviceType: delivery?.logistics_service_info?.logistics_service_name ?? null,
     shippingType: delivery?.logistics_service_info?.logistics_service_level ?? null,

@@ -3,8 +3,14 @@
 import Link from "next/link"
 import { useState } from "react"
 import { useCreateInvoice, useInvoiceList } from "@/lib/hooks/use-invoice"
-import { useUpdateWorkingProject, type WorkingProject } from "@/lib/hooks/use-working-projects"
+import {
+  useUpdateMarketplaceOrder,
+  useUpdateWorkingProject,
+  useWorkingProjects,
+  type WorkingProject,
+} from "@/lib/hooks/use-working-projects"
 import type { QuotationInput } from "@/lib/invoice/types"
+import { buildOrderInvoiceInput } from "@/lib/working-projects/order-invoice"
 
 // Pre-fills a new invoice from the order. The order's `invoiceAmount` becomes
 // one line item (the WP has no per-item breakdown); the user can refine it in
@@ -28,7 +34,9 @@ export function buildInvoiceInput(wp: WorkingProject): QuotationInput {
 }
 
 // 🧾 button + create/link modal, used in each Working Project row. The link
-// is stored on WorkingProject.quotationId (nullable, no FK).
+// is stored on MarketplaceOrder.quotationId for marketplace WPs (one invoice
+// per order, covering all its WPs) and on WorkingProject.quotationId for
+// manual WPs (nullable, no FK).
 export function WorkingProjectInvoiceButton({ wp }: { wp: WorkingProject }) {
   const [open, setOpen] = useState(false)
   const [pick, setPick] = useState("")
@@ -36,8 +44,21 @@ export function WorkingProjectInvoiceButton({ wp }: { wp: WorkingProject }) {
   const { data: invoices } = useInvoiceList()
   const createInvoice = useCreateInvoice()
   const update = useUpdateWorkingProject()
-  const busy = createInvoice.isPending || update.isPending
-  const linked = wp.quotationId ? (invoices ?? []).find((i) => i.id === wp.quotationId) : undefined
+  const updateOrder = useUpdateMarketplaceOrder()
+  const { data: allWps } = useWorkingProjects()
+  const busy = createInvoice.isPending || update.isPending || updateOrder.isPending
+
+  const orderMode = !!wp.orderId
+  const orderWps = orderMode ? (allWps ?? []).filter((w) => w.orderId === wp.orderId) : []
+  // The list may not contain this WP yet (loading); fall back to the WP itself.
+  const invoiceWps = orderWps.length ? orderWps : [wp]
+  const quotationId = orderMode ? (wp.order?.quotationId ?? null) : (wp.quotationId ?? null)
+  const linked = quotationId ? (invoices ?? []).find((i) => i.id === quotationId) : undefined
+
+  const setQuotation = (id: string | null) =>
+    orderMode
+      ? updateOrder.mutateAsync({ id: wp.orderId as string, quotationId: id })
+      : update.mutateAsync({ id: wp.id, patch: { quotationId: id } })
 
   async function run(fn: () => Promise<unknown>) {
     setError(null)
@@ -50,19 +71,20 @@ export function WorkingProjectInvoiceButton({ wp }: { wp: WorkingProject }) {
 
   const createAndLink = () =>
     run(async () => {
-      const created = await createInvoice.mutateAsync(buildInvoiceInput(wp))
-      await update.mutateAsync({ id: wp.id, patch: { quotationId: created.id } })
+      const input = orderMode ? buildOrderInvoiceInput(invoiceWps) : buildInvoiceInput(wp)
+      const created = await createInvoice.mutateAsync(input)
+      await setQuotation(created.id)
     })
-  const link = () => run(() => update.mutateAsync({ id: wp.id, patch: { quotationId: pick } }))
-  const unlink = () => run(() => update.mutateAsync({ id: wp.id, patch: { quotationId: null } }))
+  const link = () => run(() => setQuotation(pick))
+  const unlink = () => run(() => setQuotation(null))
 
   return (
     <>
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className={`hover:opacity-80 text-base leading-none ${wp.quotationId ? "g-accent" : "opacity-60"}`}
-        title={wp.quotationId ? "Invoice terhubung" : "Buat / tautkan invoice"}
+        className={`hover:opacity-80 text-base leading-none ${quotationId ? "g-accent" : "opacity-60"}`}
+        title={quotationId ? "Invoice terhubung" : "Buat / tautkan invoice"}
         aria-label={`Invoice ${wp.sourceOrderNo ?? wp.customer}`}
       >
         🧾
@@ -85,15 +107,21 @@ export function WorkingProjectInvoiceButton({ wp }: { wp: WorkingProject }) {
               <button onClick={() => setOpen(false)} className="g-t4 text-lg leading-none" aria-label="Tutup">✕</button>
             </div>
 
-            {wp.quotationId ? (
+            {orderMode ? (
+              <p className="g-t4 text-xs mb-3">
+                Invoice per order: order {wp.sourceOrderNo} ({invoiceWps.length} WP)
+              </p>
+            ) : null}
+
+            {quotationId ? (
               <div className="space-y-3 text-sm">
                 <p className="g-t2">
-                  Terhubung ke invoice <b className="g-t1">{linked?.nomor ?? wp.quotationId}</b>
+                  Terhubung ke invoice <b className="g-t1">{linked?.nomor ?? quotationId}</b>
                   {linked ? ` (${linked.status})` : ""}.
                 </p>
                 <div className="flex gap-2">
                   <Link
-                    href={`/invoice?open=${wp.quotationId}`}
+                    href={`/invoice?open=${quotationId}`}
                     className="flex-1 h-10 inline-flex items-center justify-center rounded-[5px] text-[13px] font-semibold text-white"
                     style={{ background: "linear-gradient(135deg, #5055e8, #818cf8)" }}
                   >
@@ -108,7 +136,9 @@ export function WorkingProjectInvoiceButton({ wp }: { wp: WorkingProject }) {
               <div className="space-y-4 text-sm">
                 <div>
                   <p className="g-t4 text-xs mb-2">
-                    Isi otomatis dari order ini (customer, produk, nominal Rp{wp.invoiceAmount.toLocaleString("id-ID")}).
+                    {orderMode
+                      ? `Isi otomatis dari semua WP order ini (${invoiceWps.length} WP).`
+                      : `Isi otomatis dari order ini (customer, produk, nominal Rp${wp.invoiceAmount.toLocaleString("id-ID")}).`}
                   </p>
                   <button
                     onClick={createAndLink}

@@ -626,6 +626,33 @@ model WorkingProject {
   appliedTags      String[] @default([])
   remindersSent    Int[]    @default([])
   quotationId      String?
+  // Per-unit WP under a marketplace order; income lives on MarketplaceOrder and is
+  // allocated to WPs by itemPrice weight (see lib/working-projects/income-allocation.ts).
+  orderId          String?
+  order            MarketplaceOrder? @relation(fields: [orderId], references: [id])
+  sourceItemKey    String?
+  itemPrice        Int?
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
+
+  @@unique([source, sourceOrderNo, sourceItemKey])
+  @@index([orderId])
+}
+
+model MarketplaceOrder {
+  id              String   @id @default(cuid())
+  source          String   // 'shopee' | 'tokopedia'
+  sourceOrderNo   String
+  salePrice       Int?
+  feesTotal       Int?
+  netIncome       Int?
+  incomeStatus    String?  // 'estimated' | 'settled' | 'unavailable'
+  incomeSettledAt DateTime?
+  incomeSyncedAt  DateTime?
+  quotationId     String?  // invoice of this order (no FK, like WorkingProject.quotationId)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  projects        WorkingProject[]
+
+  @@unique([source, sourceOrderNo])
 }

@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-vi.mock('@/lib/working-projects/service', () => ({ createWorkingProject: vi.fn() }))
+vi.mock('@/lib/working-projects/service', () => ({ createWorkingProject: vi.fn(), createWorkingProjectsForOrder: vi.fn(), summarizeOrderCreate: vi.fn((r: any) => ({ created: r.created })) }))
 vi.mock('@/lib/bot/auth', () => ({ requireBotToken: vi.fn(() => true) }))
 vi.mock('@/lib/db', () => ({ prisma: { workingProject: { findMany: vi.fn() } } }))
 import { GET, POST } from '../route'
-import { createWorkingProject } from '@/lib/working-projects/service'
+import { createWorkingProject, createWorkingProjectsForOrder } from '@/lib/working-projects/service'
 import { requireBotToken } from '@/lib/bot/auth'
 import { prisma } from '@/lib/db'
 
@@ -31,6 +31,26 @@ describe('POST /api/bot/working-projects', () => {
     expect(res.status).toBe(201)
     const body = await res.json()
     expect(body.threadUrl).toBe('https://discord/t1')
+  })
+
+  it('falls back to one combined WP (with a warning) for a marketplace order without units', async () => {
+    ;(createWorkingProject as any).mockResolvedValue({ id: 'wp9', threadUrl: 'u', syncState: 'ok', skipped: false })
+    ;(createWorkingProjectsForOrder as any).mockClear()
+    const res = await POST(req({ source: 'tokopedia', sourceOrderNo: 'T1', forumChannelId: 'x', customer: 'y', product: 'z' }))
+    expect(res.status).toBe(201)
+    const body = await res.json()
+    expect(body.id).toBe('wp9')
+    expect(body.warning).toBe('units not provided: created a combined WP; send units for per-unit WPs')
+    expect(createWorkingProjectsForOrder).not.toHaveBeenCalled()
+    expect((createWorkingProject as any).mock.calls.at(-1)[0].sourceItemKey).toBeUndefined()
+  })
+
+  it('400s for malformed units without calling the service', async () => {
+    ;(createWorkingProjectsForOrder as any).mockClear()
+    const res = await POST(req({ source: 'shopee', sourceOrderNo: 'S1', forumChannelId: 'x', customer: 'y', product: 'z', units: [{ itemKey: 'a' }] }))
+    expect(res.status).toBe(400)
+    expect((await res.json()).error).toMatch(/^units tidak valid/)
+    expect(createWorkingProjectsForOrder).not.toHaveBeenCalled()
   })
 
   it('401s when requireBotToken returns false', async () => {

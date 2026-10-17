@@ -151,7 +151,8 @@ export async function syncWorkingProjectStatusFromMarketplace(
   // one. This job already re-fetches the order anyway for status, so it
   // backfills `shipping` too whenever the WP doesn't have one yet.
   const shopeeDetailBySn = new Map<string, { order_status: string; shipping_carrier?: string }>()
-  const sns = shopeeRows.map((r) => r.sourceOrderNo!)
+  // An order with several per-unit WPs must take one slot in the batch, not one per WP.
+  const sns = [...new Set(shopeeRows.map((r) => r.sourceOrderNo!))]
   for (let i = 0; i < sns.length; i += 50) {
     const batch = sns.slice(i, i + 50)
     try {
@@ -197,11 +198,12 @@ export async function syncWorkingProjectStatusFromMarketplace(
   }
 
   let byIdCalls = 0
+  const byIdCache = new Map<string, { code: number | null | undefined; courier: string | null }>()
   for (let i = 0; i < tokopediaRows.length; i++) {
     const r = tokopediaRows[i]
     const known = tokoLive.get(r.sourceOrderNo!)
     // Only real per-order requests are paced; a WP already classified from the list tabs costs nothing.
-    if (!known && byIdCalls++ > 0 && gapMs > 0) await sleep(gapMs)
+    if (!known && !byIdCache.has(r.sourceOrderNo!) && byIdCalls++ > 0 && gapMs > 0) await sleep(gapMs)
     let statusTarget: string | null = null
     let shippingTarget: string | null = null
     try {
@@ -211,9 +213,18 @@ export async function syncWorkingProjectStatusFromMarketplace(
         code = known.code
         courier = known.courier
       } else {
-        const raw = await getOrderById(r.sourceOrderNo!)
-        code = (raw as { order_status_module?: { sku_display_status?: number }[] } | null)?.order_status_module?.[0]?.sku_display_status
-        courier = raw ? (parseOrder(raw)?.courier ?? null) : null
+        // Sibling WPs of one order share a single per-order request for the whole run.
+        let cached = byIdCache.get(r.sourceOrderNo!)
+        if (!cached) {
+          const raw = await getOrderById(r.sourceOrderNo!)
+          cached = {
+            code: (raw as { order_status_module?: { sku_display_status?: number }[] } | null)?.order_status_module?.[0]?.sku_display_status,
+            courier: raw ? (parseOrder(raw)?.courier ?? null) : null,
+          }
+          byIdCache.set(r.sourceOrderNo!, cached)
+        }
+        code = cached.code
+        courier = cached.courier
       }
       const classified = classifyTokopediaStatus(code ?? undefined)
       statusTarget = classified && classified !== r.status ? classified : null

@@ -1,5 +1,8 @@
 export interface OrderItemSummary {
+  lineItemId: number | null
   itemId: number
+  modelId: number | null
+  cancelledQty: number
   productName: string
   variantName: string | null
   sku: string | null
