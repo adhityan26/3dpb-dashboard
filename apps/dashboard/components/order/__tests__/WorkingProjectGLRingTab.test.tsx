@@ -97,7 +97,7 @@ function renderWithClient(client = new QueryClient()) {
   return { client, ...render(<WorkingProjectGLRingTab />, { wrapper }) }
 }
 
-// The "Progress per Produk & Ukuran" breakdown table repeats the same
+// The "Progress per Ukuran" breakdown table repeats the same
 // product/size text as the main data table, so plain screen.getByText
 // queries for those become ambiguous — scope to the main table (always
 // the last <table> on the page; the breakdown table renders above it).
@@ -202,7 +202,7 @@ describe('WorkingProjectGLRingTab', () => {
   it('the per-produk-dan-ukuran breakdown is collapsed by default and opens on click', () => {
     renderWithClient()
     expect(screen.getAllByRole('table')).toHaveLength(1) // just the main table
-    fireEvent.click(screen.getByRole('button', { name: /Progress per Produk & Ukuran/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Progress per Ukuran/ }))
     expect(screen.getAllByRole('table')).toHaveLength(2)
   })
 
@@ -210,7 +210,7 @@ describe('WorkingProjectGLRingTab', () => {
     renderWithClient()
     // Isolate wp6 (single-item order, "Print Frame" checklist item done).
     fireEvent.change(screen.getByPlaceholderText(/cari/i), { target: { value: 'SN6' } })
-    fireEvent.click(screen.getByRole('button', { name: /Progress per Produk & Ukuran/ }))
+    fireEvent.click(screen.getByRole('button', { name: /Progress per Ukuran/ }))
     const breakdownTable = within(screen.getAllByRole('table')[0])
     // wp6's product "Green Lantern Ring 2026 3D Print" matches the default
     // "GL Ring 2026" group (keyword "gl"/"green lantern") — same grouping
