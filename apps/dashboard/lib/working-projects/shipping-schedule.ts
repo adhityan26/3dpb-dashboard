@@ -150,8 +150,15 @@ export const NO_DUE_DATE_COLUMN = 'no-date'
  */
 export function resolveShippingTableGroup(product: string, groups: ShippingTableGroup[]): ShippingTableGroup | null {
   const lower = product.toLowerCase()
+  // `product` is usually variantShort(entry), which abbreviates "Green Lantern"
+  // to "GL", while keywords picked from the catalog hold the full marketplace
+  // name — match against the expanded form too, or those keywords never hit.
+  const expanded = lower.replace(/\bgl\b/g, 'green lantern')
   for (const group of groups) {
-    if (group.keywords.some((k) => k.trim() && lower.includes(k.trim().toLowerCase()))) return group
+    if (group.keywords.some((k) => {
+      const kw = k.trim().toLowerCase()
+      return kw && (lower.includes(kw) || expanded.includes(kw))
+    })) return group
   }
   return null
 }

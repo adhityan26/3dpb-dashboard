@@ -2,7 +2,7 @@
 import { Fragment, useMemo, useState } from 'react'
 import { useWorkingProjects, useUpdateWorkingProject, useSetChecklistByLabel, useGLRingProductIds, useGLRingBaseBoreMm, useShippingTableGroups, type WorkingProject } from '@/lib/hooks/use-working-projects'
 import { splitProductVariants, variantShort, parseSizeFromVariantField, isGLRing, resolveVariantEntrySize } from '@/lib/working-projects/format'
-import { resolveShippingTableGroup, DEFAULT_SHIPPING_TABLE_GROUPS, GENERAL_TABLE_TITLE, type ShippingTableGroup, type ShippingTableRowBy } from '@/lib/working-projects/shipping-schedule'
+import { resolveShippingTableGroup, DEFAULT_SHIPPING_TABLE_GROUPS, GENERAL_TABLE_TITLE, type ShippingTableGroup } from '@/lib/working-projects/shipping-schedule'
 import { computeScale } from '@/lib/ring-resizer/sizing'
 import { WorkingProjectEditModal } from './WorkingProjectEditModal'
 import { downloadRowsAsXlsx } from '@/lib/export/xlsx'
@@ -341,12 +341,11 @@ export function WorkingProjectGLRingTab() {
   // together just because they're both rings — a product matching no
   // configured table falls into "General", same as Jadwal Kirim.
   const stepBreakdown = useMemo(() => {
-    const tables = new Map<string, { title: string; rowBy: ShippingTableRowBy; rows: RingRow[] }>()
+    const tables = new Map<string, { title: string; rows: RingRow[] }>()
     for (const r of rows) {
       const group = resolveShippingTableGroup(r.key, tableGroups)
       const title = group?.title ?? GENERAL_TABLE_TITLE
-      const rowBy: ShippingTableRowBy = group?.rowBy ?? 'produk'
-      if (!tables.has(title)) tables.set(title, { title, rowBy, rows: [] })
+      if (!tables.has(title)) tables.set(title, { title, rows: [] })
       tables.get(title)!.rows.push(r)
     }
 
@@ -358,14 +357,15 @@ export function WorkingProjectGLRingTab() {
         const subGroups = new Map<string, RingRow[]>()
         for (const r of table.rows) {
           const sizeLabel = r.usSize ? `US ${r.usSize}` : 'Tanpa Ukuran'
-          const label = table.rowBy === 'variant' ? sizeLabel : `${r.key} · ${sizeLabel}`
+          // One table = one product, so rows are distinct by size only.
+          const label = sizeLabel
           if (!subGroups.has(label)) subGroups.set(label, [])
           subGroups.get(label)!.push(r)
         }
         const subRows = [...subGroups.entries()]
           .sort(([a], [b]) => {
-            const aEmpty = a.endsWith('Tanpa Ukuran')
-            const bEmpty = b.endsWith('Tanpa Ukuran')
+            const aEmpty = a === 'Tanpa Ukuran'
+            const bEmpty = b === 'Tanpa Ukuran'
             if (aEmpty !== bEmpty) return aEmpty ? 1 : -1
             return a.localeCompare(b, 'id', { numeric: true })
           })
@@ -424,7 +424,7 @@ export function WorkingProjectGLRingTab() {
             className="w-full flex items-center justify-between px-3 py-2 text-xs g-t4 hover:g-t2"
           >
             <span>
-              📊 Progress per Produk &amp; Ukuran{dueDateFrom || dueDateTo ? ` (${dueDateFrom || '...'} s/d ${dueDateTo || '...'})` : ''}
+              📊 Progress per Ukuran{dueDateFrom || dueDateTo ? ` (${dueDateFrom || '...'} s/d ${dueDateTo || '...'})` : ''}
             </span>
             <span>{summaryOpen ? '▲ Sembunyikan' : '▼ Tampilkan'}</span>
           </button>
@@ -434,7 +434,6 @@ export function WorkingProjectGLRingTab() {
                 <thead className="uppercase" style={{ background: 'var(--g-card)' }}>
                   <tr>
                     <th className={`${thBase} text-center`}>Total</th>
-                    <th className={thBase}>Produk</th>
                     <th className={thBase}>Ukuran</th>
                     {STEP_TYPES.map(s => <th key={s} className={`${thBase} text-center`}>{s}</th>)}
                   </tr>
@@ -443,7 +442,7 @@ export function WorkingProjectGLRingTab() {
                   {stepBreakdown.map(table => (
                     <Fragment key={table.title}>
                       <tr className="border-b dark:border-white/5 border-black/5" style={{ background: 'var(--g-card)' }}>
-                        <td colSpan={STEP_TYPES.length + 3} className="px-3 py-1.5 text-xs font-semibold g-t2">{table.title}</td>
+                        <td colSpan={STEP_TYPES.length + 2} className="px-3 py-1.5 text-xs font-semibold g-t2">{table.title}</td>
                       </tr>
                       {table.subRows.map(sub => (
                         <tr key={sub.label} className="border-b dark:border-white/5 border-black/5">
@@ -466,7 +465,7 @@ export function WorkingProjectGLRingTab() {
                               </span>
                             </div>
                           </td>
-                          <td className={tdBase} colSpan={2}>{sub.label}</td>
+                          <td className={tdBase}>{sub.label}</td>
                           {sub.steps.map(({ step: s, done, delta }) => (
                             <td key={s} className={`${tdBase} text-center`}>
                               <div className="flex items-center justify-center gap-1.5">
