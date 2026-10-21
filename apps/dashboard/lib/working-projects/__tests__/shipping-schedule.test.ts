@@ -261,3 +261,10 @@ describe('dateRangeColumns', () => {
     expect(cols.length).toBeLessThanOrEqual(62)
   })
 })
+
+describe('resolveShippingTableGroup with abbreviated GL names', () => {
+  it('matches a full-name keyword against the "GL"-abbreviated product', () => {
+    const groups = [{ title: 'GL Ring Cosplay', keywords: ['3D Print Green Lantern Ring Cosplay'], rowBy: 'variant' as const }]
+    expect(resolveShippingTableGroup('3D Print GL Ring Cosplay', groups)?.title).toBe('GL Ring Cosplay')
+  })
+})
